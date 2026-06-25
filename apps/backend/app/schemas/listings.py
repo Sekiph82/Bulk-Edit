@@ -68,8 +68,11 @@ class ListingListItemResponse(BaseModel):
     price_divisor: int | None
     currency_code: str | None
     quantity: int | None
+    sku: str | None = None
     has_variations: bool
+    thumbnail_url: str | None = None
     last_synced_at: datetime | None
+    etsy_updated_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -79,7 +82,6 @@ class ListingListItemResponse(BaseModel):
 class ListingDetailResponse(ListingListItemResponse):
     description: str | None
     url: str | None
-    sku: str | None
     tags: Any
     materials: Any
     taxonomy_id: str | None
@@ -93,6 +95,8 @@ class ListingDetailResponse(ListingListItemResponse):
     is_supply: bool | None
     is_customizable: bool | None
     is_personalizable: bool | None
+    personalization_is_required: bool | None = None
+    personalization_char_count_max: int | None = None
     personalization_instructions: str | None
     item_weight: Any
     item_weight_unit: str | None
@@ -100,7 +104,6 @@ class ListingDetailResponse(ListingListItemResponse):
     item_width: Any
     item_height: Any
     item_dimensions_unit: str | None
-    etsy_updated_at: datetime | None
 
     model_config = {"from_attributes": True}
 
@@ -110,3 +113,4 @@ class ListingPageResponse(BaseModel):
     page: int
     per_page: int
     total: int
+    filters: dict[str, Any] | None = None

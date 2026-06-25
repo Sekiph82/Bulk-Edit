@@ -148,6 +148,22 @@ Mirrors is_stripe_configured() pattern. `GET /etsy/authorize` returns 503 `"Etsy
 
 ---
 
+## 2026-06-25 (Sprint 6)
+
+### [BACKEND] Batch thumbnail fetch: 2 queries per page, not N+1
+`GET /listings` needs thumbnail_url (first image) for each listing on the page. Fetching images per-listing = N+1 queries. Solution: collect listing IDs from page result, run one `SELECT listing_id, url_570xN FROM listing_images WHERE listing_id IN (...)` ordered by rank ASC, build dict keyed by listing_id, inject via `model_copy(update={"thumbnail_url": ...})`. Total: 3 queries per page request (count, listings, thumbnails).
+
+### [BACKEND] sort_by whitelist VALID_SORT_COLS + 400 on invalid
+`getattr(Listing, sort_by)` would expose any SQLAlchemy column attribute including internal ones. Fixed with explicit `VALID_SORT_COLS` set. Returns 400 with readable error listing allowed values. Same pattern for sort_dir (asc/desc only).
+
+### [BACKEND] Cross-DB JSON tag search: cast to String + ILIKE
+`Listing.tags` is a JSON column. To search for a tag substring across SQLite and PostgreSQL without native JSONB operators: `cast(Listing.tags, String).ilike(f"%{tag}%")`. Works because SQLite stores JSON as text and PostgreSQL's cast to TEXT gives the JSON representation. Not semantically correct (could match substrings in keys), acceptable for MVP tag filter.
+
+### [FRONTEND] Column visibility and saved views in localStorage (not DB)
+At MVP scale, column preferences and saved filter views are user-device-specific and low-stakes. localStorage avoids a DB migration and API endpoint. Can migrate to DB-backed user preferences in Sprint 17 (admin/settings sprint) if multi-device sync becomes a requirement.
+
+---
+
 ## 2026-06-25 (Sprint 5)
 
 ### [SYNC] Inline sync for MVP, Celery deferred to Sprint 8

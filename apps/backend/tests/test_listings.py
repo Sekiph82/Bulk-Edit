@@ -557,3 +557,309 @@ async def test_max_listings_plan_gate(client, db_session):
     listings = result.scalars().all()
     # Free plan caps at 25
     assert len(listings) <= 25
+
+
+# ---------------------------------------------------------------------------
+# Sprint 6: new filter tests
+# ---------------------------------------------------------------------------
+
+async def _setup_filter_org(client, db_session, email_prefix: str):
+    """Register user, return (token, org_id, shop)."""
+    from app.models.organization_member import OrganizationMember
+    from sqlalchemy import select
+    user = {
+        "email": f"{email_prefix}@example.com",
+        "password": "password123",
+        "full_name": "Filter User",
+        "organization_name": f"{email_prefix} Org",
+    }
+    token = await _register_and_login(client, user)
+    result = await db_session.execute(
+        select(OrganizationMember).order_by(OrganizationMember.created_at.desc()).limit(1)
+    )
+    member = result.scalar_one()
+    org_id = member.organization_id
+    shop, _ = await _setup_connected_shop(db_session, org_id)
+    return token, org_id, shop
+
+
+async def test_filter_by_tag(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_tag")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="t001",
+                            title="Handmade Mug", state="active", tags=["handmade", "gift"]))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="t002",
+                            title="Vintage Lamp", state="active", tags=["vintage", "decor"]))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?tag=handmade", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["title"] == "Handmade Mug"
+
+
+async def test_filter_by_has_variations_true(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_hv_true")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="hv001",
+                            title="With Vars", state="active", has_variations=True))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="hv002",
+                            title="No Vars", state="active", has_variations=False))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?has_variations=true", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["title"] == "With Vars"
+
+
+async def test_filter_by_has_variations_false(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_hv_false")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="hf001",
+                            title="With Vars", state="active", has_variations=True))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="hf002",
+                            title="No Vars", state="active", has_variations=False))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?has_variations=false", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["title"] == "No Vars"
+
+
+async def test_filter_by_price_min(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_pmin")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="pm001",
+                            title="Cheap", state="active", price_amount=500))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="pm002",
+                            title="Expensive", state="active", price_amount=2000))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?price_min=1000", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["title"] == "Expensive"
+
+
+async def test_filter_by_price_max(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_pmax")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="px001",
+                            title="Cheap", state="active", price_amount=500))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="px002",
+                            title="Expensive", state="active", price_amount=2000))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?price_max=999", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["title"] == "Cheap"
+
+
+async def test_filter_by_price_range(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_prange")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="pr001",
+                            title="Too Cheap", state="active", price_amount=200))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="pr002",
+                            title="Just Right", state="active", price_amount=1000))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="pr003",
+                            title="Too Expensive", state="active", price_amount=3000))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?price_min=500&price_max=1500", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["title"] == "Just Right"
+
+
+async def test_filter_by_quantity_min(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_qmin")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="qn001",
+                            title="Low Stock", state="active", quantity=1))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="qn002",
+                            title="High Stock", state="active", quantity=10))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?quantity_min=5", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["title"] == "High Stock"
+
+
+async def test_filter_by_quantity_max(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_qmax")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="qx001",
+                            title="Low Stock", state="active", quantity=1))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="qx002",
+                            title="High Stock", state="active", quantity=10))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?quantity_max=5", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["title"] == "Low Stock"
+
+
+async def test_filter_by_section_id(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_sec")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="sc001",
+                            title="In Section", state="active", section_id="sec_123"))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="sc002",
+                            title="No Section", state="active", section_id=None))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?section_id=sec_123", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["title"] == "In Section"
+
+
+async def test_filter_by_taxonomy_id(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_tax")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="tx001",
+                            title="Taxon Match", state="active", taxonomy_id="taxon_456"))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="tx002",
+                            title="Taxon No Match", state="active", taxonomy_id="taxon_999"))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?taxonomy_id=taxon_456", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["title"] == "Taxon Match"
+
+
+async def test_filter_by_is_personalizable(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_pers")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="pe001",
+                            title="Personalizable", state="active", is_personalizable=True))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="pe002",
+                            title="Not Personalizable", state="active", is_personalizable=False))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?is_personalizable=true", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["title"] == "Personalizable"
+
+
+async def test_filter_by_is_customizable(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_cust")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="cu001",
+                            title="Customizable", state="active", is_customizable=True))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="cu002",
+                            title="Not Customizable", state="active", is_customizable=False))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?is_customizable=true", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["title"] == "Customizable"
+
+
+async def test_invalid_sort_by_returns_400(client):
+    token = await _register_and_login(client, {"email": "bad_sort@example.com", "password": "password123", "full_name": "B", "organization_name": "Bad Sort Org"})
+    r = await client.get("/api/v1/listings?sort_by=malicious_field", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 400
+    assert "sort_by" in r.json()["detail"].lower()
+
+
+async def test_invalid_sort_dir_returns_400(client):
+    token = await _register_and_login(client, {"email": "bad_dir@example.com", "password": "password123", "full_name": "B", "organization_name": "Bad Dir Org"})
+    r = await client.get("/api/v1/listings?sort_dir=sideways", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 400
+    assert "sort_dir" in r.json()["detail"].lower()
+
+
+async def test_sort_by_price_asc(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_sort_price")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="sp001",
+                            title="Mid", state="active", price_amount=1000))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="sp002",
+                            title="Cheapest", state="active", price_amount=100))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="sp003",
+                            title="Priciest", state="active", price_amount=5000))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?sort_by=price_amount&sort_dir=asc", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    prices = [item["price_amount"] for item in data["items"]]
+    assert prices == sorted(prices)
+
+
+async def test_sort_by_price_desc(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_sort_price_d")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="sd001",
+                            title="Mid", state="active", price_amount=1000))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="sd002",
+                            title="Cheapest", state="active", price_amount=100))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="sd003",
+                            title="Priciest", state="active", price_amount=5000))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?sort_by=price_amount&sort_dir=desc", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    prices = [item["price_amount"] for item in data["items"]]
+    assert prices == sorted(prices, reverse=True)
+
+
+async def test_filters_metadata_in_response(client, db_session):
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_meta")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="fm001",
+                            title="Active Item", state="active"))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?state=active&search=Active", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["filters"] is not None
+    assert data["filters"]["state"] == "active"
+    assert data["filters"]["search"] == "Active"
+
+
+async def test_no_filters_metadata_is_none(client):
+    token = await _register_and_login(client, {"email": "no_filter@example.com", "password": "password123", "full_name": "N", "organization_name": "No Filter Org"})
+    r = await client.get("/api/v1/listings", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["filters"] is None

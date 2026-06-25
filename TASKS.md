@@ -167,15 +167,17 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 6: Listings Grid
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Build paginated, filterable listings grid (frontend)
-- [ ] Add search, filter by status/section/tag
-- [ ] Add multi-select checkboxes
-- [ ] Add listing thumbnail previews
-- [ ] Add sort controls
-- [ ] Build listing detail sidebar
-- [ ] Commit and push
+- [x] Add 10 new backend filters: tag, has_variations, price_min/max, quantity_min/max, section_id, taxonomy_id, is_personalizable, is_customizable
+- [x] VALID_SORT_COLS whitelist + 400 on invalid sort_by / sort_dir
+- [x] Batch thumbnail fetch (2 queries per page, no N+1)
+- [x] thumbnail_url, sku, etsy_updated_at added to ListingListItemResponse
+- [x] filters metadata field added to ListingPageResponse
+- [x] 18 new filter/sort tests — full suite 93/93 PASS
+- [x] Create apps/frontend/lib/api.ts — typed API client with all helpers
+- [x] Rewrite apps/frontend/app/listings/page.tsx — state tabs, advanced filter panel, column visibility (localStorage), multi-select checkboxes, sort controls, thumbnail preview, detail sidebar, saved views (localStorage), summary cards
+- [x] Commit and push
 
 ---
 

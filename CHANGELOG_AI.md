@@ -4,6 +4,31 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 Sprint 6 — Listings Grid UX
+
+**Skills active:** 07 backend-api, 08 frontend-ui, 20 testing-qa, 01 documentation-handoff
+
+**Completed:**
+- Updated `app/schemas/listings.py` — added `thumbnail_url`, `sku`, `etsy_updated_at` to `ListingListItemResponse`; `filters: dict[str, Any] | None` to `ListingPageResponse`; `personalization_is_required`, `personalization_char_count_max` to `ListingDetailResponse`
+- Rewrote `app/api/v1/listings.py` — `VALID_SORT_COLS` whitelist, 400 on invalid sort_by/sort_dir, 10 new query filters (tag, has_variations, price_min/max, quantity_min/max, section_id, taxonomy_id, is_personalizable, is_customizable), batch thumbnail fetch (one IN query per page), `model_copy(update={"thumbnail_url": ...})` injection, `active_filters` metadata in response
+- Extended `tests/test_listings.py` — 18 new tests: all 10 new filters, sort_by asc/desc, invalid sort 400, filters metadata, no-filters null. Full suite: 93/93 PASSED
+- Created `apps/frontend/lib/api.ts` — typed API client: `ApiError`, `apiFetch`, `getShops`, `getListings`, `getListing`, `getListingImages`, `getListingVideos`, `getListingVariations`, `syncShop`, `logoutLocalSession`; full TypeScript types for all response shapes
+- Rewrote `apps/frontend/app/listings/page.tsx` — state tabs (All/Active/Inactive/Draft/Expired), advanced filter panel (collapsible, 10 filter fields), saved views (localStorage), column visibility dropdown (localStorage-persisted), multi-select checkboxes with select-all, sortable column headers with ↑↓ indicator, thumbnail preview (9×9 rounded image), detail sidebar (slide-in, full listing detail + tags + description + Etsy link), summary cards (total page, selected, active, out-of-stock)
+
+**Test results:** 93/93 PASSED (18 new + 75 existing)
+
+**Decisions made:**
+- Batch thumbnail: 2 queries per page (count + images IN), no N+1 — see DECISIONS.md
+- Cross-DB JSON tag search via `cast(Listing.tags, String).ilike(...)` — works SQLite + PostgreSQL
+- Column visibility and saved views stored in localStorage (no DB table needed at MVP scale)
+- Bulk Edit button disabled placeholder in grid — actual flow wired in Sprint 7
+
+**Blockers:** None
+
+**Next:** Sprint 7 — Bulk Edit Preview Engine
+
+---
+
 ## 2026-06-25 Sprint 5 — Etsy Listing Sync
 
 **Skills active:** 11 etsy-integration, 06 database-modeling, 07 backend-api, 08 frontend-ui, 14 background-jobs, 10 billing-stripe, 20 testing-qa, 01 documentation-handoff

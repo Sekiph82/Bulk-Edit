@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 5 — Etsy Listing Sync — COMPLETE**
+**Sprint 6 — Listings Grid UX — COMPLETE**
 
 ## Status
 
-`Sprint 5 COMPLETE — Ready for Sprint 6`
+`Sprint 6 COMPLETE — Ready for Sprint 7`
 
 ## Last Updated
 
@@ -24,6 +24,7 @@ None (between sprints)
 - Sprint 3: Stripe Billing and Feature Gates ✓
 - Sprint 4: Etsy OAuth2 PKCE Flow ✓
 - Sprint 5: Etsy Listing Sync ✓
+- Sprint 6: Listings Grid UX ✓
 
 ## Blockers
 
@@ -33,9 +34,10 @@ None
 
 - `anyio==4.6.2` in requirements-dev.txt is yanked. Works fine. Upgrade when 4.7.0 stable.
 - Frontend `npm install` not run — node_modules absent. Run `npm install` or `docker compose up`.
-- Etsy access token auto-refresh not fully implemented. If token expired, sync logs warning but continues (Etsy may still accept briefly). Full auto-refresh in Sprint 8.
-- `fetch_listing_videos` best-effort: some Etsy shops don't have a video API endpoint. Returns empty list on 404/405.
-- Inline sync blocks HTTP thread. Celery background task deferred to Sprint 8 hardening.
+- Etsy access token auto-refresh not fully implemented. Full auto-refresh in Sprint 8.
+- `fetch_listing_videos` best-effort: returns empty list on 404/405.
+- Inline sync blocks HTTP thread. Celery background task deferred to Sprint 8.
+- Bulk edit button in listings grid is disabled placeholder — activates in Sprint 7.
 
 ## Test Results
 
@@ -45,20 +47,33 @@ None
 | `pytest tests/test_auth.py` | 14/14 PASSED |
 | `pytest tests/test_billing.py` | 26/26 PASSED |
 | `pytest tests/test_etsy.py` | 15/15 PASSED |
-| `pytest tests/test_listings.py` | 16/16 PASSED |
-| **Full suite `pytest`** | **75/75 PASSED** |
+| `pytest tests/test_listings.py` | 34/34 PASSED |
+| **Full suite `pytest`** | **93/93 PASSED** |
 
-## Listing Sync Endpoints
+## Listings API — GET /listings filters
 
-| Endpoint | Auth | Status |
+| Filter | Type | Status |
 |---|---|---|
-| POST /api/v1/shops/{id}/sync | Bearer | ✓ (inline, future: Celery) |
-| GET /api/v1/shops/{id}/sync-status | Bearer | ✓ |
-| GET /api/v1/listings | Bearer | ✓ (paginated, filterable) |
-| GET /api/v1/listings/{id} | Bearer | ✓ |
-| GET /api/v1/listings/{id}/images | Bearer | ✓ |
-| GET /api/v1/listings/{id}/videos | Bearer | ✓ |
-| GET /api/v1/listings/{id}/variations | Bearer | ✓ |
+| shop_id | str | ✓ |
+| state | str | ✓ |
+| search | str (ILIKE title) | ✓ |
+| tag | str (ILIKE JSON cast) | ✓ |
+| has_variations | bool | ✓ |
+| price_min / price_max | int (cents) | ✓ |
+| quantity_min / quantity_max | int | ✓ |
+| section_id | str | ✓ |
+| taxonomy_id | str | ✓ |
+| is_personalizable | bool | ✓ |
+| is_customizable | bool | ✓ |
+| sort_by (whitelist) | str | ✓ (400 on invalid) |
+| sort_dir | asc/desc | ✓ (400 on invalid) |
+
+## Frontend — Sprint 6 additions
+
+| File | Description |
+|---|---|
+| `apps/frontend/lib/api.ts` | Typed API client (all endpoints) |
+| `apps/frontend/app/listings/page.tsx` | Full grid: state tabs, advanced filters, saved views, column visibility, multi-select, sortable headers, thumbnails, detail sidebar, summary cards |
 
 ## Port Configuration
 
@@ -75,10 +90,10 @@ None
 |---|---|
 | Sprints complete | 6 / 18 |
 | Backend Python files | 65+ |
-| Frontend TypeScript files | 20 |
-| Total tests | 75 |
+| Frontend TypeScript files | 22 |
+| Total tests | 93 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 6: Listings Grid UX. See HANDOFF.md for exact prompt.
+Begin Sprint 7: Bulk Edit Preview Engine. See HANDOFF.md for exact prompt.
