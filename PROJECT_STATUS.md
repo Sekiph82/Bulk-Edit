@@ -6,7 +6,7 @@
 
 ## Status
 
-`IN PROGRESS`
+`Sprint 0 COMPLETE — Ready for Sprint 1`
 
 ## Last Updated
 
@@ -14,16 +14,15 @@
 
 ## Active Skills
 
-- 01 documentation-handoff
-- 05 repo-setup
+None (between sprints)
 
 ## Completed Sprints
 
-None
+- Sprint 0: Project Memory and Operating System ✓
 
 ## Current Sprint Progress
 
-Sprint 0: Creating all project memory and operating system files.
+N/A — Sprint 0 complete. Sprint 1 not started.
 
 ## Blockers
 
@@ -37,12 +36,12 @@ None
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 0 / 18 |
-| Files created | 0 |
+| Sprints complete | 1 / 18 |
+| Files created | 35 |
 | Test coverage backend | N/A |
 | Test coverage frontend | N/A |
 | Open blockers | 0 |
 
 ## Next Action
 
-Complete Sprint 0 file creation, commit, and push. Then begin Sprint 1: Monorepo Skeleton.
+Begin Sprint 1: Monorepo Skeleton. See HANDOFF.md for exact prompt.
