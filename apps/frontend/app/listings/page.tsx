@@ -425,11 +425,13 @@ function ListingsContent() {
           <div className="flex gap-2">
             {selected.size > 0 && (
               <button
-                disabled
-                title="Bulk edit coming in Sprint 7"
-                className="bg-indigo-100 text-indigo-400 font-medium px-4 py-2 rounded-lg text-sm cursor-not-allowed"
+                onClick={() => {
+                  localStorage.setItem("bulk_edit_selected_listing_ids", JSON.stringify([...selected]));
+                  router.push("/bulk-edit");
+                }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors"
               >
-                Bulk Edit {selected.size} Selected
+                Bulk Edit {selected.size} Selected →
               </button>
             )}
             <button

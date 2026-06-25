@@ -63,16 +63,52 @@ Query params for `GET /listings`:
 
 ---
 
-## Bulk Edit
+## Bulk Edit (Sprint 7 — IMPLEMENTED)
 
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| POST | `/bulk-edit/sessions` | Create bulk edit session | Access token |
-| GET | `/bulk-edit/sessions/{id}` | Get session status | Access token |
-| GET | `/bulk-edit/sessions/{id}/preview` | Get before/after diff | Access token |
-| POST | `/bulk-edit/sessions/{id}/apply` | Apply changes to Etsy | Access token + Pro (for >10/month) |
-| DELETE | `/bulk-edit/sessions/{id}` | Discard session | Access token |
-| GET | `/bulk-edit/sessions` | List past sessions | Access token |
+| Method | Path | Status | Description | Auth |
+|---|---|---|---|---|
+| POST | `/bulk-edit/sessions` | ✓ | Create bulk edit session | Access token |
+| GET | `/bulk-edit/sessions` | ✓ | List sessions (org-scoped) | Access token |
+| GET | `/bulk-edit/sessions/{id}` | ✓ | Get session + changes list + preview count | Access token |
+| DELETE | `/bulk-edit/sessions/{id}` | ✓ | Cancel session (status=canceled) | Access token |
+| POST | `/bulk-edit/sessions/{id}/changes` | ✓ | Add change rule (field+op+value) | Access token |
+| DELETE | `/bulk-edit/sessions/{id}/changes/{change_id}` | ✓ | Remove change rule | Access token |
+| POST | `/bulk-edit/sessions/{id}/preview` | ✓ | Generate/regenerate before+after diff | Access token |
+| GET | `/bulk-edit/sessions/{id}/preview` | ✓ | Get paginated preview items | Access token |
+| POST | `/bulk-edit/sessions/{id}/apply` | STUB | 409 — Etsy writes start in Sprint 8 | Access token + Pro |
+
+### POST /bulk-edit/sessions
+Request: `{ "listing_ids": ["uuid", ...], "name": "optional string" }`
+- Deduplicates listing IDs
+- Rejects empty listing_ids (400)
+- Rejects listing IDs not belonging to org (400)
+Returns: 201 BulkEditSessionResponse
+
+### POST /bulk-edit/sessions/{id}/changes
+Request: `{ "field_name": "title", "operation": "append", "operation_value": " | Summer Sale" }`
+- Supported fields: title, description, tags, materials, price_amount, quantity, sku, is_personalizable, is_customizable, personalization_is_required, personalization_instructions, personalization_char_count_max, processing_min, processing_max, item_weight, item_length, item_width, item_height, section_id, taxonomy_id
+- Supported operations by field type:
+  - TEXT: set, append, prepend, replace
+  - ARRAY: set, add_tag, remove_tag
+  - NUMBER: set, percentage_change, fixed_amount_change
+  - BOOL: set
+- Rejects unknown field names (400)
+- Rejects incompatible operation for field type (400)
+Returns: 201 BulkEditChangeResponse
+
+### POST /bulk-edit/sessions/{id}/preview
+Generates in-memory diff for all selected listings:
+1. Load listings from DB
+2. Apply all changes in sequence per listing
+3. Validate after-data (title length, tag count, price, etc.)
+4. Compute diff (changed fields only)
+5. Upsert BulkEditPreviewItem (session+listing unique)
+6. Set session.status = preview_ready
+Returns: BulkEditPreviewGenerateResponse with summary (valid/warning/invalid counts)
+
+### GET /bulk-edit/sessions/{id}/preview
+Query params: `page` (default 1), `per_page` (default 50), `validation_status` (valid/warning/invalid filter)
+Returns: paginated BulkEditPreviewItemResponse list with before_data, after_data, diff per listing
 
 ---
 

@@ -14,3 +14,6 @@ from app.models.listing_image import ListingImage
 from app.models.listing_video import ListingVideo
 from app.models.listing_variation import ListingVariation
 from app.models.sync_job import SyncJob
+from app.models.bulk_edit_session import BulkEditSession
+from app.models.bulk_edit_change import BulkEditChange
+from app.models.bulk_edit_preview_item import BulkEditPreviewItem

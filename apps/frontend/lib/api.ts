@@ -203,3 +203,129 @@ export function syncShop(shopId: string): Promise<SyncJobResult> {
 export function logoutLocalSession(): void {
   clearLocalSession();
 }
+
+// ---- Bulk Edit Types ----
+
+export interface BulkEditSession {
+  id: string;
+  organization_id: string;
+  created_by_user_id: string | null;
+  name: string | null;
+  status: string;
+  selected_listing_ids: string[];
+  selected_count: number;
+  change_count: number;
+  preview_generated_at: string | null;
+  applied_at: string | null;
+  canceled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BulkEditSessionDetail extends BulkEditSession {
+  changes: BulkEditChange[];
+  preview_item_count: number;
+}
+
+export interface BulkEditChange {
+  id: string;
+  bulk_edit_session_id: string;
+  listing_id: string | null;
+  field_name: string;
+  operation: string;
+  old_value: unknown;
+  new_value: unknown;
+  operation_value: unknown;
+  validation_status: string;
+  validation_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BulkEditPreviewItem {
+  id: string;
+  bulk_edit_session_id: string;
+  listing_id: string;
+  listing_title: string | null;
+  before_data: Record<string, unknown>;
+  after_data: Record<string, unknown>;
+  diff: Record<string, { before: unknown; after: unknown }>;
+  validation_status: string;
+  validation_messages: Array<{ level: string; field: string; message: string }> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BulkEditPreviewPage {
+  items: BulkEditPreviewItem[];
+  page: number;
+  per_page: number;
+  total: number;
+  session_id: string;
+}
+
+export interface BulkEditPreviewGenerateResponse {
+  session: BulkEditSession;
+  summary: {
+    selected_count: number;
+    preview_items: number;
+    valid: number;
+    warning: number;
+    invalid: number;
+  };
+}
+
+// ---- Bulk Edit API helpers ----
+
+export function createBulkEditSession(listingIds: string[], name?: string): Promise<BulkEditSession> {
+  return apiFetch("/api/v1/bulk-edit/sessions", {
+    method: "POST",
+    body: JSON.stringify({ listing_ids: listingIds, name: name ?? null }),
+  });
+}
+
+export function listBulkEditSessions(): Promise<BulkEditSession[]> {
+  return apiFetch("/api/v1/bulk-edit/sessions");
+}
+
+export function getBulkEditSession(sessionId: string): Promise<BulkEditSessionDetail> {
+  return apiFetch(`/api/v1/bulk-edit/sessions/${sessionId}`);
+}
+
+export function cancelBulkEditSession(sessionId: string): Promise<BulkEditSession> {
+  return apiFetch(`/api/v1/bulk-edit/sessions/${sessionId}`, { method: "DELETE" });
+}
+
+export function addBulkEditChange(
+  sessionId: string,
+  payload: { field_name: string; operation: string; operation_value?: unknown },
+): Promise<BulkEditChange> {
+  return apiFetch(`/api/v1/bulk-edit/sessions/${sessionId}/changes`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function removeBulkEditChange(sessionId: string, changeId: string): Promise<void> {
+  return apiFetch(`/api/v1/bulk-edit/sessions/${sessionId}/changes/${changeId}`, { method: "DELETE" });
+}
+
+export function generateBulkEditPreview(sessionId: string): Promise<BulkEditPreviewGenerateResponse> {
+  return apiFetch(`/api/v1/bulk-edit/sessions/${sessionId}/preview`, { method: "POST" });
+}
+
+export function getBulkEditPreview(
+  sessionId: string,
+  params: { page?: number; per_page?: number; validation_status?: string } = {},
+): Promise<BulkEditPreviewPage> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+  }
+  const q = qs.toString();
+  return apiFetch(`/api/v1/bulk-edit/sessions/${sessionId}/preview${q ? `?${q}` : ""}`);
+}
+
+export function applyBulkEditStub(sessionId: string): Promise<unknown> {
+  return apiFetch(`/api/v1/bulk-edit/sessions/${sessionId}/apply`, { method: "POST" });
+}

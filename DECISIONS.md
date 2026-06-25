@@ -148,6 +148,31 @@ Mirrors is_stripe_configured() pattern. `GET /etsy/authorize` returns 503 `"Etsy
 
 ---
 
+## 2026-06-25 (Sprint 7)
+
+### [BULK-EDIT] Session-level changes, not per-listing changes
+One `BulkEditChange` row per rule (field + operation) scoped to the session, not duplicated per listing. At preview-generation time the service fans out: one change is applied to each selected listing in memory. Rationale: seller edits the same rule across all selected listings; duplicating the change row N times would make edits (e.g., correcting a typo in the operation value) require updating N rows. Session-level model is simpler and correct.
+
+### [BULK-EDIT] apply_change_to_listing_data is a pure function (copy.deepcopy)
+`apply_change_to_listing_data(before_data, change)` returns a new dict and never mutates `before_data`. Enables safe sequential application of multiple changes: call the function N times, threading the output of each as input to the next. Rationale: mutation would make debugging and testing brittle; pure functions compose cleanly.
+
+### [BULK-EDIT] apply endpoint is a 409 stub in Sprint 7
+`POST /bulk-edit/sessions/{id}/apply` raises `HTTPException(409, "Etsy write operations start in Sprint 8. This endpoint is intentionally disabled.")`. Returns 409 (Conflict) rather than 503 (Service Unavailable) because the resource exists and the action is understood — it is deliberately blocked pending Sprint 8, not a configuration failure. No `listings` rows are modified.
+
+### [BULK-EDIT] UniqueConstraint on (session, listing) for preview items
+`BulkEditPreviewItem` has `UniqueConstraint("bulk_edit_session_id", "listing_id")`. `generate_bulk_edit_preview` checks for an existing preview item per listing and updates it in-place (upsert). Rationale: sellers can regenerate the preview after editing changes without accumulating duplicate rows or hitting DB integrity errors.
+
+### [BULK-EDIT] Status machine: draft → preview_ready → canceled (applied deferred)
+Sprint 7 status values: `draft`, `preview_ready`, `canceled`. `applied` status is intentionally absent — the apply flow (including snapshot, Etsy write, audit log) is Sprint 8 work. Keeping `applied` out of the Sprint 7 schema avoids having a status value with no corresponding code path.
+
+### [BULK-EDIT] Field type registry drives operation validation
+`TEXT_FIELDS`, `BOOL_FIELDS`, `NUMBER_FIELDS`, `ARRAY_FIELDS` sets in the service determine which operations are accepted per field. `add_bulk_edit_change` rejects unknown fields (400) and incompatible operation+field combinations (400) before persisting. Rationale: catching errors at change-creation time gives better UX than silently creating noop changes.
+
+### [FRONTEND] localStorage for selected listing IDs passthrough
+`/listings` page writes `localStorage.setItem("bulk_edit_selected_listing_ids", JSON.stringify([...selected]))` and navigates to `/bulk-edit`. `/bulk-edit` reads and clears this key on mount. Avoids URL length limits for large selections and avoids a server-side session concept for a single-page navigation. Can be replaced with a real session store if cross-tab or cross-device sync is needed.
+
+---
+
 ## 2026-06-25 (Sprint 6)
 
 ### [BACKEND] Batch thumbnail fetch: 2 queries per page, not N+1

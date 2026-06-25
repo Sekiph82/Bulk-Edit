@@ -4,6 +4,40 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 Sprint 7 — Bulk Edit Preview Engine
+
+**Skills active:** 06 database-modeling, 07 backend-api, 08 frontend-ui, 20 testing-qa, 01 documentation-handoff
+
+**Completed:**
+- Created `app/models/bulk_edit_session.py` — BulkEditSession (org-scoped, status: draft/preview_ready/canceled, selected_listing_ids JSON, selected_count, change_count, preview_generated_at, applied_at, canceled_at)
+- Created `app/models/bulk_edit_change.py` — BulkEditChange (session FK CASCADE, listing FK SET NULL nullable, field_name, operation, old/new/operation_value JSON, validation_status, validation_message)
+- Created `app/models/bulk_edit_preview_item.py` — BulkEditPreviewItem (session+listing FKs CASCADE, listing_title, before/after/diff JSON, validation_status/messages; UNIQUE session+listing)
+- Updated `app/models/__init__.py` — imported 3 new models
+- Created `alembic/versions/0005_create_bulk_edit_tables.py` — migration for 3 tables (down_revision=0004)
+- Created `app/schemas/bulk_edit.py` — 8 Pydantic schemas: BulkEditSessionCreateRequest, BulkEditSessionResponse, BulkEditChangeCreateRequest, BulkEditChangeResponse, BulkEditPreviewSummary, BulkEditPreviewGenerateResponse, BulkEditPreviewItemResponse, BulkEditPreviewPageResponse, BulkEditSessionDetailResponse
+- Created `app/services/bulk_edit.py` — pure functions (apply_change_to_listing_data, validate_listing_data, compute_diff, build_before_data) + async DB functions (create/list/get/cancel session, add/remove change, generate preview, get preview page, apply stub → 409)
+- Created `app/api/v1/bulk_edit.py` — 9 endpoints under /api/v1/bulk-edit
+- Updated `app/api/v1/router.py` — include bulk_edit_router
+- Created `tests/test_bulk_edit.py` — 38 tests: 21 pure function unit tests + 17 API integration tests
+- Updated `apps/frontend/lib/api.ts` — 6 new TS types + 9 bulk edit API helpers appended
+- Created `apps/frontend/app/bulk-edit/page.tsx` — 3-phase flow: listing selector (reads localStorage), change editor (dynamic op list by field type), diff preview table (before/after per field, validation badges)
+- Updated `apps/frontend/app/listings/page.tsx` — Bulk Edit Selected button now active: saves IDs to localStorage, navigates to /bulk-edit
+
+**Test results:** 131/131 PASSED (38 new + 93 existing)
+
+**Decisions made:**
+- Session-level changes (one BulkEditChange per session, not per listing) — apply fan-out at preview time
+- apply_change_to_listing_data uses copy.deepcopy — pure function, no mutation
+- Apply stub returns 409 with "Etsy write operations start in Sprint 8" — no Listing rows modified
+- UniqueConstraint(session+listing) on preview items — upsert on re-generate
+- localStorage passthrough: listings page → /bulk-edit for selected IDs
+
+**Blockers:** None
+
+**Next:** Sprint 8 — Safe Etsy Write Pipeline
+
+---
+
 ## 2026-06-25 Sprint 6 — Listings Grid UX
 
 **Skills active:** 07 backend-api, 08 frontend-ui, 20 testing-qa, 01 documentation-handoff

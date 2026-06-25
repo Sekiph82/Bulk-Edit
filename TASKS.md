@@ -183,16 +183,21 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 7: Bulk Edit Preview Engine
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Design BulkEditSession, BulkEditChange models
-- [ ] Implement bulk edit session creation API
-- [ ] Implement field-level change diffing
-- [ ] Build preview modal showing before/after per listing
-- [ ] Add per-field override in preview
-- [ ] Add bulk discard / confirm UI
-- [ ] Write bulk engine unit tests
-- [ ] Commit and push
+- [x] BulkEditSession model (organization_id, created_by_user_id, name, status, selected_listing_ids JSON, selected_count, change_count, preview_generated_at, applied_at, canceled_at)
+- [x] BulkEditChange model (session FK, listing FK nullable, field_name, operation, old/new/operation_value JSON, validation_status, validation_message)
+- [x] BulkEditPreviewItem model (session FK, listing FK, listing_title, before_data/after_data/diff JSON, validation_status/messages; UNIQUE session+listing)
+- [x] Alembic migration 0005 — bulk_edit_sessions, bulk_edit_changes, bulk_edit_preview_items
+- [x] app/schemas/bulk_edit.py — 8 schemas
+- [x] app/services/bulk_edit.py — apply_change_to_listing_data, validate_listing_data, compute_diff, create/list/get/cancel session, add/remove change, generate preview, get preview page, apply stub (409)
+- [x] app/api/v1/bulk_edit.py — 9 endpoints under /api/v1/bulk-edit
+- [x] 38 new tests (21 unit + 17 API) — full suite 131/131 PASS
+- [x] apps/frontend/lib/api.ts — bulk edit types + 9 API helpers added
+- [x] apps/frontend/app/bulk-edit/page.tsx — 3-phase UX: listing selector, change editor, diff preview table
+- [x] apps/frontend/app/listings/page.tsx — Bulk Edit button enabled: saves IDs to localStorage, navigates to /bulk-edit
+- [x] Apply endpoint returns 409 + "Etsy write operations start in Sprint 8" — no Listing rows modified
+- [x] Commit and push
 
 ---
 

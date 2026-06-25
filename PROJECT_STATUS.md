@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 6 — Listings Grid UX — COMPLETE**
+**Sprint 7 — Bulk Edit Preview Engine — COMPLETE**
 
 ## Status
 
-`Sprint 6 COMPLETE — Ready for Sprint 7`
+`Sprint 7 COMPLETE — Ready for Sprint 8`
 
 ## Last Updated
 
@@ -25,6 +25,7 @@ None (between sprints)
 - Sprint 4: Etsy OAuth2 PKCE Flow ✓
 - Sprint 5: Etsy Listing Sync ✓
 - Sprint 6: Listings Grid UX ✓
+- Sprint 7: Bulk Edit Preview Engine ✓
 
 ## Blockers
 
@@ -48,7 +49,8 @@ None
 | `pytest tests/test_billing.py` | 26/26 PASSED |
 | `pytest tests/test_etsy.py` | 15/15 PASSED |
 | `pytest tests/test_listings.py` | 34/34 PASSED |
-| **Full suite `pytest`** | **93/93 PASSED** |
+| `pytest tests/test_bulk_edit.py` | 38/38 PASSED |
+| **Full suite `pytest`** | **131/131 PASSED** |
 
 ## Listings API — GET /listings filters
 
@@ -88,12 +90,12 @@ None
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 6 / 18 |
-| Backend Python files | 65+ |
-| Frontend TypeScript files | 22 |
-| Total tests | 93 |
+| Sprints complete | 7 / 18 |
+| Backend Python files | 72+ |
+| Frontend TypeScript files | 24 |
+| Total tests | 131 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 7: Bulk Edit Preview Engine. See HANDOFF.md for exact prompt.
+Begin Sprint 8: Safe Etsy Write Pipeline. See HANDOFF.md for exact prompt.

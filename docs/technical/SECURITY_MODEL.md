@@ -112,3 +112,33 @@ Every webhook request verified before processing:
 - Checkout/portal only called when key is configured (`sk_test_` or `sk_live_` prefix)
 - Test keys (`sk_test_`) never used in production (environment config check)
 - Price IDs contain "placeholder" substring check — prevents phantom Stripe calls with invalid IDs
+
+---
+
+## Bulk Edit Safety (Sprint 7)
+
+### Safe Write Protocol (enforced from Sprint 8)
+
+Every Etsy write triggered by bulk edit must follow this sequence in order:
+1. Generate preview (diff before/after, no Etsy calls)
+2. User reviews diff — explicit confirmation required
+3. Snapshot backup: INSERT INTO listing_snapshots (full listing JSON)
+4. Subscription gate check (bulk_edits_used < plan limit)
+5. Write audit_log entry (action='bulk_edit.apply', before apply)
+6. Execute Etsy PATCH /listings/{id}
+7. Confirm success and log result
+
+No step may be skipped. Sprint 7 apply endpoint is a 409 stub — no Etsy writes possible.
+
+### Org Isolation
+
+- `BulkEditSession.organization_id` enforced on every service call
+- `get_bulk_edit_session` returns 404 (not 403) on cross-org access to avoid enumeration
+- `create_bulk_edit_session` rejects listing IDs not belonging to the caller's org (400)
+- Preview items inherit session org — no direct listing_id lookup bypasses org check
+
+### Validation Before Write
+
+- `validate_listing_data` rejects invalid states before any Etsy call
+- Sessions with `invalid` preview items should be blocked from apply (enforced Sprint 8)
+- `apply_change_to_listing_data` is a pure function — no DB side effects during preview

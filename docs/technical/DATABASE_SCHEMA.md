@@ -193,37 +193,62 @@ Indexes: `etsy_listing_id`, `etsy_shop_id`, `status`, `title` (full-text)
 
 ---
 
-## bulk_edit_sessions
+## bulk_edit_sessions (Sprint 7 — IMPLEMENTED)
 
 | Column | Type | Notes |
 |---|---|---|
-| id | UUID PK | |
-| organization_id | UUID FK → organizations.id | |
-| created_by | UUID FK → users.id | |
-| status | VARCHAR(50) DEFAULT 'draft' | 'draft', 'previewing', 'applying', 'complete', 'failed' |
-| total_listings | INTEGER DEFAULT 0 | |
-| applied_count | INTEGER DEFAULT 0 | |
-| failed_count | INTEGER DEFAULT 0 | |
-| completed_at | TIMESTAMP | |
-| created_at | TIMESTAMP | |
-| updated_at | TIMESTAMP | |
+| id | VARCHAR(36) PK | UUID stored as string |
+| organization_id | VARCHAR(36) FK → organizations.id CASCADE | indexed |
+| created_by_user_id | VARCHAR(36) FK → users.id SET NULL | nullable |
+| name | VARCHAR(255) | optional session label |
+| status | VARCHAR(50) DEFAULT 'draft' | 'draft', 'preview_ready', 'canceled' ('applied' in Sprint 8) |
+| selected_listing_ids | JSON NOT NULL | array of listing UUID strings |
+| selected_count | INTEGER DEFAULT 0 | denormalized count |
+| change_count | INTEGER DEFAULT 0 | denormalized count |
+| preview_generated_at | TIMESTAMP WITH TIME ZONE | nullable |
+| applied_at | TIMESTAMP WITH TIME ZONE | nullable (Sprint 8) |
+| canceled_at | TIMESTAMP WITH TIME ZONE | nullable |
+| created_at | TIMESTAMP WITH TIME ZONE | |
+| updated_at | TIMESTAMP WITH TIME ZONE | |
 
 ---
 
-## bulk_edit_changes
+## bulk_edit_changes (Sprint 7 — IMPLEMENTED)
 
 | Column | Type | Notes |
 |---|---|---|
-| id | UUID PK | |
-| session_id | UUID FK → bulk_edit_sessions.id CASCADE | |
-| listing_id | UUID FK → listings.id | |
-| field_name | VARCHAR(100) | e.g. 'title', 'price', 'tags' |
-| old_value | JSONB | |
-| new_value | JSONB | |
-| status | VARCHAR(50) DEFAULT 'pending' | 'pending', 'applied', 'failed', 'skipped' |
-| error_message | TEXT | |
-| applied_at | TIMESTAMP | |
-| created_at | TIMESTAMP | |
+| id | VARCHAR(36) PK | UUID stored as string |
+| bulk_edit_session_id | VARCHAR(36) FK → bulk_edit_sessions.id CASCADE | indexed |
+| listing_id | VARCHAR(36) FK → listings.id SET NULL | nullable — session-level change, not per-listing |
+| field_name | VARCHAR(100) NOT NULL | e.g. 'title', 'price_amount', 'tags' |
+| operation | VARCHAR(50) NOT NULL | set/append/prepend/replace/add_tag/remove_tag/percentage_change/fixed_amount_change |
+| old_value | JSON | nullable — snapshot of value before add (informational) |
+| new_value | JSON | nullable — computed at apply time |
+| operation_value | JSON NOT NULL | the rule value (e.g. " | Summer Sale" for append) |
+| validation_status | VARCHAR(20) DEFAULT 'pending' | 'pending', 'valid', 'warning', 'invalid' |
+| validation_message | TEXT | nullable |
+| created_at | TIMESTAMP WITH TIME ZONE | |
+| updated_at | TIMESTAMP WITH TIME ZONE | |
+
+---
+
+## bulk_edit_preview_items (Sprint 7 — IMPLEMENTED)
+
+| Column | Type | Notes |
+|---|---|---|
+| id | VARCHAR(36) PK | UUID stored as string |
+| bulk_edit_session_id | VARCHAR(36) FK → bulk_edit_sessions.id CASCADE | |
+| listing_id | VARCHAR(36) FK → listings.id CASCADE | |
+| listing_title | TEXT | denormalized — title at preview time |
+| before_data | JSON NOT NULL | full editable field snapshot before changes |
+| after_data | JSON NOT NULL | full editable field snapshot after all changes applied |
+| diff | JSON NOT NULL | `{field: {before: v, after: v}}` for changed fields only |
+| validation_status | VARCHAR(20) NOT NULL | 'valid', 'warning', 'invalid' |
+| validation_messages | JSON | array of message strings, nullable |
+| created_at | TIMESTAMP WITH TIME ZONE | |
+| updated_at | TIMESTAMP WITH TIME ZONE | |
+
+Unique constraint: `(bulk_edit_session_id, listing_id)` — upsert on preview regeneration
 
 ---
 

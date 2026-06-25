@@ -3,19 +3,25 @@
 ## Last Session
 
 **Date:** 2026-06-25
-**Sprint:** 6 — Listings Grid UX — COMPLETE
-**Completed:** 10 new backend filters, sort validation whitelist, batch thumbnail fetch, 18 new backend tests (93/93 pass), typed frontend API client (lib/api.ts), full listings page rewrite with state tabs, advanced filter panel, saved views, column visibility, multi-select, sortable headers, thumbnail preview, detail sidebar, summary cards. Committed and pushed.
+**Sprint:** 7 — Bulk Edit Preview Engine — COMPLETE
+**Completed:** BulkEditSession/BulkEditChange/BulkEditPreviewItem models, Alembic migration 0005, full bulk edit service (apply_change_to_listing_data, validate_listing_data, compute_diff, session CRUD, preview generation), 9 API endpoints, 38 new tests (131/131 pass), typed frontend API client additions, 3-phase /bulk-edit page, listings page bulk edit button enabled. Apply endpoint is intentional 409 stub. Committed and pushed.
 
 ## Current State
 
 **Backend (`apps/backend/`):**
-- `app/schemas/listings.py` — added thumbnail_url, sku, etsy_updated_at to ListingListItemResponse; filters to ListingPageResponse
-- `app/api/v1/listings.py` — VALID_SORT_COLS whitelist, 400 on invalid sort, 10 new filters, batch thumbnail fetch, active_filters metadata
-- `tests/test_listings.py` — 34 tests (18 new filter/sort tests added in Sprint 6)
+- `app/models/bulk_edit_session.py` — BulkEditSession (org-scoped, status machine: draft/preview_ready/canceled, selected_listing_ids JSON)
+- `app/models/bulk_edit_change.py` — BulkEditChange (session FK, field_name, operation, operation_value JSON, validation_status)
+- `app/models/bulk_edit_preview_item.py` — BulkEditPreviewItem (session+listing FK, before/after/diff JSON, validation_status; UNIQUE session+listing)
+- `app/schemas/bulk_edit.py` — 8 Pydantic schemas
+- `app/services/bulk_edit.py` — full service: pure functions (apply_change, validate, compute_diff, build_before_data) + async DB functions; apply stub returns 409
+- `app/api/v1/bulk_edit.py` — 9 endpoints: POST/GET sessions, GET/DELETE session, POST/DELETE changes, POST/GET preview, POST apply (stub)
+- `alembic/versions/0005_create_bulk_edit_tables.py`
+- `tests/test_bulk_edit.py` — 38 tests (21 unit + 17 API)
 
 **Frontend (`apps/frontend/`):**
-- `lib/api.ts` — typed API client: getShops, getListings, getListing, getListingImages, getListingVideos, getListingVariations, syncShop, logoutLocalSession, ApiError class
-- `app/listings/page.tsx` — full rewrite: state tabs (All/Active/Inactive/Draft/Expired), advanced filter panel (tag, price, qty, section, taxonomy, has_variations, is_personalizable, is_customizable), saved views (localStorage), column visibility dropdown (localStorage), multi-select checkboxes, sortable column headers, thumbnail preview, detail sidebar, summary cards
+- `lib/api.ts` — bulk edit types + 9 helpers added (createBulkEditSession, listBulkEditSessions, getBulkEditSession, cancelBulkEditSession, addBulkEditChange, removeBulkEditChange, generateBulkEditPreview, getBulkEditPreview, applyBulkEditStub)
+- `app/bulk-edit/page.tsx` — 3-phase flow: listing selector (reads localStorage bulk_edit_selected_listing_ids), change editor (field/op/value), diff preview table with validation badges; apply button disabled with Sprint 8 notice
+- `app/listings/page.tsx` — Bulk Edit Selected button saves IDs to localStorage and navigates to /bulk-edit
 
 ## Port Summary
 
