@@ -224,3 +224,17 @@ Safety invariant: local DB must always reflect what Etsy actually has. If Etsy P
 
 ### [TEST] Patch settings.is_etsy_configured via module-level mock
 Pydantic v2 Settings objects block `__setattr__` on non-field names. Cannot use `patch("app.core.config.settings.is_etsy_configured")`. Correct approach: `patch("app.services.bulk_edit_apply.settings", MagicMock())` which replaces the module-level name reference without touching the singleton. `MagicMock().is_etsy_configured.return_value = True` satisfies the check.
+
+## Sprint 9 Decisions
+
+### [REVERT] RevertResult.backup_snapshot_id is nullable (SET NULL)
+Skip cases (listing not found in DB, no snapshot ID on apply result, snapshot row deleted, no valid access token, empty patch payload) must produce a `RevertResult` row for full audit trail but cannot have a valid FK value. Changed from `Mapped[str]` / RESTRICT to `Mapped[str | None]` / SET NULL. Alembic migration 0007 updated to match.
+
+### [REVERT] Price/quantity revert deferred to Sprint 10
+Same reason as apply exclusion: Etsy PATCH /v3/application/listings/{id} does not accept price/quantity. Revert of these fields requires PATCH /v3/application/shops/{shop_id}/listings/{listing_id}/inventory. `build_etsy_revert_payload()` inherits the exclusion from `build_etsy_patch_payload()`.
+
+### [REVERT] Only "success" apply results are iterated during revert
+Failed and skipped apply results should not be reverted — they represent listings that were never written to Etsy, so there is nothing to undo. Iterating only `status == "success"` apply results ensures revert only touches listings that were actually modified.
+
+### [REVERT] 409 on duplicate revert (not 400)
+A second revert request on an already-reverted apply job is a conflict, not a bad request — the apply job itself is valid, but a concurrent/completed revert job already exists. 409 (Conflict) is semantically correct. The check queries for `status IN ("completed", "completed_with_errors", "running")` to also block concurrent reverts in progress.

@@ -238,16 +238,19 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 9: Magic Revert
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Design ListingSnapshot, RevertLog models
-- [ ] Implement revert session creation
-- [ ] Implement selective revert (per listing, per field)
-- [ ] Implement full bulk revert
-- [ ] Build revert history UI
-- [ ] Add revert confirmation modal
-- [ ] Write revert tests
-- [ ] Commit and push
+- [x] RevertJob model (org-scoped, apply_job_id FK, session FK, status machine, counters)
+- [x] RevertResult model (per-listing: status, backup_snapshot_id FK nullable, request/response payload, error)
+- [x] Alembic migration 0007 — revert_jobs + revert_results tables
+- [x] app/schemas/bulk_edit_revert.py — RevertJobOut, RevertResultOut, RevertJobWithResultsOut, RevertResultPageOut
+- [x] app/services/bulk_edit_revert.py — full revert orchestration with safety gates, build_etsy_revert_payload, update_local_listing_from_snapshot, validate_apply_job_revertable, get/list revert jobs + results
+- [x] app/api/v1/bulk_edit.py — 4 new endpoints: POST revert/202, GET revert-jobs list, GET revert-job detail, GET paginated results
+- [x] 28 new tests in test_bulk_edit_revert.py — 181/181 PASS (was 153)
+- [x] apps/frontend/lib/api.ts — 4 new types (RevertJob, RevertResult, RevertJobWithResults, RevertResultPage) + 4 new helpers (revertApplyJob, listRevertJobs, getRevertJob, getRevertResults)
+- [x] apps/frontend/app/bulk-edit/page.tsx — Magic Revert button (visible after apply with completed/completed_with_errors status), REVERT text confirmation modal, revert result card
+- [x] Safety: Etsy configured gate, apply job must be completed, no double-revert (409), only success apply results reverted, local Listing updated ONLY after Etsy write, backup snapshots never deleted, audit logs on start + finish
+- [x] Commit and push
 
 ---
 

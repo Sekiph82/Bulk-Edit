@@ -395,3 +395,81 @@ export function getApplyJobDetail(jobId: string): Promise<ApplyJobWithResults> {
 export function listBackupSnapshots(sessionId: string): Promise<BackupSnapshot[]> {
   return apiFetch(`/api/v1/bulk-edit/sessions/${sessionId}/backups`);
 }
+
+// ---- Revert Types ----
+
+export interface RevertJob {
+  id: string;
+  organization_id: string;
+  bulk_edit_session_id: string;
+  apply_job_id: string;
+  created_by_user_id: string | null;
+  status: string;
+  total_items: number;
+  success_count: number;
+  failure_count: number;
+  skipped_count: number;
+  started_at: string | null;
+  finished_at: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RevertResult {
+  id: string;
+  organization_id: string;
+  revert_job_id: string;
+  apply_job_id: string;
+  bulk_edit_session_id: string;
+  listing_id: string;
+  etsy_listing_id: string;
+  backup_snapshot_id: string | null;
+  status: string;
+  request_payload: unknown;
+  response_payload: unknown;
+  error_message: string | null;
+  attempted_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RevertJobWithResults {
+  job: RevertJob;
+  results: RevertResult[];
+}
+
+export interface RevertResultPage {
+  items: RevertResult[];
+  page: number;
+  per_page: number;
+  total: number;
+  revert_job_id: string;
+}
+
+// ---- Revert API helpers ----
+
+export function revertApplyJob(applyJobId: string): Promise<RevertJob> {
+  return apiFetch(`/api/v1/bulk-edit/apply-jobs/${applyJobId}/revert`, { method: "POST" });
+}
+
+export function listRevertJobs(applyJobId: string): Promise<RevertJob[]> {
+  return apiFetch(`/api/v1/bulk-edit/apply-jobs/${applyJobId}/revert-jobs`);
+}
+
+export function getRevertJob(revertJobId: string): Promise<RevertJobWithResults> {
+  return apiFetch(`/api/v1/bulk-edit/revert-jobs/${revertJobId}`);
+}
+
+export function getRevertResults(
+  revertJobId: string,
+  params: { page?: number; per_page?: number } = {},
+): Promise<RevertResultPage> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined) qs.set(k, String(v));
+  }
+  const q = qs.toString();
+  return apiFetch(`/api/v1/bulk-edit/revert-jobs/${revertJobId}/results${q ? `?${q}` : ""}`);
+}

@@ -372,6 +372,54 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 Sprint 9 — Magic Revert
+
+**Skills active:** 07 backend-api, 06 database-modeling, 08 frontend-ui, 20 testing-qa, 01 documentation-handoff
+
+**Completed:**
+
+Models (2 new):
+- `RevertJob` — tracks the revert run (org-scoped, apply_job_id FK, status, counters, timestamps)
+- `RevertResult` — per-listing revert record (backup_snapshot_id nullable FK SET NULL — handles skip cases)
+
+Migration:
+- `0007_create_bulk_edit_revert_tables.py` — revert_jobs + revert_results tables; backup_snapshot_id nullable with SET NULL
+
+Services:
+- `bulk_edit_revert.py`:
+  - `build_etsy_revert_payload(snapshot_data)` — builds Etsy PATCH body from snapshot; excludes price/qty (same as apply)
+  - `update_local_listing_from_snapshot(listing, snapshot_data)` — in-place listing restore
+  - `validate_apply_job_revertable(db, org_id, apply_job_id)` — 404 if not found, 400 if not completed, 409 if already reverted
+  - `revert_apply_job(db, org_id, user_id, apply_job_id)` — 10 safety gates, only `status=success` apply results iterated, per-listing local update only after Etsy write success, partial failure supported, audit logs on start + finish
+  - `get_revert_job`, `list_revert_jobs_for_apply_job`, `get_revert_results` — read endpoints with org isolation
+
+API (4 new endpoints):
+- `POST /api/v1/bulk-edit/apply-jobs/{id}/revert` → 202 + RevertJobOut
+- `GET /api/v1/bulk-edit/apply-jobs/{id}/revert-jobs` → list jobs
+- `GET /api/v1/bulk-edit/revert-jobs/{id}` → job + results
+- `GET /api/v1/bulk-edit/revert-jobs/{id}/results` → paginated RevertResultPageOut
+
+Tests: 28 new in `test_bulk_edit_revert.py` (181/181 pass)
+- Unit: build_etsy_revert_payload (title, description, section_id, excludes price/qty, empty snapshot)
+- API: Etsy not configured 503, apply job not found 404, apply job not completed 400, double-revert 409, wrong org 404, auth 403
+- Happy path: creates job 202, restores listing title, ETsy failure does not modify listing, only success results reverted, partial failure statuses, audit logs written, snapshots not deleted
+- Read endpoints: list revert jobs, get revert job detail, paginated results, org isolation, auth required
+
+Frontend:
+- `lib/api.ts` — 4 new types (RevertJob, RevertResult, RevertJobWithResults, RevertResultPage) + 4 helpers
+- `app/bulk-edit/page.tsx` — Magic Revert button (visible after completed/completed_with_errors apply, hidden after revert), REVERT text confirmation modal, revert result status card
+
+**Key decisions:**
+- `RevertResult.backup_snapshot_id` nullable (SET NULL) — skipped items (no listing, no snapshot ID, snapshot not found, no token) need a valid DB row but have no valid FK
+- Skip cases produce status `"skipped"` RevertResult rows rather than being silently dropped — full audit trail
+- Price/quantity revert deferred to Sprint 10 (same reason as apply: inventory endpoint required)
+
+**Blockers:** None
+
+**Next:** Sprint 10 — Etsy Inventory Writes (price/quantity)
+
+---
+
 ## 2026-06-25 Sprint 8 — Etsy Write + Backup
 
 **Skills active:** 07 backend-api, 06 database-modeling, 08 frontend-ui, 20 testing-qa, 01 documentation-handoff

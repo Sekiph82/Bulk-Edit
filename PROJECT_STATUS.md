@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 8 — Etsy Write + Backup — COMPLETE**
+**Sprint 9 — Magic Revert — COMPLETE**
 
 ## Status
 
-`Sprint 8 COMPLETE — Ready for Sprint 9`
+`Sprint 9 COMPLETE — Ready for Sprint 10`
 
 ## Last Updated
 
@@ -27,6 +27,7 @@ None (between sprints)
 - Sprint 6: Listings Grid UX ✓
 - Sprint 7: Bulk Edit Preview Engine ✓
 - Sprint 8: Etsy Write + Backup ✓
+- Sprint 9: Magic Revert ✓
 
 ## Local Development (Windows)
 
@@ -48,12 +49,12 @@ None
 
 - `anyio==4.6.2` in requirements-dev.txt is yanked. Works fine. Upgrade when 4.7.0 stable.
 - Frontend `npm install` not run — node_modules absent. Run `npm install` or `docker compose up`.
-- Etsy access token auto-refresh not fully implemented. Partial: logs warning but uses token anyway. Full auto-refresh deferred to Sprint 9+.
+- Etsy access token auto-refresh not fully implemented. Partial: logs warning but uses token anyway. Full auto-refresh deferred to Sprint 10+.
 - `fetch_listing_videos` best-effort: returns empty list on 404/405.
-- Inline sync blocks HTTP thread. Celery background task deferred to Sprint 9.
-- Price/quantity Etsy writes NOT implemented — deferred to Sprint 9 (requires Etsy inventory endpoint).
+- Inline sync blocks HTTP thread. Celery background task deferred to Sprint 10.
+- Price/quantity Etsy writes NOT implemented — deferred to Sprint 10 (requires Etsy inventory endpoint).
 - Photo/video Etsy writes NOT implemented — deferred to Sprint 11.
-- Magic Revert UI not implemented — snapshots exist in DB, revert API deferred to Sprint 9.
+- AuditLog model uses `extra_data` attribute in Python (SQLAlchemy reserved `metadata` name), stored as `metadata` column in DB.
 
 ## Test Results
 
@@ -66,21 +67,33 @@ None
 | `pytest tests/test_listings.py` | 34/34 PASSED |
 | `pytest tests/test_bulk_edit.py` | 38/38 PASSED |
 | `pytest tests/test_bulk_edit_apply.py` | 22/22 PASSED |
-| **Full suite `pytest`** | **153/153 PASSED** |
+| `pytest tests/test_bulk_edit_revert.py` | 28/28 PASSED |
+| **Full suite `pytest`** | **181/181 PASSED** |
 
-## Sprint 8 — New Files
+## Sprint 9 — New Files
 
 | File | Description |
 |---|---|
-| `app/models/listing_backup_snapshot.py` | Pre-write snapshot of listing data |
-| `app/models/bulk_edit_apply_job.py` | Apply job with status + counters |
-| `app/models/bulk_edit_apply_result.py` | Per-listing result with request/response payload |
-| `app/models/audit_log.py` | Immutable event log |
-| `alembic/versions/0006_create_bulk_edit_apply_tables.py` | Migration for 4 new tables |
-| `app/schemas/bulk_edit_apply.py` | ApplyJobOut, ApplyResultOut, BackupSnapshotOut |
-| `app/services/etsy_write.py` | Etsy PATCH wrapper + payload builder |
-| `app/services/bulk_edit_apply.py` | Full apply orchestration with all safety gates |
-| `tests/test_bulk_edit_apply.py` | 22 tests (unit + API) |
+| `app/models/revert_job.py` | Revert job with status + counters |
+| `app/models/revert_result.py` | Per-listing revert result (nullable backup_snapshot_id) |
+| `alembic/versions/0007_create_bulk_edit_revert_tables.py` | Migration for revert_jobs + revert_results |
+| `app/schemas/bulk_edit_revert.py` | RevertJobOut, RevertResultOut, RevertJobWithResultsOut, RevertResultPageOut |
+| `app/services/bulk_edit_revert.py` | Full revert orchestration with safety gates |
+| `tests/test_bulk_edit_revert.py` | 28 tests (unit + API) |
+
+## Safety Gates (Sprint 9)
+
+All enforced in `revert_apply_job()` before any revert write:
+1. `ETSY_CLIENT_ID` must be configured
+2. Apply job must belong to organization (404 if not)
+3. Apply job must be `completed` or `completed_with_errors`
+4. No existing completed/running RevertJob for this apply job (409 if duplicate)
+5. Only `success` apply results are iterated (never reverts failed results)
+6. Per-listing: uses pre-write backup snapshot as source of truth
+7. Local Listing row updated ONLY after Etsy revert write success
+8. Backup snapshots never deleted
+9. Audit log written on revert start + revert finish
+10. Partial failures supported — each listing gets its own RevertResult row
 
 ## Safety Gates (Sprint 8)
 
@@ -106,12 +119,12 @@ All enforced in `apply_bulk_edit_session()` before any write:
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 8 / 18 |
-| Backend Python files | 82+ |
+| Sprints complete | 9 / 18 |
+| Backend Python files | 88+ |
 | Frontend TypeScript files | 24 |
-| Total tests | 153 |
+| Total tests | 181 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 9: Magic Revert. See HANDOFF.md for exact prompt.
+Begin Sprint 10: Etsy Inventory Writes (price/quantity). See HANDOFF.md for exact prompt.

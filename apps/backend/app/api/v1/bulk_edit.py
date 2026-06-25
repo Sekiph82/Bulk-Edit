@@ -20,6 +20,12 @@ from app.schemas.bulk_edit_apply import (
     ApplyResultOut,
     BackupSnapshotOut,
 )
+from app.schemas.bulk_edit_revert import (
+    RevertJobOut,
+    RevertJobWithResultsOut,
+    RevertResultOut,
+    RevertResultPageOut,
+)
 from app.services.bulk_edit import (
     create_bulk_edit_session,
     list_bulk_edit_sessions,
@@ -36,6 +42,12 @@ from app.services.bulk_edit_apply import (
     list_apply_jobs_for_session,
     get_apply_results,
     list_backup_snapshots_for_session,
+)
+from app.services.bulk_edit_revert import (
+    revert_apply_job,
+    get_revert_job,
+    list_revert_jobs_for_apply_job,
+    get_revert_results,
 )
 
 router = APIRouter(prefix="/bulk-edit", tags=["bulk-edit"])
@@ -225,3 +237,59 @@ async def list_backups(
 ):
     snapshots = await list_backup_snapshots_for_session(db, session_id, org_id)
     return [BackupSnapshotOut.model_validate(s) for s in snapshots]
+
+
+@router.post("/apply-jobs/{apply_job_id}/revert", response_model=RevertJobOut, status_code=202)
+async def revert_apply_job_endpoint(
+    apply_job_id: str,
+    org_id: str = Depends(get_current_org_id),
+    user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await revert_apply_job(db, org_id, user.id, apply_job_id)
+    return RevertJobOut.model_validate(job)
+
+
+@router.get("/apply-jobs/{apply_job_id}/revert-jobs", response_model=list[RevertJobOut])
+async def list_revert_jobs(
+    apply_job_id: str,
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    jobs = await list_revert_jobs_for_apply_job(db, org_id, apply_job_id)
+    return [RevertJobOut.model_validate(j) for j in jobs]
+
+
+@router.get("/revert-jobs/{revert_job_id}", response_model=RevertJobWithResultsOut)
+async def get_revert_job_detail(
+    revert_job_id: str,
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await get_revert_job(db, org_id, revert_job_id)
+    data = await get_revert_results(db, org_id, revert_job_id)
+    return RevertJobWithResultsOut(
+        job=RevertJobOut.model_validate(job),
+        results=[RevertResultOut.model_validate(r) for r in data["items"]],
+    )
+
+
+@router.get("/revert-jobs/{revert_job_id}/results", response_model=RevertResultPageOut)
+async def get_revert_results_paginated(
+    revert_job_id: str,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=100),
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    data = await get_revert_results(db, org_id, revert_job_id, page, per_page)
+    return RevertResultPageOut(
+        items=[RevertResultOut.model_validate(r) for r in data["items"]],
+        page=data["page"],
+        per_page=data["per_page"],
+        total=data["total"],
+        revert_job_id=data["revert_job_id"],
+    )

@@ -21,3 +21,5 @@ from app.models.listing_backup_snapshot import ListingBackupSnapshot
 from app.models.bulk_edit_apply_job import BulkEditApplyJob
 from app.models.bulk_edit_apply_result import BulkEditApplyResult
 from app.models.audit_log import AuditLog
+from app.models.revert_job import RevertJob
+from app.models.revert_result import RevertResult

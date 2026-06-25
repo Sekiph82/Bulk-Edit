@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import {
   getAccessToken, getListings, createBulkEditSession, getBulkEditSession,
   addBulkEditChange, removeBulkEditChange, generateBulkEditPreview,
-  getBulkEditPreview, cancelBulkEditSession, applyBulkEditSession, ApiError,
+  getBulkEditPreview, cancelBulkEditSession, applyBulkEditSession, revertApplyJob, ApiError,
   type ListingListItem, type BulkEditSession, type BulkEditSessionDetail,
   type BulkEditChange, type BulkEditPreviewItem, type BulkEditPreviewGenerateResponse,
-  type ApplyJob,
+  type ApplyJob, type RevertJob,
 } from "../../lib/api";
 
 // ---- constants ----
@@ -404,6 +404,10 @@ function BulkEditContent() {
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applyJob, setApplyJob] = useState<ApplyJob | null>(null);
+  const [showRevertModal, setShowRevertModal] = useState(false);
+  const [reverting, setReverting] = useState(false);
+  const [revertJob, setRevertJob] = useState<RevertJob | null>(null);
+  const [revertConfirmText, setRevertConfirmText] = useState("");
 
   const preselected: string[] = (() => {
     if (typeof window === "undefined") return [];
@@ -491,6 +495,23 @@ function BulkEditContent() {
       setPreviewItems([]);
     } catch (e) {
       setApiError(e instanceof ApiError ? e.message : "Failed to cancel.");
+    }
+  }
+
+  async function handleRevertConfirmed() {
+    if (!applyJob) return;
+    setReverting(true);
+    setApiError(null);
+    try {
+      const job = await revertApplyJob(applyJob.id);
+      setRevertJob(job);
+      setShowRevertModal(false);
+      setRevertConfirmText("");
+    } catch (e) {
+      setApiError(e instanceof ApiError ? e.message : "Revert failed.");
+      setShowRevertModal(false);
+    } finally {
+      setReverting(false);
     }
   }
 
@@ -647,6 +668,15 @@ function BulkEditContent() {
               </div>
             )}
 
+            {/* Revert result */}
+            {revertJob && (
+              <div className={`rounded-xl border px-5 py-4 text-sm ${revertJob.status === "completed" ? "bg-green-50 border-green-200 text-green-800" : revertJob.status === "failed" ? "bg-red-50 border-red-200 text-red-800" : "bg-yellow-50 border-yellow-200 text-yellow-800"}`}>
+                <p className="font-semibold mb-1">Revert complete — {revertJob.status}</p>
+                <p>Restored: {revertJob.success_count} · Failed: {revertJob.failure_count} · Skipped: {revertJob.skipped_count}</p>
+                {revertJob.error_message && <p className="mt-1 text-xs">{revertJob.error_message}</p>}
+              </div>
+            )}
+
             {/* Actions */}
             <div className="flex items-center gap-3 justify-end">
               <button
@@ -655,6 +685,15 @@ function BulkEditContent() {
               >
                 ← Edit Changes
               </button>
+              {applyJob && (applyJob.status === "completed" || applyJob.status === "completed_with_errors") && !revertJob && (
+                <button
+                  onClick={() => { setRevertConfirmText(""); setShowRevertModal(true); }}
+                  disabled={reverting}
+                  className="border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-60 text-sm font-medium px-4 py-2 rounded-lg"
+                >
+                  {reverting ? "Reverting…" : "Magic Revert"}
+                </button>
+              )}
               <button
                 onClick={() => setShowApplyModal(true)}
                 disabled={hasInvalid || applying || !!applyJob}
@@ -671,7 +710,48 @@ function BulkEditContent() {
               </div>
             )}
 
-            {/* Confirmation modal */}
+            {/* Revert confirmation modal */}
+            {showRevertModal && (
+              <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4">
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">Confirm Magic Revert</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    This will restore <strong>{applyJob?.success_count}</strong> listing(s) on Etsy to their
+                    pre-apply state using backup snapshots. This cannot be undone.
+                  </p>
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-800 mb-4">
+                    <strong>Warning:</strong> Only fields with backup snapshots will be restored.
+                    Price and quantity are not reverted in this version.
+                  </div>
+                  <div className="mb-6">
+                    <label className="text-xs font-medium text-gray-700 block mb-1">
+                      Type <span className="font-mono bg-gray-100 px-1 py-0.5 rounded">REVERT</span> to confirm
+                    </label>
+                    <input
+                      type="text"
+                      value={revertConfirmText}
+                      onChange={(e) => setRevertConfirmText(e.target.value)}
+                      placeholder="REVERT"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                    />
+                  </div>
+                  <div className="flex gap-3 justify-end">
+                    <button onClick={() => setShowRevertModal(false)} className="border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50">
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleRevertConfirmed}
+                      disabled={revertConfirmText !== "REVERT"}
+                      className="bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2 rounded-lg"
+                    >
+                      Yes, Revert Etsy Listings
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Apply confirmation modal */}
             {showApplyModal && (
               <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
                 <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4">
