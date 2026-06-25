@@ -3,6 +3,12 @@
 ## Last Session
 
 **Date:** 2026-06-26
+**Sprint:** Landing Animation Sprint — AnimatedProductDemo — COMPLETE
+**Completed:** Installed `motion` v12. Created `AnimatedProductDemo.tsx` (5-phase animation: idle → select → edit panel → preview → safety strip; easeOut only; reduced-motion support; aria-hidden; zero API calls). Rewrote `app/page.tsx` with 2-column hero layout (headline+CTAs+trust strip left, demo right), workflow strip below. Updated DESIGN.md motion rules. Updated design-system/pages/home.md. Lint clean, build 14 routes zero errors. Committed and pushed.
+
+## Previous Session
+
+**Date:** 2026-06-26
 **Sprint:** Productization UI Sprint — Apply Design System — COMPLETE
 **Completed:** npm install + full build baseline. Fixed tsconfig target (ES2017). Fixed billing/page.tsx Suspense wrapper. Removed emoji from empty states across shops/listings. Removed sprint labels from media operation labels. Replaced emoji check/cross in pricing with SVG. Added loading="lazy" to all thumbnail imgs. Added focus rings to all buttons across all 9 pages. Human-readable op labels in variations job history and media confirm modal. Build: 14 routes, zero errors. Committed and pushed.
 
@@ -64,6 +70,22 @@ Never construct variation tree from local data alone. Always:
 | Backend | 8100 | 8000 |
 | PostgreSQL | 55432 | 5432 |
 | Redis | 56379 | 6379 |
+
+## Current State
+
+**Frontend additions (Landing Animation Sprint):**
+- `apps/frontend/components/AnimatedProductDemo.tsx` — 5-phase mock product demo, `motion` v12
+- `apps/frontend/app/page.tsx` — 2-column hero, workflow strip, new headline+CTAs
+- `apps/frontend/tsconfig.json` — `target: ES2017` (from prior sprint)
+- `motion` v12 added to dependencies
+
+**Animation phases:**
+0. Grid idle (1.2s)
+1. 3 rows selected, indigo highlight (2.2s)
+2. Edit panel slides in — append title, add tag, +10% price (2.8s)
+3. Preview panel — before/after rows, amber (2.8s)
+4. Safety strip — backup snapshot + magic revert + apply button (4.0s)
+Then loops to 0. If `prefers-reduced-motion`: static phase 4, no loop.
 
 ## Next Task
 

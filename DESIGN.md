@@ -173,8 +173,23 @@ Full-width tables/panels: no max restriction inside page shell.
 All transitions: `transition-colors duration-150` or `transition-all duration-200`.
 No bounce, no elastic, no spring.
 Loading state: `disabled:opacity-50` on buttons, skeleton placeholders for table rows.
-No orchestrated page-load sequences.
 `prefers-reduced-motion`: all transitions respect it via Tailwind's `motion-reduce:` prefix.
+
+### Animation — Homepage Product Demo
+
+Library: **motion** v12 (`from "motion/react"`). Installed as a production dependency.
+
+Rules for the `AnimatedProductDemo` component:
+- Easing: `easeOut` or `easeInOut` only. Never spring, bounce, or elastic.
+- Duration: 0.2–0.45s per transition. Phase hold times 1.2–4s. Total cycle ~13s.
+- Looping: phase state machine (0→1→2→3→4→0). Infinite loop while mounted.
+- `useReducedMotion` from `motion/react`: if `true`, skip to phase 4 (final state) and do not loop.
+- No layout animations (`layoutId`). No keyframe sequences. No orchestrated timelines.
+- All animated elements are `aria-hidden="true"` (decorative — essential info lives in the page text).
+- No external assets, no canvas, no video.
+- Colors follow DESIGN.md tokens: indigo for selection, amber for preview, green for success/safety.
+
+Do not apply motion library animations to app UI pages (listings, bulk-edit, etc.) — Tailwind CSS transitions only there.
 
 ## Navigation Hierarchy
 

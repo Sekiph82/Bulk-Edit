@@ -46,10 +46,37 @@ Sign in link (for returning users)
 
 Same as MASTER.md. No accent background on homepage body.
 
+## Layout — Current (Post-Animation Sprint)
+
+Desktop: Two-column grid (`lg:grid-cols-2`). Left: headline + CTAs + trust strip. Right: `AnimatedProductDemo` component.
+Mobile: Stacked, demo below hero text.
+
+## AnimatedProductDemo
+
+Mock browser shell showing the Bulk-Edit workflow in 5 animated phases:
+1. Listing grid idle
+2. 3 rows selected
+3. Edit panel slides in from right (append title, add tag, +10% price)
+4. Preview panel appears (before/after, amber highlight)
+5. Safety strip appears (Backup snapshot, Magic Revert, Apply safely button)
+
+Component: `apps/frontend/components/AnimatedProductDemo.tsx`
+Library: `motion` v12 (`"motion/react"`)
+Reduced motion: if `prefers-reduced-motion`, skip to phase 4 (static final state).
+All content is mock/static — no API calls.
+
+## Trust Strip
+
+4-item grid below CTAs: Preview every change / Backup snapshots / Magic Revert / Built for Etsy sellers
+
+## Workflow Strip
+
+Below hero section, full-width white bar: Connect → Sync → Edit → Preview → Apply → Revert
+
 ## Anti-patterns for this page
 
 - No hero metric cards
 - No gradient hero background
-- No animation on page load
 - No testimonials, social proof, or feature grids in MVP
 - No pricing section on the homepage (use `/pricing`)
+- Do not animate app UI pages — animation is homepage-only via AnimatedProductDemo

@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Productization UI Sprint — COMPLETE**
+**Landing Animation Sprint — COMPLETE**
 
 ## Status
 
-`All customer-facing pages polished. Sprint 13 (AI Tools) is next.`
+`Animated product demo live on homepage. Sprint 13 (AI Tools) is next.`
 
 ## Last Updated
 
@@ -32,6 +32,7 @@ None (between sprints)
 - Sprint 11: Photo / Video Bulk Editor ✓
 - Sprint 12: Variation Editor ✓
 - Productization UI Sprint ✓ (Design system installed, all 9 customer-facing pages polished, build passing)
+- Landing Animation Sprint ✓ (AnimatedProductDemo + 2-column hero, motion v12, build passing)
 
 ## Local Development (Windows)
 
@@ -152,7 +153,7 @@ All enforced in `apply_bulk_edit_session()` before any write:
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 13 / 18 (incl. Productization UI Sprint) |
+| Sprints complete | 14 / 18 (incl. Productization UI Sprint + Landing Animation Sprint) |
 | Backend Python files | 98+ |
 | Frontend TypeScript files | 27 |
 | Total tests | 272 |
@@ -161,3 +162,4 @@ All enforced in `apply_bulk_edit_session()` before any write:
 ## Next Action
 
 Begin Sprint 13: AI Tools. See HANDOFF.md for exact prompt.
+Alternatively: WorkflowMorph component for homepage workflow animation (optional enhancement).

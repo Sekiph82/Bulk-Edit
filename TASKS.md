@@ -343,6 +343,30 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
+## Landing Animation Sprint
+
+**Status:** `[x] COMPLETE`
+
+- [x] Install `motion` v12 (`npm install motion` in apps/frontend)
+- [x] Create `apps/frontend/components/AnimatedProductDemo.tsx` — 5-phase animated mock product demo
+  - [x] Phase 0: listing grid idle
+  - [x] Phase 1: 3 rows selected (checkbox + row highlight animation)
+  - [x] Phase 2: edit panel slides in (title append, tag add, price +10%)
+  - [x] Phase 3: preview panel (before/after amber rows)
+  - [x] Phase 4: safety strip (backup snapshot badge, magic revert badge, apply button)
+  - [x] Reduced motion: `useReducedMotion` → static phase 4, no loop
+  - [x] `aria-hidden="true"` on component (decorative)
+  - [x] Zero API calls, zero external assets
+- [x] Rewrite `apps/frontend/app/page.tsx` — 2-column hero layout
+  - [x] New headline: "Bulk editing for Etsy sellers, without the spreadsheet chaos."
+  - [x] Trust strip: Preview every change / Backup snapshots / Magic Revert / Built for Etsy sellers
+  - [x] Workflow strip below hero: Connect → Sync → Edit → Preview → Apply → Revert
+- [x] Update DESIGN.md — motion rules for homepage animation
+- [x] Update design-system/pages/home.md — 2-column layout + demo docs
+- [x] Lint clean, build 14 routes zero errors
+
+---
+
 ## Sprint 13: AI Tools
 
 **Status:** `[ ] TODO`

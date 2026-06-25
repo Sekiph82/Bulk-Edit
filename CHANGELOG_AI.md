@@ -4,6 +4,41 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-26 Landing Animation Sprint — AnimatedProductDemo
+
+**Skills active:** 08 frontend-ui, 24 ux-polish
+
+**Completed:**
+- Installed `motion` v12 (`npm install motion`) — added to apps/frontend dependencies
+- Created `apps/frontend/components/AnimatedProductDemo.tsx` (client component, ~220 lines)
+  - 5-phase animation loop (idle → select → edit panel → preview → safety strip)
+  - Phase durations: 1.2s / 2.2s / 2.8s / 2.8s / 4.0s → total ~13s loop
+  - `useReducedMotion` from `motion/react`: if true, jumps to phase 4 (static final state), no loop
+  - Sliding edit panel (absolute positioned, `x: "100%"` → `x: 0`) — no layout shift
+  - Row highlighting via animated `backgroundColor` (indigo-50 when selected)
+  - Animated checkboxes (border + bg color + SVG check fade-in)
+  - Preview panel (amber bg, before/after rows, `opacity+y` fade-up)
+  - Safety strip (green "Backup snapshot created", "Magic Revert ready", "Apply safely" button)
+  - All mock data static — zero API calls, zero external assets
+  - `aria-hidden="true"` on entire demo (decorative)
+  - Easing: `easeOut` only. No bounce, no spring.
+- Rewrote `apps/frontend/app/page.tsx`:
+  - Two-column desktop layout (`lg:grid-cols-2`): left = headline+CTAs+trust strip, right = demo
+  - Mobile: stacked (demo below hero text)
+  - New headline: "Bulk editing for Etsy sellers, without the spreadsheet chaos."
+  - Trust strip (4-item grid with SVG checks): Preview every change / Backup snapshots / Magic Revert / Built for Etsy sellers
+  - Workflow strip below hero: Connect → Sync → Edit → Preview → Apply → Revert
+- Updated `DESIGN.md` — added Motion section with animation rules for homepage only
+- Updated `design-system/pages/home.md` — documented two-column layout + AnimatedProductDemo behavior
+
+**Customer-facing text check:** Zero `Sprint` / `API Endpoints` / `Backend API` / `roadmap` strings in app/ or components/.
+
+**Lint:** Zero errors (pre-existing warnings unchanged).
+**Build:** 14 routes, zero errors. Homepage: 43.7kB (motion library). Zero type errors.
+**Backend:** Not touched.
+
+---
+
 ## 2026-06-26 Productization UI Sprint — Design System Prep
 
 **Skills active:** 08 frontend-ui, 24 ux-polish, 01 documentation-handoff
