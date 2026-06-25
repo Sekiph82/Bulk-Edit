@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 4 — Etsy OAuth2 PKCE Flow — COMPLETE**
+**Sprint 5 — Etsy Listing Sync — COMPLETE**
 
 ## Status
 
-`Sprint 4 COMPLETE — Ready for Sprint 5`
+`Sprint 5 COMPLETE — Ready for Sprint 6`
 
 ## Last Updated
 
@@ -23,6 +23,7 @@ None (between sprints)
 - Sprint 2: Auth + Organization ✓
 - Sprint 3: Stripe Billing and Feature Gates ✓
 - Sprint 4: Etsy OAuth2 PKCE Flow ✓
+- Sprint 5: Etsy Listing Sync ✓
 
 ## Blockers
 
@@ -32,10 +33,9 @@ None
 
 - `anyio==4.6.2` in requirements-dev.txt is yanked. Works fine. Upgrade when 4.7.0 stable.
 - Frontend `npm install` not run — node_modules absent. Run `npm install` or `docker compose up`.
-- Stripe live testing requires real `sk_test_*` key + `stripe listen` CLI for local webhooks.
-- `stripe.Webhook.construct_event` blocks event loop (sync call in async route). Fix in Sprint 18 hardening.
-- Etsy OAuth requires real `ETSY_CLIENT_ID` in .env — placeholder returns 503 by design.
-- `fetch_etsy_shop` uses `user_id` from token response — Etsy token exchange response format should be verified against live API.
+- Etsy access token auto-refresh not fully implemented. If token expired, sync logs warning but continues (Etsy may still accept briefly). Full auto-refresh in Sprint 8.
+- `fetch_listing_videos` best-effort: some Etsy shops don't have a video API endpoint. Returns empty list on 404/405.
+- Inline sync blocks HTTP thread. Celery background task deferred to Sprint 8 hardening.
 
 ## Test Results
 
@@ -45,16 +45,20 @@ None
 | `pytest tests/test_auth.py` | 14/14 PASSED |
 | `pytest tests/test_billing.py` | 26/26 PASSED |
 | `pytest tests/test_etsy.py` | 15/15 PASSED |
-| **Full suite `pytest`** | **59/59 PASSED, 0 warnings** |
+| `pytest tests/test_listings.py` | 16/16 PASSED |
+| **Full suite `pytest`** | **75/75 PASSED** |
 
-## Etsy Endpoints
+## Listing Sync Endpoints
 
 | Endpoint | Auth | Status |
 |---|---|---|
-| GET /api/v1/etsy/authorize | Bearer | ✓ (503 w/o ETSY_CLIENT_ID) |
-| GET /api/v1/etsy/callback | None | ✓ (always redirects) |
-| GET /api/v1/etsy/shops | Bearer | ✓ |
-| DELETE /api/v1/etsy/shops/{id} | Bearer | ✓ |
+| POST /api/v1/shops/{id}/sync | Bearer | ✓ (inline, future: Celery) |
+| GET /api/v1/shops/{id}/sync-status | Bearer | ✓ |
+| GET /api/v1/listings | Bearer | ✓ (paginated, filterable) |
+| GET /api/v1/listings/{id} | Bearer | ✓ |
+| GET /api/v1/listings/{id}/images | Bearer | ✓ |
+| GET /api/v1/listings/{id}/videos | Bearer | ✓ |
+| GET /api/v1/listings/{id}/variations | Bearer | ✓ |
 
 ## Port Configuration
 
@@ -69,12 +73,12 @@ None
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 5 / 18 |
-| Backend Python files | 50+ |
-| Frontend TypeScript files | 18 |
-| Total tests | 59 |
+| Sprints complete | 6 / 18 |
+| Backend Python files | 65+ |
+| Frontend TypeScript files | 20 |
+| Total tests | 75 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 5: Etsy Listing Sync. See HANDOFF.md for exact prompt.
+Begin Sprint 6: Listings Grid UX. See HANDOFF.md for exact prompt.

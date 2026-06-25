@@ -146,5 +146,24 @@ Yearly plans have identical feature limits; only pricing differs (lower monthly 
 ### [ETSY] is_etsy_configured() checks for "placeholder" in ETSY_CLIENT_ID
 Mirrors is_stripe_configured() pattern. `GET /etsy/authorize` returns 503 `"Etsy is not configured."` if ETSY_CLIENT_ID is placeholder. Prevents OAuth flow from starting with invalid credentials.
 
+---
+
+## 2026-06-25 (Sprint 5)
+
+### [SYNC] Inline sync for MVP, Celery deferred to Sprint 8
+POST /shops/{id}/sync runs sync_shop_listings() inline in the HTTP request. Acceptable for MVP because sync is read-only and typically <10 seconds for free/basic plan listing counts. Comment added for future Celery task dispatch.
+
+### [SYNC] max_listings gate enforced by results[:remaining] slice
+Service requests `min(PAGE_LIMIT, remaining)` items per page from Etsy. Additionally, results are sliced to `remaining` before processing to guard against Etsy returning more than requested. Ensures plan limit is always honored even with mock data.
+
+### [SYNC] raw_data JSON column on all listing models
+Every Listing/ListingImage/ListingVideo/ListingVariation stores the full API response JSON. Defensive design: Etsy API response fields change without notice. raw_data preserves full fidelity for future field additions without requiring migrations.
+
+### [SYNC] Video sync is best-effort, returns empty on 404/405
+Not all Etsy shops have video listings. fetch_listing_videos() returns empty list on 404 or 405 instead of failing sync. Documented as known limitation in HANDOFF.md.
+
+### [SYNC] Token expiry check logs warning but continues
+If EtsyToken.expires_at is within TOKEN_REFRESH_BUFFER_SECONDS (300s), logs a warning but uses the token anyway. Etsy access tokens often remain valid briefly after expiry. Full auto-refresh deferred to Sprint 8. Users are shown a reconnect recommendation in that edge case.
+
 ### [TEST] Shared-memory SQLite URI for cross-fixture data visibility
 Changed TEST_DB_URL from `sqlite+aiosqlite:///:memory:` to `sqlite+aiosqlite:///file:testdb?mode=memory&cache=shared&uri=true`. Named shared-memory DB required when both `client` (with overridden get_db) and `db_session` fixtures are used in the same test — they now share the same SQLite in-memory database across connections.

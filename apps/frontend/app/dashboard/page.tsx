@@ -7,12 +7,12 @@ import { useRouter } from "next/navigation";
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
 
 const placeholderFeatures = [
-  { title: "Connect Etsy Shop", description: "OAuth connection — Sprint 4", icon: "🔗" },
-  { title: "Sync Listings", description: "Full & incremental sync — Sprint 5", icon: "🔄" },
-  { title: "Bulk Edit", description: "Titles, tags, prices & more — Sprint 7", icon: "✏️" },
-  { title: "AI Tools", description: "Title optimizer, tag generator — Sprint 13", icon: "🤖" },
-  { title: "Magic Revert", description: "Undo bulk changes — Sprint 9", icon: "↩️" },
-  { title: "Media Library", description: "Photo & video management — Sprint 10", icon: "🖼️" },
+  { title: "Connect Etsy Shop", description: "OAuth connection — Sprint 4 ✓", icon: "🔗", href: "/shops" },
+  { title: "Sync Listings", description: "Full listing sync — Sprint 5 ✓", icon: "🔄", href: "/listings" },
+  { title: "Bulk Edit", description: "Titles, tags, prices & more — Sprint 7", icon: "✏️", href: null },
+  { title: "AI Tools", description: "Title optimizer, tag generator — Sprint 13", icon: "🤖", href: null },
+  { title: "Magic Revert", description: "Undo bulk changes — Sprint 9", icon: "↩️", href: null },
+  { title: "Media Library", description: "Photo & video management — Sprint 10", icon: "🖼️", href: null },
 ];
 
 export default function DashboardPage() {
@@ -87,21 +87,37 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
           {placeholderFeatures.map((feature) => (
-            <div
-              key={feature.title}
-              className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col gap-2"
-            >
-              <span className="text-2xl">{feature.icon}</span>
-              <h3 className="font-semibold text-gray-800">{feature.title}</h3>
-              <p className="text-sm text-gray-400">{feature.description}</p>
-            </div>
+            feature.href ? (
+              <Link
+                key={feature.title}
+                href={feature.href}
+                className="bg-white rounded-xl border border-indigo-100 shadow-sm p-6 flex flex-col gap-2 hover:border-indigo-300 transition-colors"
+              >
+                <span className="text-2xl">{feature.icon}</span>
+                <h3 className="font-semibold text-gray-800">{feature.title}</h3>
+                <p className="text-sm text-indigo-500">{feature.description}</p>
+              </Link>
+            ) : (
+              <div
+                key={feature.title}
+                className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col gap-2 opacity-60"
+              >
+                <span className="text-2xl">{feature.icon}</span>
+                <h3 className="font-semibold text-gray-800">{feature.title}</h3>
+                <p className="text-sm text-gray-400">{feature.description}</p>
+              </div>
+            )
           ))}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-5 mb-5">
           <Link href="/shops" className="bg-green-50 hover:bg-green-100 border border-green-100 rounded-xl p-5 transition-colors">
             <p className="text-sm font-semibold text-green-800">Etsy Shops</p>
             <p className="text-xs text-green-500 mt-1">Connect and manage your Etsy shops</p>
+          </Link>
+          <Link href="/listings" className="bg-green-50 hover:bg-green-100 border border-green-100 rounded-xl p-5 transition-colors">
+            <p className="text-sm font-semibold text-green-800">Listings</p>
+            <p className="text-xs text-green-500 mt-1">Browse and sync your Etsy listings</p>
           </Link>
           <Link href="/pricing" className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-xl p-5 transition-colors">
             <p className="text-sm font-semibold text-indigo-800">Pricing</p>

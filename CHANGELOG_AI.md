@@ -4,6 +4,37 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 Sprint 5 — Etsy Listing Sync
+
+**Skills active:** 11 etsy-integration, 06 database-modeling, 07 backend-api, 08 frontend-ui, 14 background-jobs, 10 billing-stripe, 20 testing-qa, 01 documentation-handoff
+
+**Completed:**
+- Created 5 new SQLAlchemy models: Listing, ListingImage, ListingVideo, ListingVariation, SyncJob
+- Updated `app/models/__init__.py` — all 10+ models imported
+- Created `alembic/versions/0004_create_listing_sync_tables.py` — migration for 5 tables
+- Created `app/schemas/listings.py` — 7 response schemas (SyncJobResponse, ListingListItemResponse, ListingDetailResponse, ListingPageResponse, ListingImageResponse, ListingVideoResponse, ListingVariationResponse)
+- Created `app/services/etsy_sync.py` — full sync pipeline: token retrieval (decrypt, expiry check), paginated fetch (PAGE_LIMIT=100), upsert_listing/images/videos/variations, SyncJob lifecycle (pending→running→completed/failed), max_listings plan gate, best-effort video/variation sync
+- Created `app/api/v1/shops.py` — POST /shops/{id}/sync (inline, Celery placeholder comment), GET /shops/{id}/sync-status
+- Created `app/api/v1/listings.py` — GET /listings (org-scoped, shop/state/search filters, pagination, sort), GET /listings/{id}, /images, /videos, /variations
+- Updated `app/api/v1/router.py` — include shops_router + listings_router
+- Created `tests/test_listings.py` — 16 tests
+- Created `apps/frontend/app/listings/page.tsx` — shop selector, sync button, state/search filters, paginated table, loading/empty/error states
+- Updated `apps/frontend/app/dashboard/page.tsx` — Listings card + feature grid links
+
+**Test results:** 75/75 PASSED (16 new + 59 existing)
+
+**Bug fixes:**
+- `_setup_connected_shop` uses org-based unique `etsy_shop_id` to avoid SQLite UNIQUE constraint conflicts across tests sharing the same in-memory DB
+- `sync_shop_listings` caps `results[:remaining]` to enforce max_listings even when mock returns more than requested
+
+**Decisions made:**
+- Inline sync (not Celery) for Sprint 5 MVP — Celery task deferred to Sprint 8
+- Results capped to `remaining = max_listings - total_fetched` before processing (guards against Etsy returning more than requested)
+- Video sync is best-effort: 404/405 returns empty list, not error
+- Listing model stores `raw_data` JSON for defensive future field access
+
+---
+
 ## 2026-06-25 Sprint 4 — Etsy OAuth2 PKCE Flow
 
 **Skills active:** 11 etsy-integration, 06 database-modeling, 07 backend-api, 08 frontend-ui, 20 testing-qa, 21 security-audit

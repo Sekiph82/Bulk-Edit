@@ -3,29 +3,27 @@
 ## Last Session
 
 **Date:** 2026-06-25
-**Sprint:** 4 — Etsy OAuth2 PKCE Flow — COMPLETE
-**Completed:** EtsyShop/EtsyToken/EtsyOAuthState models, Fernet encryption module, PKCE helpers, 4 Etsy endpoints (authorize/callback/shops/disconnect), etsy service layer, Alembic migration 0003, 15 Etsy tests, frontend /shops page. 59/59 tests pass. Committed and pushed.
+**Sprint:** 5 — Etsy Listing Sync — COMPLETE
+**Completed:** Listing/ListingImage/ListingVideo/ListingVariation/SyncJob models, Alembic migration 0004, etsy_sync service with full pagination + upsert, 7 listing API endpoints, 16 new tests, frontend /listings page with sync button + filters + pagination. 75/75 tests pass. Committed and pushed.
 
 ## Current State
 
-Full Etsy OAuth2 PKCE flow on top of Sprint 3 billing + Sprint 2 auth:
-
 **Backend (`apps/backend/`):**
-- `app/core/config.py` — ENCRYPTION_KEY, ETSY_CLIENT_ID, ETSY_REDIRECT_URI, ETSY_SCOPES + is_etsy_configured()
-- `app/core/encryption.py` — Fernet encrypt_token/decrypt_token, dev fallback key for local use
-- `app/models/etsy_shop.py` — EtsyShop (org-scoped, etsy_shop_id UNIQUE, is_connected)
-- `app/models/etsy_token.py` — EtsyToken (etsy_shop_id FK UNIQUE, encrypted access/refresh, expires_at)
-- `app/models/etsy_oauth_state.py` — EtsyOAuthState (state UNIQUE, code_verifier, expires_at, consumed_at)
-- `app/schemas/etsy.py` — response schemas
-- `app/services/etsy.py` — PKCE, OAuth flow, token exchange, shop fetch, list/disconnect
-- `app/api/v1/etsy.py` — 4 endpoints: authorize, callback, shops, disconnect
-- `alembic/versions/0003_create_etsy_tables.py` — migration
-- `tests/test_etsy.py` — 15 tests
-- `tests/conftest.py` — updated to shared-memory SQLite URI for cross-fixture visibility
+- `app/models/listing.py` — Listing (org-scoped, full Etsy field set, tags/materials JSON, unique on etsy_shop_id+etsy_listing_id)
+- `app/models/listing_image.py` — ListingImage (listing_id FK, URLs, alt_text, rank, dimensions)
+- `app/models/listing_video.py` — ListingVideo (listing_id FK, video_url, thumbnail_url, rank)
+- `app/models/listing_variation.py` — ListingVariation (listing_id FK, property/value, price, quantity)
+- `app/models/sync_job.py` — SyncJob (org+shop scoped, status/progress tracking)
+- `app/schemas/listings.py` — 7 response schemas
+- `app/services/etsy_sync.py` — full sync service: token retrieval, paginated fetch, upsert all types, max_listings gate, SyncJob lifecycle
+- `app/api/v1/shops.py` — POST /shops/{id}/sync, GET /shops/{id}/sync-status
+- `app/api/v1/listings.py` — GET /listings (filtered+paginated), GET /listings/{id}, /images, /videos, /variations
+- `alembic/versions/0004_create_listing_sync_tables.py`
+- `tests/test_listings.py` — 16 tests
 
 **Frontend (`apps/frontend/`):**
-- `app/shops/page.tsx` — list shops, connect button (calls /etsy/authorize, redirects to Etsy), disconnect, success/error banners
-- `app/dashboard/page.tsx` — added Etsy Shops link
+- `app/listings/page.tsx` — shop selector, sync button (POST /shops/{id}/sync), listings table with state/search filters, pagination, loading/empty/error states
+- `app/dashboard/page.tsx` — Listings link added to quick-access cards and feature grid
 
 ## Port Summary
 
@@ -38,43 +36,44 @@ Full Etsy OAuth2 PKCE flow on top of Sprint 3 billing + Sprint 2 auth:
 
 ## Next Task
 
-**Start Sprint 5: Etsy Listing Sync**
+**Start Sprint 6: Listings Grid UX**
 
 Implement:
-- `Listing` model (etsy_shop_id FK, etsy_listing_id BIGINT UNIQUE, title, description, price, quantity, tags TEXT[], materials TEXT[], status, category_id, section_id, has_variations, shipping_profile_id, return_policy_id, personalization fields, weight/dimension fields, timestamps)
-- `ListingImage` model (listing_id FK, etsy_image_id BIGINT, url_fullxfull, url_570xN, alt_text, rank)
-- `ListingVariation` model (listing_id FK, etsy_product_id BIGINT, property_name, value, price, quantity, sku, is_available)
-- Alembic migration 0004 for all three tables
-- `GET /api/v1/shops/{shop_id}/sync` — trigger full sync (background Celery task or sync for MVP)
-- `GET /api/v1/shops/{shop_id}/sync-status` — get sync job status
-- `GET /api/v1/listings` — list listings (paginated, filterable by shop_id/status/search/page/per_page/sort_by/sort_dir)
-- `GET /api/v1/listings/{id}` — single listing detail
-- `GET /api/v1/listings/{id}/images` — listing images
-- `GET /api/v1/listings/{id}/variations` — listing variations
-- Etsy API integration: `GET /application/listings/active` for shop listings, `GET /application/listings/{listing_id}/images`, handle pagination
-- Use `decrypt_token()` from encryption.py to get stored access token; call `refresh_etsy_token()` if expired
-- max_listings feature gate (from PLAN_LIMITS) to cap how many listings are synced
-- Frontend `/listings` page — list view with search, filters, pagination
-- Backend tests for sync and listing endpoints
+- Advanced filtering: by section, by price range, by tag, by has_variations
+- Saved views / filter presets (store in localStorage or DB)
+- Multi-select checkboxes for listings (prepare state for bulk edit)
+- Column visibility toggle (show/hide price, qty, sku, etc.)
+- Listing thumbnail preview (first image from listing_images)
+- Sort controls (click column header to sort)
+- Listing detail sidebar/modal (click row → show full detail without navigation)
+- Frontend API client module (`apps/frontend/lib/api.ts`) — typed fetch wrappers for all endpoints
+- State filter tab bar (All / Active / Inactive / Draft)
+- Performance: virtual scroll or limit visible rows if > 500 listings
+- Backend: add `tags` filter to GET /listings (`?tag=handmade`)
+- Backend: add `has_variations` filter to GET /listings
+- Backend: add `price_min` / `price_max` filter (on price_amount)
+- Backend tests for new filters
+- Frontend component tests if time permits
 
 ## Next Prompt
 
 ```
 Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
 
-Start Sprint 5: implement Etsy listing sync — Listing/ListingImage/ListingVariation models,
-sync endpoints, listings list/detail endpoints, Etsy API integration with encrypted token
-decryption, max_listings feature gate, frontend /listings page, and backend tests.
+Start Sprint 6: implement listings grid UX — advanced filters (tag, price range, has_variations),
+multi-select checkboxes, column visibility, thumbnail preview, sort controls, listing detail
+sidebar, frontend API client module, and backend filter tests.
 
-Active skills: 11 etsy-integration, 06 database-modeling, 07 backend-api, 08 frontend-ui, 20 testing-qa.
+Active skills: 08 frontend-ui, 07 backend-api, 20 testing-qa, 01 documentation-handoff.
 ```
 
 ## Known Issues
 
-- Etsy live OAuth: set real `ETSY_CLIENT_ID` in .env and register `http://localhost:8100/api/v1/etsy/callback` as redirect URI in Etsy developer portal.
-- `fetch_etsy_shop` extracts `user_id` from token response field `user_id` — verify against live Etsy OAuth token response format.
-- Etsy access tokens expire in ~1 hour. `refresh_etsy_token()` stub exists but not hooked into sync flow yet (Sprint 5 task).
-- `stripe.Webhook.construct_event` blocks event loop. Fix in Sprint 18.
+- Etsy access token auto-refresh not implemented. If token expires, `get_valid_etsy_access_token` logs a warning but continues. Full refresh deferred to Sprint 8.
+- `fetch_listing_videos` is best-effort — returns empty list on 404/405 (many shops don't have Etsy video API access).
+- Sync runs inline in HTTP thread. Should be Celery background task. Deferred to Sprint 8 hardening. Add comment in shops.py: `# Future: dispatch to Celery task`.
+- Frontend npm not installed — `node_modules/` absent. Run `npm install` inside `apps/frontend` or `docker compose up`.
+- Listing image sync: uses inline `Images` field from listing response if present, else makes separate API call. Etsy `includes=Images,MainImage` should populate inline.
 
 ## Push Status
 

@@ -142,17 +142,26 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 5: Listing Sync
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Design Listing, ListingImage, ListingVariation models
-- [ ] Implement Etsy listing fetch (paginated)
-- [ ] Implement listing snapshot storage
-- [ ] Implement sync status tracking
-- [ ] Build Celery sync task
-- [ ] Add webhook for Etsy listing updates (if available)
-- [ ] Build frontend sync status UI
-- [ ] Write sync tests
-- [ ] Commit and push
+- [x] Create Listing model (org-scoped, etsy_shop_id FK, etsy_listing_id + full field set)
+- [x] Create ListingImage model (listing_id FK, etsy_image_id, URLs, rank)
+- [x] Create ListingVideo model (listing_id FK, etsy_video_id, video_url, thumbnail_url)
+- [x] Create ListingVariation model (listing_id FK, etsy_product_id, property/value, price, qty)
+- [x] Create SyncJob model (org-scoped, etsy_shop_id FK, status, progress counters)
+- [x] Update app/models/__init__.py — all 5 new models
+- [x] Alembic migration 0004 — listings, listing_images, listing_videos, listing_variations, sync_jobs
+- [x] Create app/schemas/listings.py — SyncJobResponse, ListingListItemResponse, ListingDetailResponse, ListingPageResponse, ListingImageResponse, ListingVideoResponse, ListingVariationResponse
+- [x] Create app/services/etsy_sync.py — get_valid_etsy_access_token, fetch_shop_listings, fetch_listing_images, fetch_listing_videos, fetch_listing_inventory, upsert_*, sync_shop_listings
+- [x] Create app/api/v1/shops.py — POST /shops/{shop_id}/sync, GET /shops/{shop_id}/sync-status
+- [x] Create app/api/v1/listings.py — GET /listings, GET /listings/{id}, /images, /videos, /variations
+- [x] Update app/api/v1/router.py — include shops_router and listings_router
+- [x] max_listings plan gate enforced in sync_shop_listings
+- [x] Create tests/test_listings.py — 16 tests
+- [x] Create frontend app/listings/page.tsx — shop selector, sync button, filtered table, pagination
+- [x] Update frontend app/dashboard/page.tsx — Listings link added
+- [x] 16/16 listing tests PASS; full suite 75/75 PASS
+- [x] Commit and push
 
 ---
 
