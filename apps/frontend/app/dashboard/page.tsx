@@ -98,17 +98,28 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6">
-          <p className="text-sm font-semibold text-indigo-800 mb-2">Auth Endpoints (Sprint 2)</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
+          <Link href="/pricing" className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-xl p-5 transition-colors">
+            <p className="text-sm font-semibold text-indigo-800">Pricing</p>
+            <p className="text-xs text-indigo-500 mt-1">View plans — Free, Basic, Pro</p>
+          </Link>
+          <Link href="/billing" className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-xl p-5 transition-colors">
+            <p className="text-sm font-semibold text-indigo-800">Billing</p>
+            <p className="text-xs text-indigo-500 mt-1">Manage your subscription</p>
+          </Link>
+        </div>
+
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+          <p className="text-sm font-semibold text-gray-700 mb-2">API Endpoints</p>
           <div className="space-y-1">
             {[
               "/api/v1/auth/register",
               "/api/v1/auth/login",
-              "/api/v1/auth/refresh",
-              "/api/v1/auth/logout",
-              "/api/v1/auth/me",
+              "/api/v1/billing/plans",
+              "/api/v1/billing/subscription",
+              "/api/v1/billing/usage",
             ].map((path) => (
-              <code key={path} className="block text-xs text-indigo-600">
+              <code key={path} className="block text-xs text-gray-500">
                 {BACKEND_URL}{path}
               </code>
             ))}

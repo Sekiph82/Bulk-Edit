@@ -22,6 +22,32 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    STRIPE_SECRET_KEY: str = "stripe_secret_key_placeholder"
+    STRIPE_WEBHOOK_SECRET: str = "webhook_secret_placeholder"
+    STRIPE_PRICE_BASIC_MONTHLY: str = "price_placeholder_basic_monthly"
+    STRIPE_PRICE_PRO_MONTHLY: str = "price_placeholder_pro_monthly"
+    STRIPE_PRICE_BASIC_YEARLY: str = "price_placeholder_basic_yearly"
+    STRIPE_PRICE_PRO_YEARLY: str = "price_placeholder_pro_yearly"
+
+    def is_stripe_configured(self) -> bool:
+        key = self.STRIPE_SECRET_KEY
+        return key.startswith("sk_test_") or key.startswith("sk_live_")
+
+    def is_stripe_webhook_configured(self) -> bool:
+        return self.STRIPE_WEBHOOK_SECRET.startswith("whsec_")
+
+    def get_stripe_price_id(self, plan: str) -> str | None:
+        mapping = {
+            "basic_monthly": self.STRIPE_PRICE_BASIC_MONTHLY,
+            "pro_monthly": self.STRIPE_PRICE_PRO_MONTHLY,
+            "basic_yearly": self.STRIPE_PRICE_BASIC_YEARLY,
+            "pro_yearly": self.STRIPE_PRICE_PRO_YEARLY,
+        }
+        price_id = mapping.get(plan)
+        if price_id and "placeholder" not in price_id:
+            return price_id
+        return None
+
     def get_cors_origins(self) -> List[str]:
         v = self.BACKEND_CORS_ORIGINS.strip()
         if v.startswith("["):

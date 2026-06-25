@@ -4,6 +4,43 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 Sprint 3 — Stripe Billing and Feature Gates
+
+**Skills active:** 10 billing-stripe, 06 database-modeling, 07 backend-api, 08 frontend-ui, 20 testing-qa, 21 security-audit, 01 documentation-handoff
+
+**Completed:**
+- Added `stripe==15.3.0` to requirements.txt
+- Added Stripe env vars to `app/core/config.py` (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_*); helper methods `is_stripe_configured()`, `is_stripe_webhook_configured()`, `get_stripe_price_id(plan)`
+- Created `app/core/plans.py` — plan limits dict for free/basic_monthly/pro_monthly/basic_yearly/pro_yearly
+- Created `app/models/subscription.py`, `billing_event.py`, `usage_counter.py`
+- Updated `app/models/__init__.py` — imports all 7 models for Alembic autogenerate
+- Created `alembic/versions/0002_create_billing_tables.py` — migration for subscriptions, billing_events, usage_counters
+- Created `app/schemas/billing.py` — PlanLimitsResponse, PlansResponse, SubscriptionResponse, CheckoutRequest/Response, PortalResponse, UsageResponse
+- Created `app/services/billing.py` — ensure_subscription_exists, can_use_feature, check_usage_limit, increment_usage, create_checkout_session, create_portal_session, process_webhook_event + sub-handlers
+- Updated `app/core/deps.py` — added `get_current_org_id` dependency
+- Created `app/api/v1/billing.py` — 6 endpoints: GET plans, GET subscription, POST checkout, POST portal, POST webhook, GET usage
+- Updated `app/api/v1/router.py` — includes billing router
+- Created `apps/frontend/app/pricing/page.tsx` — 5-plan grid with limits, upgrade buttons, BACKEND_URL integration
+- Created `apps/frontend/app/billing/page.tsx` — subscription status, portal button, success/canceled query params
+- Updated `apps/frontend/app/dashboard/page.tsx` — Pricing/Billing quick-links
+- Created `tests/test_billing.py` — 26 tests
+
+**Test results:** 44/44 PASSED (4 health + 14 auth + 26 billing), 0 warnings
+
+**Decisions made:**
+- Webhook secret detection: `whsec_` prefix check (not placeholder detection)
+- Stripe configured detection: `sk_test_` or `sk_live_` prefix check
+- Webhook event idempotency: unique constraint on `stripe_event_id` + early-return check
+- UsageCounter: DB model with `period_key=YYYY-MM` (not Redis) per sprint spec
+- Sync Stripe calls in async routes: acceptable for Sprint 3, fix in Sprint 18
+- Mocking pydantic-settings in tests: patch full module-level `settings` ref (not instance attribute)
+
+**Blockers:** None
+
+**Next:** Sprint 4 — Etsy OAuth
+
+---
+
 ## 2026-06-25 Sprint 2 — Auth + Organization
 
 **Skills active:** 09 auth-security, 06 database-modeling, 07 backend-api, 08 frontend-ui, 20 testing-qa

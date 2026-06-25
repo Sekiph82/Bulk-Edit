@@ -98,3 +98,34 @@ Tests use SQLite in-memory DB via `aiosqlite`. PostgreSQL-specific features (e.g
 
 ### [DEPS] PyJWT 2.9.0 downgraded from 2.13.0
 Pinned to 2.9.0 per requirements.txt spec. Existing 2.13.0 was uninstalled. No breaking API changes for our usage (encode/decode). Pin exists for reproducibility.
+
+---
+
+## 2026-06-25 (Sprint 3)
+
+### [BILLING] Stripe configured detection via key prefix, not env var name
+`is_stripe_configured()` checks if `STRIPE_SECRET_KEY` starts with `sk_test_` or `sk_live_`. Placeholder value `"stripe_secret_key_placeholder"` fails this check, returning 503. Avoids complex env var presence checking.
+
+### [BILLING] Webhook configured check via whsec_ prefix
+`is_stripe_webhook_configured()` checks if `STRIPE_WEBHOOK_SECRET` starts with `whsec_`. Default placeholder `"webhook_secret_placeholder"` fails, returning 503 for all webhook calls. Real Stripe secrets always start with `whsec_`.
+
+### [BILLING] UsageCounter in database (not Redis)
+Sprint 3 spec requires a UsageCounter DB model with `period_key=YYYY-MM`. Redis-based counters remain in design docs for Sprint 18 as a higher-performance alternative. DB approach is simpler and sufficient for MVP.
+
+### [BILLING] Webhook idempotency via unique stripe_event_id + early return
+BillingEvent table has UNIQUE constraint on `stripe_event_id`. `process_webhook_event` checks for existing record before processing. Duplicate events are silently ignored without error. Safe for Stripe's at-least-once delivery guarantee.
+
+### [BILLING] Free plan subscription row created on first GET /billing/subscription
+Rather than creating subscription on register, we create it lazily on first billing endpoint call. Reduces SQL writes at registration. Organization always gets free plan if no subscription exists.
+
+### [BILLING] Sync Stripe API calls in async FastAPI handlers
+Stripe Python SDK is synchronous. Calls run in the event loop thread directly. Acceptable for MVP — latency is typically <300ms. `anyio.to_thread.run_sync` wrappers deferred to Sprint 18 hardening to keep Sprint 3 testable without extra mocking complexity.
+
+### [BILLING] Mocking pydantic-settings in tests via module-level ref patch
+pydantic-settings instances are frozen; attribute patching fails. Solution: `patch("app.api.v1.billing.settings", MagicMock(...))` replaces the full settings object in the billing module scope. Used only for the `test_webhook_400_invalid_signature` test that needs a configured-but-invalid-sig scenario.
+
+### [BILLING] Stripe price ID validity check includes "placeholder" string detection
+`get_stripe_price_id(plan)` returns None if the configured price ID contains "placeholder". This ensures the endpoint returns 503 without making a live Stripe call, even if the key format passes the prefix check.
+
+### [BILLING] basic_yearly/pro_yearly share limits with basic_monthly/pro_monthly
+Yearly plans have identical feature limits; only pricing differs (lower monthly rate with annual commitment). Yearly variants reference the same dict in PLAN_LIMITS to avoid duplication.

@@ -84,3 +84,31 @@ Every external write operation logs:
 - `.env.example` contains only placeholder values
 - Production secrets managed via hosting provider's secret manager
 - No secrets in Docker images, git history, or logs
+
+---
+
+## Billing Security (Sprint 3)
+
+### Stripe Webhook Verification
+
+Every webhook request verified before processing:
+1. `STRIPE_WEBHOOK_SECRET` must start with `whsec_` (503 otherwise)
+2. `stripe.Webhook.construct_event(raw_body, stripe-signature, secret)` — cryptographic HMAC-SHA256 verification
+3. Invalid signature → 400, event dropped
+4. Duplicate `stripe_event_id` → silently ignored (idempotent)
+5. Raw request body used for verification (not parsed JSON)
+
+### Feature Gate Security
+
+- Backend is sole source of truth for subscription/feature access
+- Frontend cannot grant itself access — all feature checks hit DB
+- `ensure_subscription_exists` creates free plan if none exists — no null plan states possible
+- `can_use_feature(subscription, feature)` reads `PLAN_LIMITS` dict — not user-supplied values
+- Free plan fallback prevents any nil-pointer / access errors on missing subscription
+
+### Stripe Key Security
+
+- `STRIPE_SECRET_KEY` never logged or returned in API responses
+- Checkout/portal only called when key is configured (`sk_test_` or `sk_live_` prefix)
+- Test keys (`sk_test_`) never used in production (environment config check)
+- Price IDs contain "placeholder" substring check — prevents phantom Stripe calls with invalid IDs

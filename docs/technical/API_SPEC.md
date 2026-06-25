@@ -112,15 +112,33 @@ Query params for `GET /listings`:
 
 ---
 
-## Billing
+## Billing (Sprint 3 — IMPLEMENTED)
 
 | Method | Path | Description | Auth |
 |---|---|---|---|
-| GET | `/billing/subscription` | Get current subscription | Access token |
+| GET | `/billing/plans` | Get all plan configs + limits | None |
+| GET | `/billing/subscription` | Get/create current subscription | Access token |
 | POST | `/billing/checkout` | Create Stripe checkout session | Access token |
 | POST | `/billing/portal` | Create Stripe customer portal session | Access token |
-| POST | `/billing/webhook` | Stripe webhook handler | Stripe signature |
-| GET | `/billing/invoices` | List invoices | Access token |
+| POST | `/billing/webhook` | Stripe webhook handler | Stripe-Signature header |
+| GET | `/billing/usage` | Current period usage + plan limits | Access token |
+| GET | `/billing/invoices` | List invoices (future) | Access token |
+
+### POST /billing/checkout
+
+Request: `{ "plan": "basic_monthly" | "pro_monthly" | "basic_yearly" | "pro_yearly" }`
+Returns: `{ "checkout_url": "https://checkout.stripe.com/..." }`
+Errors:
+- 400 if plan="free"
+- 400 if plan invalid
+- 503 if Stripe not configured
+
+### POST /billing/webhook
+
+Returns: `{ "received": true }`
+Errors:
+- 503 if STRIPE_WEBHOOK_SECRET not configured
+- 400 if signature invalid
 
 ---
 

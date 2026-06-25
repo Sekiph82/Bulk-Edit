@@ -93,19 +93,26 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 3: Stripe Billing and Feature Gates
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Design Subscription, Plan, BillingEvent models
-- [ ] Create Stripe products and prices (Free, Monthly, Yearly)
-- [ ] Implement Stripe checkout session endpoint
-- [ ] Implement Stripe webhook handler
-- [ ] Implement subscription status sync
-- [ ] Implement feature gate middleware (plan-based access control)
-- [ ] Build frontend pricing page
-- [ ] Build frontend billing management page
-- [ ] Add plan upgrade/downgrade flow
-- [ ] Write billing unit tests
-- [ ] Commit and push
+- [x] Design Subscription, BillingEvent, UsageCounter models
+- [x] Alembic migration 0002 for all three tables
+- [x] Plan limits config (app/core/plans.py) — free, basic_monthly, pro_monthly, basic_yearly, pro_yearly
+- [x] GET /api/v1/billing/plans — returns all plan configs
+- [x] GET /api/v1/billing/subscription — creates free sub if none exists
+- [x] POST /api/v1/billing/checkout — Stripe checkout session (503 when not configured)
+- [x] POST /api/v1/billing/portal — Stripe customer portal (503 when not configured)
+- [x] POST /api/v1/billing/webhook — Stripe webhook with signature verification
+- [x] GET /api/v1/billing/usage — usage counters + plan limits
+- [x] Feature gate service: can_use_feature, check_usage_limit, increment_usage
+- [x] get_current_org_id FastAPI dependency
+- [x] Webhook: checkout.session.completed, subscription.updated/deleted, invoice.payment_failed
+- [x] Webhook idempotency on duplicate stripe_event_id
+- [x] Frontend /pricing page — 5-plan grid with limits and upgrade buttons
+- [x] Frontend /billing page — current plan, portal button, success/canceled banners
+- [x] Dashboard updated with Pricing/Billing links
+- [x] 26 billing tests — 26/26 PASS; full suite 44/44 PASS
+- [x] Commit and push
 
 ---
 

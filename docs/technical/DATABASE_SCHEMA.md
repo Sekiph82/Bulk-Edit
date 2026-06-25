@@ -47,20 +47,50 @@ All tables include: `id` (UUID), `created_at`, `updated_at`.
 
 ---
 
-## subscriptions
+## subscriptions (Sprint 3 — IMPLEMENTED)
+
+| Column | Type | Notes |
+|---|---|---|
+| id | UUID PK | VARCHAR(36) |
+| organization_id | UUID FK → organizations.id CASCADE | UNIQUE — one sub per org |
+| plan | VARCHAR(50) DEFAULT 'free' | free, basic_monthly, pro_monthly, basic_yearly, pro_yearly |
+| status | VARCHAR(50) DEFAULT 'free' | free, active, trialing, past_due, canceled, incomplete, unpaid |
+| stripe_customer_id | VARCHAR(255) nullable | indexed |
+| stripe_subscription_id | VARCHAR(255) nullable | indexed |
+| stripe_price_id | VARCHAR(255) nullable | |
+| current_period_start | TIMESTAMP nullable | |
+| current_period_end | TIMESTAMP nullable | |
+| cancel_at_period_end | BOOLEAN DEFAULT false | |
+| created_at | TIMESTAMP | |
+| updated_at | TIMESTAMP | |
+
+## billing_events (Sprint 3 — IMPLEMENTED)
 
 | Column | Type | Notes |
 |---|---|---|
 | id | UUID PK | |
-| organization_id | UUID FK → organizations.id | |
-| stripe_customer_id | VARCHAR(255) | |
-| stripe_subscription_id | VARCHAR(255) | |
-| plan | VARCHAR(50) DEFAULT 'free' | 'free', 'pro_monthly', 'pro_yearly' |
-| status | VARCHAR(50) DEFAULT 'active' | 'active', 'canceled', 'past_due', 'trialing' |
-| current_period_start | TIMESTAMP | |
-| current_period_end | TIMESTAMP | |
+| organization_id | UUID FK → organizations.id SET NULL | nullable |
+| stripe_event_id | VARCHAR(255) | UNIQUE indexed — idempotency key |
+| event_type | VARCHAR(100) | indexed |
+| payload | JSON | full Stripe event |
+| processed_at | TIMESTAMP nullable | null if processing failed |
+| created_at | TIMESTAMP | |
+
+## usage_counters (Sprint 3 — IMPLEMENTED)
+
+| Column | Type | Notes |
+|---|---|---|
+| id | UUID PK | |
+| organization_id | UUID FK → organizations.id CASCADE | indexed |
+| period_key | VARCHAR(7) | e.g. "2026-06" |
+| listings_synced | INTEGER DEFAULT 0 | |
+| bulk_edits_used | INTEGER DEFAULT 0 | |
+| ai_credits_used | INTEGER DEFAULT 0 | |
+| media_assets_used | INTEGER DEFAULT 0 | |
 | created_at | TIMESTAMP | |
 | updated_at | TIMESTAMP | |
+
+Unique constraint: (organization_id, period_key) |
 
 ---
 

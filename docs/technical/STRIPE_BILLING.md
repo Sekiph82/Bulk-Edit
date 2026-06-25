@@ -1,31 +1,60 @@
 # Stripe Billing Integration
 
+## Sprint 3 Implementation Status: COMPLETE
+
 ## Products and Prices
 
 Created in Stripe Dashboard and configured via environment variables:
 
 | Plan | ENV var | Stripe type |
 |---|---|---|
+| Basic Monthly | `STRIPE_PRICE_BASIC_MONTHLY` | Recurring, monthly |
 | Pro Monthly | `STRIPE_PRICE_PRO_MONTHLY` | Recurring, monthly |
+| Basic Yearly | `STRIPE_PRICE_BASIC_YEARLY` | Recurring, yearly |
 | Pro Yearly | `STRIPE_PRICE_PRO_YEARLY` | Recurring, yearly |
+
+---
+
+## Plan Limits
+
+Defined in `app/core/plans.py` — `PLAN_LIMITS` dict:
+
+| Feature | Free | Basic | Pro |
+|---|---|---|---|
+| max_shops | 1 | 3 | 10 |
+| max_listings | 25 | 1,000 | 10,000 |
+| bulk_edits_per_month | 10 | 250 | 5,000 |
+| ai_credits_per_month | 5 | 250 | 2,000 |
+| media_assets | 25 | 1,000 | 10,000 |
+| can_bulk_edit_photos | ✗ | ✓ | ✓ |
+| can_bulk_edit_variations | ✗ | ✗ | ✓ |
+| can_use_magic_revert | ✗ | ✓ | ✓ |
+| can_use_dynamic_pricing | ✗ | ✗ | ✓ |
+| can_schedule_jobs | ✗ | ✓ | ✓ |
+
+Yearly plans share the same limits as their monthly counterparts.
 
 ---
 
 ## Checkout Flow
 
-1. Frontend calls `POST /billing/checkout` with `{ plan: 'pro_monthly' }`
-2. Backend creates Stripe Checkout Session:
+1. Frontend calls `POST /api/v1/billing/checkout` with `{ "plan": "pro_monthly" }`
+2. Backend checks:
+   - Plan is not "free" (400)
+   - Stripe is configured: `STRIPE_SECRET_KEY` starts with `sk_test_` or `sk_live_` (503)
+   - Price ID is not placeholder (503)
+3. Backend creates/reuses Stripe Customer for org
+4. Backend creates Stripe Checkout Session:
    - `mode: 'subscription'`
-   - `price_id: env.STRIPE_PRICE_PRO_MONTHLY`
-   - `customer_email: user.email`
-   - `metadata: { organization_id: org.id }`
-   - `success_url: /billing/success`
-   - `cancel_url: /billing/cancel`
-3. Backend returns `{ checkout_url }`
-4. Frontend redirects to Stripe Checkout
-5. User completes payment
-6. Stripe fires `checkout.session.completed` webhook
-7. Backend syncs subscription status
+   - `customer: existing_customer_id`
+   - `metadata: { organization_id: org.id, plan: plan }`
+   - `success_url: http://localhost:3100/billing?success=true`
+   - `cancel_url: http://localhost:3100/pricing?canceled=true`
+5. Returns `{ "checkout_url": "..." }`
+6. Frontend redirects to Stripe Checkout
+7. User completes payment
+8. Stripe fires `checkout.session.completed` webhook
+9. Backend syncs subscription status
 
 ---
 
@@ -33,68 +62,104 @@ Created in Stripe Dashboard and configured via environment variables:
 
 | Event | Action |
 |---|---|
-| `checkout.session.completed` | Create/update subscription, set status=active |
-| `customer.subscription.updated` | Sync plan and status |
-| `customer.subscription.deleted` | Set status=canceled |
-| `invoice.payment_succeeded` | Log payment, extend period_end |
-| `invoice.payment_failed` | Set status=past_due, email user |
+| `checkout.session.completed` | Set plan, status=active, store stripe_customer_id + subscription_id |
+| `customer.subscription.created` | Sync status, period dates, price_id |
+| `customer.subscription.updated` | Sync status, period dates, cancel_at_period_end |
+| `customer.subscription.deleted` | Set plan=free, status=canceled |
+| `invoice.payment_failed` | Set status=past_due |
 
 ### Webhook Security
 
-Every webhook request must:
-1. Have `Stripe-Signature` header
-2. Be verified: `stripe.webhooks.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)`
-3. If verification fails: return 400, log attempt
+Every webhook request:
+1. Must have `Stripe-Signature` header
+2. `STRIPE_WEBHOOK_SECRET` must start with `whsec_` (503 otherwise)
+3. Verified: `stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)`
+4. Invalid signature: return 400
+5. Idempotency: duplicate `stripe_event_id` silently ignored
+
+### Local Webhook Testing
+
+```bash
+stripe listen --forward-to http://localhost:8100/api/v1/billing/webhook
+# Copy the signing secret (whsec_...) to STRIPE_WEBHOOK_SECRET
+```
 
 ---
 
 ## Customer Portal
 
-For subscription management (cancel, change plan, view invoices):
-1. Backend creates Stripe Customer Portal session
-2. `POST /billing/portal` → returns `{ portal_url }`
-3. Frontend redirects to Stripe portal
-4. User manages subscription on Stripe's hosted page
-
----
-
-## Feature Gate Implementation
-
-```python
-# Middleware pseudocode
-def require_pro(organization_id):
-    sub = db.query(Subscription).filter_by(organization_id=organization_id).first()
-    if sub.plan == 'free' or sub.status != 'active':
-        raise HTTPException(403, "SUBSCRIPTION_REQUIRED")
+```
+POST /api/v1/billing/portal → { "portal_url": "..." }
 ```
 
-Applied as FastAPI dependency injection on protected routes.
+Requires:
+1. Stripe configured (503 otherwise)
+2. Org must have `stripe_customer_id` — set after first paid checkout (400 otherwise)
+3. User redirected to Stripe-hosted portal to manage subscription
 
 ---
 
-## Subscription Status in DB
+## Feature Gate
 
-`subscriptions.status` values:
-- `active` — paying and in good standing
-- `trialing` — in trial period
-- `past_due` — payment failed, grace period
-- `canceled` — canceled, access ends at `current_period_end`
-- `free` — no Stripe subscription (free plan)
+`app/services/billing.py`:
+```python
+can_use_feature(subscription, "can_use_magic_revert")  # → bool
+check_usage_limit(org_id, "bulk_edits_used", db)       # → bool (within limit)
+increment_usage(org_id, "bulk_edits_used", db)          # increments UsageCounter
+```
 
-Free plan rows have `stripe_subscription_id = null`.
-
----
-
-## Usage Limits Enforcement
-
-Usage counters tracked in Redis per organization per calendar month:
-- `org:{org_id}:bulk_edits:{YYYY-MM}` — bulk edit count
-- `org:{org_id}:ai_uses:{YYYY-MM}` — AI tool use count
-
-Reset automatically on month rollover.
+Feature gate FastAPI dependency:
+```python
+# app/core/deps.py
+get_current_org_id  # resolves org_id from user's membership
+```
 
 ---
 
-## Blockers
+## Subscription Status Values
 
-If `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are not set, billing cannot be tested live. Use Stripe's test mode keys and `stripe listen --forward-to localhost:8000/api/v1/billing/webhook` for local webhook testing.
+| Status | Meaning |
+|---|---|
+| `free` | No Stripe subscription, free plan |
+| `active` | Paying and in good standing |
+| `trialing` | In trial period |
+| `past_due` | Payment failed, grace period |
+| `canceled` | Canceled, access ends at current_period_end |
+| `incomplete` | Checkout incomplete |
+| `unpaid` | Multiple payment failures |
+
+---
+
+## Usage Counters
+
+Tracked in `usage_counters` table, scoped by `organization_id` + `period_key` (YYYY-MM):
+- `bulk_edits_used`
+- `ai_credits_used`
+- `listings_synced`
+- `media_assets_used`
+
+GET `/api/v1/billing/usage` returns current period usage + plan limits.
+
+---
+
+## Configuration Required
+
+Set in `.env`:
+```env
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_BASIC_MONTHLY=price_...
+STRIPE_PRICE_PRO_MONTHLY=price_...
+STRIPE_PRICE_BASIC_YEARLY=price_...
+STRIPE_PRICE_PRO_YEARLY=price_...
+```
+
+Without valid keys, checkout/portal return 503 with `"Stripe is not configured."` / `"Stripe webhook is not configured."`.
+
+---
+
+## Known Limitations
+
+- `stripe.Webhook.construct_event` is synchronous and blocks the event loop. Fix with `anyio.to_thread.run_sync` in Sprint 18.
+- No invoice listing endpoint yet (Sprint future).
+- No trial period configuration yet.

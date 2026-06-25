@@ -45,3 +45,25 @@ async def require_superuser(user=Depends(require_active_user)):
     if not user.is_superuser:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superuser required")
     return user
+
+
+async def get_current_org_id(
+    user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> str:
+    from app.models.organization_member import OrganizationMember
+
+    result = await db.execute(
+        select(OrganizationMember)
+        .where(OrganizationMember.user_id == user.id, OrganizationMember.role == "owner")
+        .limit(1)
+    )
+    member = result.scalar_one_or_none()
+    if not member:
+        result = await db.execute(
+            select(OrganizationMember).where(OrganizationMember.user_id == user.id).limit(1)
+        )
+        member = result.scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No organization found for user")
+    return member.organization_id
