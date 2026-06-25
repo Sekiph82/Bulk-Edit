@@ -52,8 +52,10 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 - [x] Create `start-dev.bat` — Windows double-click startup (Docker check, .env copy, down + up --build, logs, pause)
 - [x] Create `start-dev-clean.bat` — Windows full reset with volume deletion (confirmation required)
-- [x] Update README.md Windows Quick Start section
-- [x] Update docs/operations/DEPLOYMENT.md Windows startup section
+- [x] Create `setup-and-start.bat` — Windows one-click friend/reviewer setup (installs Git + Docker via winget, clones repo, builds, opens browser)
+- [x] Create `setup-and-start-clean.bat` — Same as above with DB volume reset (YES confirmation gate)
+- [x] Update README.md Windows Quick Start and One-Click Friend Setup sections
+- [x] Update docs/operations/DEPLOYMENT.md Windows startup and one-click sections
 - [x] Commit and push
 
 ---

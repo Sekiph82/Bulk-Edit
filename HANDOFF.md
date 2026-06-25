@@ -63,12 +63,16 @@ Active skills: 07 backend-api, 06 database-modeling, 08 frontend-ui, 20 testing-
 
 ## Dev Startup Scripts
 
-Two Windows batch files exist at the project root:
+Four Windows batch files at project root:
 
-- `start-dev.bat` — double-click to start all services (preserves volumes)
-- `start-dev-clean.bat` — full reset including volume deletion (asks for confirmation)
+| File | Who uses it | What it does |
+|---|---|---|
+| `setup-and-start.bat` | Friend / reviewer | Installs Git + Docker if missing, clones repo, starts app, opens browser at http://localhost:3100 |
+| `setup-and-start-clean.bat` | Friend / reviewer | Same as above + destroys DB volumes (requires YES confirmation) |
+| `start-dev.bat` | Developer (already cloned) | Stops old containers, rebuilds, streams logs — no tool install |
+| `start-dev-clean.bat` | Developer (already cloned) | Same + destroys DB volumes (requires YES confirmation) |
 
-Both check for Docker, copy `.env.example` to `.env` if missing, stop old containers, rebuild images, and stream logs.
+Friend/reviewer should double-click `setup-and-start.bat` — no prerequisites needed beyond Windows + winget.
 
 ## Known Issues
 

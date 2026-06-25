@@ -19,9 +19,26 @@ Requirements:
 - Docker Desktop (includes Docker Compose)
 - Git
 
-### Windows Startup Scripts
+### Windows One-Click Setup (for a friend / reviewer)
 
-Two batch files are at the project root for one-click startup on Windows:
+For someone who may not have developer tools installed. Requires Windows 10/11 with `winget` (App Installer — available in Microsoft Store).
+
+| File | Purpose |
+|---|---|
+| `setup-and-start.bat` | Full friend setup: installs Git + Docker Desktop if missing, clones or pulls repo, creates `.env`, builds, starts, opens browser. Keeps volumes (data preserved). |
+| `setup-and-start-clean.bat` | Same as above, but destroys local DB volumes. Requires typing `YES` to confirm. |
+
+**What the friend does:**
+1. Receive the `setup-and-start.bat` file (or clone the repo and navigate to it).
+2. Double-click `setup-and-start.bat`.
+3. The script handles everything — tool install, clone, build, start.
+4. Browser opens automatically at `http://localhost:3100`.
+
+**Docker Desktop first-install warning:**
+Docker Desktop requires WSL2 and may prompt for a Windows restart on first install.
+If Docker does not start after install, restart the computer and double-click the script again.
+
+### Windows Startup Scripts (for developers — already cloned)
 
 | File | Purpose |
 |---|---|

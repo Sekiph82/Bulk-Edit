@@ -4,6 +4,27 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 DevOps — Windows One-Click Friend Setup Scripts
+
+**Skills active:** 01 documentation-handoff
+
+**Completed:**
+- Created `setup-and-start.bat` — full friend/reviewer setup: checks winget, installs Git via winget if missing, installs Docker Desktop via winget if missing, starts Docker Desktop, waits for engine (with manual pause fallback), clones repo to `%USERPROFILE%\Desktop\Bulk-Edit` (or pulls if exists), copies `.env.example` to `.env`, runs `docker compose down --remove-orphans`, spawns background cmd to open browser after 12s delay, runs `docker compose up --build` in foreground.
+- Created `setup-and-start-clean.bat` — same as above but with WARNING banner + `set /p CONFIRM` YES gate + `docker compose down -v --remove-orphans` before rebuild.
+- Updated `README.md` — "One-click Windows setup for a friend" section added above developer quick start.
+- Updated `docs/operations/DEPLOYMENT.md` — Windows One-Click Setup section with table and Docker Desktop restart warning.
+- Updated `HANDOFF.md` — 4-file scripts table with who uses each.
+- Updated `TASKS.md` — task added and marked complete.
+- Updated `PROJECT_STATUS.md` — reviewer note added.
+
+**Decisions made:**
+- `%USERPROFILE%\Desktop\Bulk-Edit` as clone target — works for any Windows user without knowing their username; Desktop is universally accessible.
+- Browser opened via `start "" cmd /c "timeout /t 12 /nobreak >nul && start http://localhost:3100"` in background so main window keeps streaming Docker logs.
+- Non-destructive on existing non-git folder: prints error, does NOT delete folder, exits safely.
+- `chcp 65001` for UTF-8 encoding to avoid Turkish character issues in CMD.
+
+---
+
 ## 2026-06-25 DevOps — Windows Dev Startup Scripts
 
 **Skills active:** 01 documentation-handoff

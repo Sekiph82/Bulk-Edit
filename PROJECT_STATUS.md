@@ -29,9 +29,15 @@ None (between sprints)
 
 ## Local Development (Windows)
 
+**For developers (already have Docker + repo cloned):**
 - `start-dev.bat` — double-click to start all services (preserves volumes, streams logs)
 - `start-dev-clean.bat` — full reset including volume deletion (requires typing YES to confirm)
-- Both scripts: check Docker, auto-create `.env` from `.env.example` if missing
+
+**For friend / reviewer (no developer tools needed):**
+- `setup-and-start.bat` — double-click; installs Git + Docker Desktop via winget if missing, clones repo to Desktop, builds, starts, opens browser at http://localhost:3100
+- `setup-and-start-clean.bat` — same with volume reset (requires YES confirmation)
+
+All scripts: check Docker, auto-create `.env` from `.env.example` if missing.
 
 ## Blockers
 

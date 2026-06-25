@@ -43,7 +43,30 @@ Next: Sprint 2 — Auth + Organization
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - Git
 
-### Windows Quick Start (recommended)
+### One-click Windows setup for a friend
+
+No developer tools required. Your friend just needs Windows 10/11 with `winget` (App Installer).
+
+```
+1. Send or share the file:  setup-and-start.bat  (from this repo root)
+2. Your friend double-clicks it.
+3. The script installs Git and Docker Desktop automatically if missing.
+4. It clones this repository to their Desktop.
+5. It builds and starts all services.
+6. Their browser opens automatically at http://localhost:3100
+```
+
+> **Note:** Docker Desktop may require a Windows restart on first install (WSL2 setup).
+> If the browser does not open, restart the computer and double-click the script again.
+
+Need a full database reset?
+
+```
+Double-click  setup-and-start-clean.bat
+(Asks for YES confirmation before deleting volumes — destroys all local DB data.)
+```
+
+### Windows Quick Start (for developers — already have Docker)
 
 ```
 1. Clone the repo and open the folder in Explorer.
