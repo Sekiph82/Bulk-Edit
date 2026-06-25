@@ -31,9 +31,7 @@ if /I not "%CONFIRM%"=="YES" (
 )
 echo.
 
-:: ============================================================
-:: STEP 1: Check winget
-:: ============================================================
+:: ── STEP 1: Check winget ────────────────────────────────────
 echo [STEP 1/7] Checking winget (Windows Package Manager)...
 winget --version >nul 2>&1
 if %ERRORLEVEL% neq 0 (
@@ -48,9 +46,7 @@ if %ERRORLEVEL% neq 0 (
 echo [OK] winget found.
 echo.
 
-:: ============================================================
-:: STEP 2: Check / Install Git
-:: ============================================================
+:: ── STEP 2: Check / Install Git ─────────────────────────────
 echo [STEP 2/7] Checking Git...
 git --version >nul 2>&1
 if %ERRORLEVEL% neq 0 (
@@ -69,9 +65,7 @@ if %ERRORLEVEL% neq 0 (
 echo [OK] Git found.
 echo.
 
-:: ============================================================
-:: STEP 3: Check / Install Docker Desktop
-:: ============================================================
+:: ── STEP 3: Check / Install Docker Desktop ──────────────────
 echo [STEP 3/7] Checking Docker...
 docker --version >nul 2>&1
 if %ERRORLEVEL% neq 0 (
@@ -89,56 +83,11 @@ if %ERRORLEVEL% neq 0 (
         exit /b 1
     )
 )
-echo [OK] Docker found.
+echo [OK] Docker CLI found.
 echo.
 
-:: ============================================================
-:: STEP 4: Start Docker Desktop and wait for engine
-:: ============================================================
-echo [STEP 4/7] Starting Docker Desktop...
-start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe" >nul 2>&1
-echo [INFO] Waiting for Docker engine to start...
-timeout /t 10 /nobreak >nul
-
-docker info >nul 2>&1
-if %ERRORLEVEL% neq 0 (
-    echo.
-    echo [WAIT] Docker engine is not running yet.
-    echo        Please wait until Docker Desktop shows "Engine running" in its tray icon,
-    echo        then press any key to continue.
-    echo.
-    pause
-    docker info >nul 2>&1
-    if %ERRORLEVEL% neq 0 (
-        echo [ERROR] Docker engine is still not running.
-        echo         Make sure Docker Desktop is fully started, then run this script again.
-        echo.
-        pause
-        exit /b 1
-    )
-)
-echo [OK] Docker engine is running.
-echo.
-
-:: ============================================================
-:: STEP 5: Check Docker Compose
-:: ============================================================
-echo [STEP 5/7] Checking Docker Compose...
-docker compose version >nul 2>&1
-if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Docker Compose is not available.
-    echo         Docker Desktop must be fully installed and running.
-    echo.
-    pause
-    exit /b 1
-)
-echo [OK] Docker Compose found.
-echo.
-
-:: ============================================================
-:: STEP 6: Clone or update repository
-:: ============================================================
-echo [STEP 6/7] Setting up repository...
+:: ── STEP 4: Clone or update repository ─────────────────────
+echo [STEP 4/7] Setting up repository...
 
 if not exist "%PROJECT_DIR%" (
     echo [INFO] Project folder not found. Cloning from GitHub...
@@ -174,12 +123,10 @@ if not exist "%PROJECT_DIR%" (
 )
 echo.
 
-:: ============================================================
-:: STEP 7: Configure environment and start services (clean reset)
-:: ============================================================
 cd /d "%PROJECT_DIR%"
 
-echo [STEP 7/7] Configuring environment...
+:: ── STEP 5: Configure environment ───────────────────────────
+echo [STEP 5/7] Configuring environment...
 if not exist ".env" (
     if exist ".env.example" (
         copy ".env.example" ".env" >nul
@@ -194,13 +141,75 @@ if not exist ".env" (
     echo [INFO] .env already exists.
 )
 
-:: Ensure COMPOSE_PROJECT_NAME is in .env
 findstr /i "COMPOSE_PROJECT_NAME" ".env" >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo COMPOSE_PROJECT_NAME=bulk-edit>> ".env"
     echo [INFO] Added COMPOSE_PROJECT_NAME=bulk-edit to .env
 )
 echo.
+
+:: ── STEP 6: Start Docker Desktop and wait for engine ────────
+echo [STEP 6/7] Starting Docker Desktop...
+
+set "DOCKER_DESKTOP_EXE=C:\Program Files\Docker\Docker\Docker Desktop.exe"
+
+if exist "%DOCKER_DESKTOP_EXE%" (
+    start "" "%DOCKER_DESKTOP_EXE%"
+    echo [INFO] Docker Desktop start command sent.
+) else (
+    echo [WARN] Docker Desktop executable was not found at:
+    echo        %DOCKER_DESKTOP_EXE%
+    echo [WARN] If Docker Desktop is installed in another location, please update this script.
+)
+
+echo.
+echo [INFO] Waiting for Docker engine to become ready...
+echo [INFO] This may take 30-120 seconds when Docker Desktop is closed.
+
+set /a DOCKER_WAIT_SECONDS=0
+
+:WAIT_FOR_DOCKER_ENGINE
+docker info >nul 2>&1
+if not errorlevel 1 goto DOCKER_ENGINE_READY
+
+set /a DOCKER_WAIT_SECONDS+=5
+if %DOCKER_WAIT_SECONDS% GEQ 180 goto DOCKER_ENGINE_NOT_READY
+
+echo [INFO] Docker engine is not ready yet. Waiting 5 seconds... %DOCKER_WAIT_SECONDS%/180
+timeout /t 5 /nobreak >nul
+goto WAIT_FOR_DOCKER_ENGINE
+
+:DOCKER_ENGINE_NOT_READY
+echo.
+echo [ERROR] Docker Desktop did not become ready within 180 seconds.
+echo.
+echo Please check:
+echo   1. Docker Desktop opened successfully.
+echo   2. Docker Desktop finished starting.
+echo   3. WSL2 is installed and working.
+echo   4. If Docker Desktop was just installed, restart Windows and run this script again.
+echo.
+pause
+exit /b 1
+
+:DOCKER_ENGINE_READY
+echo [OK] Docker engine is ready.
+echo.
+
+:: Check Docker Compose
+docker compose version >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo [ERROR] Docker Compose is not available.
+    echo         Docker Desktop must be fully installed and running.
+    echo.
+    pause
+    exit /b 1
+)
+echo [OK] Docker Compose found.
+
+:: ── STEP 7: Clean reset and start ───────────────────────────
+echo.
+echo [STEP 7/7] Starting Bulk-Edit services (clean reset)...
 
 echo [INFO] Checking for old ERP Docker project: fmcg-erp-system-main
 docker compose -p fmcg-erp-system-main down --remove-orphans >nul 2>&1
@@ -229,7 +238,6 @@ echo  Press Ctrl+C to stop all services.
 echo ============================================================
 echo.
 
-:: Open browser after delay in background, then stream Docker logs
 start "" cmd /c "timeout /t 12 /nobreak >nul && start http://localhost:3100"
 
 docker compose -p bulk-edit up --build

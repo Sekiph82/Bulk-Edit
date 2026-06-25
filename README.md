@@ -43,9 +43,11 @@ Next: Sprint 2 — Auth + Organization
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - Git
 
-### Docker project isolation
+### Docker project isolation and auto-start
 
-All Windows scripts force Docker Compose project name to `bulk-edit` to avoid accidentally interfering with other Docker projects (e.g., `fmcg-erp-system-main`). Every script runs `docker compose -p bulk-edit ...` and safely attempts to stop the old ERP project before starting.
+All Windows scripts automatically start Docker Desktop if it is closed — no manual action needed. Each script polls `docker info` every 5 seconds (up to 180 seconds) and only proceeds once the Docker engine is ready.
+
+All scripts also force Docker Compose project name to `bulk-edit` via `docker compose -p bulk-edit` to prevent accidentally interfering with other Docker projects (e.g., `fmcg-erp-system-main`). The old ERP project is stopped safely before Bulk-Edit starts.
 
 ### One-click Windows setup for a friend
 

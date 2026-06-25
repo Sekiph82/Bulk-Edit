@@ -4,6 +4,27 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 DevOps — Auto-Start Docker Desktop in Windows Scripts
+
+**Skills active:** 01 documentation-handoff
+
+**Problem:** User had to manually open Docker Desktop before double-clicking start-dev.bat. Script would fail immediately if Docker engine was not already running.
+
+**Completed:**
+- All 4 batch scripts updated with Docker Desktop auto-start section:
+  1. `start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"` — launches Desktop silently
+  2. Loop: `docker info >nul 2>&1` every 5 seconds, up to 180 seconds total
+  3. Clear progress output: `Waiting 5 seconds... 10/180`
+  4. On timeout: detailed error with WSL2/restart instructions + `pause + exit /b 1`
+  5. On success: `[OK] Docker engine is ready.` then continues
+- Docker Compose version check moved to after engine is confirmed ready
+- No `docker compose` commands run before Docker engine is up
+- Updated README.md, DEPLOYMENT.md, HANDOFF.md
+
+**Max wait time:** 180 seconds (3 minutes), polling every 5 seconds
+
+---
+
 ## 2026-06-25 DevOps — Docker Compose Project Isolation Fix
 
 **Skills active:** 01 documentation-handoff

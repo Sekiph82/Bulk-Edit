@@ -46,16 +46,18 @@ If Docker does not start after install, restart the computer and double-click th
 | `start-dev-clean.bat` | Full reset: removes containers **and volumes** (destroys DB data), rebuilds from scratch. Asks for confirmation. |
 
 Double-click either file in Explorer — no terminal needed. The script:
-1. Checks Docker is installed (clear error if not)
-2. Checks `docker compose version` (clear error if not)
-3. Copies `.env.example` → `.env` if `.env` is missing
-4. Appends `COMPOSE_PROJECT_NAME=bulk-edit` to `.env` if not present
-5. Safely stops old `fmcg-erp-system-main` containers: `docker compose -p fmcg-erp-system-main down --remove-orphans` (errors silenced — does not stop script)
-6. Runs `docker compose -p bulk-edit down --remove-orphans` (clean: adds `-v`)
-7. Runs `docker compose -p bulk-edit up --build` (foreground, streams logs)
-8. Keeps the CMD window open with `pause` after Docker exits
+1. Checks Docker CLI installed (clear error if not)
+2. Starts Docker Desktop automatically: `start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"`
+3. Polls `docker info` every 5 seconds until Docker engine is ready (max 180 seconds, then exits with clear error)
+4. Checks `docker compose version` (clear error if not)
+5. Copies `.env.example` → `.env` if `.env` is missing
+6. Appends `COMPOSE_PROJECT_NAME=bulk-edit` to `.env` if not present
+7. Safely stops old ERP project: `docker compose -p fmcg-erp-system-main down --remove-orphans` (silenced — does not stop script, no `-v` so ERP volumes preserved)
+8. Runs `docker compose -p bulk-edit down --remove-orphans` (clean: adds `-v`)
+9. Runs `docker compose -p bulk-edit up --build` (foreground, streams logs)
+10. Keeps CMD window open with `pause` after Docker exits
 
-All scripts use `docker compose -p bulk-edit` to ensure project isolation and prevent accidental cross-project container conflicts.
+All scripts use `docker compose -p bulk-edit` for project isolation. User never needs to open Docker Desktop manually.
 
 ### Docker Compose (manual / Mac / Linux)
 
