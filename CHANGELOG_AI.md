@@ -4,6 +4,27 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 DevOps — Windows Dev Startup Scripts
+
+**Skills active:** 01 documentation-handoff
+
+**Completed:**
+- Created `start-dev.bat` — Windows batch file: checks Docker, creates .env from .env.example if missing, runs `docker compose down --remove-orphans`, runs `docker compose up --build`, keeps CMD window open. No volume deletion.
+- Created `start-dev-clean.bat` — Same checks + explicit WARNING banner + `set /p CONFIRM` gate (requires typing YES) + `docker compose down -v --remove-orphans` before rebuild. Destroys DB volumes.
+- Updated `README.md` — Windows Quick Start section added above Docker Compose manual section
+- Updated `docs/operations/DEPLOYMENT.md` — Windows Startup Scripts subsection with table and behavior description
+- Updated `HANDOFF.md` — Dev Startup Scripts section added to Known Issues area
+- Updated `TASKS.md` — task marked complete under DevOps Utilities
+- Updated `PROJECT_STATUS.md` — note added under local development
+
+**Decisions made:**
+- foreground mode by default (no -d flag) — user needs to see logs/errors
+- no `docker compose down -v` in normal script — protects DB data
+- UTF-8 via `chcp 65001` — avoids Turkish character encoding issues
+- `cd /d "%~dp0"` — script always runs from its own directory regardless of launch method
+
+---
+
 ## 2026-06-25 Sprint 7 — Bulk Edit Preview Engine
 
 **Skills active:** 06 database-modeling, 07 backend-api, 08 frontend-ui, 20 testing-qa, 01 documentation-handoff

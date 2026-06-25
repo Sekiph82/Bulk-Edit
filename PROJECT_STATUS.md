@@ -27,6 +27,12 @@ None (between sprints)
 - Sprint 6: Listings Grid UX ✓
 - Sprint 7: Bulk Edit Preview Engine ✓
 
+## Local Development (Windows)
+
+- `start-dev.bat` — double-click to start all services (preserves volumes, streams logs)
+- `start-dev-clean.bat` — full reset including volume deletion (requires typing YES to confirm)
+- Both scripts: check Docker, auto-create `.env` from `.env.example` if missing
+
 ## Blockers
 
 None

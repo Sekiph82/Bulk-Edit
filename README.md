@@ -43,7 +43,24 @@ Next: Sprint 2 — Auth + Organization
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - Git
 
-### Run with Docker Compose (recommended)
+### Windows Quick Start (recommended)
+
+```
+1. Clone the repo and open the folder in Explorer.
+2. Double-click  start-dev.bat
+3. The script checks Docker, creates .env from .env.example if missing,
+   stops any old containers, rebuilds, and streams logs.
+4. Press Ctrl+C in the CMD window to stop all services.
+```
+
+Need a full reset (wipes local database)?
+
+```
+Double-click  start-dev-clean.bat
+(Asks for confirmation before deleting volumes.)
+```
+
+### Run with Docker Compose (manual / Mac / Linux)
 
 ```bash
 # Clone

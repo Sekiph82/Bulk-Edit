@@ -46,6 +46,18 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
+## DevOps Utilities
+
+**Status:** `[x] COMPLETE`
+
+- [x] Create `start-dev.bat` — Windows double-click startup (Docker check, .env copy, down + up --build, logs, pause)
+- [x] Create `start-dev-clean.bat` — Windows full reset with volume deletion (confirmation required)
+- [x] Update README.md Windows Quick Start section
+- [x] Update docs/operations/DEPLOYMENT.md Windows startup section
+- [x] Commit and push
+
+---
+
 ## Sprint 1: Monorepo Skeleton
 
 **Status:** `[x] COMPLETE`

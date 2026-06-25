@@ -61,6 +61,15 @@ field editor and preview diff table. Apply endpoint is a stub (no Etsy writes in
 Active skills: 07 backend-api, 06 database-modeling, 08 frontend-ui, 20 testing-qa, 01 documentation-handoff.
 ```
 
+## Dev Startup Scripts
+
+Two Windows batch files exist at the project root:
+
+- `start-dev.bat` — double-click to start all services (preserves volumes)
+- `start-dev-clean.bat` — full reset including volume deletion (asks for confirmation)
+
+Both check for Docker, copy `.env.example` to `.env` if missing, stop old containers, rebuild images, and stream logs.
+
 ## Known Issues
 
 - Etsy access token auto-refresh not implemented. Full refresh deferred to Sprint 8.

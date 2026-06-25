@@ -19,6 +19,25 @@ Requirements:
 - Docker Desktop (includes Docker Compose)
 - Git
 
+### Windows Startup Scripts
+
+Two batch files are at the project root for one-click startup on Windows:
+
+| File | Purpose |
+|---|---|
+| `start-dev.bat` | Normal startup: stops old containers, rebuilds, streams logs. Keeps volumes (data preserved). |
+| `start-dev-clean.bat` | Full reset: removes containers **and volumes** (destroys DB data), rebuilds from scratch. Asks for confirmation. |
+
+Double-click either file in Explorer — no terminal needed. The script:
+1. Checks Docker is installed (clear error if not)
+2. Checks `docker compose version` (clear error if not)
+3. Copies `.env.example` → `.env` if `.env` is missing
+4. Runs `docker compose down --remove-orphans` (clean: adds `-v`)
+5. Runs `docker compose up --build` (foreground, streams logs)
+6. Keeps the CMD window open with `pause` after Docker exits
+
+### Docker Compose (manual / Mac / Linux)
+
 ```bash
 # Clone repo
 git clone https://github.com/Sekiph82/Bulk-Edit.git
