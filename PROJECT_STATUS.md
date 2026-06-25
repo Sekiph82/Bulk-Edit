@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 9 — Magic Revert — COMPLETE**
+**Sprint 10 — Etsy Inventory Writes — COMPLETE**
 
 ## Status
 
-`Sprint 9 COMPLETE — Ready for Sprint 10`
+`Sprint 10 COMPLETE — Ready for Sprint 11`
 
 ## Last Updated
 
@@ -28,6 +28,7 @@ None (between sprints)
 - Sprint 7: Bulk Edit Preview Engine ✓
 - Sprint 8: Etsy Write + Backup ✓
 - Sprint 9: Magic Revert ✓
+- Sprint 10: Etsy Inventory Writes (Price/Quantity) ✓
 
 ## Local Development (Windows)
 
@@ -52,7 +53,7 @@ None
 - Etsy access token auto-refresh not fully implemented. Partial: logs warning but uses token anyway. Full auto-refresh deferred to Sprint 10+.
 - `fetch_listing_videos` best-effort: returns empty list on 404/405.
 - Inline sync blocks HTTP thread. Celery background task deferred to Sprint 10.
-- Price/quantity Etsy writes NOT implemented — deferred to Sprint 10 (requires Etsy inventory endpoint).
+- Price/quantity Etsy writes implemented (Sprint 10). Variation listings skip inventory (deferred to Sprint 12 variation editor).
 - Photo/video Etsy writes NOT implemented — deferred to Sprint 11.
 - AuditLog model uses `extra_data` attribute in Python (SQLAlchemy reserved `metadata` name), stored as `metadata` column in DB.
 
@@ -68,7 +69,18 @@ None
 | `pytest tests/test_bulk_edit.py` | 38/38 PASSED |
 | `pytest tests/test_bulk_edit_apply.py` | 22/22 PASSED |
 | `pytest tests/test_bulk_edit_revert.py` | 28/28 PASSED |
-| **Full suite `pytest`** | **181/181 PASSED** |
+| `pytest tests/test_bulk_edit_inventory.py` | 19/19 PASSED |
+| **Full suite `pytest`** | **200/200 PASSED** |
+
+## Sprint 10 — Modified/New Files
+
+| File | Description |
+|---|---|
+| `app/services/etsy_write.py` | Added `build_etsy_inventory_payload` + `patch_etsy_listing_inventory` |
+| `app/services/bulk_edit_apply.py` | Dual-write: listing PATCH + inventory PUT; structured payloads |
+| `app/services/bulk_edit_revert.py` | Inventory revert from snapshot; local price restored only after success |
+| `tests/test_bulk_edit_inventory.py` | 19 tests (9 unit + 10 integration) |
+| `apps/frontend/app/bulk-edit/page.tsx` | Revert modal warning updated; variation skip notice added |
 
 ## Sprint 9 — New Files
 
@@ -119,12 +131,12 @@ All enforced in `apply_bulk_edit_session()` before any write:
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 9 / 18 |
+| Sprints complete | 10 / 18 |
 | Backend Python files | 88+ |
 | Frontend TypeScript files | 24 |
-| Total tests | 181 |
+| Total tests | 200 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 10: Etsy Inventory Writes (price/quantity). See HANDOFF.md for exact prompt.
+Begin Sprint 11: Photo/Video Bulk Editor. See HANDOFF.md for exact prompt.

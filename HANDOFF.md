@@ -3,30 +3,29 @@
 ## Last Session
 
 **Date:** 2026-06-25
-**Sprint:** 9 — Magic Revert — COMPLETE
-**Completed:** 2 new models (RevertJob, RevertResult), migration 0007, bulk_edit_revert.py service with full safety gate chain, 4 new API endpoints (POST revert/202, GET revert-jobs list, GET revert-job detail, GET paginated results), 28 new tests (181/181 pass), frontend Magic Revert button + REVERT text confirmation modal + result card, api.ts 4 new types + 4 helpers. Committed and pushed.
+**Sprint:** 10 — Etsy Inventory Writes (Price / Quantity) — COMPLETE
+**Completed:** `build_etsy_inventory_payload` + `patch_etsy_listing_inventory` in `etsy_write.py`, dual-write in `bulk_edit_apply.py` (listing PATCH → inventory PUT, structured payloads, local price/qty gated on inventory success), inventory revert in `bulk_edit_revert.py` (snapshot → revert PUT, local restore gated), 19 new tests (200/200 pass), frontend revert modal warning updated + variation listing skip notice. Committed and pushed.
 
 ## Current State
 
 **Backend (`apps/backend/`):**
-- `app/models/revert_job.py` — RevertJob (org-scoped, apply_job_id FK, status, counters)
-- `app/models/revert_result.py` — RevertResult (per-listing, backup_snapshot_id nullable FK SET NULL)
-- `app/schemas/bulk_edit_revert.py` — RevertJobOut, RevertResultOut, RevertJobWithResultsOut, RevertResultPageOut
-- `app/services/bulk_edit_revert.py` — full revert orchestration with 10 safety gates
-- `app/api/v1/bulk_edit.py` — 18 endpoints total (+4 Sprint 9: POST revert, GET revert-jobs, GET revert-job detail, GET paginated results)
-- `alembic/versions/0007_create_bulk_edit_revert_tables.py`
-- `tests/test_bulk_edit_revert.py` — 28 tests
-- All prior Sprint 8 files remain unchanged
+- `app/services/etsy_write.py` — `build_etsy_inventory_payload`, `patch_etsy_listing_inventory` (Sprint 10)
+- `app/services/bulk_edit_apply.py` — dual-write apply (listing PATCH + inventory PUT), structured request/response payloads, variation skip detection
+- `app/services/bulk_edit_revert.py` — dual-write revert (listing PATCH + inventory revert PUT), local price/qty restore only after inventory revert success
+- `tests/test_bulk_edit_inventory.py` — 19 tests (9 unit for `build_etsy_inventory_payload`, 6 apply integration, 3 revert integration, 1 structured payload)
+- All prior Sprint 9 files unchanged (revert_job, revert_result models, migration 0007, schemas, 28 revert tests)
 
 **Frontend (`apps/frontend/`):**
-- `lib/api.ts` — added RevertJob, RevertResult, RevertJobWithResults, RevertResultPage types + 4 helpers (revertApplyJob, listRevertJobs, getRevertJob, getRevertResults)
-- `app/bulk-edit/page.tsx` — Magic Revert button (visible after successful apply), REVERT text confirmation modal, revert result status card
+- `app/bulk-edit/page.tsx` — revert modal: updated warning ("price and quantity now included"), variation listing notice in preview when `after_data.has_variations=true` and price_amount/quantity in diff
 
-**What NOT implemented in Sprint 9 (by design):**
-- Price/quantity writes (deferred to Sprint 10 — needs Etsy inventory endpoint)
-- Photo/video revert (deferred to Sprint 11)
-- Celery async revert (inline/synchronous for MVP)
-- Per-field selective revert (full listing restore only)
+**What NOT implemented in Sprint 10 (by design):**
+- Variation-level inventory (multiple SKU offerings per listing) — deferred to Sprint 12
+- Photo/video writes — deferred to Sprint 11
+- Celery async apply/revert — inline/synchronous for MVP
+
+## Partial Write Caveat (documented)
+
+If listing PATCH succeeds but inventory PUT fails: Etsy has new text but not new price. Local DB is not updated (next sync resolves). Same applies to revert. This is accepted behavior — logged as warning.
 
 ## Port Summary
 
@@ -39,34 +38,36 @@
 
 ## Next Task
 
-**Sprint 10: Etsy Inventory Writes (Price / Quantity)**
+**Sprint 11: Photo / Video Bulk Editor**
 
-Implement price and quantity bulk edit writes using the Etsy inventory endpoint.
+Implement bulk photo operations using Etsy's image API endpoints.
 
 Context:
-- Sprint 8 explicitly excluded price/quantity from `build_etsy_patch_payload()` — they are in `EXCLUDED_FIELDS`
-- The Etsy API requires a separate endpoint for price/quantity: `PUT /v3/application/shops/{shop_id}/listings/{listing_id}/inventory`
-- Existing `BulkEditPreviewItem` already computes price_amount and quantity diffs but they are not written
+- Etsy API: `GET /v3/application/shops/{shop_id}/listings/{listing_id}/images` — list images
+- Etsy API: `POST /v3/application/shops/{shop_id}/listings/{listing_id}/images` — upload image
+- Etsy API: `DELETE /v3/application/shops/{shop_id}/listings/{listing_id}/images/{listing_image_id}` — delete
+- `fetch_listing_images` already exists in `etsy_sync.py` (Sprint 5) — images stored as JSONB in `listing.images`
+- `fetch_listing_videos` already exists in `etsy_sync.py` — videos stored in `listing.videos`
+- Photo bulk operations: replace all photos, reorder photos, add a photo to all listings, remove a photo by position
+- Video: assign/replace listing video
 
 Implement:
-- `patch_etsy_listing_inventory(access_token, shop_etsy_id, listing_etsy_id, payload)` in `etsy_write.py`
-- Payload format: `{"products": [{"sku": ..., "offerings": [{"price": {"amount": ..., "divisor": ...}, "quantity": ...}]}]}`
-- Wire up to `apply_bulk_edit_session()` — if diff contains price_amount or quantity, call inventory endpoint after text PATCH
-- Wire up to `revert_apply_job()` — if snapshot contains price_amount or quantity, call inventory endpoint during revert
-- Add inventory fields to `build_etsy_revert_payload()` logic
-- 15+ new tests in `test_bulk_edit_inventory.py`
-- Update `test_bulk_edit_apply.py` — add test: inventory write called when price_amount in diff
-- Deferred (Sprint 10 out of scope): Variation-level price/quantity (multiple sku offerings per listing)
+- New model `BulkEditMediaJob` (similar to `BulkEditApplyJob`) or extend apply to handle media ops
+- Media write safety: preview → confirm → backup → write → audit log (same safety contract)
+- `etsy_media_write.py` service for image/video API calls
+- Wire to bulk edit session: new media-specific change types (`replace_image`, `add_image`, `remove_image`, `set_video`)
+- 15+ tests in `test_bulk_edit_media.py`
+- Frontend: media operation UI in bulk edit session (upload + preview photo before applying)
+- Deferred: AI alt text for photos (Sprint 13)
 
 ## Next Prompt
 
 ```
 Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
 
-Start Sprint 10: Etsy Inventory Writes — implement price and quantity bulk edit writes using
-the Etsy inventory endpoint (PUT /v3/application/shops/{shop_id}/listings/{listing_id}/inventory).
-Wire into existing apply and revert flows. 15+ tests. Single-sku per listing only (no variation
-multi-sku in this sprint).
+Start Sprint 11: Photo/Video Bulk Editor — implement bulk photo operations (replace, add, remove, reorder)
+using Etsy's image API endpoints. Wire into existing bulk edit session flow with full safety gate chain.
+Video support: assign/replace listing video. 15+ tests. Single image per operation (no batch upload in this sprint).
 
 Active skills: 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff.
 ```
@@ -92,14 +93,15 @@ Four Windows batch files at project root:
 
 - Etsy access token auto-refresh not implemented. Logs warning but uses token. Full refresh deferred to Sprint 10+.
 - `fetch_listing_videos` is best-effort — returns empty list on 404/405.
-- Sync runs inline in HTTP thread. Celery background task deferred to Sprint 10.
+- Sync runs inline in HTTP thread. Celery background task deferred to a future sprint.
 - Frontend npm not installed — `node_modules/` absent. Run `npm install` inside `apps/frontend` or `docker compose up`.
-- Price/quantity writes NOT supported in Sprints 8/9 — Etsy inventory endpoint required (Sprint 10).
-- Photo/video revert NOT supported — deferred to Sprint 11.
+- Variation inventory writes NOT supported — variation listings with price/quantity changes are skipped (deferred to Sprint 12).
+- Photo/video writes NOT supported — deferred to Sprint 11.
 - AuditLog model uses `extra_data` attribute in Python (SQLAlchemy reserved `metadata` name), stored as `metadata` column in DB.
 - RevertResult.backup_snapshot_id is nullable — skipped items (no listing, no snapshot, no token, empty payload) store NULL.
+- Partial write caveat: if listing PATCH succeeds but inventory PUT fails, Etsy has new text but not new price. Next sync resolves. Local DB not updated.
 
 ## Push Status
 
 Pushed successfully to: https://github.com/Sekiph82/Bulk-Edit (main)
-Commit: feat: add magic revert (Sprint 9)
+Commit: feat: add etsy inventory writes (Sprint 10)

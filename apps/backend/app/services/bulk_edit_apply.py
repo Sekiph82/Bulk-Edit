@@ -1,5 +1,5 @@
 """
-Bulk Edit Apply Service — Sprint 8.
+Bulk Edit Apply Service — Sprint 10.
 
 Safety contract enforced before any Etsy write:
   1. Session must be preview_ready
@@ -7,11 +7,19 @@ Safety contract enforced before any Etsy write:
   3. Etsy client ID must be configured
   4. User must be within plan limits
   5. Backup snapshot created per listing before write
-  6. Local Listing row updated ONLY after successful Etsy write
+  6. Local Listing row updated ONLY after ALL required Etsy writes succeed
   7. Audit log written for every apply job start/finish
 
-Price and quantity writes are NOT supported (deferred to Sprint 9 inventory endpoint).
-Photo/video writes are NOT supported (deferred to later sprint).
+Write flow per listing:
+  a. Build listing PATCH payload (text/bool fields via PATCH /listings/{id})
+  b. Build inventory PUT payload (price/quantity via PUT /shops/{s}/listings/{l}/inventory)
+  c. If listing PATCH exists: execute first; on failure → mark failed, skip inventory
+  d. If inventory PUT exists: execute after listing PATCH; on failure → mark failed
+     (listing PATCH already happened externally — documented partial write caveat)
+  e. Local Listing updated only after ALL writes succeed
+
+Variation listings: inventory write skipped (Sprint 11); text fields still applied.
+Photo/video writes: deferred to Sprint 11.
 """
 import logging
 from datetime import datetime, timezone
@@ -39,7 +47,9 @@ from app.services.bulk_edit import get_bulk_edit_session, build_before_data
 from app.services.etsy_sync import get_valid_etsy_access_token
 from app.services.etsy_write import (
     build_etsy_patch_payload,
+    build_etsy_inventory_payload,
     patch_etsy_listing,
+    patch_etsy_listing_inventory,
     EtsyWriteError,
 )
 
@@ -225,7 +235,7 @@ async def apply_bulk_edit_session(
                 apply_job_id=job.id,
                 bulk_edit_session_id=session_id,
                 listing_id=preview_item.listing_id,
-                etsy_listing_id=preview_item.listing_id,  # fallback
+                etsy_listing_id=preview_item.listing_id,
                 status="skipped",
                 error_message="Listing not found in database.",
                 attempted_at=datetime.now(timezone.utc),
@@ -253,6 +263,8 @@ async def apply_bulk_edit_session(
             await db.flush()
             continue
 
+        shop = shops_map.get(listing.etsy_shop_id)
+
         # 8a. Create backup snapshot before any write
         snapshot_data = build_before_data(listing)
         snapshot = ListingBackupSnapshot(
@@ -268,9 +280,29 @@ async def apply_bulk_edit_session(
         db.add(snapshot)
         await db.flush()
 
-        # 8b. Build Etsy payload from diff
+        # 8b. Build payloads
         diff: dict = preview_item.diff or {}
-        payload = build_etsy_patch_payload(diff)
+        after_data: dict = preview_item.after_data or {}
+
+        listing_payload = build_etsy_patch_payload(diff)
+        inventory_payload = build_etsy_inventory_payload(listing, after_data)
+
+        # Variation inventory skip — text patch may still proceed
+        inventory_skipped = listing.has_variations and ("price_amount" in diff or "quantity" in diff)
+        inventory_skip_reason = "Variation inventory support deferred to Sprint 11" if inventory_skipped else None
+
+        # Build structured request payload
+        if inventory_payload or inventory_skipped:
+            req_payload: Any = {}
+            if listing_payload:
+                req_payload["listing_patch"] = listing_payload
+            if inventory_payload:
+                req_payload["inventory_patch"] = inventory_payload
+            if inventory_skipped:
+                req_payload["inventory_skipped"] = True
+                req_payload["inventory_skip_reason"] = inventory_skip_reason
+        else:
+            req_payload = listing_payload
 
         result = BulkEditApplyResult(
             organization_id=organization_id,
@@ -279,61 +311,115 @@ async def apply_bulk_edit_session(
             listing_id=listing.id,
             etsy_listing_id=listing.etsy_listing_id,
             status="pending",
-            request_payload=payload,
+            request_payload=req_payload,
             backup_snapshot_id=snapshot.id,
             attempted_at=datetime.now(timezone.utc),
         )
         db.add(result)
         await db.flush()
 
-        if not payload:
-            # Nothing to write for this listing (diff has no Etsy-patchable fields)
+        # Nothing to write
+        if not listing_payload and not inventory_payload:
             result.status = "skipped"
-            result.error_message = "No patchable fields in diff."
+            result.error_message = inventory_skip_reason or "No patchable fields in diff."
             result.completed_at = datetime.now(timezone.utc)
             skipped_count += 1
             await db.flush()
             continue
 
-        # 8c. Write to Etsy
-        try:
-            etsy_response = await patch_etsy_listing(
-                access_token=access_token,
-                etsy_listing_id=listing.etsy_listing_id,
-                payload=payload,
-            )
-            result.response_payload = etsy_response
-            result.status = "success"
-            result.completed_at = datetime.now(timezone.utc)
+        # 8c. Write text/bool fields (listing PATCH)
+        listing_resp: Any = None
+        if listing_payload:
+            try:
+                listing_resp = await patch_etsy_listing(
+                    access_token=access_token,
+                    etsy_listing_id=listing.etsy_listing_id,
+                    payload=listing_payload,
+                )
+            except EtsyWriteError as e:
+                result.status = "failed"
+                result.error_message = e.message
+                result.response_payload = {"listing_patch_error": {"message": e.message, "response": e.response_body}} if inventory_payload else e.response_body
+                result.completed_at = datetime.now(timezone.utc)
+                failure_count += 1
+                logger.warning("Etsy listing PATCH failed for %s: %s", listing.etsy_listing_id, e.message)
+                await db.flush()
+                continue
+            except Exception as e:
+                result.status = "failed"
+                result.error_message = str(e)
+                result.completed_at = datetime.now(timezone.utc)
+                failure_count += 1
+                logger.exception("Unexpected error on listing PATCH %s", listing.etsy_listing_id)
+                await db.flush()
+                continue
 
-            # 8d. Update local Listing row only after successful write
-            after_data: dict = preview_item.after_data or {}
-            for after_field, listing_attr in _AFTER_TO_LISTING.items():
-                if after_field in diff:
-                    setattr(listing, listing_attr, after_data.get(after_field))
+        # 8d. Write price/quantity (inventory PUT)
+        inventory_resp: Any = None
+        if inventory_payload and shop:
+            try:
+                inventory_resp = await patch_etsy_listing_inventory(
+                    access_token=access_token,
+                    shop_etsy_id=shop.etsy_shop_id,
+                    listing_etsy_id=listing.etsy_listing_id,
+                    payload=inventory_payload,
+                )
+            except EtsyWriteError as e:
+                result.status = "failed"
+                result.error_message = f"Inventory write failed: {e.message}"
+                resp_struct: dict[str, Any] = {}
+                if listing_resp is not None:
+                    resp_struct["listing_patch"] = listing_resp
+                resp_struct["inventory_patch_error"] = {"message": e.message, "response": e.response_body}
+                result.response_payload = resp_struct
+                result.completed_at = datetime.now(timezone.utc)
+                failure_count += 1
+                logger.warning("Etsy inventory PUT failed for %s: %s (listing PATCH already applied)", listing.etsy_listing_id, e.message)
+                await db.flush()
+                continue
+            except Exception as e:
+                result.status = "failed"
+                result.error_message = f"Inventory write error: {str(e)}"
+                result.completed_at = datetime.now(timezone.utc)
+                failure_count += 1
+                logger.exception("Unexpected error on inventory PUT %s", listing.etsy_listing_id)
+                await db.flush()
+                continue
 
-            db.add(listing)
-            success_count += 1
+        # 8e. All writes succeeded — build response payload
+        resp_payload: Any
+        if inventory_resp is not None or inventory_skipped:
+            resp_payload = {}
+            if listing_resp is not None:
+                resp_payload["listing_patch"] = listing_resp
+            if inventory_resp is not None:
+                resp_payload["inventory_patch"] = inventory_resp
+            if inventory_skipped:
+                resp_payload["inventory_skipped"] = True
+                resp_payload["inventory_skip_reason"] = inventory_skip_reason
+        else:
+            resp_payload = listing_resp
 
-        except EtsyWriteError as e:
-            result.status = "failed"
-            result.error_message = e.message
-            result.response_payload = e.response_body
-            result.completed_at = datetime.now(timezone.utc)
-            failure_count += 1
-            logger.warning(
-                "Etsy write failed for listing %s: %s",
-                listing.etsy_listing_id,
-                e.message,
-            )
+        result.response_payload = resp_payload
+        result.status = "success"
+        result.completed_at = datetime.now(timezone.utc)
 
-        except Exception as e:
-            result.status = "failed"
-            result.error_message = str(e)
-            result.completed_at = datetime.now(timezone.utc)
-            failure_count += 1
-            logger.exception("Unexpected error writing listing %s", listing.etsy_listing_id)
+        # 8f. Update local Listing — text/bool fields only after all writes succeed
+        for after_field, listing_attr in _AFTER_TO_LISTING.items():
+            if after_field in diff:
+                setattr(listing, listing_attr, after_data.get(after_field))
 
+        # Update price/quantity only after inventory write succeeds
+        if inventory_resp is not None:
+            if "price_amount" in diff:
+                listing.price_amount = after_data.get("price_amount")
+            if "price_divisor" in diff:
+                listing.price_divisor = after_data.get("price_divisor")
+            if "quantity" in diff:
+                listing.quantity = after_data.get("quantity")
+
+        db.add(listing)
+        success_count += 1
         await db.flush()
 
     # 9. Finalize job

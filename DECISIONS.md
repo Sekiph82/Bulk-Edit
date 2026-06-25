@@ -238,3 +238,22 @@ Failed and skipped apply results should not be reverted — they represent listi
 
 ### [REVERT] 409 on duplicate revert (not 400)
 A second revert request on an already-reverted apply job is a conflict, not a bad request — the apply job itself is valid, but a concurrent/completed revert job already exists. 409 (Conflict) is semantically correct. The check queries for `status IN ("completed", "completed_with_errors", "running")` to also block concurrent reverts in progress.
+
+---
+
+## Sprint 10 Decisions
+
+### [INVENTORY] Change detection via value comparison, not diff key presence
+`build_etsy_inventory_payload(listing, after_data)` uses `new_price != listing.price_amount` to detect change, not `"price_amount" in diff`. Reason: `after_data` always contains `price_amount` (from `build_before_data`), so presence check would always trigger an inventory write. Value comparison works correctly for both apply (listing has old value, after_data has new) and revert (listing has applied value, snapshot has original).
+
+### [INVENTORY] Partial write caveat: accepted, documented, not recovered
+If listing PATCH succeeds but inventory PUT fails: Etsy has new text but not new price. This is a partial external write. Decision: do NOT update local DB for that listing (treating failure as atomic). Next listing sync will resolve the text/price mismatch. Alternative considered: revert the text PATCH on inventory failure (double complexity, another potential failure). Accepted caveat documented in module docstring and HANDOFF.md.
+
+### [INVENTORY] Backward compat: flat vs structured request_payload
+`request_payload` on `BulkEditApplyResult` uses flat format `{"title": "New"}` for text-only changes (no inventory). Uses structured format `{"listing_patch": {"title": "New"}, "inventory_patch": {...}}` only when inventory is involved. Reason: existing Sprint 8 tests mock title-only changes and assert on the flat payload. Changing to structured unconditionally would break those tests. The conditional keeps both cases working.
+
+### [INVENTORY] currency_code from listing, not after_data/snapshot
+`listing.currency_code` is always used for the inventory payload. It's not in `after_data` or `snapshot_data` (not captured by `build_before_data`). Currency shouldn't change via bulk edit — it's not a patchable field. Reading from the listing object is correct and avoids adding currency to the snapshot schema.
+
+### [INVENTORY] Variation listings: inventory skipped, text fields still applied
+When `listing.has_variations=True`, `build_etsy_inventory_payload` returns None. The variation skip reason is recorded in `request_payload["inventory_skip_reason"]`. Text field changes (title, description, etc.) proceed normally through the standard PATCH endpoint. Full variation inventory support deferred to Sprint 12 (Variation Editor).

@@ -4,6 +4,25 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 Sprint 10 — Etsy Inventory Writes (Price / Quantity)
+
+**Skills active:** 07 backend-api, 20 testing-qa, 01 documentation-handoff
+
+**Completed:**
+- `build_etsy_inventory_payload(listing, after_data)` in `etsy_write.py` — change detection via value comparison (not diff key), variation skip (return None), currency_code guard
+- `patch_etsy_listing_inventory(access_token, shop_etsy_id, listing_etsy_id, payload)` in `etsy_write.py` — PUT /v3/application/shops/{s}/listings/{l}/inventory with JSON body
+- `bulk_edit_apply.py` rewritten with dual-write: listing PATCH first, inventory PUT second; structured request/response payloads `{"listing_patch": {...}, "inventory_patch": {...}}`; variation skip detection; local price/qty updated ONLY after inventory PUT success
+- `bulk_edit_revert.py` updated with inventory revert from snapshot_data; same dual-write pattern; local price/qty restore gated on inventory revert success; `shop.etsy_shop_id` lookup for endpoint
+- `tests/test_bulk_edit_inventory.py` — 19 tests (9 unit, 10 integration); 200/200 full suite PASS (was 181)
+- Frontend: revert modal warning updated to "price and quantity now included"; variation listing skip notice shown in preview when has_variations=True and price_amount/quantity in diff
+
+**Key design decisions:**
+- Change detection: `new_price != listing.price_amount` (works for both apply and revert)
+- Partial write caveat: listing PATCH success + inventory PUT failure → Etsy has new text, not new price; local DB not updated; next sync resolves
+- Backward compat: request_payload uses flat format for text-only changes, structured format only when inventory involved
+
+---
+
 ## 2026-06-25 DevOps — Fixed Windows Batch Scripts to ASCII-Only CMD-Safe Syntax
 
 **Skills active:** 01 documentation-handoff

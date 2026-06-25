@@ -639,6 +639,17 @@ function BulkEditContent() {
               ))}
             </div>
 
+            {/* Variation inventory skip notice */}
+            {previewItems.some(
+              (item) =>
+                item.after_data?.has_variations === true &&
+                ("price_amount" in item.diff || "quantity" in item.diff)
+            ) && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-5 py-3 text-sm text-yellow-800">
+                <strong>Note:</strong> One or more listings have variations. Price and quantity changes will be skipped for those listings during apply — variation inventory support is coming in a future release. Text fields will still be updated.
+              </div>
+            )}
+
             {/* Diff table */}
             <div className="bg-white border border-gray-200 rounded-xl p-6">
               <h2 className="text-base font-semibold text-gray-900 mb-4">Field-level Preview</h2>
@@ -720,8 +731,8 @@ function BulkEditContent() {
                     pre-apply state using backup snapshots. This cannot be undone.
                   </p>
                   <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-800 mb-4">
-                    <strong>Warning:</strong> Only fields with backup snapshots will be restored.
-                    Price and quantity are not reverted in this version.
+                    <strong>Warning:</strong> All fields with backup snapshots will be restored, including price and quantity.
+                    Variation listings will have price/quantity skipped (text fields still restored).
                   </div>
                   <div className="mb-6">
                     <label className="text-xs font-medium text-gray-700 block mb-1">

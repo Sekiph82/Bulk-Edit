@@ -254,18 +254,17 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
-## Sprint 10: Media Library
+## Sprint 10: Etsy Inventory Writes (Price / Quantity)
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Design MediaAsset model
-- [ ] Implement S3 upload endpoint (presigned URLs)
-- [ ] Implement media asset listing and search
-- [ ] Implement media delete
-- [ ] Build frontend media library grid
-- [ ] Add drag-and-drop upload
-- [ ] Write media tests
-- [ ] Commit and push
+- [x] `build_etsy_inventory_payload(listing, after_data)` in `etsy_write.py` — change detection vs current listing values, variation skip, currency_code guard
+- [x] `patch_etsy_listing_inventory(access_token, shop_etsy_id, listing_etsy_id, payload)` in `etsy_write.py` — PUT /v3/application/shops/{s}/listings/{l}/inventory
+- [x] `bulk_edit_apply.py` — dual-write: listing PATCH then inventory PUT; structured request/response payloads; local price/qty update gated on inventory write success; variation skip with reason
+- [x] `bulk_edit_revert.py` — inventory revert from snapshot_data; same dual-write pattern; local price/qty restore gated on inventory revert success
+- [x] `tests/test_bulk_edit_inventory.py` — 19 tests (9 unit + 10 integration); 200/200 PASS
+- [x] Frontend: removed "price/qty not reverted" warning from revert modal; added variation listing skip notice in preview
+- [x] Commit and push
 
 ---
 

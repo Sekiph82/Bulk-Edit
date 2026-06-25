@@ -1,5 +1,5 @@
 """
-Bulk Edit Revert Service — Sprint 9.
+Bulk Edit Revert Service — Sprint 10.
 
 Magic Revert: reverts successful Etsy writes from a BulkEditApplyJob
 using the ListingBackupSnapshot records created in Sprint 8.
@@ -10,11 +10,15 @@ Safety contract:
   3. No completed/running RevertJob may already exist for this apply job
   4. Only successful BulkEditApplyResult rows are reverted
   5. Every revert write uses the pre-write backup snapshot
-  6. Local Listing row updated ONLY after successful Etsy revert write
+  6. Local Listing row updated ONLY after ALL required Etsy revert writes succeed
   7. Audit log written on revert start and completion
   8. Backup snapshots are never deleted
-  9. Price/quantity not reverted (excluded fields — no inventory endpoint in Sprint 9)
+  9. Price/quantity reverted via inventory endpoint (PUT /shops/{s}/listings/{l}/inventory)
+     Variation listings: inventory revert skipped (Sprint 11); text fields still reverted.
  10. Photo/video not reverted (deferred to Sprint 11)
+
+Partial write caveat: if text PATCH succeeds but inventory PUT fails, Etsy has reverted text
+but not price/quantity. Local DB not updated. Next sync resolves the discrepancy.
 """
 import logging
 from datetime import datetime, timezone
@@ -36,7 +40,9 @@ from app.models.revert_result import RevertResult
 from app.services.etsy_sync import get_valid_etsy_access_token
 from app.services.etsy_write import (
     build_etsy_patch_payload,
+    build_etsy_inventory_payload,
     patch_etsy_listing,
+    patch_etsy_listing_inventory,
     EtsyWriteError,
 )
 
@@ -93,7 +99,7 @@ def build_etsy_revert_payload(snapshot_data: dict[str, Any]) -> dict[str, Any]:
     """
     Build Etsy PATCH payload from snapshot_data (pre-write backup).
     Reuses build_etsy_patch_payload by treating each snapshot field as a "change".
-    Price and quantity excluded — inventory endpoint required (Sprint 10).
+    Price and quantity excluded — use build_etsy_inventory_payload for those.
     """
     diff: dict[str, Any] = {
         field: {"before": None, "after": snapshot_data.get(field)}
@@ -336,8 +342,30 @@ async def revert_apply_job(
             await db.flush()
             continue
 
+        shop = shops_map.get(listing.etsy_shop_id)
         snapshot_data: dict[str, Any] = snapshot.snapshot_data or {}
-        payload = build_etsy_revert_payload(snapshot_data)
+
+        standard_payload = build_etsy_revert_payload(snapshot_data)
+        inventory_payload = build_etsy_inventory_payload(listing, snapshot_data)
+
+        # Variation inventory skip — text revert may still proceed
+        inventory_skipped = listing.has_variations and (
+            "price_amount" in snapshot_data or "quantity" in snapshot_data
+        )
+        inventory_skip_reason = "Variation inventory revert deferred to Sprint 11" if inventory_skipped else None
+
+        # Build structured request payload
+        if inventory_payload or inventory_skipped:
+            req_payload: Any = {}
+            if standard_payload:
+                req_payload["listing_patch"] = standard_payload
+            if inventory_payload:
+                req_payload["inventory_patch"] = inventory_payload
+            if inventory_skipped:
+                req_payload["inventory_skipped"] = True
+                req_payload["inventory_skip_reason"] = inventory_skip_reason
+        else:
+            req_payload = standard_payload
 
         rr = RevertResult(
             organization_id=organization_id,
@@ -348,54 +376,116 @@ async def revert_apply_job(
             etsy_listing_id=listing.etsy_listing_id,
             backup_snapshot_id=snapshot.id,
             status="pending",
-            request_payload=payload,
+            request_payload=req_payload,
             attempted_at=now,
         )
         db.add(rr)
         await db.flush()
 
-        if not payload:
+        if not standard_payload and not inventory_payload:
             skipped_count += 1
             rr.status = "skipped"
-            rr.error_message = "No patchable fields in snapshot."
+            rr.error_message = inventory_skip_reason or "No patchable fields in snapshot."
             rr.completed_at = datetime.now(timezone.utc)
             await db.flush()
             continue
 
-        try:
-            etsy_response = await patch_etsy_listing(
-                access_token=access_token,
-                etsy_listing_id=listing.etsy_listing_id,
-                payload=payload,
-            )
-            rr.response_payload = etsy_response
-            rr.status = "success"
-            rr.completed_at = datetime.now(timezone.utc)
+        # Step 1: revert text/bool fields (listing PATCH)
+        listing_resp: Any = None
+        if standard_payload:
+            try:
+                listing_resp = await patch_etsy_listing(
+                    access_token=access_token,
+                    etsy_listing_id=listing.etsy_listing_id,
+                    payload=standard_payload,
+                )
+            except EtsyWriteError as e:
+                rr.status = "failed"
+                rr.error_message = e.message
+                rr.response_payload = (
+                    {"listing_patch_error": {"message": e.message, "response": e.response_body}}
+                    if inventory_payload
+                    else e.response_body
+                )
+                rr.completed_at = datetime.now(timezone.utc)
+                failure_count += 1
+                logger.warning("Etsy revert PATCH failed for %s: %s", listing.etsy_listing_id, e.message)
+                await db.flush()
+                continue
+            except Exception as e:
+                rr.status = "failed"
+                rr.error_message = str(e)
+                rr.completed_at = datetime.now(timezone.utc)
+                failure_count += 1
+                logger.exception("Unexpected error on revert PATCH %s", listing.etsy_listing_id)
+                await db.flush()
+                continue
 
-            # Update local row only after Etsy write succeeds
-            update_local_listing_from_snapshot(listing, snapshot_data)
-            db.add(listing)
-            success_count += 1
+        # Step 2: revert price/quantity (inventory PUT)
+        inventory_resp: Any = None
+        if inventory_payload and shop:
+            try:
+                inventory_resp = await patch_etsy_listing_inventory(
+                    access_token=access_token,
+                    shop_etsy_id=shop.etsy_shop_id,
+                    listing_etsy_id=listing.etsy_listing_id,
+                    payload=inventory_payload,
+                )
+            except EtsyWriteError as e:
+                rr.status = "failed"
+                rr.error_message = f"Inventory revert failed: {e.message}"
+                resp_struct: dict[str, Any] = {}
+                if listing_resp is not None:
+                    resp_struct["listing_patch"] = listing_resp
+                resp_struct["inventory_patch_error"] = {"message": e.message, "response": e.response_body}
+                rr.response_payload = resp_struct
+                rr.completed_at = datetime.now(timezone.utc)
+                failure_count += 1
+                logger.warning(
+                    "Etsy inventory revert PUT failed for %s: %s (listing PATCH already applied)",
+                    listing.etsy_listing_id,
+                    e.message,
+                )
+                await db.flush()
+                continue
+            except Exception as e:
+                rr.status = "failed"
+                rr.error_message = f"Inventory revert error: {str(e)}"
+                rr.completed_at = datetime.now(timezone.utc)
+                failure_count += 1
+                logger.exception("Unexpected error on inventory revert PUT %s", listing.etsy_listing_id)
+                await db.flush()
+                continue
 
-        except EtsyWriteError as e:
-            rr.status = "failed"
-            rr.error_message = e.message
-            rr.response_payload = e.response_body
-            rr.completed_at = datetime.now(timezone.utc)
-            failure_count += 1
-            logger.warning(
-                "Etsy revert failed for listing %s: %s",
-                listing.etsy_listing_id,
-                e.message,
-            )
+        # All revert writes succeeded — build response payload
+        if inventory_resp is not None or inventory_skipped:
+            resp_payload: Any = {}
+            if listing_resp is not None:
+                resp_payload["listing_patch"] = listing_resp
+            if inventory_resp is not None:
+                resp_payload["inventory_patch"] = inventory_resp
+            if inventory_skipped:
+                resp_payload["inventory_skipped"] = True
+                resp_payload["inventory_skip_reason"] = inventory_skip_reason
+        else:
+            resp_payload = listing_resp
 
-        except Exception as e:
-            rr.status = "failed"
-            rr.error_message = str(e)
-            rr.completed_at = datetime.now(timezone.utc)
-            failure_count += 1
-            logger.exception("Unexpected error reverting listing %s", listing.etsy_listing_id)
+        rr.response_payload = resp_payload
+        rr.status = "success"
+        rr.completed_at = datetime.now(timezone.utc)
 
+        # Update local text/bool fields from snapshot
+        update_local_listing_from_snapshot(listing, snapshot_data)
+
+        # Update price/quantity only after inventory revert write succeeds
+        if inventory_resp is not None:
+            if "price_amount" in snapshot_data:
+                listing.price_amount = snapshot_data.get("price_amount")
+            if "quantity" in snapshot_data:
+                listing.quantity = snapshot_data.get("quantity")
+
+        db.add(listing)
+        success_count += 1
         await db.flush()
 
     # Finalize
