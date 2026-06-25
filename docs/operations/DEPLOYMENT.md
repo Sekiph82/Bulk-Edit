@@ -49,9 +49,13 @@ Double-click either file in Explorer — no terminal needed. The script:
 1. Checks Docker is installed (clear error if not)
 2. Checks `docker compose version` (clear error if not)
 3. Copies `.env.example` → `.env` if `.env` is missing
-4. Runs `docker compose down --remove-orphans` (clean: adds `-v`)
-5. Runs `docker compose up --build` (foreground, streams logs)
-6. Keeps the CMD window open with `pause` after Docker exits
+4. Appends `COMPOSE_PROJECT_NAME=bulk-edit` to `.env` if not present
+5. Safely stops old `fmcg-erp-system-main` containers: `docker compose -p fmcg-erp-system-main down --remove-orphans` (errors silenced — does not stop script)
+6. Runs `docker compose -p bulk-edit down --remove-orphans` (clean: adds `-v`)
+7. Runs `docker compose -p bulk-edit up --build` (foreground, streams logs)
+8. Keeps the CMD window open with `pause` after Docker exits
+
+All scripts use `docker compose -p bulk-edit` to ensure project isolation and prevent accidental cross-project container conflicts.
 
 ### Docker Compose (manual / Mac / Linux)
 

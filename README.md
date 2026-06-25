@@ -43,6 +43,10 @@ Next: Sprint 2 — Auth + Organization
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - Git
 
+### Docker project isolation
+
+All Windows scripts force Docker Compose project name to `bulk-edit` to avoid accidentally interfering with other Docker projects (e.g., `fmcg-erp-system-main`). Every script runs `docker compose -p bulk-edit ...` and safely attempts to stop the old ERP project before starting.
+
 ### One-click Windows setup for a friend
 
 No developer tools required. Your friend just needs Windows 10/11 with `winget` (App Installer).

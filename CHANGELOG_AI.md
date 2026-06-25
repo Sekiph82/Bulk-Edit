@@ -4,6 +4,24 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 DevOps — Docker Compose Project Isolation Fix
+
+**Skills active:** 01 documentation-handoff
+
+**Problem:** Double-clicking start-dev.bat was opening/starting the old `fmcg-erp-system-main` ERP project because plain `docker compose` without a project name falls back to the folder name or leftover state.
+
+**Completed:**
+- All 4 batch scripts updated to use `docker compose -p bulk-edit` instead of bare `docker compose`
+- All 4 scripts: added `findstr /i "COMPOSE_PROJECT_NAME" .env` check — appends `COMPOSE_PROJECT_NAME=bulk-edit` if missing
+- All 4 scripts: added safe ERP project stop before Bulk-Edit startup: `docker compose -p fmcg-erp-system-main down --remove-orphans >nul 2>&1` (errors suppressed, does not stop script, no `-v` so ERP volumes preserved)
+- Added `COMPOSE_PROJECT_NAME=bulk-edit` to `.env.example`
+- Removed obsolete `version: "3.9"` top-level line from `docker-compose.yml`
+- Updated README.md, DEPLOYMENT.md, HANDOFF.md, PROJECT_STATUS.md
+
+**Docker Compose project name:** `bulk-edit` (enforced via `-p bulk-edit` flag AND `COMPOSE_PROJECT_NAME` env var)
+
+---
+
 ## 2026-06-25 DevOps — Windows One-Click Friend Setup Scripts
 
 **Skills active:** 01 documentation-handoff

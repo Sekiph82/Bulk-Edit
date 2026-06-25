@@ -10,6 +10,7 @@ set "FRONTEND_URL=http://localhost:3100"
 echo.
 echo ============================================================
 echo  Bulk-Edit - One-Click CLEAN Setup and Start
+echo  Docker Compose project: bulk-edit
 echo ============================================================
 echo.
 echo  WARNING: This script will DELETE all local database volumes.
@@ -192,10 +193,22 @@ if not exist ".env" (
 ) else (
     echo [INFO] .env already exists.
 )
+
+:: Ensure COMPOSE_PROJECT_NAME is in .env
+findstr /i "COMPOSE_PROJECT_NAME" ".env" >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo COMPOSE_PROJECT_NAME=bulk-edit>> ".env"
+    echo [INFO] Added COMPOSE_PROJECT_NAME=bulk-edit to .env
+)
 echo.
 
-echo [INFO] Removing existing containers and volumes (clean reset)...
-docker compose down -v --remove-orphans
+echo [INFO] Checking for old ERP Docker project: fmcg-erp-system-main
+docker compose -p fmcg-erp-system-main down --remove-orphans >nul 2>&1
+echo [INFO] Old ERP project check done.
+
+echo.
+echo [INFO] Removing existing bulk-edit containers and volumes (clean reset)...
+docker compose -p bulk-edit down -v --remove-orphans
 
 echo.
 echo ============================================================
@@ -210,6 +223,8 @@ echo    Backend API : http://localhost:8100
 echo    API Docs    : http://localhost:8100/docs
 echo    Health      : http://localhost:8100/api/v1/health
 echo.
+echo  Docker Compose project name: bulk-edit
+echo.
 echo  Press Ctrl+C to stop all services.
 echo ============================================================
 echo.
@@ -217,7 +232,7 @@ echo.
 :: Open browser after delay in background, then stream Docker logs
 start "" cmd /c "timeout /t 12 /nobreak >nul && start http://localhost:3100"
 
-docker compose up --build
+docker compose -p bulk-edit up --build
 
 echo.
 echo [INFO] Docker stopped. Check logs above for any errors.

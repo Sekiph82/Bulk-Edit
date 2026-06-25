@@ -37,7 +37,7 @@ None (between sprints)
 - `setup-and-start.bat` — double-click; installs Git + Docker Desktop via winget if missing, clones repo to Desktop, builds, starts, opens browser at http://localhost:3100
 - `setup-and-start-clean.bat` — same with volume reset (requires YES confirmation)
 
-All scripts: check Docker, auto-create `.env` from `.env.example` if missing.
+All scripts: check Docker, auto-create `.env` from `.env.example` if missing, enforce `docker compose -p bulk-edit` project name, safely stop old `fmcg-erp-system-main` ERP containers before starting.
 
 ## Blockers
 

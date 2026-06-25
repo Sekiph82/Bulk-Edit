@@ -7,6 +7,7 @@ cd /d "%~dp0"
 echo.
 echo ============================================================
 echo  Bulk-Edit - Local Dev Startup
+echo  Docker Compose project: bulk-edit
 echo ============================================================
 echo.
 
@@ -41,9 +42,21 @@ if not exist ".env" (
     echo [INFO] .env found.
 )
 
+:: Ensure COMPOSE_PROJECT_NAME is in .env
+findstr /i "COMPOSE_PROJECT_NAME" ".env" >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo COMPOSE_PROJECT_NAME=bulk-edit>> ".env"
+    echo [INFO] Added COMPOSE_PROJECT_NAME=bulk-edit to .env
+)
+
 echo.
-echo [STEP 1/3] Stopping existing services...
-docker compose down --remove-orphans
+echo [INFO] Checking for old ERP Docker project: fmcg-erp-system-main
+docker compose -p fmcg-erp-system-main down --remove-orphans >nul 2>&1
+echo [INFO] Old ERP project check done.
+
+echo.
+echo [STEP 1/3] Stopping existing bulk-edit services...
+docker compose -p bulk-edit down --remove-orphans
 
 echo.
 echo [STEP 2/3] Building and starting services...
@@ -59,14 +72,16 @@ echo   API Docs  : http://localhost:8100/docs
 echo   Health    : http://localhost:8100/api/v1/health
 echo   PostgreSQL: localhost:55432
 echo   Redis     : localhost:56379
+echo.
+echo   Docker Compose project name: bulk-edit
 echo ============================================================
 echo.
 
-echo [STEP 3/3] Starting docker compose up --build (logs below)...
+echo [STEP 3/3] Starting docker compose -p bulk-edit up --build (logs below)...
 echo            Press Ctrl+C to stop all services.
 echo.
 
-docker compose up --build
+docker compose -p bulk-edit up --build
 
 echo.
 echo [INFO] Services stopped.

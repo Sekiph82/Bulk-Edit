@@ -74,6 +74,8 @@ Four Windows batch files at project root:
 
 Friend/reviewer should double-click `setup-and-start.bat` — no prerequisites needed beyond Windows + winget.
 
+**Docker project isolation:** all scripts force `docker compose -p bulk-edit` to prevent accidental interference with other Docker Compose projects (e.g., `fmcg-erp-system-main`). Each script also runs `docker compose -p fmcg-erp-system-main down --remove-orphans` silently before starting — does not delete ERP volumes.
+
 ## Known Issues
 
 - Etsy access token auto-refresh not implemented. Full refresh deferred to Sprint 8.
