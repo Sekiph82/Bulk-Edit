@@ -45,9 +45,11 @@ Next: Sprint 2 — Auth + Organization
 
 ### Docker project isolation and auto-start
 
-All Windows scripts automatically start Docker Desktop if it is closed — no manual action needed. Each script polls `docker info` every 5 seconds (up to 180 seconds) and only proceeds once the Docker engine is ready.
+All Windows scripts are plain ASCII-only CMD-safe batch files (no Unicode, no UTF-8, no chcp). They work reliably when double-clicked on any Windows 10/11 system.
 
-All scripts also force Docker Compose project name to `bulk-edit` via `docker compose -p bulk-edit` to prevent accidentally interfering with other Docker projects (e.g., `fmcg-erp-system-main`). The old ERP project is stopped safely before Bulk-Edit starts.
+Scripts automatically start Docker Desktop if it is closed — no manual action needed. Each script polls `docker info` every 5 seconds (up to 180 seconds) and only proceeds once the Docker engine is ready.
+
+All scripts force Docker Compose project name to `bulk-edit` via `docker compose -p bulk-edit` to prevent accidentally interfering with other Docker projects (e.g., `fmcg-erp-system-main`). The old ERP project is stopped safely before Bulk-Edit starts.
 
 ### One-click Windows setup for a friend
 

@@ -74,6 +74,8 @@ Four Windows batch files at project root:
 
 Friend/reviewer should double-click `setup-and-start.bat` — no prerequisites needed beyond Windows + winget.
 
+**ASCII-only scripts:** all .bat files must remain plain ASCII. No Unicode, no box-drawing chars, no long dashes, no chcp 65001. Adding any non-ASCII character to a .bat file will break CMD on double-click with errors like "'EADY' is not recognized".
+
 **Docker Desktop auto-start:** all scripts automatically start Docker Desktop and poll `docker info` every 5 seconds (max 180s) before running any compose command. User never needs to open Docker Desktop manually.
 
 **Docker project isolation:** all scripts force `docker compose -p bulk-edit` to prevent accidental interference with other Docker Compose projects (e.g., `fmcg-erp-system-main`). Each script also runs `docker compose -p fmcg-erp-system-main down --remove-orphans` silently before starting — does not delete ERP volumes.

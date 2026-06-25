@@ -1,11 +1,9 @@
 @echo off
-chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
 title Bulk-Edit One-Click Setup and Start
 
 set "PROJECT_DIR=%USERPROFILE%\Desktop\Bulk-Edit"
 set "REPO_URL=https://github.com/Sekiph82/Bulk-Edit.git"
-set "FRONTEND_URL=http://localhost:3100"
 
 echo.
 echo ============================================================
@@ -24,14 +22,12 @@ echo.
 echo ============================================================
 echo.
 
-:: ── STEP 1: Check winget ────────────────────────────────────
-echo [STEP 1/7] Checking winget (Windows Package Manager)...
+:: Step 1: Check winget
+echo [STEP 1/7] Checking winget...
 winget --version >nul 2>&1
-if %ERRORLEVEL% neq 0 (
-    echo.
+if errorlevel 1 (
     echo [ERROR] winget is not installed.
-    echo         Please install "App Installer" from the Microsoft Store,
-    echo         then run this script again.
+    echo Please install App Installer from the Microsoft Store, then run this script again.
     echo.
     pause
     exit /b 1
@@ -39,21 +35,17 @@ if %ERRORLEVEL% neq 0 (
 echo [OK] winget found.
 echo.
 
-:: ── STEP 2: Check / Install Git ─────────────────────────────
+:: Step 2: Check / Install Git
 echo [STEP 2/7] Checking Git...
 git --version >nul 2>&1
-if %ERRORLEVEL% neq 0 (
+if errorlevel 1 (
     echo [INFO] Git not found. Installing via winget...
     winget install --id Git.Git -e --source winget --accept-package-agreements --accept-source-agreements
     echo.
-    echo [INFO] Git install complete.
-    echo        If "git" command is still not found, close this window,
-    echo        open a new CMD window, and run this script again.
-    echo.
     git --version >nul 2>&1
-    if %ERRORLEVEL% neq 0 (
+    if errorlevel 1 (
         echo [ERROR] Git still not found after install.
-        echo         Close this window, open a new CMD, and run this script again.
+        echo Close this window, open a new CMD window, and run this script again.
         echo.
         pause
         exit /b 1
@@ -62,19 +54,18 @@ if %ERRORLEVEL% neq 0 (
 echo [OK] Git found.
 echo.
 
-:: ── STEP 3: Check / Install Docker Desktop ──────────────────
+:: Step 3: Check / Install Docker Desktop
 echo [STEP 3/7] Checking Docker...
 docker --version >nul 2>&1
-if %ERRORLEVEL% neq 0 (
+if errorlevel 1 (
     echo [INFO] Docker not found. Installing Docker Desktop via winget...
     winget install --id Docker.DockerDesktop -e --source winget --accept-package-agreements --accept-source-agreements
     echo.
     echo [WARN] Docker Desktop may require a Windows restart and WSL2 setup.
-    echo        If Docker does not start after this script, restart your
-    echo        computer and run this script again.
+    echo [WARN] If Docker does not start, restart your computer and run this script again.
     echo.
     docker --version >nul 2>&1
-    if %ERRORLEVEL% neq 0 (
+    if errorlevel 1 (
         echo [ERROR] Docker still not found. Restart your computer and run this script again.
         echo.
         pause
@@ -84,13 +75,13 @@ if %ERRORLEVEL% neq 0 (
 echo [OK] Docker CLI found.
 echo.
 
-:: ── STEP 4: Clone or update repository ─────────────────────
+:: Step 4: Clone or update repository
 echo [STEP 4/7] Setting up repository...
 
 if not exist "%PROJECT_DIR%" (
     echo [INFO] Project folder not found. Cloning from GitHub...
     git clone "%REPO_URL%" "%PROJECT_DIR%"
-    if %ERRORLEVEL% neq 0 (
+    if errorlevel 1 (
         echo [ERROR] Git clone failed. Check your internet connection and try again.
         echo.
         pause
@@ -102,7 +93,7 @@ if not exist "%PROJECT_DIR%" (
         echo [INFO] Project folder found. Pulling latest changes...
         cd /d "%PROJECT_DIR%"
         git pull origin main
-        if %ERRORLEVEL% neq 0 (
+        if errorlevel 1 (
             echo [WARN] git pull failed. Continuing with existing files.
         )
         echo [OK] Repository up to date.
@@ -111,9 +102,8 @@ if not exist "%PROJECT_DIR%" (
         echo [ERROR] A folder already exists at:
         echo         %PROJECT_DIR%
         echo         but it is not a git repository.
-        echo.
-        echo         Please move or rename that folder manually, then run this script again.
-        echo         Your files have NOT been deleted.
+        echo Please move or rename that folder manually, then run this script again.
+        echo Your files have NOT been deleted.
         echo.
         pause
         exit /b 1
@@ -123,7 +113,7 @@ echo.
 
 cd /d "%PROJECT_DIR%"
 
-:: ── STEP 5: Configure environment ───────────────────────────
+:: Step 5: Configure environment
 echo [STEP 5/7] Configuring environment...
 if not exist ".env" (
     if exist ".env.example" (
@@ -131,8 +121,8 @@ if not exist ".env" (
         echo [INFO] .env created from .env.example
     ) else (
         echo [ERROR] .env.example not found in project folder.
-        echo         The repository may not have downloaded correctly.
-        echo         Delete the project folder and run this script again.
+        echo The repository may not have downloaded correctly.
+        echo Delete the project folder and run this script again.
         echo.
         pause
         exit /b 1
@@ -141,81 +131,69 @@ if not exist ".env" (
     echo [INFO] .env already exists.
 )
 
-findstr /i "COMPOSE_PROJECT_NAME" ".env" >nul 2>&1
-if %ERRORLEVEL% neq 0 (
+findstr /i /b "COMPOSE_PROJECT_NAME=" ".env" >nul 2>&1
+if errorlevel 1 (
     echo COMPOSE_PROJECT_NAME=bulk-edit>> ".env"
     echo [INFO] Added COMPOSE_PROJECT_NAME=bulk-edit to .env
 )
 echo.
 
-:: ── STEP 6: Start Docker Desktop and wait for engine ────────
+:: Step 6: Start Docker Desktop and wait for engine
 echo [STEP 6/7] Starting Docker Desktop...
 
 set "DOCKER_DESKTOP_EXE=C:\Program Files\Docker\Docker\Docker Desktop.exe"
-
 if exist "%DOCKER_DESKTOP_EXE%" (
+    echo [INFO] Starting Docker Desktop...
     start "" "%DOCKER_DESKTOP_EXE%"
-    echo [INFO] Docker Desktop start command sent.
 ) else (
-    echo [WARN] Docker Desktop executable was not found at:
-    echo        %DOCKER_DESKTOP_EXE%
-    echo [WARN] If Docker Desktop is installed in another location, please update this script.
+    echo [WARN] Docker Desktop executable not found at default path.
+    echo [WARN] If Docker is installed elsewhere, start Docker Desktop manually or update this script.
 )
 
 echo.
-echo [INFO] Waiting for Docker engine to become ready...
-echo [INFO] This may take 30-120 seconds when Docker Desktop is closed.
-
+echo [INFO] Waiting for Docker engine...
 set /a DOCKER_WAIT_SECONDS=0
 
-:WAIT_FOR_DOCKER_ENGINE
+:WAIT_FOR_DOCKER
 docker info >nul 2>&1
-if not errorlevel 1 goto DOCKER_ENGINE_READY
+if not errorlevel 1 goto DOCKER_READY
 
 set /a DOCKER_WAIT_SECONDS+=5
-if %DOCKER_WAIT_SECONDS% GEQ 180 goto DOCKER_ENGINE_NOT_READY
+if %DOCKER_WAIT_SECONDS% GEQ 180 goto DOCKER_NOT_READY
 
-echo [INFO] Docker engine is not ready yet. Waiting 5 seconds... %DOCKER_WAIT_SECONDS%/180
+echo [INFO] Docker is not ready yet. Waiting 5 seconds... %DOCKER_WAIT_SECONDS%/180
 timeout /t 5 /nobreak >nul
-goto WAIT_FOR_DOCKER_ENGINE
+goto WAIT_FOR_DOCKER
 
-:DOCKER_ENGINE_NOT_READY
+:DOCKER_NOT_READY
 echo.
 echo [ERROR] Docker Desktop did not become ready within 180 seconds.
-echo.
-echo Please check:
-echo   1. Docker Desktop opened successfully.
-echo   2. Docker Desktop finished starting.
-echo   3. WSL2 is installed and working.
-echo   4. If Docker Desktop was just installed, restart Windows and run this script again.
+echo Please check Docker Desktop, WSL2, or restart Windows if Docker was just installed.
 echo.
 pause
 exit /b 1
 
-:DOCKER_ENGINE_READY
+:DOCKER_READY
 echo [OK] Docker engine is ready.
-echo.
 
 :: Check Docker Compose
 docker compose version >nul 2>&1
-if %ERRORLEVEL% neq 0 (
+if errorlevel 1 (
     echo [ERROR] Docker Compose is not available.
-    echo         Docker Desktop must be fully installed and running.
+    echo Please update Docker Desktop.
     echo.
     pause
     exit /b 1
 )
 echo [OK] Docker Compose found.
-
-:: ── STEP 7: Start services ──────────────────────────────────
 echo.
+
+:: Step 7: Start services
 echo [STEP 7/7] Starting Bulk-Edit services...
 
-echo [INFO] Checking for old ERP Docker project: fmcg-erp-system-main
+echo [INFO] Checking old ERP Docker project...
 docker compose -p fmcg-erp-system-main down --remove-orphans >nul 2>&1
-echo [INFO] Old ERP project check done.
 
-echo.
 echo [INFO] Stopping any existing bulk-edit services...
 docker compose -p bulk-edit down --remove-orphans
 
@@ -224,7 +202,7 @@ echo ============================================================
 echo  Building and starting Bulk-Edit...
 echo  This may take several minutes on first run.
 echo.
-echo  Once ready, your browser will open automatically at:
+echo  Your browser will open automatically at:
 echo    http://localhost:3100
 echo.
 echo  Other URLs:

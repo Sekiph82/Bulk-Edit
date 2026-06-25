@@ -4,6 +4,26 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 DevOps — Fixed Windows Batch Scripts to ASCII-Only CMD-Safe Syntax
+
+**Skills active:** 01 documentation-handoff
+
+**Problem:** Scripts contained Unicode box-drawing characters (e.g., `:: ── 1. Check Docker CLI ─────────`) and `chcp 65001` which caused CMD errors on double-click: `'EADY' is not recognized as an internal or external command`, `The syntax of the command is incorrect`.
+
+**Root cause:** Unicode comment separators parsed as commands. `chcp 65001` changes code page but the .bat file itself was saved with characters CMD could not parse at the default code page, causing label/goto resolution to break.
+
+**Completed:**
+- All 4 .bat files fully rewritten as plain ASCII-only Windows CMD batch files
+- Removed all Unicode box-drawing characters (U+2500 range), long dashes, fancy quotes, decorative separators
+- Removed `chcp 65001` from all scripts
+- Comment lines use only `::` with plain ASCII text
+- Labels simplified: `:WAIT_FOR_DOCKER`, `:DOCKER_READY`, `:DOCKER_NOT_READY`
+- Verified with PowerShell regex `[^\x00-\x7F]` — 0 non-ASCII chars in all 4 files
+- Docker engine wait loop retained: polls every 5s, max 180s, exits cleanly on timeout
+- Updated README.md, DEPLOYMENT.md, HANDOFF.md
+
+---
+
 ## 2026-06-25 DevOps — Auto-Start Docker Desktop in Windows Scripts
 
 **Skills active:** 01 documentation-handoff

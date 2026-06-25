@@ -59,6 +59,8 @@ Double-click either file in Explorer — no terminal needed. The script:
 
 All scripts use `docker compose -p bulk-edit` for project isolation. User never needs to open Docker Desktop manually.
 
+All .bat files are plain ASCII-only CMD batch files. No Unicode characters, no UTF-8 encoding, no `chcp 65001`. Safe to double-click on any Windows 10/11 system without encoding errors.
+
 ### Docker Compose (manual / Mac / Linux)
 
 ```bash
