@@ -13,6 +13,7 @@ const placeholderFeatures = [
   { title: "AI Tools", description: "Title optimizer, tag generator — Sprint 13", icon: "🤖", href: null },
   { title: "Magic Revert", description: "Undo bulk changes — Sprint 9", icon: "↩️", href: null },
   { title: "Media Library", description: "Photo & video bulk editor — Sprint 11 ✓", icon: "🖼️", href: "/media" },
+  { title: "Variation Editor", description: "Bulk edit listing variations — Sprint 12 ✓", icon: "🎛️", href: "/variations" },
 ];
 
 export default function DashboardPage() {

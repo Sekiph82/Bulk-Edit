@@ -4,6 +4,28 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-06-26
+
+### [SPRINT-12] Fetch-patch-put for variation inventory writes
+Always GET current Etsy inventory tree before writing. Never construct tree from local `ListingVariation` data alone — local rows may be stale or incomplete (missing offering IDs, property IDs, etc.). Patch in memory, then PUT full tree back. Rationale: Etsy's inventory API requires the full tree on PUT; partial updates not supported.
+
+### [SPRINT-12] Status gate before Etsy config gate in apply_variation_job
+`job.status != "preview_ready"` check fires before `settings.is_etsy_configured()` check. Rationale: status check is a logical precondition (should return 400); Etsy config is an infrastructure requirement (503). Discovered as bug during testing — original code returned 503 for a draft job instead of 400.
+
+### [SPRINT-12] Dual-source preview vs apply
+Preview generated from local `ListingVariation` rows (fast, no Etsy calls, shows user what will change). Apply fetches fresh Etsy inventory tree per listing (authoritative, current). Rationale: preview must be cheap and offline-capable; apply must be correct.
+
+### [SPRINT-12] VALID_OPERATION_TYPES defined in schema, not imported from service
+Defined independently in `schemas/bulk_edit_variation.py` to avoid circular imports (schema → service would create a cycle). Kept in sync manually. Rationale: simpler than restructuring imports for a small constant set.
+
+### [SPRINT-12] Variation revert deferred to Sprint 13
+Backup snapshots (both `local_variations_snapshot` and `etsy_inventory_snapshot`) are created in Sprint 12 to enable Sprint 13 revert. The revert logic itself is deferred. Rationale: MVP scope; Sprint 12 focused on write safety, not undo.
+
+### [SPRINT-12] Warning items do not block apply; invalid items do
+`validation_status="invalid"` (e.g., listing has `has_variations=False`) blocks apply. `validation_status="warning"` (no local variations or no selector match) does not block — those listings produce skip results. Rationale: invalid means the operation is logically wrong; warning means it will have no effect (safe to skip).
+
+---
+
 ## 2026-06-25
 
 ### [STACK] Frontend: Next.js 14 with App Router

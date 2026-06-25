@@ -2,15 +2,15 @@
 
 ## Current Phase
 
-**Sprint 11 — Photo / Video Bulk Editor — COMPLETE**
+**Sprint 12 — Variation Editor — COMPLETE**
 
 ## Status
 
-`Sprint 11 COMPLETE — Ready for Sprint 12`
+`Sprint 12 COMPLETE — Ready for Sprint 13`
 
 ## Last Updated
 
-2026-06-25
+2026-06-26
 
 ## Active Skills
 
@@ -30,6 +30,7 @@ None (between sprints)
 - Sprint 9: Magic Revert ✓
 - Sprint 10: Etsy Inventory Writes (Price/Quantity) ✓
 - Sprint 11: Photo / Video Bulk Editor ✓
+- Sprint 12: Variation Editor ✓
 
 ## Local Development (Windows)
 
@@ -54,8 +55,9 @@ None
 - Etsy access token auto-refresh not fully implemented. Partial: logs warning but uses token anyway. Full auto-refresh deferred to Sprint 10+.
 - `fetch_listing_videos` best-effort: returns empty list on 404/405.
 - Inline sync blocks HTTP thread. Celery background task deferred to Sprint 10.
-- Price/quantity Etsy writes implemented (Sprint 10). Variation listings skip inventory (deferred to Sprint 12 variation editor).
+- Price/quantity Etsy writes implemented (Sprint 10). Variation listings handled in Sprint 12 variation editor.
 - Photo/video Etsy writes implemented (Sprint 11). Video upload/delete/reorder stubs only — requires direct file upload or S3 (Sprint 12+).
+- Variation inventory writes implemented (Sprint 12). Revert for variations deferred to Sprint 13 — backup snapshots created to enable it.
 - AuditLog model uses `extra_data` attribute in Python (SQLAlchemy reserved `metadata` name), stored as `metadata` column in DB.
 
 ## Test Results

@@ -292,14 +292,24 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 12: Variation Editor
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Implement bulk variation price edit
-- [ ] Implement bulk variation quantity edit
-- [ ] Implement bulk variation SKU edit
-- [ ] Build variation editor UI
-- [ ] Write variation tests
-- [ ] Commit and push
+- [x] BulkEditVariationJob model (org-scoped, operation_type, operation_payload JSON, selected_listing_ids JSON, status machine, preview/success/failure/skipped counters)
+- [x] BulkEditVariationPreviewItem model (per-listing: before_variations/after_variations/diff JSON, validation_status, unique constraint on job+listing)
+- [x] BulkEditVariationResult model (per-listing: status, request/response payload JSON, error_message, attempted_at/completed_at)
+- [x] ListingVariationBackupSnapshot model (org-scoped, local_variations_snapshot + etsy_inventory_snapshot JSON, etsy_shop_id FK, snapshot_type)
+- [x] Alembic migration 0009 — bulk_edit_variation_jobs, bulk_edit_variation_preview_items, bulk_edit_variation_results, listing_variation_backup_snapshots
+- [x] app/services/etsy_variation_write.py — fetch_etsy_listing_inventory, put_etsy_listing_inventory, normalize_etsy_inventory_tree, patch_inventory_tree_for_variation_operation (8 ops), _product_matches_selector, extract_local_variation_snapshot; EtsyVariationWriteError; fetch-patch-put pattern
+- [x] app/schemas/bulk_edit_variation.py — VariationJobCreate (validated), VariationJobOut, VariationPreviewItemOut, VariationPreviewPageOut, VariationResultOut, VariationResultPageOut, VariationBackupSnapshotOut
+- [x] app/services/bulk_edit_variation.py — create_variation_job, generate_variation_preview, apply_variation_job (safety gates: status check before Etsy config check, no invalid items, backup snapshot before write, local update only on success, partial failure, audit logs), list/get/preview/results/backups query helpers
+- [x] app/api/v1/bulk_edit_variations.py — 8 endpoints: POST /jobs, GET /jobs, GET /jobs/{id}, POST /jobs/{id}/preview, GET /jobs/{id}/preview, POST /jobs/{id}/apply, GET /jobs/{id}/results, GET /jobs/{id}/backups
+- [x] app/models/__init__.py — 4 new model imports
+- [x] app/api/v1/router.py — bulk_edit_variations_router included
+- [x] tests/test_bulk_edit_variation.py — 47 tests (unit: normalize/patch/selector/validate/preview; API: auth/validation/create/preview/apply gates/apply flow/org isolation/audit); 272/272 full suite PASS
+- [x] apps/frontend/lib/api.ts — 6 new types (VariationJob, VariationPreviewItem, VariationPreviewPage, VariationResult, VariationResultPage, VariationBackupSnapshot) + 8 helpers
+- [x] apps/frontend/app/variations/page.tsx — listing selector filtered to has_variations=true, 8-operation picker, selector inputs (property_name/value_name), preview button + before/after table, APPLY VARIATIONS confirm modal, results panel, job history
+- [x] apps/frontend/app/dashboard/page.tsx — Variation Editor card added linking to /variations
+- [x] Commit and push
 
 ---
 

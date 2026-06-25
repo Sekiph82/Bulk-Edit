@@ -2,45 +2,56 @@
 
 ## Last Session
 
-**Date:** 2026-06-25
-**Sprint:** 11 — Photo / Video Bulk Editor — COMPLETE
-**Completed:** 3 new models (BulkEditMediaJob, BulkEditMediaResult, ListingMediaBackupSnapshot), Alembic migration 0008, etsy_media_write.py (image fetch/upload-from-URL/delete; video stubs 501), bulk_edit_media.py orchestration service, 6 API endpoints, 25 new tests (225/225 pass), frontend /media page, api.ts types + helpers, dashboard link updated. Committed and pushed.
+**Date:** 2026-06-26
+**Sprint:** 12 — Variation Editor — COMPLETE
+**Completed:** 4 new models (BulkEditVariationJob, BulkEditVariationPreviewItem, BulkEditVariationResult, ListingVariationBackupSnapshot), Alembic migration 0009, etsy_variation_write.py (fetch-patch-put pattern, 8 ops), bulk_edit_variation.py orchestration service, 8 API endpoints, 47 new tests (272/272 pass), frontend /variations page, api.ts types + helpers, dashboard link updated. Committed and pushed.
 
 ## Current State
 
 **Backend (`apps/backend/`):**
-- `app/models/bulk_edit_media_job.py` — job status machine + counters
-- `app/models/bulk_edit_media_result.py` — per-listing result with before/after_media JSON
-- `app/models/listing_media_backup_snapshot.py` — images_snapshot + videos_snapshot JSON
-- `alembic/versions/0008_create_bulk_edit_media_tables.py` — migration for 3 tables
-- `app/services/etsy_media_write.py` — fetch images (GET), upload image (download-then-multipart-POST), delete image; video stubs raise EtsyMediaWriteError(not_implemented=True)
-- `app/schemas/bulk_edit_media.py` — MediaJobCreate, MediaJobOut, MediaResultOut, MediaResultPageOut, MediaBackupSnapshotOut, MediaJobWithResultsOut
-- `app/services/bulk_edit_media.py` — create_media_job, apply_media_job (add/replace/delete implemented; video/reorder skip-with-reason), _create_media_backup_snapshot, audit logs, partial failure support
-- `app/api/v1/bulk_edit_media.py` — 6 endpoints under /api/v1/bulk-edit/media
-- `tests/test_bulk_edit_media.py` — 25 tests
+- `app/models/bulk_edit_variation_job.py` — job status machine + preview/success/failure/skipped counters
+- `app/models/bulk_edit_variation_preview_item.py` — per-listing before/after/diff JSON, validation_status; unique (job, listing)
+- `app/models/bulk_edit_variation_result.py` — per-listing result with status, request/response payload, error
+- `app/models/listing_variation_backup_snapshot.py` — local_variations_snapshot + etsy_inventory_snapshot JSON, etsy_shop_id FK
+- `alembic/versions/0009_create_bulk_edit_variation_tables.py` — migration for 4 tables
+- `app/services/etsy_variation_write.py` — fetch_etsy_listing_inventory, put_etsy_listing_inventory, normalize_etsy_inventory_tree (strips deleted/read-only), patch_inventory_tree_for_variation_operation (8 ops with selector), _product_matches_selector; EtsyVariationWriteError; MAX_SKU_LENGTH=32
+- `app/schemas/bulk_edit_variation.py` — VariationJobCreate (validated), VariationJobOut, VariationPreviewItemOut, VariationPreviewPageOut, VariationResultOut, VariationResultPageOut, VariationBackupSnapshotOut
+- `app/services/bulk_edit_variation.py` — create_variation_job, generate_variation_preview, apply_variation_job (status check → Etsy config → no invalid items → fetch Etsy inventory → backup → normalize → patch → PUT → update local on success only → audit logs), list/get/preview/results/backups helpers
+- `app/api/v1/bulk_edit_variations.py` — 8 endpoints under /api/v1/bulk-edit/variations
+- `tests/test_bulk_edit_variation.py` — 47 tests (unit: normalize/patch/selector/validate/preview; API: auth/validation/create/preview/apply gates/apply flow/org isolation/audit)
 
 **Frontend (`apps/frontend/`):**
-- `app/media/page.tsx` — listing selector, operation picker, image URL/rank/alt-text inputs, backup warning, APPLY MEDIA confirm modal, job history table, results panel
-- `lib/api.ts` — MediaJob, MediaResult, MediaResultPage, MediaBackupSnapshot types + 6 helpers (createMediaJob, listMediaJobs, getMediaJob, applyMediaJob, getMediaResults, getMediaBackups)
-- `app/dashboard/page.tsx` — Media Library card now links to /media
+- `app/variations/page.tsx` — listing selector (filtered to has_variations=true), 8-operation picker, amount/SKU/find-replace/availability inputs, optional selector (property_name + value_name), Preview button, before/after variation table, APPLY VARIATIONS confirm modal, results panel, job history
+- `lib/api.ts` — VariationJob, VariationPreviewItem, VariationPreviewPage, VariationResult, VariationResultPage, VariationBackupSnapshot types + 8 helpers
+- `app/dashboard/page.tsx` — Variation Editor card added linking to /variations
 
-**What NOT implemented in Sprint 11 (by design):**
-- Video upload/delete (requires server-side direct file upload; S3 deferred)
-- Image reorder (Etsy has no atomic reorder endpoint; delete-all + re-upload deferred)
-- AI alt text generation — Sprint 13
-- Celery async apply — inline/synchronous MVP
+**What NOT implemented in Sprint 12 (by design):**
+- Variation revert — backup snapshots created to enable Sprint 13 revert
+- AI variation suggestions — Sprint 13
+- Celery async apply — inline synchronous MVP
 
-## Safety Gates (Sprint 11)
+## Safety Gates (Sprint 12)
 
-All enforced in `apply_media_job()`:
-1. `ETSY_CLIENT_ID` must be configured
-2. Job must belong to organization (404 if not)
-3. Job must be `pending` (400 if already running/completed)
-4. Per-listing: backup snapshot created BEFORE any Etsy write
-5. Local ListingImage rows updated ONLY after Etsy write success
-6. Audit log on job start + job finish
-7. Partial failure supported — each listing gets its own BulkEditMediaResult row
-8. Backup snapshots never deleted
+All enforced in `apply_variation_job()`:
+1. Job must belong to organization (404 if not) — checked FIRST
+2. Job must be `preview_ready` (400 if not) — checked BEFORE Etsy config
+3. `ETSY_CLIENT_ID` must be configured (503 if not) — checked AFTER status gate
+4. No invalid preview items (400 if any) — checked before writes
+5. Per-listing: fetch current Etsy inventory tree (GET) before patching
+6. Per-listing: backup snapshot (local + etsy) created BEFORE any Etsy write
+7. Normalize tree (strip deleted/read-only) before PUT
+8. Local ListingVariation rows updated ONLY after Etsy PUT success
+9. Audit log on apply start + apply finish
+10. Partial failure supported — each listing gets its own BulkEditVariationResult row
+11. Backup snapshots never deleted
+
+## Fetch-Patch-Put Pattern
+
+Never construct variation tree from local data alone. Always:
+1. `GET /v3/application/shops/{shop_id}/listings/{listing_id}/inventory` → fetch current tree
+2. Deep copy and patch in memory (apply operation to matching products)
+3. `normalize_etsy_inventory_tree()` — strip `is_deleted=True`, strip read-only fields
+4. `PUT /v3/application/shops/{shop_id}/listings/{listing_id}/inventory` → write full tree back
 
 ## Port Summary
 
@@ -53,30 +64,31 @@ All enforced in `apply_media_job()`:
 
 ## Next Task
 
-**Sprint 12: Variation Editor**
+**Sprint 13: AI Tools**
 
-Implement bulk variation price/quantity/SKU editing across multiple listings.
+Implement AI-powered listing optimizations using OpenAI GPT-4o and/or Anthropic Claude.
 
 Context:
-- `ListingVariation` model exists (Sprint 5): `etsy_product_id`, `sku`, `property_name`, `value_name`, `price_amount`, `price_divisor`, `currency_code`, `quantity`, `is_available`
-- Inventory write to Etsy: `PUT /v3/application/shops/{shop_id}/listings/{listing_id}/inventory` with full variation tree
-- Listings with `has_variations=true` were skipped in Sprint 10 price/quantity writes (with skip reason logged)
-- Need: bulk update variation price by % or fixed amount, bulk update variation quantity, bulk SKU rename
+- Listing model has `title`, `description`, `tags`, `materials`, `taxonomy_id` — all candidate AI fields
+- ListingImage has `alt_text` — candidate for AI alt text
+- AI output must NEVER be applied directly to Etsy — preview + user approval required
+- Feature gate: AI tools are a paid feature (Pro plan minimum)
+- No new Etsy writes in this sprint — just generate suggestions and store them for user review
 
 Implement:
-- New model `BulkEditVariationJob` (similar pattern to media jobs)
-- Variation write safety: preview → confirm → backup → write → audit log
-- `etsy_variation_write.py` service (fetch variation tree, patch, PUT back)
-- Variation change types: `set_variation_price`, `adjust_variation_price_pct`, `set_variation_quantity`, `set_variation_sku`
-- 20+ tests in `test_bulk_edit_variation.py`
-- Frontend: variation editor panel showing variation tree per listing before/after
+- AI service (app/services/ai_tools.py) using OpenAI + Anthropic clients
+- Endpoints: POST /api/v1/ai/title, /api/v1/ai/description, /api/v1/ai/tags, /api/v1/ai/alt-text, /api/v1/ai/seo-score
+- AI suggestions stored in AISession model (org-scoped, listing_id, field, suggestion, accepted_at)
+- Frontend: AI tools panel showing suggestions with Accept / Reject per field
+- All AI calls mocked in tests (no real API calls in CI)
+- 20+ tests
 
 ## Next Prompt
 
 ```
 Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
 
-Start Sprint 12: Variation Editor — implement bulk variation price/quantity/SKU editing for Etsy listings with has_variations=true. Use Etsy's PUT inventory endpoint with full variation tree. Same safety gate chain as Sprints 8-11. 20+ tests. No AI in this sprint.
+Start Sprint 13: AI Tools — implement AI-powered listing title, description, tag, alt-text optimization using OpenAI/Anthropic. AI output must be previewed and user-approved before applying. Feature-gated to Pro plan. All AI calls mocked in tests. No direct Etsy writes in this sprint.
 
 Active skills: 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff.
 ```
@@ -104,13 +116,13 @@ Four Windows batch files at project root:
 - `fetch_listing_videos` is best-effort — returns empty list on 404/405.
 - Sync runs inline in HTTP thread. Celery background task deferred to a future sprint.
 - Frontend npm not installed — `node_modules/` absent. Run `npm install` inside `apps/frontend` or `docker compose up`.
-- Variation inventory writes NOT supported in bulk edit sessions (Sprint 10 price/qty) — variation listings skipped. Deferred to Sprint 12.
 - Video upload/delete NOT supported — Etsy requires direct file upload; URL-based not available. Stubs return 501. Deferred to Sprint 13+.
 - Image reorder NOT supported — Etsy has no atomic reorder endpoint. Deferred.
+- Variation revert NOT implemented — backup snapshots created in Sprint 12; revert deferred to Sprint 13.
 - AuditLog model uses `extra_data` attribute in Python (SQLAlchemy reserved `metadata` name), stored as `metadata` column in DB.
 - `anyio==4.6.2` in requirements-dev.txt is yanked — works fine, upgrade when 4.7.0 stable.
 
 ## Push Status
 
 Pushed successfully to: https://github.com/Sekiph82/Bulk-Edit (main)
-Commit: feat: add photo video bulk editor (Sprint 11)
+Commit: feat: add variation editor (Sprint 12)

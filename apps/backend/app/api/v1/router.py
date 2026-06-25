@@ -7,6 +7,7 @@ from app.api.v1.shops import router as shops_router
 from app.api.v1.listings import router as listings_router
 from app.api.v1.bulk_edit import router as bulk_edit_router
 from app.api.v1.bulk_edit_media import router as bulk_edit_media_router
+from app.api.v1.bulk_edit_variations import router as bulk_edit_variations_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(health_router)
@@ -17,3 +18,4 @@ api_router.include_router(shops_router)
 api_router.include_router(listings_router)
 api_router.include_router(bulk_edit_router)
 api_router.include_router(bulk_edit_media_router)
+api_router.include_router(bulk_edit_variations_router)

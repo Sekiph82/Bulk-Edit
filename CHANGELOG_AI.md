@@ -4,6 +4,33 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-26 Sprint 12 — Variation Editor
+
+**Skills active:** 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff
+
+**Completed:**
+- 4 new SQLAlchemy models: `BulkEditVariationJob`, `BulkEditVariationPreviewItem`, `BulkEditVariationResult`, `ListingVariationBackupSnapshot`
+- Alembic migration `0009` — 4 new tables
+- `etsy_variation_write.py` — `fetch_etsy_listing_inventory`, `put_etsy_listing_inventory`, `normalize_etsy_inventory_tree` (strips deleted/read-only), `patch_inventory_tree_for_variation_operation` (8 operations with optional selector), `_product_matches_selector` (case-insensitive), `extract_local_variation_snapshot`; `EtsyVariationWriteError`; `MAX_SKU_LENGTH=32`
+- `schemas/bulk_edit_variation.py` — 7 Pydantic v2 schemas with field_validators; `VALID_OPERATION_TYPES` defined locally (not imported to avoid circular)
+- `services/bulk_edit_variation.py` — `create_variation_job` (org-scoped listing validation, payload validation), `generate_variation_preview` (clears old, generates new preview items using local ListingVariation data), `apply_variation_job` (safety gates: status → Etsy config → no invalid items → fetch Etsy tree → backup → normalize → patch → PUT → local update on success → audit), 5 query helpers
+- `api/v1/bulk_edit_variations.py` — 8 REST endpoints under `/api/v1/bulk-edit/variations`
+- `models/__init__.py` + `router.py` updated with 4 new model imports and variations router
+- 47 new tests in `test_bulk_edit_variation.py` — 272/272 full suite PASS (was 225)
+- 1 bug fixed during testing: `apply_variation_job` checked Etsy config before job status — reordered gates so status check fires first (returns 400 not 503 when job not preview_ready)
+- Frontend: `app/variations/page.tsx` (listing selector filtered to `has_variations=true`, 8-op picker, selector inputs, Preview button, before/after table, APPLY VARIATIONS confirm modal, results panel, job history); `lib/api.ts` (6 types + 8 helpers); dashboard card added
+
+**Key design decisions:**
+- Fetch-patch-put: always GET current Etsy inventory tree before patching; never construct from local data alone
+- Preview uses local `ListingVariation` rows; apply uses fresh Etsy inventory tree (dual-source design)
+- Two selector functions: `_product_matches_selector()` on Etsy tree; `_selector_matches()` on local ListingVariation rows
+- Invalid preview items (listing has `has_variations=False`) block apply (400) — user must fix selection
+- Warning items (no local variations, no selector match) do NOT block apply — they create skip results
+- Backup stores both `local_variations_snapshot` AND `etsy_inventory_snapshot` to enable Sprint 13 variation revert
+- Revert for variations explicitly deferred to Sprint 13
+
+---
+
 ## 2026-06-25 Sprint 11 — Photo / Video Bulk Editor
 
 **Skills active:** 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff

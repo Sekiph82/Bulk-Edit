@@ -575,3 +575,144 @@ export function getMediaResults(
 export function getMediaBackups(jobId: string): Promise<MediaBackupSnapshot[]> {
   return apiFetch(`/api/v1/bulk-edit/media/jobs/${jobId}/backups`);
 }
+
+// ---- Variation Job Types ----
+
+export interface VariationJob {
+  id: string;
+  organization_id: string;
+  created_by_user_id: string | null;
+  operation_type: string;
+  operation_payload: unknown;
+  selected_listing_ids: string[];
+  status: string;
+  selected_count: number;
+  preview_count: number;
+  success_count: number;
+  failure_count: number;
+  skipped_count: number;
+  preview_generated_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VariationPreviewItem {
+  id: string;
+  organization_id: string;
+  variation_job_id: string;
+  listing_id: string;
+  etsy_listing_id: string;
+  listing_title: string | null;
+  before_variations: unknown;
+  after_variations: unknown;
+  diff: unknown;
+  validation_status: string;
+  validation_messages: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VariationPreviewPage {
+  items: VariationPreviewItem[];
+  page: number;
+  per_page: number;
+  total: number;
+  variation_job_id: string;
+}
+
+export interface VariationResult {
+  id: string;
+  organization_id: string;
+  variation_job_id: string;
+  listing_id: string;
+  etsy_listing_id: string;
+  status: string;
+  request_payload: unknown;
+  response_payload: unknown;
+  error_message: string | null;
+  attempted_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VariationResultPage {
+  items: VariationResult[];
+  page: number;
+  per_page: number;
+  total: number;
+  variation_job_id: string;
+}
+
+export interface VariationBackupSnapshot {
+  id: string;
+  organization_id: string;
+  variation_job_id: string | null;
+  listing_id: string;
+  etsy_listing_id: string;
+  snapshot_type: string;
+  local_variations_snapshot: unknown;
+  etsy_inventory_snapshot: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+// ---- Variation API helpers ----
+
+export function createVariationJob(
+  listingIds: string[],
+  operationType: string,
+  payload: Record<string, unknown> = {},
+): Promise<VariationJob> {
+  return apiFetch("/api/v1/bulk-edit/variations/jobs", {
+    method: "POST",
+    body: JSON.stringify({ listing_ids: listingIds, operation_type: operationType, payload }),
+  });
+}
+
+export function listVariationJobs(): Promise<VariationJob[]> {
+  return apiFetch("/api/v1/bulk-edit/variations/jobs");
+}
+
+export function getVariationJob(jobId: string): Promise<VariationJob> {
+  return apiFetch(`/api/v1/bulk-edit/variations/jobs/${jobId}`);
+}
+
+export function generateVariationPreview(jobId: string): Promise<VariationJob> {
+  return apiFetch(`/api/v1/bulk-edit/variations/jobs/${jobId}/preview`, { method: "POST" });
+}
+
+export function getVariationPreview(
+  jobId: string,
+  params: { page?: number; per_page?: number } = {},
+): Promise<VariationPreviewPage> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined) qs.set(k, String(v));
+  }
+  const q = qs.toString();
+  return apiFetch(`/api/v1/bulk-edit/variations/jobs/${jobId}/preview${q ? `?${q}` : ""}`);
+}
+
+export function applyVariationJob(jobId: string): Promise<VariationJob> {
+  return apiFetch(`/api/v1/bulk-edit/variations/jobs/${jobId}/apply`, { method: "POST" });
+}
+
+export function getVariationResults(
+  jobId: string,
+  params: { page?: number; per_page?: number } = {},
+): Promise<VariationResultPage> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined) qs.set(k, String(v));
+  }
+  const q = qs.toString();
+  return apiFetch(`/api/v1/bulk-edit/variations/jobs/${jobId}/results${q ? `?${q}` : ""}`);
+}
+
+export function getVariationBackups(jobId: string): Promise<VariationBackupSnapshot[]> {
+  return apiFetch(`/api/v1/bulk-edit/variations/jobs/${jobId}/backups`);
+}

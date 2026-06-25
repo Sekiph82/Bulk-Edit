@@ -26,3 +26,7 @@ from app.models.revert_result import RevertResult
 from app.models.bulk_edit_media_job import BulkEditMediaJob
 from app.models.bulk_edit_media_result import BulkEditMediaResult
 from app.models.listing_media_backup_snapshot import ListingMediaBackupSnapshot
+from app.models.bulk_edit_variation_job import BulkEditVariationJob
+from app.models.bulk_edit_variation_preview_item import BulkEditVariationPreviewItem
+from app.models.bulk_edit_variation_result import BulkEditVariationResult
+from app.models.listing_variation_backup_snapshot import ListingVariationBackupSnapshot
