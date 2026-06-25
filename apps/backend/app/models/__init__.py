@@ -6,3 +6,6 @@ from app.models.refresh_token import RefreshToken
 from app.models.subscription import Subscription
 from app.models.billing_event import BillingEvent
 from app.models.usage_counter import UsageCounter
+from app.models.etsy_shop import EtsyShop
+from app.models.etsy_token import EtsyToken
+from app.models.etsy_oauth_state import EtsyOAuthState

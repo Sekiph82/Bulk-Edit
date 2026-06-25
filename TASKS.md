@@ -118,17 +118,25 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 4: Etsy OAuth
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Register Etsy app in developer portal
-- [ ] Implement Etsy OAuth2 PKCE flow
-- [ ] Store encrypted Etsy tokens per shop
-- [ ] Implement token refresh logic
-- [ ] Design EtsyShop, EtsyToken models
-- [ ] Build frontend Etsy connect flow
-- [ ] Add shop disconnect endpoint
-- [ ] Write Etsy auth tests
-- [ ] Commit and push
+- [x] Add ENCRYPTION_KEY, ETSY_CLIENT_ID, ETSY_REDIRECT_URI, ETSY_SCOPES to config.py + is_etsy_configured()
+- [x] Create app/core/encryption.py — Fernet encrypt_token/decrypt_token with dev fallback key
+- [x] Create EtsyShop model (organization_id, etsy_shop_id UNIQUE, shop_name, is_connected, last_synced_at)
+- [x] Create EtsyToken model (etsy_shop_id FK UNIQUE, access_token_enc, refresh_token_enc, expires_at, scopes)
+- [x] Create EtsyOAuthState model (state UNIQUE, code_verifier, organization_id, user_id, expires_at, consumed_at)
+- [x] Update app/models/__init__.py — import 3 new models
+- [x] Alembic migration 0003 — etsy_shops, etsy_tokens, etsy_oauth_states tables
+- [x] Create app/schemas/etsy.py — EtsyAuthorizeResponse, EtsyShopResponse, EtsyShopsResponse, EtsyDisconnectResponse
+- [x] Create app/services/etsy.py — PKCE helpers, create_authorization_session, handle_oauth_callback, exchange_code_for_token, fetch_etsy_shop, list_connected_shops, disconnect_shop, refresh_etsy_token
+- [x] Create app/api/v1/etsy.py — 4 endpoints: GET /etsy/authorize, GET /etsy/callback, GET /etsy/shops, DELETE /etsy/shops/{id}
+- [x] Update app/api/v1/router.py — include etsy_router
+- [x] Create tests/test_etsy.py — 15 tests (encryption, PKCE, authorize, callback, shops, disconnect)
+- [x] Update conftest.py — shared-memory SQLite URI for cross-fixture data visibility
+- [x] Create frontend app/shops/page.tsx — shop list, connect button, disconnect, OAuth redirect
+- [x] Update frontend app/dashboard/page.tsx — add Etsy Shops link
+- [x] 15/15 etsy tests PASS; full suite 59/59 PASS
+- [x] Commit and push
 
 ---
 

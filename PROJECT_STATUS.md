@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 3 — Stripe Billing and Feature Gates — COMPLETE**
+**Sprint 4 — Etsy OAuth2 PKCE Flow — COMPLETE**
 
 ## Status
 
-`Sprint 3 COMPLETE — Ready for Sprint 4`
+`Sprint 4 COMPLETE — Ready for Sprint 5`
 
 ## Last Updated
 
@@ -22,6 +22,7 @@ None (between sprints)
 - Sprint 1: Monorepo Skeleton ✓
 - Sprint 2: Auth + Organization ✓
 - Sprint 3: Stripe Billing and Feature Gates ✓
+- Sprint 4: Etsy OAuth2 PKCE Flow ✓
 
 ## Blockers
 
@@ -33,6 +34,8 @@ None
 - Frontend `npm install` not run — node_modules absent. Run `npm install` or `docker compose up`.
 - Stripe live testing requires real `sk_test_*` key + `stripe listen` CLI for local webhooks.
 - `stripe.Webhook.construct_event` blocks event loop (sync call in async route). Fix in Sprint 18 hardening.
+- Etsy OAuth requires real `ETSY_CLIENT_ID` in .env — placeholder returns 503 by design.
+- `fetch_etsy_shop` uses `user_id` from token response — Etsy token exchange response format should be verified against live API.
 
 ## Test Results
 
@@ -41,18 +44,17 @@ None
 | `pytest tests/test_health.py` | 4/4 PASSED |
 | `pytest tests/test_auth.py` | 14/14 PASSED |
 | `pytest tests/test_billing.py` | 26/26 PASSED |
-| **Full suite `pytest`** | **44/44 PASSED, 0 warnings** |
+| `pytest tests/test_etsy.py` | 15/15 PASSED |
+| **Full suite `pytest`** | **59/59 PASSED, 0 warnings** |
 
-## Billing Endpoints
+## Etsy Endpoints
 
 | Endpoint | Auth | Status |
 |---|---|---|
-| GET /api/v1/billing/plans | None | ✓ |
-| GET /api/v1/billing/subscription | Bearer | ✓ |
-| POST /api/v1/billing/checkout | Bearer | ✓ (503 w/o Stripe) |
-| POST /api/v1/billing/portal | Bearer | ✓ (503 w/o Stripe) |
-| POST /api/v1/billing/webhook | Stripe-Signature | ✓ |
-| GET /api/v1/billing/usage | Bearer | ✓ |
+| GET /api/v1/etsy/authorize | Bearer | ✓ (503 w/o ETSY_CLIENT_ID) |
+| GET /api/v1/etsy/callback | None | ✓ (always redirects) |
+| GET /api/v1/etsy/shops | Bearer | ✓ |
+| DELETE /api/v1/etsy/shops/{id} | Bearer | ✓ |
 
 ## Port Configuration
 
@@ -67,13 +69,12 @@ None
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 4 / 18 |
-| Backend Python files | 40+ |
-| Frontend TypeScript files | 16 |
-| Billing tests | 26 |
-| Total tests | 44 |
+| Sprints complete | 5 / 18 |
+| Backend Python files | 50+ |
+| Frontend TypeScript files | 18 |
+| Total tests | 59 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 4: Etsy OAuth. See HANDOFF.md for exact prompt.
+Begin Sprint 5: Etsy Listing Sync. See HANDOFF.md for exact prompt.

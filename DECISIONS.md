@@ -129,3 +129,22 @@ pydantic-settings instances are frozen; attribute patching fails. Solution: `pat
 
 ### [BILLING] basic_yearly/pro_yearly share limits with basic_monthly/pro_monthly
 Yearly plans have identical feature limits; only pricing differs (lower monthly rate with annual commitment). Yearly variants reference the same dict in PLAN_LIMITS to avoid duplication.
+
+---
+
+## 2026-06-25 (Sprint 4)
+
+### [ETSY] EtsyOAuthState consumed via timestamp, not deleted
+`consumed_at` timestamp set instead of deleting the row on callback. Preserves audit trail — can detect replay attacks and analyze OAuth flow metrics. State is checked for `consumed_at is None` before processing.
+
+### [ETSY] Callback endpoint always redirects, never raises HTTPException
+`GET /etsy/callback` catches all errors and redirects to `{FRONTEND_URL}/shops?error=etsy_connect_failed`. Never raises HTTPException. Rationale: OAuth callbacks are browser redirects — a JSON error response breaks the UX flow and may expose internal errors.
+
+### [ETSY] Dev Fernet fallback key is deterministic, documented
+`base64.urlsafe_b64encode(b"dev_encryption_key_placeholder!!")` = `ZGV2X2VuY3J5cHRpb25fa2V5X3BsYWNlaG9sZGVyISE=`. Used when ENCRYPTION_KEY is missing/placeholder. Warning documented in encryption.py — production must set a real key.
+
+### [ETSY] is_etsy_configured() checks for "placeholder" in ETSY_CLIENT_ID
+Mirrors is_stripe_configured() pattern. `GET /etsy/authorize` returns 503 `"Etsy is not configured."` if ETSY_CLIENT_ID is placeholder. Prevents OAuth flow from starting with invalid credentials.
+
+### [TEST] Shared-memory SQLite URI for cross-fixture data visibility
+Changed TEST_DB_URL from `sqlite+aiosqlite:///:memory:` to `sqlite+aiosqlite:///file:testdb?mode=memory&cache=shared&uri=true`. Named shared-memory DB required when both `client` (with overridden get_db) and `db_session` fixtures are used in the same test — they now share the same SQLite in-memory database across connections.

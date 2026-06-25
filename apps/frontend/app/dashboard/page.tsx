@@ -98,7 +98,11 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-5">
+          <Link href="/shops" className="bg-green-50 hover:bg-green-100 border border-green-100 rounded-xl p-5 transition-colors">
+            <p className="text-sm font-semibold text-green-800">Etsy Shops</p>
+            <p className="text-xs text-green-500 mt-1">Connect and manage your Etsy shops</p>
+          </Link>
           <Link href="/pricing" className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-xl p-5 transition-colors">
             <p className="text-sm font-semibold text-indigo-800">Pricing</p>
             <p className="text-xs text-indigo-500 mt-1">View plans — Free, Basic, Pro</p>

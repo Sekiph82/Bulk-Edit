@@ -6,7 +6,7 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 
-TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
+TEST_DB_URL = "sqlite+aiosqlite:///file:testdb?mode=memory&cache=shared&uri=true"
 
 
 @pytest.fixture

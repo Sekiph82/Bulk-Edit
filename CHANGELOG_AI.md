@@ -4,6 +4,37 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 Sprint 4 — Etsy OAuth2 PKCE Flow
+
+**Skills active:** 11 etsy-integration, 06 database-modeling, 07 backend-api, 08 frontend-ui, 20 testing-qa, 21 security-audit
+
+**Completed:**
+- Added ENCRYPTION_KEY, ETSY_CLIENT_ID, ETSY_REDIRECT_URI, ETSY_SCOPES to `app/core/config.py` + `is_etsy_configured()` method
+- Created `app/core/encryption.py` — Fernet `encrypt_token`/`decrypt_token` with documented dev fallback key (`ZGV2X2VuY3J5cHRpb25fa2V5X3BsYWNlaG9sZGVyISE=`)
+- Created `app/models/etsy_shop.py` — EtsyShop model (org-scoped, etsy_shop_id UNIQUE)
+- Created `app/models/etsy_token.py` — EtsyToken model (etsy_shop_id FK UNIQUE, encrypted tokens, expires_at)
+- Created `app/models/etsy_oauth_state.py` — EtsyOAuthState (PKCE state storage with consumed_at for single-use)
+- Updated `app/models/__init__.py` — imports all 10 models
+- Created `alembic/versions/0003_create_etsy_tables.py` — migration for 3 new tables
+- Created `app/schemas/etsy.py` — EtsyAuthorizeResponse, EtsyShopResponse, EtsyShopsResponse, EtsyDisconnectResponse
+- Created `app/services/etsy.py` — PKCE helpers (generate_code_verifier, generate_code_challenge), create_authorization_session, handle_oauth_callback, exchange_code_for_token, fetch_etsy_shop, list_connected_shops, disconnect_shop, refresh_etsy_token (placeholder)
+- Created `app/api/v1/etsy.py` — GET /etsy/authorize, GET /etsy/callback (always redirects), GET /etsy/shops, DELETE /etsy/shops/{id}
+- Updated `app/api/v1/router.py` — include etsy_router
+- Created `tests/test_etsy.py` — 15 tests covering encryption, PKCE, authorize 503/401/200, callback redirect cases, success flow, shops list, disconnect 404
+- Updated `tests/conftest.py` — shared-memory SQLite URI (`file:testdb?mode=memory&cache=shared&uri=true`) for cross-fixture data sharing
+- Created `apps/frontend/app/shops/page.tsx` — shops list, connect button (OAuth redirect), disconnect, banners
+- Updated `apps/frontend/app/dashboard/page.tsx` — Etsy Shops link added
+
+**Test results:** 59/59 PASSED (15 new + 44 existing)
+
+**Decisions made:**
+- EtsyOAuthState consumed via `consumed_at` timestamp (not delete) — audit trail preserved
+- Callback always returns 302 redirect, never raises HTTPException — OAuth security requirement
+- Dev Fernet key computed from `base64.urlsafe_b64encode(b"dev_encryption_key_placeholder!!")` — deterministic, documented warning
+- Shared-memory SQLite URI needed when `client` + `db_session` fixtures used in same test
+
+---
+
 ## 2026-06-25 Sprint 3 — Stripe Billing and Feature Gates
 
 **Skills active:** 10 billing-stripe, 06 database-modeling, 07 backend-api, 08 frontend-ui, 20 testing-qa, 21 security-audit, 01 documentation-handoff

@@ -29,6 +29,18 @@ class Settings(BaseSettings):
     STRIPE_PRICE_BASIC_YEARLY: str = "price_placeholder_basic_yearly"
     STRIPE_PRICE_PRO_YEARLY: str = "price_placeholder_pro_yearly"
 
+    # Fernet key for encrypting Etsy tokens. Must be 32 url-safe base64 bytes.
+    # WARNING: default is a dev-only fallback — never use in production.
+    ENCRYPTION_KEY: str = "ZGV2X2VuY3J5cHRpb25fa2V5X3BsYWNlaG9sZGVyISE="
+
+    ETSY_CLIENT_ID: str = "etsy_client_id_placeholder"
+    ETSY_REDIRECT_URI: str = "http://localhost:8100/api/v1/etsy/callback"
+    ETSY_SCOPES: str = "listings_r listings_w shops_r profile_r"
+
+    def is_etsy_configured(self) -> bool:
+        cid = self.ETSY_CLIENT_ID
+        return bool(cid) and "placeholder" not in cid.lower() and cid != "REPLACE_ME"
+
     def is_stripe_configured(self) -> bool:
         key = self.STRIPE_SECRET_KEY
         return key.startswith("sk_test_") or key.startswith("sk_live_")
