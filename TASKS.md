@@ -313,6 +313,25 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
+## Productization UI Sprint (Design System)
+
+**Status:** `[x] COMPLETE — Prep`
+
+- [x] Install Impeccable (project-local, .claude/skills/impeccable/) via `npx impeccable install --providers=claude --scope=project`
+- [x] Install UI UX Pro Max (global uipro-cli + project-local skill files in .claude/skills/ui-ux-pro-max/)
+- [x] Run UI UX Pro Max design system generation for Bulk-Edit (SaaS etsy seller tool)
+- [x] Generate page-specific design systems: dashboard, listings, bulk-edit, media, variations, home
+- [x] Create PRODUCT.md (Impeccable context, register: product)
+- [x] Create DESIGN.md (color palette, typography scale, component styles, motion rules)
+- [x] Create design-system/MASTER.md (canonical design system for Next.js + Tailwind)
+- [x] Create design-system/pages/ (home, dashboard, listings, bulk-edit, media, variations)
+- [x] Create docs/design/PRODUCT_UI_DIRECTION.md (page-by-page direction, anti-patterns list)
+- [x] Create docs/design/UI_AUDIT.md (full audit: 8/20 score, P0/P1/P2/P3 findings)
+- [x] Light cleanup: remove sprint labels from homepage, remove disabled roadmap cards from dashboard, remove API debug panel
+- [ ] Full Productization UI Sprint — apply design system to all customer-facing pages (Productization Sprint)
+
+---
+
 ## Sprint 13: AI Tools
 
 **Status:** `[ ] TODO`

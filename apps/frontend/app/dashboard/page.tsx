@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
 
-const placeholderFeatures = [
-  { title: "Connect Etsy Shop", description: "OAuth connection — Sprint 4 ✓", icon: "🔗", href: "/shops" },
-  { title: "Sync Listings", description: "Full listing sync — Sprint 5 ✓", icon: "🔄", href: "/listings" },
-  { title: "Bulk Edit", description: "Titles, tags, prices & more — Sprint 7", icon: "✏️", href: null },
-  { title: "AI Tools", description: "Title optimizer, tag generator — Sprint 13", icon: "🤖", href: null },
-  { title: "Magic Revert", description: "Undo bulk changes — Sprint 9", icon: "↩️", href: null },
-  { title: "Media Library", description: "Photo & video bulk editor — Sprint 11 ✓", icon: "🖼️", href: "/media" },
-  { title: "Variation Editor", description: "Bulk edit listing variations — Sprint 12 ✓", icon: "🎛️", href: "/variations" },
+const activeFeatures = [
+  { title: "Etsy Shops", description: "Connect and manage your Etsy shops", href: "/shops" },
+  { title: "Listings", description: "Browse, filter, and sync your listings", href: "/listings" },
+  { title: "Bulk Edit", description: "Edit titles, tags, prices, and more across listings", href: "/bulk-edit" },
+  { title: "Media Editor", description: "Add, replace, and delete listing photos", href: "/media" },
+  { title: "Variation Editor", description: "Bulk edit prices, quantities, and SKUs for variation listings", href: "/variations" },
+  { title: "Pricing", description: "View plans and feature limits", href: "/pricing" },
+  { title: "Billing", description: "Manage your subscription", href: "/billing" },
 ];
 
 export default function DashboardPage() {
@@ -86,65 +86,17 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
-          {placeholderFeatures.map((feature) => (
-            feature.href ? (
-              <Link
-                key={feature.title}
-                href={feature.href}
-                className="bg-white rounded-xl border border-indigo-100 shadow-sm p-6 flex flex-col gap-2 hover:border-indigo-300 transition-colors"
-              >
-                <span className="text-2xl">{feature.icon}</span>
-                <h3 className="font-semibold text-gray-800">{feature.title}</h3>
-                <p className="text-sm text-indigo-500">{feature.description}</p>
-              </Link>
-            ) : (
-              <div
-                key={feature.title}
-                className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col gap-2 opacity-60"
-              >
-                <span className="text-2xl">{feature.icon}</span>
-                <h3 className="font-semibold text-gray-800">{feature.title}</h3>
-                <p className="text-sm text-gray-400">{feature.description}</p>
-              </div>
-            )
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {activeFeatures.map((feature) => (
+            <Link
+              key={feature.title}
+              href={feature.href}
+              className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-1.5 hover:border-indigo-300 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            >
+              <h3 className="font-semibold text-gray-800 text-sm">{feature.title}</h3>
+              <p className="text-xs text-gray-500">{feature.description}</p>
+            </Link>
           ))}
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-5 mb-5">
-          <Link href="/shops" className="bg-green-50 hover:bg-green-100 border border-green-100 rounded-xl p-5 transition-colors">
-            <p className="text-sm font-semibold text-green-800">Etsy Shops</p>
-            <p className="text-xs text-green-500 mt-1">Connect and manage your Etsy shops</p>
-          </Link>
-          <Link href="/listings" className="bg-green-50 hover:bg-green-100 border border-green-100 rounded-xl p-5 transition-colors">
-            <p className="text-sm font-semibold text-green-800">Listings</p>
-            <p className="text-xs text-green-500 mt-1">Browse and sync your Etsy listings</p>
-          </Link>
-          <Link href="/pricing" className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-xl p-5 transition-colors">
-            <p className="text-sm font-semibold text-indigo-800">Pricing</p>
-            <p className="text-xs text-indigo-500 mt-1">View plans — Free, Basic, Pro</p>
-          </Link>
-          <Link href="/billing" className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-xl p-5 transition-colors">
-            <p className="text-sm font-semibold text-indigo-800">Billing</p>
-            <p className="text-xs text-indigo-500 mt-1">Manage your subscription</p>
-          </Link>
-        </div>
-
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-          <p className="text-sm font-semibold text-gray-700 mb-2">API Endpoints</p>
-          <div className="space-y-1">
-            {[
-              "/api/v1/auth/register",
-              "/api/v1/auth/login",
-              "/api/v1/billing/plans",
-              "/api/v1/billing/subscription",
-              "/api/v1/billing/usage",
-            ].map((path) => (
-              <code key={path} className="block text-xs text-gray-500">
-                {BACKEND_URL}{path}
-              </code>
-            ))}
-          </div>
         </div>
       </main>
     </div>

@@ -1,55 +1,47 @@
 import Link from "next/link";
 
 export default function HomePage() {
-  const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
-
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-8">
+    <main className="min-h-screen flex flex-col items-center justify-center p-8 bg-gray-50">
       <div className="max-w-2xl w-full text-center space-y-8">
-        {/* Logo / Brand */}
         <div>
-          <h1 className="text-6xl font-extrabold tracking-tight text-gray-900">
+          <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">
             Bulk-Edit
           </h1>
-          <p className="mt-3 text-xl text-gray-500">
-            The fastest way to bulk edit your Etsy listings.
+          <p className="mt-3 text-lg text-gray-500">
+            The fastest way to bulk edit your Etsy listings — safely, with preview and one-click revert.
           </p>
         </div>
 
-        {/* Phase badge */}
-        <div className="inline-flex items-center gap-2 bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm font-medium px-4 py-2 rounded-full">
-          <span className="w-2 h-2 rounded-full bg-yellow-400" />
-          Sprint 1 — Monorepo Skeleton
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <Link
+            href="/register"
+            className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-8 py-3 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          >
+            Get Started Free
+          </Link>
+          <Link
+            href="/login"
+            className="inline-block border border-gray-300 text-gray-700 font-medium px-8 py-3 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-200"
+          >
+            Sign In
+          </Link>
         </div>
 
-        {/* Info cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">
-              Backend API
-            </p>
-            <code className="text-sm text-indigo-600 break-all">
-              {backendUrl}/api/v1/health
-            </code>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left pt-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <p className="text-sm font-semibold text-gray-800">Bulk edit at scale</p>
+            <p className="text-xs text-gray-500 mt-1">Update titles, prices, tags, and more across hundreds of listings at once.</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">
-              Status
-            </p>
-            <p className="text-sm font-semibold text-gray-700">
-              Auth coming in Sprint 2
-            </p>
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <p className="text-sm font-semibold text-gray-800">Preview before publish</p>
+            <p className="text-xs text-gray-500 mt-1">See every change before it goes live. No surprises on your Etsy shop.</p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <p className="text-sm font-semibold text-gray-800">Revert any change</p>
+            <p className="text-xs text-gray-500 mt-1">Automatic backup snapshots let you undo any bulk operation instantly.</p>
           </div>
         </div>
-
-        {/* CTA */}
-        <Link
-          href="/dashboard"
-          className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-8 py-3 rounded-lg transition-colors"
-        >
-          Go to Dashboard →
-        </Link>
       </div>
     </main>
   );

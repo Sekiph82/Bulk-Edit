@@ -3,8 +3,8 @@
 ## Last Session
 
 **Date:** 2026-06-26
-**Sprint:** 12 — Variation Editor — COMPLETE
-**Completed:** 4 new models (BulkEditVariationJob, BulkEditVariationPreviewItem, BulkEditVariationResult, ListingVariationBackupSnapshot), Alembic migration 0009, etsy_variation_write.py (fetch-patch-put pattern, 8 ops), bulk_edit_variation.py orchestration service, 8 API endpoints, 47 new tests (272/272 pass), frontend /variations page, api.ts types + helpers, dashboard link updated. Committed and pushed.
+**Sprint:** Productization UI Sprint — Design System Prep — COMPLETE
+**Completed:** Impeccable v3.1.0 + UI UX Pro Max v2.2.3 installed project-locally. PRODUCT.md, DESIGN.md, design-system/MASTER.md, 6 page-specific design overrides (design-system/pages/), docs/design/PRODUCT_UI_DIRECTION.md, docs/design/UI_AUDIT.md created. Light cleanup: sprint labels + API debug panel + disabled roadmap cards removed from homepage and dashboard. 272/272 backend tests passing (no backend files touched). Committed and pushed.
 
 ## Current State
 
@@ -63,6 +63,32 @@ Never construct variation tree from local data alone. Always:
 | Redis | 56379 | 6379 |
 
 ## Next Task
+
+**Productization UI Sprint: Apply Design System to All Customer-Facing Pages**
+
+Read PRODUCT.md, DESIGN.md, design-system/MASTER.md, and docs/design/UI_AUDIT.md before starting.
+
+Pages to redesign (in priority order):
+1. `apps/frontend/app/page.tsx` — Homepage (marketing landing, minimal)
+2. `apps/frontend/app/dashboard/page.tsx` — Dashboard (clean feature grid, no roadmap)
+3. `apps/frontend/app/listings/page.tsx` — Listings grid (table cleanup, empty state, lazy thumbnails)
+4. `apps/frontend/app/bulk-edit/page.tsx` — Bulk edit (2-column, preview table, confirm modal)
+5. `apps/frontend/app/media/page.tsx` — Media editor (compact, backup warning)
+6. `apps/frontend/app/variations/page.tsx` — Variation editor (same pattern as media)
+7. `apps/frontend/app/shops/page.tsx` — Shops (connect/disconnect, sync status)
+8. `apps/frontend/app/pricing/page.tsx` — Pricing (clean plan comparison)
+9. `apps/frontend/app/billing/page.tsx` — Billing (current plan, usage, portal button)
+
+Key fixes per UI audit:
+- P0: Remove any remaining sprint labels / API debug panels (already done for page.tsx + dashboard)
+- P1: Add focus rings to all interactive elements (`focus:outline-none focus:ring-2 focus:ring-indigo-300`)
+- P1: Add `<label>` to all form inputs
+- P1: Replace emoji icons with SVG throughout
+- P1: Add loading states / skeleton rows to async data tables
+- P1: Apply consistent Inter type scale
+- P2: Add empty states to all data tables
+- P2: Add `loading="lazy"` to all thumbnails
+- P3: Extract StatusBadge, AppNav to shared components
 
 **Sprint 13: AI Tools**
 
