@@ -270,15 +270,23 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 11: Photo / Video Bulk Editor
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Implement bulk photo replacement
-- [ ] Implement bulk photo reorder
-- [ ] Implement bulk video assignment
-- [ ] Add alt text bulk editor
-- [ ] Build photo/video editor UI panel
-- [ ] Write photo/video tests
-- [ ] Commit and push
+- [x] BulkEditMediaJob model (org-scoped, operation_type, operation_payload JSON, listing_ids JSON, status machine, counters)
+- [x] BulkEditMediaResult model (per-listing: status, before_media/after_media JSON, request/response payload, error)
+- [x] ListingMediaBackupSnapshot model (org-scoped, images_snapshot/videos_snapshot/raw_snapshot JSON, etsy_shop_id FK)
+- [x] Alembic migration 0008 — bulk_edit_media_jobs, bulk_edit_media_results, listing_media_backup_snapshots
+- [x] app/services/etsy_media_write.py — fetch/upload/delete Etsy images (multipart URL-download pattern); video stubs raise 501
+- [x] app/schemas/bulk_edit_media.py — MediaJobCreate (validated), MediaJobOut, MediaResultOut, MediaResultPageOut, MediaBackupSnapshotOut, MediaJobWithResultsOut
+- [x] app/services/bulk_edit_media.py — create_media_job, apply_media_job (add/replace/delete_image implemented; video/reorder stubs), backup snapshot before every write, audit logs, partial failure support
+- [x] app/api/v1/bulk_edit_media.py — 6 endpoints: POST jobs, GET jobs, GET jobs/{id}, POST jobs/{id}/apply, GET jobs/{id}/results, GET jobs/{id}/backups
+- [x] app/models/__init__.py — 3 new model imports
+- [x] app/api/v1/router.py — bulk_edit_media_router included
+- [x] tests/test_bulk_edit_media.py — 25 tests; 225/225 full suite PASS
+- [x] apps/frontend/lib/api.ts — 4 new types (MediaJob, MediaResult, MediaResultPage, MediaBackupSnapshot) + 6 helpers
+- [x] apps/frontend/app/media/page.tsx — listing selector, operation picker, image URL/rank/alt-text form, backup warning, APPLY MEDIA confirmation modal, job history table, results panel
+- [x] apps/frontend/app/dashboard/page.tsx — Media Library link updated to /media ✓
+- [x] Commit and push
 
 ---
 

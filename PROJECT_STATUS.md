@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 10 — Etsy Inventory Writes — COMPLETE**
+**Sprint 11 — Photo / Video Bulk Editor — COMPLETE**
 
 ## Status
 
-`Sprint 10 COMPLETE — Ready for Sprint 11`
+`Sprint 11 COMPLETE — Ready for Sprint 12`
 
 ## Last Updated
 
@@ -29,6 +29,7 @@ None (between sprints)
 - Sprint 8: Etsy Write + Backup ✓
 - Sprint 9: Magic Revert ✓
 - Sprint 10: Etsy Inventory Writes (Price/Quantity) ✓
+- Sprint 11: Photo / Video Bulk Editor ✓
 
 ## Local Development (Windows)
 
@@ -54,7 +55,7 @@ None
 - `fetch_listing_videos` best-effort: returns empty list on 404/405.
 - Inline sync blocks HTTP thread. Celery background task deferred to Sprint 10.
 - Price/quantity Etsy writes implemented (Sprint 10). Variation listings skip inventory (deferred to Sprint 12 variation editor).
-- Photo/video Etsy writes NOT implemented — deferred to Sprint 11.
+- Photo/video Etsy writes implemented (Sprint 11). Video upload/delete/reorder stubs only — requires direct file upload or S3 (Sprint 12+).
 - AuditLog model uses `extra_data` attribute in Python (SQLAlchemy reserved `metadata` name), stored as `metadata` column in DB.
 
 ## Test Results
@@ -70,7 +71,23 @@ None
 | `pytest tests/test_bulk_edit_apply.py` | 22/22 PASSED |
 | `pytest tests/test_bulk_edit_revert.py` | 28/28 PASSED |
 | `pytest tests/test_bulk_edit_inventory.py` | 19/19 PASSED |
-| **Full suite `pytest`** | **200/200 PASSED** |
+| `pytest tests/test_bulk_edit_media.py` | 25/25 PASSED |
+| **Full suite `pytest`** | **225/225 PASSED** |
+
+## Sprint 11 — New Files
+
+| File | Description |
+|---|---|
+| `app/models/bulk_edit_media_job.py` | Media job tracking (status machine, counters) |
+| `app/models/bulk_edit_media_result.py` | Per-listing media write result |
+| `app/models/listing_media_backup_snapshot.py` | Pre-write images/videos snapshot |
+| `alembic/versions/0008_create_bulk_edit_media_tables.py` | Migration for 3 new tables |
+| `app/services/etsy_media_write.py` | Etsy image fetch/upload (multipart URL-download)/delete; video stubs |
+| `app/schemas/bulk_edit_media.py` | 6 Pydantic schemas |
+| `app/services/bulk_edit_media.py` | Full orchestration: create_media_job, apply_media_job, backup, audit |
+| `app/api/v1/bulk_edit_media.py` | 6 REST endpoints |
+| `tests/test_bulk_edit_media.py` | 25 tests |
+| `apps/frontend/app/media/page.tsx` | Photo & Video Bulk Editor UI |
 
 ## Sprint 10 — Modified/New Files
 
@@ -131,12 +148,12 @@ All enforced in `apply_bulk_edit_session()` before any write:
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 10 / 18 |
-| Backend Python files | 88+ |
-| Frontend TypeScript files | 24 |
-| Total tests | 200 |
+| Sprints complete | 11 / 18 |
+| Backend Python files | 98+ |
+| Frontend TypeScript files | 25 |
+| Total tests | 225 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 11: Photo/Video Bulk Editor. See HANDOFF.md for exact prompt.
+Begin Sprint 12: Variation Editor. See HANDOFF.md for exact prompt.

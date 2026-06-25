@@ -473,3 +473,105 @@ export function getRevertResults(
   const q = qs.toString();
   return apiFetch(`/api/v1/bulk-edit/revert-jobs/${revertJobId}/results${q ? `?${q}` : ""}`);
 }
+
+// ---- Media Job Types ----
+
+export interface MediaJob {
+  id: string;
+  organization_id: string;
+  bulk_edit_session_id: string | null;
+  created_by_user_id: string | null;
+  operation_type: string;
+  operation_payload: unknown;
+  status: string;
+  total_items: number;
+  success_count: number;
+  failure_count: number;
+  skipped_count: number;
+  started_at: string | null;
+  finished_at: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MediaResult {
+  id: string;
+  organization_id: string;
+  media_job_id: string;
+  listing_id: string;
+  etsy_listing_id: string;
+  operation_type: string;
+  status: string;
+  before_media: unknown;
+  after_media: unknown;
+  request_payload: unknown;
+  response_payload: unknown;
+  error_message: string | null;
+  attempted_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MediaResultPage {
+  items: MediaResult[];
+  page: number;
+  per_page: number;
+  total: number;
+  media_job_id: string;
+}
+
+export interface MediaBackupSnapshot {
+  id: string;
+  organization_id: string;
+  media_job_id: string | null;
+  listing_id: string;
+  etsy_listing_id: string;
+  snapshot_type: string;
+  images_snapshot: unknown;
+  videos_snapshot: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+// ---- Media API helpers ----
+
+export function createMediaJob(
+  listingIds: string[],
+  operationType: string,
+  payload: Record<string, unknown> = {},
+): Promise<MediaJob> {
+  return apiFetch("/api/v1/bulk-edit/media/jobs", {
+    method: "POST",
+    body: JSON.stringify({ listing_ids: listingIds, operation_type: operationType, payload }),
+  });
+}
+
+export function listMediaJobs(): Promise<MediaJob[]> {
+  return apiFetch("/api/v1/bulk-edit/media/jobs");
+}
+
+export function getMediaJob(jobId: string): Promise<MediaJob & { results: MediaResult[] }> {
+  return apiFetch(`/api/v1/bulk-edit/media/jobs/${jobId}`);
+}
+
+export function applyMediaJob(jobId: string): Promise<MediaJob> {
+  return apiFetch(`/api/v1/bulk-edit/media/jobs/${jobId}/apply`, { method: "POST" });
+}
+
+export function getMediaResults(
+  jobId: string,
+  params: { page?: number; per_page?: number } = {},
+): Promise<MediaResultPage> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined) qs.set(k, String(v));
+  }
+  const q = qs.toString();
+  return apiFetch(`/api/v1/bulk-edit/media/jobs/${jobId}/results${q ? `?${q}` : ""}`);
+}
+
+export function getMediaBackups(jobId: string): Promise<MediaBackupSnapshot[]> {
+  return apiFetch(`/api/v1/bulk-edit/media/jobs/${jobId}/backups`);
+}

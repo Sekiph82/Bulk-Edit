@@ -23,3 +23,6 @@ from app.models.bulk_edit_apply_result import BulkEditApplyResult
 from app.models.audit_log import AuditLog
 from app.models.revert_job import RevertJob
 from app.models.revert_result import RevertResult
+from app.models.bulk_edit_media_job import BulkEditMediaJob
+from app.models.bulk_edit_media_result import BulkEditMediaResult
+from app.models.listing_media_backup_snapshot import ListingMediaBackupSnapshot

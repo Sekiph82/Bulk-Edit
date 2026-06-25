@@ -4,6 +4,31 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 Sprint 11 — Photo / Video Bulk Editor
+
+**Skills active:** 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff
+
+**Completed:**
+- 3 new SQLAlchemy models: `BulkEditMediaJob`, `BulkEditMediaResult`, `ListingMediaBackupSnapshot`
+- Alembic migration `0008` — 3 new tables
+- `etsy_media_write.py` — `fetch_etsy_listing_images`, `upload_etsy_listing_image` (httpx download → multipart POST), `delete_etsy_listing_image` (404=success); video upload/delete raise `EtsyMediaWriteError(not_implemented=True, status_code=501)`
+- `schemas/bulk_edit_media.py` — 6 Pydantic v2 schemas with field_validators
+- `services/bulk_edit_media.py` — `create_media_job` (org-scoped listing validation), `apply_media_job` (backup-before-write, add/replace/delete_image implemented, video/reorder stubs skip-with-reason, audit logs, partial failure), 4 query helpers
+- `api/v1/bulk_edit_media.py` — 6 REST endpoints under `/api/v1/bulk-edit/media`
+- `models/__init__.py` + `router.py` updated with 3 new model imports and media router
+- 25 new tests in `test_bulk_edit_media.py` — 225/225 full suite PASS (was 200)
+- Frontend: `app/media/page.tsx` (listing selector, operation picker, APPLY MEDIA confirm modal, backup warning, job history, results panel); `lib/api.ts` (4 types + 6 helpers); dashboard card updated
+
+**Key design decisions:**
+- Image upload pattern: download bytes from `image_url` via httpx → POST multipart to Etsy (Etsy has no URL-based image upload)
+- Video operations: explicit stubs (not partial), raise 501; skipped with clear reason in result rows
+- Image reorder: stub only — Etsy has no atomic reorder endpoint; delete-all + re-upload too destructive for MVP
+- Backup created per-listing per-job, never deleted
+- Local ListingImage rows updated ONLY after Etsy write success (failure leaves local unchanged)
+- 404 on image delete = success (image already deleted — safe behavior)
+
+---
+
 ## 2026-06-25 Sprint 10 — Etsy Inventory Writes (Price / Quantity)
 
 **Skills active:** 07 backend-api, 20 testing-qa, 01 documentation-handoff

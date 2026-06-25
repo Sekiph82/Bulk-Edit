@@ -257,3 +257,25 @@ If listing PATCH succeeds but inventory PUT fails: Etsy has new text but not new
 
 ### [INVENTORY] Variation listings: inventory skipped, text fields still applied
 When `listing.has_variations=True`, `build_etsy_inventory_payload` returns None. The variation skip reason is recorded in `request_payload["inventory_skip_reason"]`. Text field changes (title, description, etc.) proceed normally through the standard PATCH endpoint. Full variation inventory support deferred to Sprint 12 (Variation Editor).
+
+---
+
+## Sprint 11 Decisions
+
+### [MEDIA] Image upload: URL-download-then-multipart, not direct URL pass-through
+Etsy image upload API requires multipart/form-data with binary image bytes. There is no URL-based "upload from link" parameter. Decision: download image bytes from the provided URL via httpx, then POST multipart to Etsy. This means the backend temporarily holds the image bytes in memory (capped at 20MB). Alternative: require users to upload images to S3 first (deferred to Sprint 13+).
+
+### [MEDIA] Video upload: stub only (Sprint 11)
+Etsy video upload requires direct server-side file upload. URL-based upload is not supported. S3-based upload infrastructure not ready in Sprint 11. Decision: raise EtsyMediaWriteError(not_implemented=True, status_code=501) from the stub function. Result rows record status="skipped" with a clear reason. No silent failures.
+
+### [MEDIA] Image reorder: stub only (Sprint 11)
+Etsy has no atomic image reorder endpoint. Reorder would require delete-all + re-upload in the desired order, which is destructive and error-prone. Decision: stub operation, skip with reason. Deferred to a future sprint when we can safely orchestrate the delete-upload sequence.
+
+### [MEDIA] Separate BulkEditMediaJob table (not reusing BulkEditApplyJob)
+Media operations are structurally different from text/inventory operations: they operate on files, not listing fields, and produce before/after media states (not field diffs). A separate job/result table keeps the schemas clean and avoids widening existing tables with nullable media-specific columns.
+
+### [MEDIA] 404 on Etsy image delete = success
+If DELETE /images/{image_id} returns 404, the image is already deleted on Etsy. Decision: treat as success (return without error). Rationale: the desired state (image removed) is already achieved. Alternative: raise error (rejected — would cause false failures on retry).
+
+### [MEDIA] Backup snapshot: images only (not videos) in Sprint 11
+`ListingMediaBackupSnapshot.videos_snapshot` is stored as NULL in Sprint 11 because video fetch is best-effort and video write operations are stubs. Snapshot schema supports videos for future sprints.
