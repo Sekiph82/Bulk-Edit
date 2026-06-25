@@ -3,25 +3,32 @@
 ## Last Session
 
 **Date:** 2026-06-25
-**Sprint:** 7 — Bulk Edit Preview Engine — COMPLETE
-**Completed:** BulkEditSession/BulkEditChange/BulkEditPreviewItem models, Alembic migration 0005, full bulk edit service (apply_change_to_listing_data, validate_listing_data, compute_diff, session CRUD, preview generation), 9 API endpoints, 38 new tests (131/131 pass), typed frontend API client additions, 3-phase /bulk-edit page, listings page bulk edit button enabled. Apply endpoint is intentional 409 stub. Committed and pushed.
+**Sprint:** 8 — Etsy Write + Backup — COMPLETE
+**Completed:** 4 new models (ListingBackupSnapshot, BulkEditApplyJob, BulkEditApplyResult, AuditLog), migration 0006, etsy_write.py service, bulk_edit_apply.py service with full safety gate chain, 5 new API endpoints (replace apply stub + apply-jobs + apply-job detail + backups), 22 new tests (153/153 pass), frontend apply confirmation modal + result display, api.ts helpers. Committed and pushed.
 
 ## Current State
 
 **Backend (`apps/backend/`):**
-- `app/models/bulk_edit_session.py` — BulkEditSession (org-scoped, status machine: draft/preview_ready/canceled, selected_listing_ids JSON)
-- `app/models/bulk_edit_change.py` — BulkEditChange (session FK, field_name, operation, operation_value JSON, validation_status)
-- `app/models/bulk_edit_preview_item.py` — BulkEditPreviewItem (session+listing FK, before/after/diff JSON, validation_status; UNIQUE session+listing)
-- `app/schemas/bulk_edit.py` — 8 Pydantic schemas
-- `app/services/bulk_edit.py` — full service: pure functions (apply_change, validate, compute_diff, build_before_data) + async DB functions; apply stub returns 409
-- `app/api/v1/bulk_edit.py` — 9 endpoints: POST/GET sessions, GET/DELETE session, POST/DELETE changes, POST/GET preview, POST apply (stub)
-- `alembic/versions/0005_create_bulk_edit_tables.py`
-- `tests/test_bulk_edit.py` — 38 tests (21 unit + 17 API)
+- `app/models/listing_backup_snapshot.py` — pre-write snapshot before any Etsy write
+- `app/models/bulk_edit_apply_job.py` — job tracker with status + counters
+- `app/models/bulk_edit_apply_result.py` — per-listing result with request/response payloads
+- `app/models/audit_log.py` — immutable event log (extra_data JSON column, named "metadata" in DB)
+- `app/schemas/bulk_edit_apply.py` — ApplyJobOut, ApplyResultOut, BackupSnapshotOut, ApplyJobWithResultsOut
+- `app/services/etsy_write.py` — build_etsy_patch_payload (excludes price/qty), patch_etsy_listing (PATCH v3)
+- `app/services/bulk_edit_apply.py` — apply_bulk_edit_session (full orchestration with 5 safety gates)
+- `app/api/v1/bulk_edit.py` — 14 endpoints total (9 Sprint 7 + 5 Sprint 8: apply/202, apply-jobs list, apply-job detail, backups)
+- `alembic/versions/0006_create_bulk_edit_apply_tables.py`
+- `tests/test_bulk_edit_apply.py` — 22 tests
 
 **Frontend (`apps/frontend/`):**
-- `lib/api.ts` — bulk edit types + 9 helpers added (createBulkEditSession, listBulkEditSessions, getBulkEditSession, cancelBulkEditSession, addBulkEditChange, removeBulkEditChange, generateBulkEditPreview, getBulkEditPreview, applyBulkEditStub)
-- `app/bulk-edit/page.tsx` — 3-phase flow: listing selector (reads localStorage bulk_edit_selected_listing_ids), change editor (field/op/value), diff preview table with validation badges; apply button disabled with Sprint 8 notice
-- `app/listings/page.tsx` — Bulk Edit Selected button saves IDs to localStorage and navigates to /bulk-edit
+- `lib/api.ts` — added ApplyJob, ApplyResult, ApplyJobWithResults, BackupSnapshot types + 4 helpers (applyBulkEditSession, listApplyJobs, getApplyJobDetail, listBackupSnapshots)
+- `app/bulk-edit/page.tsx` — confirmation modal + real apply call + result status display
+
+**What NOT implemented in Sprint 8 (by design):**
+- Price/quantity writes (deferred to Sprint 9 — needs Etsy inventory endpoint)
+- Photo/video writes (deferred to Sprint 11)
+- Magic Revert UI (snapshots exist in DB, revert API deferred to Sprint 9)
+- Celery async apply (inline/synchronous for MVP)
 
 ## Port Summary
 
@@ -34,29 +41,38 @@
 
 ## Next Task
 
-**Start Sprint 7: Bulk Edit Preview Engine**
+**Sprint 9: Magic Revert**
+
+Implement the ability to revert applied bulk edit changes using the backup snapshots created in Sprint 8.
 
 Implement:
-- `BulkEditSession` model (org-scoped, listing_ids JSON, field_changes JSON, status: draft/previewed/applied/reverted, created_by)
-- `BulkEditChange` model (session_id FK, listing_id, field_name, old_value, new_value, applied_at)
-- Alembic migration 0005 for both tables
-- `POST /api/v1/bulk-edit/sessions` — create session with list of listing IDs + field changes
-- `GET /api/v1/bulk-edit/sessions/{id}` — get session with preview diff (before/after per listing per field)
-- `POST /api/v1/bulk-edit/sessions/{id}/apply` — placeholder endpoint (returns 503 "Etsy writes not yet enabled" — actual Etsy write in Sprint 8)
-- `DELETE /api/v1/bulk-edit/sessions/{id}` — discard session
-- Frontend: "Bulk Edit" flow — selected listings from grid → field editor panel → preview diff table (before/after) → confirm button (calls apply, currently shows "coming soon") → discard button
-- Field types to support: title, description, tags, price_amount, quantity, who_made, when_made, is_supply, is_customizable, is_personalizable
-- Backend tests: session CRUD, diff logic, org-scoping, 403 on cross-org
-- No actual Etsy writes in Sprint 7 — apply endpoint is a stub
+- `RevertJob` model (org-scoped, apply_job_id FK, session_id FK, status, counters, started/finished_at)
+- `RevertResult` model (per-listing result: status, snapshot_id FK, request/response payload, error)
+- Alembic migration 0007 for revert tables
+- `POST /api/v1/bulk-edit/apply-jobs/{job_id}/revert` — create a revert job: for each success result in the apply job, load the backup snapshot, PATCH Etsy with snapshot_data values, update local Listing row
+- `GET /api/v1/bulk-edit/revert-jobs/{revert_job_id}` — get revert job with per-listing results
+- Safety rules:
+  - Cannot revert an already-reverted apply job
+  - Skip listings where backup snapshot is missing
+  - Write audit log on revert start + finish
+  - Never modify local Listing rows unless Etsy write succeeds
+  - Subscription gate check (same as apply)
+- Frontend: add "Revert" button next to apply result display (only visible after apply, only if job status is completed or completed_with_errors)
+- Frontend: revert result modal showing per-listing success/failure
+- 15+ backend tests in `test_bulk_edit_revert.py`
+- Price/quantity inventory write (Etsy PATCH /v3/application/shops/{shop_id}/listings/{listing_id}/inventory) deferred to Sprint 10
+- No full "Magic Revert" UI (history browser) in Sprint 9 — just direct revert of a specific apply job
 
 ## Next Prompt
 
 ```
 Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
 
-Start Sprint 7: implement bulk edit preview engine — BulkEditSession + BulkEditChange models,
-session CRUD API, diff preview (before/after per listing), frontend bulk edit flow with
-field editor and preview diff table. Apply endpoint is a stub (no Etsy writes in Sprint 7).
+Start Sprint 9: Magic Revert — implement revert of a completed bulk edit apply job using
+the ListingBackupSnapshot records created in Sprint 8. POST revert endpoint, RevertJob/RevertResult
+models, Alembic migration 0007, safety gates identical to Sprint 8 apply (no write without
+preview check, subscription gate, audit log), frontend Revert button + result display.
+15+ tests. No price/quantity writes yet.
 
 Active skills: 07 backend-api, 06 database-modeling, 08 frontend-ui, 20 testing-qa, 01 documentation-handoff.
 ```
@@ -72,22 +88,23 @@ Four Windows batch files at project root:
 | `start-dev.bat` | Developer (already cloned) | Stops old containers, rebuilds, streams logs — no tool install |
 | `start-dev-clean.bat` | Developer (already cloned) | Same + destroys DB volumes (requires YES confirmation) |
 
-Friend/reviewer should double-click `setup-and-start.bat` — no prerequisites needed beyond Windows + winget.
+**ASCII-only scripts:** all .bat files must remain plain ASCII. No Unicode, no box-drawing chars, no long dashes, no chcp 65001.
 
-**ASCII-only scripts:** all .bat files must remain plain ASCII. No Unicode, no box-drawing chars, no long dashes, no chcp 65001. Adding any non-ASCII character to a .bat file will break CMD on double-click with errors like "'EADY' is not recognized".
+**Docker Desktop auto-start:** all scripts automatically start Docker Desktop and poll `docker info` every 5 seconds (max 180s) before running any compose command.
 
-**Docker Desktop auto-start:** all scripts automatically start Docker Desktop and poll `docker info` every 5 seconds (max 180s) before running any compose command. User never needs to open Docker Desktop manually.
-
-**Docker project isolation:** all scripts force `docker compose -p bulk-edit` to prevent accidental interference with other Docker Compose projects (e.g., `fmcg-erp-system-main`). Each script also runs `docker compose -p fmcg-erp-system-main down --remove-orphans` silently before starting — does not delete ERP volumes.
+**Docker project isolation:** all scripts force `docker compose -p bulk-edit` to prevent accidental interference with other Docker Compose projects.
 
 ## Known Issues
 
-- Etsy access token auto-refresh not implemented. Full refresh deferred to Sprint 8.
+- Etsy access token auto-refresh not implemented. Logs warning but uses token. Full refresh deferred to Sprint 9+.
 - `fetch_listing_videos` is best-effort — returns empty list on 404/405.
-- Sync runs inline in HTTP thread. Celery background task deferred to Sprint 8.
+- Sync runs inline in HTTP thread. Celery background task deferred to Sprint 9.
 - Frontend npm not installed — `node_modules/` absent. Run `npm install` inside `apps/frontend` or `docker compose up`.
-- Bulk edit button in listings grid is disabled placeholder — activates when Sprint 7 flow is connected.
+- Price/quantity writes NOT supported in Sprint 8 — Etsy inventory endpoint required (Sprint 9).
+- Photo/video writes NOT supported — deferred to Sprint 11.
+- AuditLog model uses `extra_data` attribute in Python (SQLAlchemy reserved `metadata` name), stored as `metadata` column in DB.
 
 ## Push Status
 
 Pushed successfully to: https://github.com/Sekiph82/Bulk-Edit (main)
+Commit: feat: add safe etsy write and backups (Sprint 8)

@@ -369,3 +369,44 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 **Blockers:** None
 
 **Next:** Sprint 1 — Monorepo Skeleton
+
+---
+
+## 2026-06-25 Sprint 8 — Etsy Write + Backup
+
+**Skills active:** 07 backend-api, 06 database-modeling, 08 frontend-ui, 20 testing-qa, 01 documentation-handoff
+
+**Completed:**
+
+Models (4 new):
+- `ListingBackupSnapshot` — pre-write snapshot stored per listing before every Etsy write
+- `BulkEditApplyJob` — tracks the apply run (status, counters, timestamps)
+- `BulkEditApplyResult` — per-listing record with request payload, response payload, error, and backup reference
+- `AuditLog` — immutable event log; Python attr `extra_data` maps to DB column `metadata` (SQLAlchemy `metadata` is reserved)
+
+Migration:
+- `0006_create_bulk_edit_apply_tables.py` — 4 new tables
+
+Services:
+- `etsy_write.py` — `build_etsy_patch_payload` (maps diff → Etsy PATCH body; excludes price/qty; maps `section_id` → `shop_section_id`), `patch_etsy_listing` (PATCH /v3/application/listings/{id} via httpx)
+- `bulk_edit_apply.py` — `apply_bulk_edit_session`: 5 sequential safety gates (preview_ready, no invalid items, Etsy configured, plan limit), per-listing backup → PATCH → local update only on success, audit log on start/finish, usage counter increment
+
+API (5 new endpoints, replaced 409 stub):
+- `POST /api/v1/bulk-edit/sessions/{id}/apply` → 202 + ApplyJobOut
+- `GET /api/v1/bulk-edit/sessions/{id}/apply-jobs` → list jobs
+- `GET /api/v1/bulk-edit/apply-jobs/{job_id}` → job + results
+- `GET /api/v1/bulk-edit/sessions/{id}/backups` → backup snapshots
+
+Tests: 22 new in `test_bulk_edit_apply.py` (153/153 pass)
+- Unit: payload builder (title, tags, section_id mapping, price/qty exclusion)
+- API: safety gate 400/503/422, org isolation 404, success flow, failure-no-modify, backup creation, usage increment
+
+Frontend:
+- `lib/api.ts` — 4 new types + 4 new helpers
+- `app/bulk-edit/page.tsx` — replaced disabled stub button with confirmation modal + real apply call + result status card
+
+**Key decision:** `metadata` is a reserved SQLAlchemy DeclarativeBase attribute. Used `extra_data` as Python attribute name with `name="metadata"` in `mapped_column` to store in the expected DB column name.
+
+**Blockers:** None
+
+**Next:** Sprint 9 — Magic Revert (revert apply jobs using ListingBackupSnapshot records)

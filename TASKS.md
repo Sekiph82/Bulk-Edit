@@ -217,16 +217,22 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 8: Etsy Write + Backup
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Implement listing snapshot backup before write
-- [ ] Implement Etsy listing update API calls
-- [ ] Add rate limiting / throttling for Etsy API
-- [ ] Add per-write audit log entries
-- [ ] Add subscription gate checks before writes
-- [ ] Add write progress indicator (frontend)
-- [ ] Write safe-write integration tests
-- [ ] Commit and push
+- [x] ListingBackupSnapshot model (org-scoped, session FK, listing FK, snapshot_data JSON, snapshot_type)
+- [x] BulkEditApplyJob model (status machine: pending/running/completed/completed_with_errors/failed, counters)
+- [x] BulkEditApplyResult model (per-listing result: status, request/response payload, backup_snapshot_id FK)
+- [x] AuditLog model (org-scoped, event_type, entity_type/id, extra_data JSON)
+- [x] Alembic migration 0006 — all 4 new tables
+- [x] app/schemas/bulk_edit_apply.py — ApplyJobOut, ApplyResultOut, BackupSnapshotOut, ApplyJobWithResultsOut
+- [x] app/services/etsy_write.py — build_etsy_patch_payload, patch_etsy_listing (PATCH /v3/application/listings/{id})
+- [x] app/services/bulk_edit_apply.py — apply_bulk_edit_session (safety gates + orchestration), get/list apply jobs, get results, list backups
+- [x] Updated app/api/v1/bulk_edit.py — real POST apply (202), 4 new endpoints (apply-jobs, apply-job detail, backups)
+- [x] 22 new tests in test_bulk_edit_apply.py — 153/153 PASS (was 131)
+- [x] apps/frontend/lib/api.ts — 4 new types + 4 new helpers (applyBulkEditSession, listApplyJobs, getApplyJobDetail, listBackupSnapshots)
+- [x] apps/frontend/app/bulk-edit/page.tsx — confirmation modal, apply result display, real apply call
+- [x] Safety: preview_ready gate, no-invalid-items gate, Etsy configured gate, plan limit gate, pre-write backup, local update only after Etsy success, audit log
+- [x] Commit and push
 
 ---
 

@@ -208,3 +208,19 @@ If EtsyToken.expires_at is within TOKEN_REFRESH_BUFFER_SECONDS (300s), logs a wa
 
 ### [TEST] Shared-memory SQLite URI for cross-fixture data visibility
 Changed TEST_DB_URL from `sqlite+aiosqlite:///:memory:` to `sqlite+aiosqlite:///file:testdb?mode=memory&cache=shared&uri=true`. Named shared-memory DB required when both `client` (with overridden get_db) and `db_session` fixtures are used in the same test — they now share the same SQLite in-memory database across connections.
+
+---
+
+## Sprint 8 Decisions
+
+### [MODEL] AuditLog.metadata renamed to extra_data
+SQLAlchemy DeclarativeBase reserves the class attribute `metadata` (maps to `MetaData`). Using `metadata` as a column attribute name raises `InvalidRequestError: Attribute name 'metadata' is reserved`. Solution: use `extra_data` as the Python attribute with `mapped_column(JSON, name="metadata")` so the DB column is still named `metadata` for SQL compatibility.
+
+### [APPLY] Price and quantity writes excluded from Sprint 8
+Etsy PATCH /v3/application/listings/{id} does NOT support price or quantity fields. These require PATCH /v3/application/shops/{shop_id}/listings/{listing_id}/inventory (a separate endpoint). Deferred to Sprint 9. `build_etsy_patch_payload()` explicitly excludes `price_amount` and `quantity` from all payloads.
+
+### [APPLY] Local Listing row updated only after Etsy write succeeds
+Safety invariant: local DB must always reflect what Etsy actually has. If Etsy PATCH fails, local row is NOT updated. `apply_bulk_edit_session()` sets Listing attrs only inside the success branch after `patch_etsy_listing()` returns without raising `EtsyWriteError`.
+
+### [TEST] Patch settings.is_etsy_configured via module-level mock
+Pydantic v2 Settings objects block `__setattr__` on non-field names. Cannot use `patch("app.core.config.settings.is_etsy_configured")`. Correct approach: `patch("app.services.bulk_edit_apply.settings", MagicMock())` which replaces the module-level name reference without touching the singleton. `MagicMock().is_etsy_configured.return_value = True` satisfies the check.

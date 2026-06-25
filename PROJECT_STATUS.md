@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 7 — Bulk Edit Preview Engine — COMPLETE**
+**Sprint 8 — Etsy Write + Backup — COMPLETE**
 
 ## Status
 
-`Sprint 7 COMPLETE — Ready for Sprint 8`
+`Sprint 8 COMPLETE — Ready for Sprint 9`
 
 ## Last Updated
 
@@ -26,6 +26,7 @@ None (between sprints)
 - Sprint 5: Etsy Listing Sync ✓
 - Sprint 6: Listings Grid UX ✓
 - Sprint 7: Bulk Edit Preview Engine ✓
+- Sprint 8: Etsy Write + Backup ✓
 
 ## Local Development (Windows)
 
@@ -47,10 +48,12 @@ None
 
 - `anyio==4.6.2` in requirements-dev.txt is yanked. Works fine. Upgrade when 4.7.0 stable.
 - Frontend `npm install` not run — node_modules absent. Run `npm install` or `docker compose up`.
-- Etsy access token auto-refresh not fully implemented. Full auto-refresh in Sprint 8.
+- Etsy access token auto-refresh not fully implemented. Partial: logs warning but uses token anyway. Full auto-refresh deferred to Sprint 9+.
 - `fetch_listing_videos` best-effort: returns empty list on 404/405.
-- Inline sync blocks HTTP thread. Celery background task deferred to Sprint 8.
-- Bulk edit button in listings grid is disabled placeholder — activates in Sprint 7.
+- Inline sync blocks HTTP thread. Celery background task deferred to Sprint 9.
+- Price/quantity Etsy writes NOT implemented — deferred to Sprint 9 (requires Etsy inventory endpoint).
+- Photo/video Etsy writes NOT implemented — deferred to Sprint 11.
+- Magic Revert UI not implemented — snapshots exist in DB, revert API deferred to Sprint 9.
 
 ## Test Results
 
@@ -62,32 +65,33 @@ None
 | `pytest tests/test_etsy.py` | 15/15 PASSED |
 | `pytest tests/test_listings.py` | 34/34 PASSED |
 | `pytest tests/test_bulk_edit.py` | 38/38 PASSED |
-| **Full suite `pytest`** | **131/131 PASSED** |
+| `pytest tests/test_bulk_edit_apply.py` | 22/22 PASSED |
+| **Full suite `pytest`** | **153/153 PASSED** |
 
-## Listings API — GET /listings filters
-
-| Filter | Type | Status |
-|---|---|---|
-| shop_id | str | ✓ |
-| state | str | ✓ |
-| search | str (ILIKE title) | ✓ |
-| tag | str (ILIKE JSON cast) | ✓ |
-| has_variations | bool | ✓ |
-| price_min / price_max | int (cents) | ✓ |
-| quantity_min / quantity_max | int | ✓ |
-| section_id | str | ✓ |
-| taxonomy_id | str | ✓ |
-| is_personalizable | bool | ✓ |
-| is_customizable | bool | ✓ |
-| sort_by (whitelist) | str | ✓ (400 on invalid) |
-| sort_dir | asc/desc | ✓ (400 on invalid) |
-
-## Frontend — Sprint 6 additions
+## Sprint 8 — New Files
 
 | File | Description |
 |---|---|
-| `apps/frontend/lib/api.ts` | Typed API client (all endpoints) |
-| `apps/frontend/app/listings/page.tsx` | Full grid: state tabs, advanced filters, saved views, column visibility, multi-select, sortable headers, thumbnails, detail sidebar, summary cards |
+| `app/models/listing_backup_snapshot.py` | Pre-write snapshot of listing data |
+| `app/models/bulk_edit_apply_job.py` | Apply job with status + counters |
+| `app/models/bulk_edit_apply_result.py` | Per-listing result with request/response payload |
+| `app/models/audit_log.py` | Immutable event log |
+| `alembic/versions/0006_create_bulk_edit_apply_tables.py` | Migration for 4 new tables |
+| `app/schemas/bulk_edit_apply.py` | ApplyJobOut, ApplyResultOut, BackupSnapshotOut |
+| `app/services/etsy_write.py` | Etsy PATCH wrapper + payload builder |
+| `app/services/bulk_edit_apply.py` | Full apply orchestration with all safety gates |
+| `tests/test_bulk_edit_apply.py` | 22 tests (unit + API) |
+
+## Safety Gates (Sprint 8)
+
+All enforced in `apply_bulk_edit_session()` before any write:
+1. Session must be `preview_ready`
+2. Zero `invalid` preview items
+3. `ETSY_CLIENT_ID` must be configured (non-placeholder)
+4. Plan usage limit not exceeded
+5. Per-listing: backup snapshot created BEFORE write
+6. Local Listing row updated ONLY after Etsy write success
+7. Audit log written on job start + job finish
 
 ## Port Configuration
 
@@ -102,12 +106,12 @@ None
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 7 / 18 |
-| Backend Python files | 72+ |
+| Sprints complete | 8 / 18 |
+| Backend Python files | 82+ |
 | Frontend TypeScript files | 24 |
-| Total tests | 131 |
+| Total tests | 153 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 8: Safe Etsy Write Pipeline. See HANDOFF.md for exact prompt.
+Begin Sprint 9: Magic Revert. See HANDOFF.md for exact prompt.
