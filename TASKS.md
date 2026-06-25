@@ -53,17 +53,19 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Initialize monorepo structure: `apps/frontend`, `apps/backend`, `packages/`
 - [x] Scaffold Next.js 14 frontend (TypeScript, App Router, Tailwind CSS)
 - [x] Scaffold FastAPI backend (Python 3.12, uvicorn)
-- [x] Configure PostgreSQL with Docker Compose
-- [x] Configure Redis with Docker Compose
+- [x] Configure PostgreSQL with Docker Compose (host port 55432)
+- [x] Configure Redis with Docker Compose (host port 56379)
 - [x] Set up Alembic migrations
 - [x] Set up SQLAlchemy base models
 - [x] Add health check endpoints: `GET /api/v1/health`, `GET /api/v1/health/db`, `GET /api/v1/health/redis`
-- [x] Add root `docker-compose.yml`
+- [x] Add root `docker-compose.yml` with custom host ports (3100, 8100, 55432, 56379)
 - [x] Add root `Makefile` with common commands
 - [x] Add root `.gitignore`
-- [x] Align `.env.example` with all services
-- [x] Update README with local setup instructions
+- [x] Align `.env.example` with all services and custom ports
+- [x] Update README with local setup instructions and correct ports
 - [x] Add landing page `/` and dashboard placeholder `/dashboard`
+- [x] Fix BACKEND_CORS_ORIGINS to accept plain string (pydantic-settings v2 compatibility)
+- [x] CORS origins validator: handles plain string, comma-separated, JSON array
 - [x] Run pytest — 4/4 tests pass, zero warnings
 - [x] Commit and push
 

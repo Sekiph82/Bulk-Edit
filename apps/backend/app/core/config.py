@@ -1,18 +1,35 @@
-from pydantic_settings import BaseSettings
+import json
 from typing import List
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = "local"
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
 
-    DATABASE_URL: str = "postgresql+asyncpg://bulkedit:bulkedit_password@localhost:5432/bulkedit"
-    REDIS_URL: str = "redis://localhost:6379/0"
+    DATABASE_URL: str = "postgresql+asyncpg://bulkedit:bulkedit_password@localhost:55432/bulkedit"
+    REDIS_URL: str = "redis://localhost:56379/0"
 
-    FRONTEND_URL: str = "http://localhost:3000"
-    BACKEND_URL: str = "http://localhost:8000"
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    FRONTEND_URL: str = "http://localhost:3100"
+    BACKEND_URL: str = "http://localhost:8100"
+
+    # Accepts plain string, comma-separated, or JSON array string.
+    # Examples: "http://localhost:3100"
+    #           "http://localhost:3100,https://app.example.com"
+    #           '["http://localhost:3100"]'
+    BACKEND_CORS_ORIGINS: str = "http://localhost:3100"
+
+    def get_cors_origins(self) -> List[str]:
+        v = self.BACKEND_CORS_ORIGINS.strip()
+        if v.startswith("["):
+            try:
+                result = json.loads(v)
+                if isinstance(result, list):
+                    return [str(o) for o in result]
+            except json.JSONDecodeError:
+                pass
+        return [o.strip() for o in v.split(",") if o.strip()]
 
     model_config = {"env_file": ".env", "case_sensitive": True, "extra": "ignore"}
 

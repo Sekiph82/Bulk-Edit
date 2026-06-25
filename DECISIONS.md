@@ -55,6 +55,16 @@ Chose `/api/v1/health` prefix to stay consistent with API versioning. All future
 ### [BACKEND] pydantic-settings model_config over inner Config class
 Used Pydantic v2 `model_config` dict syntax instead of deprecated inner `Config` class. Avoids deprecation warnings with Pydantic 2.x.
 
+### [INFRA] Custom local host ports to avoid conflict with other projects
+Frontend host port: 3100 (container: 3000, mapping 3100:3000)
+Backend host port: 8100 (container: 8000, mapping 8100:8000)
+PostgreSQL host port: 55432 (container: 5432, mapping 55432:5432)
+Redis host port: 56379 (container: 6379, mapping 56379:6379)
+Rationale: avoids collision with another active local project using ports 3000, 8000, 5432, 6379. Production uses standard ports (80/443). Docker Compose internal traffic uses standard container ports (service-to-service).
+
+### [BACKEND] BACKEND_CORS_ORIGINS stored as str, not List[str]
+pydantic-settings v2 pre-parses `List[str]` fields as JSON before field validators run. Storing as `str` avoids this. `settings.get_cors_origins()` method handles parsing (plain string, comma-separated, or JSON array). `main.py` calls `settings.get_cors_origins()` when configuring CORS middleware.
+
 ### [DEPS] anyio 4.6.2 yanked warning
 `anyio==4.6.2` in requirements-dev.txt is yanked on PyPI (mistagged 4.5.2 code). Still functional. Will update when `anyio>=4.7.0` is stable and compatible with pytest-asyncio 0.24.x.
 

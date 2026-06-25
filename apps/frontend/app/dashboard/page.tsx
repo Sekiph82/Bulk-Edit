@@ -34,11 +34,17 @@ const placeholderFeatures = [
 ];
 
 export default function DashboardPage() {
+  const backendUrl =
+    process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Nav */}
       <nav className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-        <Link href="/" className="text-xl font-extrabold text-gray-900 hover:text-indigo-600 transition-colors">
+        <Link
+          href="/"
+          className="text-xl font-extrabold text-gray-900 hover:text-indigo-600 transition-colors"
+        >
           Bulk-Edit
         </Link>
         <div className="flex items-center gap-4">
@@ -73,7 +79,7 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Backend health link */}
+        {/* Backend health endpoints */}
         <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6">
           <p className="text-sm font-semibold text-indigo-800 mb-2">
             Backend Health Endpoints
@@ -83,7 +89,7 @@ export default function DashboardPage() {
               (path) => (
                 <div key={path} className="flex items-center gap-2">
                   <code className="text-xs text-indigo-600">
-                    {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}
+                    {backendUrl}
                     {path}
                   </code>
                 </div>

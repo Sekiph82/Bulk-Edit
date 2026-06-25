@@ -2,7 +2,20 @@
 
 ## Overview
 
-Bulk-Edit is a multi-tenant SaaS platform. Each organization (seller) connects one or more Etsy shops and manages their listings through a web application. The system is split into a Next.js frontend and a FastAPI backend, backed by PostgreSQL, Redis, and S3-compatible storage.
+Bulk-Edit is a multi-tenant SaaS platform.
+
+## Local Development Ports
+
+Custom host ports used to avoid conflict with other local projects:
+
+| Service | Host Port | Container Port | URL (local) |
+|---|---|---|---|
+| Frontend | 3100 | 3000 | http://localhost:3100 |
+| Backend | 8100 | 8000 | http://localhost:8100 |
+| PostgreSQL | 55432 | 5432 | localhost:55432 |
+| Redis | 56379 | 6379 | localhost:56379 |
+
+Docker Compose internal service communication uses container ports and service names (e.g., `postgres:5432`, `redis:6379`). Production uses standard ports (80/443) behind a reverse proxy. Each organization (seller) connects one or more Etsy shops and manages their listings through a web application. The system is split into a Next.js frontend and a FastAPI backend, backed by PostgreSQL, Redis, and S3-compatible storage.
 
 ---
 

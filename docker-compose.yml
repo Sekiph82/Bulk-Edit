@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: bulkedit_password
       POSTGRES_DB: bulkedit
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "56379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -37,16 +37,16 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8100:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://bulkedit:bulkedit_password@postgres:5432/bulkedit
       REDIS_URL: redis://redis:6379/0
-      ENVIRONMENT: development
+      ENVIRONMENT: local
       DEBUG: "true"
       LOG_LEVEL: INFO
-      FRONTEND_URL: http://localhost:3000
-      BACKEND_URL: http://localhost:8000
-      BACKEND_CORS_ORIGINS: '["http://localhost:3000"]'
+      FRONTEND_URL: http://localhost:3100
+      BACKEND_URL: http://localhost:8100
+      BACKEND_CORS_ORIGINS: http://localhost:3100
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,10 +62,10 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3100:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_PUBLIC_APP_NAME: Bulk-Edit
+      NEXT_PUBLIC_BACKEND_URL: http://localhost:8100
+      NEXT_PUBLIC_APP_URL: http://localhost:3100
     depends_on:
       - backend
     volumes:

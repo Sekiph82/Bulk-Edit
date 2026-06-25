@@ -19,9 +19,9 @@ Bulk-Edit lets Etsy sellers:
 
 ## Current Phase
 
-**Sprint 0 — Project Memory and Operating System** (Complete)
+**Sprint 1 — Monorepo Skeleton** (Complete)
 
-Next: Sprint 1 — Monorepo Skeleton
+Next: Sprint 2 — Auth + Organization
 
 ## How Claude Should Continue
 
@@ -35,6 +35,8 @@ Next: Sprint 1 — Monorepo Skeleton
 8. Execute the next task from HANDOFF.md.
 
 ## Local Setup
+
+> **Port note:** This project uses custom host ports to avoid conflicts with other local services.
 
 ### Prerequisites
 
@@ -50,7 +52,7 @@ cd Bulk-Edit
 
 # Copy and configure environment
 cp .env.example .env
-# Edit .env if needed (defaults work for local dev)
+# Defaults work for local Docker Compose dev
 
 # Start all services (frontend, backend, postgres, redis)
 docker compose up --build
@@ -60,14 +62,17 @@ docker compose exec backend alembic upgrade head
 ```
 
 Services:
-| Service | URL |
-|---|---|
-| Frontend | http://localhost:3000 |
-| Backend API | http://localhost:8000 |
-| API Docs | http://localhost:8000/docs |
-| Health | http://localhost:8000/api/v1/health |
-| DB Health | http://localhost:8000/api/v1/health/db |
-| Redis Health | http://localhost:8000/api/v1/health/redis |
+
+| Service | Host URL | Notes |
+|---|---|---|
+| Frontend | http://localhost:3100 | Host port 3100 → container 3000 |
+| Backend API | http://localhost:8100 | Host port 8100 → container 8000 |
+| API Docs | http://localhost:8100/docs | Swagger UI |
+| Health | http://localhost:8100/api/v1/health | Liveness |
+| DB Health | http://localhost:8100/api/v1/health/db | PostgreSQL |
+| Redis Health | http://localhost:8100/api/v1/health/redis | Redis |
+| PostgreSQL | localhost:55432 | Host port 55432 → container 5432 |
+| Redis | localhost:56379 | Host port 56379 → container 6379 |
 
 ### Run Backend Locally (without Docker)
 
@@ -82,15 +87,14 @@ python -m venv .venv
 # Install dependencies
 pip install -r requirements-dev.txt
 
-# Copy env
+# Copy env (local dev uses host-mapped ports 55432 / 56379)
 cp .env.example .env
-# Edit DATABASE_URL and REDIS_URL to use localhost
 
-# Run migrations (requires running PostgreSQL)
+# Run migrations (requires running PostgreSQL on port 55432)
 alembic upgrade head
 
-# Start backend
-uvicorn app.main:app --reload --port 8000
+# Start backend on port 8100
+uvicorn app.main:app --reload --port 8100
 ```
 
 ### Run Frontend Locally (without Docker)
@@ -103,8 +107,9 @@ npm install
 # Copy env
 cp .env.local.example .env.local
 
-npm run dev
-# Open http://localhost:3000
+# Starts on port 3100 by default via Next.js -p flag, or set PORT=3100
+npm run dev -- -p 3100
+# Open http://localhost:3100
 ```
 
 ### Run Backend Tests
@@ -122,13 +127,16 @@ pytest --tb=short -q
 ### Makefile Commands
 
 ```bash
-make dev          # Start all services
-make stop         # Stop all services
-make clean        # Stop and delete volumes
-make migrate      # Run migrations
-make rollback     # Rollback last migration
-make test         # Run all tests
-make health       # Check API health
+make dev           # Start all services (docker compose up --build)
+make dev-d         # Start detached
+make stop          # Stop all services
+make clean         # Stop and delete volumes (destroys DB data)
+make migrate       # Run Alembic migrations
+make rollback      # Rollback last migration
+make test          # Run all tests
+make health        # GET http://localhost:8100/api/v1/health
+make health-db     # GET http://localhost:8100/api/v1/health/db
+make health-redis  # GET http://localhost:8100/api/v1/health/redis
 ```
 
 ## Repo Workflow

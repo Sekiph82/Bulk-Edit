@@ -4,6 +4,34 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 Sprint 1 (rev 2) — Custom Ports Applied + CORS Fix
+
+**Skills active:** 05 repo-setup, 04 system-architect, 07 backend-api, 22 devops-deployment, 01 documentation-handoff
+
+**Completed:**
+- Updated `docker-compose.yml`: host ports 3100/8100/55432/56379 (container ports unchanged)
+- Updated `.env.example`: FRONTEND_URL=:3100, BACKEND_URL=:8100, BACKEND_CORS_ORIGINS plain string format
+- Updated `apps/backend/.env.example`: localhost:55432, localhost:56379
+- Updated `apps/frontend/.env.local.example`: NEXT_PUBLIC_BACKEND_URL, NEXT_PUBLIC_APP_URL
+- Updated `apps/frontend/app/page.tsx`: env var → NEXT_PUBLIC_BACKEND_URL, default :8100
+- Updated `apps/frontend/app/dashboard/page.tsx`: same
+- Fixed `app/core/config.py`: BACKEND_CORS_ORIGINS as `str` with `get_cors_origins()` method (pydantic-settings v2 can't use field_validator on List[str] before JSON pre-parse)
+- Updated `app/main.py`: CORS middleware uses `settings.get_cors_origins()`
+- Updated `Makefile`: health curl targets use :8100
+- Updated `README.md`, `docs/operations/DEPLOYMENT.md`: all URLs use custom ports
+- Ran pytest: 4/4 PASSED, 0 warnings
+- Verified CORS validator: plain string and JSON array both parse correctly
+
+**Decisions made:**
+- Custom host ports documented in DECISIONS.md
+- BACKEND_CORS_ORIGINS storage strategy documented in DECISIONS.md
+
+**Blockers:** None
+
+**Next:** Sprint 2 — Auth + Organization
+
+---
+
 ## 2026-06-25 Sprint 1 — Monorepo Skeleton Created
 
 **Skills active:** 05 repo-setup, 04 system-architect, 07 backend-api, 08 frontend-ui, 06 database-modeling, 22 devops-deployment, 20 testing-qa

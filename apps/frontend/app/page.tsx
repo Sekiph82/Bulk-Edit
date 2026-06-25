@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 export default function HomePage() {
-  const apiUrl =
-    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const backendUrl =
+    process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-8">
@@ -30,7 +30,7 @@ export default function HomePage() {
               Backend API
             </p>
             <code className="text-sm text-indigo-600 break-all">
-              {apiUrl}/api/v1/health
+              {backendUrl}/api/v1/health
             </code>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">

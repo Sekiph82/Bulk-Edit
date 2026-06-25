@@ -1,6 +1,8 @@
 # Bulk-Edit Makefile
 # Works with GNU Make on Linux/Mac.
 # Windows: install Make via `winget install GnuWin32.Make` or use `docker compose` commands directly.
+#
+# Custom host ports: frontend=3100, backend=8100, postgres=55432, redis=56379
 
 .PHONY: dev stop build migrate rollback test test-backend lint type-check logs clean
 
@@ -71,14 +73,14 @@ shell-backend:
 shell-frontend:
 	docker compose exec frontend sh
 
-## Check backend health
+## Check backend health (host port 8100)
 health:
-	curl -s http://localhost:8000/api/v1/health | python -m json.tool
+	curl -s http://localhost:8100/api/v1/health | python -m json.tool
 
 ## Check DB health
 health-db:
-	curl -s http://localhost:8000/api/v1/health/db | python -m json.tool
+	curl -s http://localhost:8100/api/v1/health/db | python -m json.tool
 
 ## Check Redis health
 health-redis:
-	curl -s http://localhost:8000/api/v1/health/redis | python -m json.tool
+	curl -s http://localhost:8100/api/v1/health/redis | python -m json.tool
