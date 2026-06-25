@@ -14,6 +14,12 @@ from app.schemas.bulk_edit import (
     BulkEditPreviewSummary,
     BulkEditPreviewItemResponse,
 )
+from app.schemas.bulk_edit_apply import (
+    ApplyJobOut,
+    ApplyJobWithResultsOut,
+    ApplyResultOut,
+    BackupSnapshotOut,
+)
 from app.services.bulk_edit import (
     create_bulk_edit_session,
     list_bulk_edit_sessions,
@@ -23,7 +29,13 @@ from app.services.bulk_edit import (
     remove_bulk_edit_change,
     generate_bulk_edit_preview,
     get_bulk_edit_preview_page,
-    apply_bulk_edit_stub,
+)
+from app.services.bulk_edit_apply import (
+    apply_bulk_edit_session,
+    get_apply_job,
+    list_apply_jobs_for_session,
+    get_apply_results,
+    list_backup_snapshots_for_session,
 )
 
 router = APIRouter(prefix="/bulk-edit", tags=["bulk-edit"])
@@ -167,12 +179,49 @@ async def get_preview(
     )
 
 
-@router.post("/sessions/{session_id}/apply", status_code=409)
+@router.post("/sessions/{session_id}/apply", response_model=ApplyJobOut, status_code=202)
 async def apply_session(
+    session_id: str,
+    org_id: str = Depends(get_current_org_id),
+    user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await apply_bulk_edit_session(db, session_id, org_id, user.id)
+    return ApplyJobOut.model_validate(job)
+
+
+@router.get("/sessions/{session_id}/apply-jobs", response_model=list[ApplyJobOut])
+async def list_apply_jobs(
     session_id: str,
     org_id: str = Depends(get_current_org_id),
     _user=Depends(require_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Sprint 7 stub. Etsy write operations start in Sprint 8."""
-    await apply_bulk_edit_stub(db, session_id, org_id)
+    jobs = await list_apply_jobs_for_session(db, session_id, org_id)
+    return [ApplyJobOut.model_validate(j) for j in jobs]
+
+
+@router.get("/apply-jobs/{job_id}", response_model=ApplyJobWithResultsOut)
+async def get_apply_job_detail(
+    job_id: str,
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await get_apply_job(db, job_id, org_id)
+    results = await get_apply_results(db, job_id, org_id)
+    return ApplyJobWithResultsOut(
+        job=ApplyJobOut.model_validate(job),
+        results=[ApplyResultOut.model_validate(r) for r in results],
+    )
+
+
+@router.get("/sessions/{session_id}/backups", response_model=list[BackupSnapshotOut])
+async def list_backups(
+    session_id: str,
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    snapshots = await list_backup_snapshots_for_session(db, session_id, org_id)
+    return [BackupSnapshotOut.model_validate(s) for s in snapshots]

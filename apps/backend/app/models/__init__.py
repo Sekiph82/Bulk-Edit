@@ -17,3 +17,7 @@ from app.models.sync_job import SyncJob
 from app.models.bulk_edit_session import BulkEditSession
 from app.models.bulk_edit_change import BulkEditChange
 from app.models.bulk_edit_preview_item import BulkEditPreviewItem
+from app.models.listing_backup_snapshot import ListingBackupSnapshot
+from app.models.bulk_edit_apply_job import BulkEditApplyJob
+from app.models.bulk_edit_apply_result import BulkEditApplyResult
+from app.models.audit_log import AuditLog

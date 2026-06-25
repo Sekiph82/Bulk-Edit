@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 import {
   getAccessToken, getListings, createBulkEditSession, getBulkEditSession,
   addBulkEditChange, removeBulkEditChange, generateBulkEditPreview,
-  getBulkEditPreview, cancelBulkEditSession, ApiError,
+  getBulkEditPreview, cancelBulkEditSession, applyBulkEditSession, ApiError,
   type ListingListItem, type BulkEditSession, type BulkEditSessionDetail,
   type BulkEditChange, type BulkEditPreviewItem, type BulkEditPreviewGenerateResponse,
+  type ApplyJob,
 } from "../../lib/api";
 
 // ---- constants ----
@@ -400,6 +401,9 @@ function BulkEditContent() {
   const [creating, setCreating] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [applyJob, setApplyJob] = useState<ApplyJob | null>(null);
 
   const preselected: string[] = (() => {
     if (typeof window === "undefined") return [];
@@ -489,6 +493,24 @@ function BulkEditContent() {
       setApiError(e instanceof ApiError ? e.message : "Failed to cancel.");
     }
   }
+
+  async function handleApplyConfirmed() {
+    if (!session) return;
+    setApplying(true);
+    setApiError(null);
+    try {
+      const job = await applyBulkEditSession(session.id);
+      setApplyJob(job);
+      setShowApplyModal(false);
+    } catch (e) {
+      setApiError(e instanceof ApiError ? e.message : "Apply failed.");
+      setShowApplyModal(false);
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  const hasInvalid = (previewResp?.summary.invalid ?? 0) > 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -616,6 +638,15 @@ function BulkEditContent() {
               )}
             </div>
 
+            {/* Apply result */}
+            {applyJob && (
+              <div className={`rounded-xl border px-5 py-4 text-sm ${applyJob.status === "completed" ? "bg-green-50 border-green-200 text-green-800" : applyJob.status === "failed" ? "bg-red-50 border-red-200 text-red-800" : "bg-yellow-50 border-yellow-200 text-yellow-800"}`}>
+                <p className="font-semibold mb-1">Apply complete — {applyJob.status}</p>
+                <p>Success: {applyJob.success_count} · Failed: {applyJob.failure_count} · Skipped: {applyJob.skipped_count}</p>
+                {applyJob.error_message && <p className="mt-1 text-xs">{applyJob.error_message}</p>}
+              </div>
+            )}
+
             {/* Actions */}
             <div className="flex items-center gap-3 justify-end">
               <button
@@ -625,17 +656,44 @@ function BulkEditContent() {
                 ← Edit Changes
               </button>
               <button
-                disabled
-                title="Etsy write operations start in Sprint 8"
-                className="bg-gray-200 text-gray-400 font-medium px-6 py-2.5 rounded-lg text-sm cursor-not-allowed"
+                onClick={() => setShowApplyModal(true)}
+                disabled={hasInvalid || applying || !!applyJob}
+                title={hasInvalid ? "Fix invalid listings before applying" : ""}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium px-6 py-2.5 rounded-lg text-sm"
               >
-                Apply to Etsy — starts in Sprint 8
+                {applying ? "Applying…" : applyJob ? "Applied" : "Apply to Etsy"}
               </button>
             </div>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 text-sm text-amber-800">
-              <strong>Note:</strong> Applying changes to Etsy is a Sprint 8 feature. The preview above shows exactly what will change. No listings have been modified.
-            </div>
+            {hasInvalid && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-3 text-sm text-red-800">
+                <strong>Cannot apply:</strong> {previewResp?.summary.invalid} listing(s) have validation errors. Fix or remove them first.
+              </div>
+            )}
+
+            {/* Confirmation modal */}
+            {showApplyModal && (
+              <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4">
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">Confirm Apply</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    This will write changes to <strong>{previewResp?.summary.selected_count}</strong> listing(s) on Etsy.
+                    A backup snapshot will be created for each listing before any write.
+                  </p>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-800 mb-6">
+                    <strong>Important:</strong> Changes are applied immediately. This action cannot be automatically undone, but backup snapshots are available via the API.
+                  </div>
+                  <div className="flex gap-3 justify-end">
+                    <button onClick={() => setShowApplyModal(false)} className="border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50">
+                      Cancel
+                    </button>
+                    <button onClick={handleApplyConfirmed} className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2 rounded-lg">
+                      Yes, Apply to Etsy
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </main>

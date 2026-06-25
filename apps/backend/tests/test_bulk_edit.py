@@ -467,7 +467,7 @@ async def test_get_preview_pagination(client, db_session):
     assert len(r3.json()["items"]) == 1
 
 
-async def test_apply_endpoint_returns_stub(client, db_session):
+async def test_apply_draft_session_returns_400(client, db_session):
     token = await _register_and_login(client, {
         "email": "be_apply@example.com", "password": "password123",
         "full_name": "Ap", "organization_name": "Apply Org",
@@ -478,9 +478,10 @@ async def test_apply_endpoint_returns_stub(client, db_session):
     r = await client.post(SESSIONS_URL, json={"listing_ids": [listing.id]}, headers={"Authorization": f"Bearer {token}"})
     session_id = r.json()["id"]
 
+    # Draft session (no preview generated) must be rejected
     r2 = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
-    assert r2.status_code == 409
-    assert "Sprint 8" in r2.json()["detail"]
+    assert r2.status_code == 400
+    assert "preview_ready" in r2.json()["detail"]
 
 
 async def test_apply_does_not_modify_listing(client, db_session):

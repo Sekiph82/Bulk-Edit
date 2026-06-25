@@ -275,6 +275,60 @@ export interface BulkEditPreviewGenerateResponse {
   };
 }
 
+export interface ApplyJob {
+  id: string;
+  organization_id: string;
+  bulk_edit_session_id: string;
+  created_by_user_id: string | null;
+  status: string;
+  total_items: number;
+  success_count: number;
+  failure_count: number;
+  skipped_count: number;
+  started_at: string | null;
+  finished_at: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApplyResult {
+  id: string;
+  organization_id: string;
+  apply_job_id: string;
+  bulk_edit_session_id: string;
+  listing_id: string;
+  etsy_listing_id: string;
+  status: string;
+  request_payload: unknown;
+  response_payload: unknown;
+  error_message: string | null;
+  backup_snapshot_id: string | null;
+  attempted_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApplyJobWithResults {
+  job: ApplyJob;
+  results: ApplyResult[];
+}
+
+export interface BackupSnapshot {
+  id: string;
+  organization_id: string;
+  bulk_edit_session_id: string | null;
+  listing_id: string;
+  etsy_shop_id: string;
+  etsy_listing_id: string;
+  snapshot_type: string;
+  snapshot_data: Record<string, unknown>;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ---- Bulk Edit API helpers ----
 
 export function createBulkEditSession(listingIds: string[], name?: string): Promise<BulkEditSession> {
@@ -326,6 +380,18 @@ export function getBulkEditPreview(
   return apiFetch(`/api/v1/bulk-edit/sessions/${sessionId}/preview${q ? `?${q}` : ""}`);
 }
 
-export function applyBulkEditStub(sessionId: string): Promise<unknown> {
+export function applyBulkEditSession(sessionId: string): Promise<ApplyJob> {
   return apiFetch(`/api/v1/bulk-edit/sessions/${sessionId}/apply`, { method: "POST" });
+}
+
+export function listApplyJobs(sessionId: string): Promise<ApplyJob[]> {
+  return apiFetch(`/api/v1/bulk-edit/sessions/${sessionId}/apply-jobs`);
+}
+
+export function getApplyJobDetail(jobId: string): Promise<ApplyJobWithResults> {
+  return apiFetch(`/api/v1/bulk-edit/apply-jobs/${jobId}`);
+}
+
+export function listBackupSnapshots(sessionId: string): Promise<BackupSnapshot[]> {
+  return apiFetch(`/api/v1/bulk-edit/sessions/${sessionId}/backups`);
 }
