@@ -31,9 +31,17 @@ tests/
 
 Run:
 ```bash
+# Via Docker
+docker compose exec backend pytest --tb=short -q
+
+# Locally
 cd apps/backend
+python -m venv .venv && .venv\Scripts\activate
+pip install -r requirements-dev.txt
 pytest --cov=app --cov-report=term-missing
 ```
+
+Sprint 1 test results: `4/4 PASSED` — health endpoints fully covered.
 
 Key fixtures:
 - `test_db` — isolated PostgreSQL test database (Alembic applied)

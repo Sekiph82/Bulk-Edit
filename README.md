@@ -34,27 +34,101 @@ Next: Sprint 1 — Monorepo Skeleton
 7. Read `LIMIT_PROTOCOL.md` to know checkpoint behavior.
 8. Execute the next task from HANDOFF.md.
 
-## Local Setup (Placeholder — Sprint 1)
+## Local Setup
 
-> Full setup instructions will be written in Sprint 1 after the monorepo skeleton is created.
+### Prerequisites
 
-Requirements (planned):
-- Docker and Docker Compose
-- Node.js 20+
-- Python 3.12+
-- Make
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- Git
+
+### Run with Docker Compose (recommended)
 
 ```bash
 # Clone
 git clone https://github.com/Sekiph82/Bulk-Edit.git
 cd Bulk-Edit
 
+# Copy and configure environment
+cp .env.example .env
+# Edit .env if needed (defaults work for local dev)
+
+# Start all services (frontend, backend, postgres, redis)
+docker compose up --build
+
+# In a separate terminal, run database migrations
+docker compose exec backend alembic upgrade head
+```
+
+Services:
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:8000 |
+| API Docs | http://localhost:8000/docs |
+| Health | http://localhost:8000/api/v1/health |
+| DB Health | http://localhost:8000/api/v1/health/db |
+| Redis Health | http://localhost:8000/api/v1/health/redis |
+
+### Run Backend Locally (without Docker)
+
+```bash
+cd apps/backend
+
+# Create virtual environment
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate   # Mac/Linux
+
+# Install dependencies
+pip install -r requirements-dev.txt
+
 # Copy env
 cp .env.example .env
-# Fill in your credentials
+# Edit DATABASE_URL and REDIS_URL to use localhost
 
-# Start all services
-make dev
+# Run migrations (requires running PostgreSQL)
+alembic upgrade head
+
+# Start backend
+uvicorn app.main:app --reload --port 8000
+```
+
+### Run Frontend Locally (without Docker)
+
+```bash
+cd apps/frontend
+
+npm install
+
+# Copy env
+cp .env.local.example .env.local
+
+npm run dev
+# Open http://localhost:3000
+```
+
+### Run Backend Tests
+
+```bash
+# Via Docker
+docker compose exec backend pytest --tb=short -q
+
+# Locally
+cd apps/backend
+pip install -r requirements-dev.txt
+pytest --tb=short -q
+```
+
+### Makefile Commands
+
+```bash
+make dev          # Start all services
+make stop         # Stop all services
+make clean        # Stop and delete volumes
+make migrate      # Run migrations
+make rollback     # Rollback last migration
+make test         # Run all tests
+make health       # Check API health
 ```
 
 ## Repo Workflow

@@ -3,42 +3,54 @@
 ## Last Session
 
 **Date:** 2026-06-25
-**Sprint:** 0 — Project Memory and Operating System
-**Completed:** All Sprint 0 files created, committed, pushed to GitHub.
+**Sprint:** 1 — Monorepo Skeleton
+**Completed:** Full monorepo skeleton created. 4/4 health tests pass. Committed and pushed.
 
 ## Current State
 
-All project memory, operating system, documentation structure, skill registry, and Claude command files have been created. The repository is initialized and connected to GitHub.
+Repository now has:
+- `apps/frontend/` — Next.js 14, TypeScript, Tailwind CSS, App Router, landing page, dashboard placeholder
+- `apps/backend/` — FastAPI, SQLAlchemy 2, Alembic, Pydantic settings, health endpoints, pytest suite
+- `docker-compose.yml` — frontend, backend, postgres, redis
+- `Makefile` — dev, stop, migrate, test, health targets
+- `.gitignore` — comprehensive Python + Node
+- All health endpoints: `/api/v1/health`, `/api/v1/health/db`, `/api/v1/health/redis`
+- `pytest` — 4/4 passing, zero warnings
 
 ## Next Task
 
-**Start Sprint 1: Monorepo Skeleton**
+**Start Sprint 2: Auth + Organization**
 
-Create the monorepo structure with:
-- `apps/frontend` — Next.js 14 (TypeScript, App Router, Tailwind CSS)
-- `apps/backend` — FastAPI (Python 3.12)
-- `packages/` — shared types/utilities
-- Root `docker-compose.yml` with PostgreSQL, Redis, frontend, backend services
-- Root `Makefile` with `make dev`, `make test`, `make migrate` commands
-- Alembic configured in `apps/backend`
-- SQLAlchemy base models
-- Health endpoints: `GET /health`, `GET /ready`
-- Updated README with local setup instructions
-- `.env.example` aligned with all Docker Compose services
+Implement:
+- `User` model (id, email, password_hash, is_verified, is_active, role, timestamps)
+- `Organization` model (id, name, owner_id, timestamps)
+- `OrganizationMember` model (id, organization_id, user_id, role, timestamps)
+- Alembic migration for all three tables
+- `POST /api/v1/auth/register` — create user + organization
+- `POST /api/v1/auth/login` — return JWT access + refresh tokens
+- `POST /api/v1/auth/refresh` — rotate refresh token
+- `POST /api/v1/auth/logout` — blacklist refresh token in Redis
+- `GET /api/v1/auth/me` — return current user
+- JWT middleware (FastAPI dependency)
+- Bcrypt password hashing
+- Frontend pages: `/login`, `/register` with Tailwind forms
+- Backend pytest tests for all auth endpoints (mock DB)
 
 ## Next Prompt
 
 ```
 Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
 
-Start Sprint 1: create the monorepo skeleton with Next.js frontend, FastAPI backend, PostgreSQL, Redis, Docker Compose, Alembic, SQLAlchemy, health endpoints, README setup instructions and .env.example alignment.
+Start Sprint 2: implement authentication, user model, organization/workspace model, roles,
+JWT login/register, protected routes, frontend login/register pages, and backend tests.
 
-Active skills: 05 repo-setup, 04 system-architect, 06 database-modeling.
+Active skills: 09 auth-security, 06 database-modeling, 07 backend-api, 08 frontend-ui, 20 testing-qa.
 ```
 
 ## Known Issues
 
-None
+- `anyio==4.6.2` is yanked on PyPI (mistagged). Works fine. Update to `anyio==4.7.0` or newer when available.
+- Frontend `npm install` not run yet — `node_modules/` not present. Run `npm install` or `docker compose up` to resolve.
 
 ## Push Status
 

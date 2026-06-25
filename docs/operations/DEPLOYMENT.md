@@ -3,28 +3,73 @@
 ## Local Development
 
 Requirements:
-- Docker and Docker Compose
-- Node.js 20+
-- Python 3.12+
-- Make
+- Docker Desktop (includes Docker Compose)
+- Git
 
 ```bash
-cp .env.example .env
-# Edit .env with real credentials
+# Clone repo
+git clone https://github.com/Sekiph82/Bulk-Edit.git
+cd Bulk-Edit
 
-make dev        # Start all services
-make migrate    # Run Alembic migrations
-make seed       # (future) Seed dev data
+# Configure environment
+cp .env.example .env
+# Defaults work for local Docker Compose dev
+
+# Start all services
+docker compose up --build
+# OR: make dev
+
+# Run DB migrations (in another terminal)
+docker compose exec backend alembic upgrade head
+# OR: make migrate
 ```
 
-Services started by `make dev`:
-- Frontend: http://localhost:3000
-- Backend: http://localhost:8000
-- PostgreSQL: localhost:5432
-- Redis: localhost:6379
-- MinIO: http://localhost:9000
-- Celery worker
-- Celery Beat (scheduler)
+Services:
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:3000 |
+| Backend | http://localhost:8000 |
+| API Docs | http://localhost:8000/docs |
+| Health | http://localhost:8000/api/v1/health |
+| PostgreSQL | localhost:5432 |
+| Redis | localhost:6379 |
+
+### Makefile Commands
+
+```bash
+make dev          # docker compose up --build
+make dev-d        # docker compose up --build -d (detached)
+make stop         # docker compose down
+make clean        # docker compose down -v (destroys DB data)
+make migrate      # alembic upgrade head
+make rollback     # alembic downgrade -1
+make test         # run all tests
+make health       # curl /api/v1/health
+make health-db    # curl /api/v1/health/db
+make health-redis # curl /api/v1/health/redis
+```
+
+### Backend Local (without Docker)
+
+```bash
+cd apps/backend
+python -m venv .venv
+.venv\Scripts\activate       # Windows
+pip install -r requirements-dev.txt
+cp .env.example .env         # edit DATABASE_URL/REDIS_URL to localhost
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+```
+
+### Frontend Local (without Docker)
+
+```bash
+cd apps/frontend
+npm install
+cp .env.local.example .env.local
+npm run dev
+# http://localhost:3000
+```
 
 ## Docker Compose Services
 

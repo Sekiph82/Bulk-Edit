@@ -6,7 +6,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 0: Project Memory and Operating System
 
-**Status:** `[~] IN PROGRESS`
+**Status:** `[x] COMPLETE`
 
 - [x] Create CLAUDE.md
 - [x] Create TASKS.md
@@ -48,21 +48,24 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 1: Monorepo Skeleton
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Initialize monorepo structure: `apps/frontend`, `apps/backend`, `packages/`
-- [ ] Scaffold Next.js 14 frontend (TypeScript, App Router, Tailwind CSS)
-- [ ] Scaffold FastAPI backend (Python 3.12, uvicorn)
-- [ ] Configure PostgreSQL with Docker Compose
-- [ ] Configure Redis with Docker Compose
-- [ ] Set up Alembic migrations
-- [ ] Set up SQLAlchemy base models
-- [ ] Add health check endpoints: `GET /health`, `GET /ready`
-- [ ] Add root `docker-compose.yml`
-- [ ] Add root `Makefile` with common commands
-- [ ] Align `.env.example` with all services
-- [ ] Update README with local setup instructions
-- [ ] Commit and push
+- [x] Initialize monorepo structure: `apps/frontend`, `apps/backend`, `packages/`
+- [x] Scaffold Next.js 14 frontend (TypeScript, App Router, Tailwind CSS)
+- [x] Scaffold FastAPI backend (Python 3.12, uvicorn)
+- [x] Configure PostgreSQL with Docker Compose
+- [x] Configure Redis with Docker Compose
+- [x] Set up Alembic migrations
+- [x] Set up SQLAlchemy base models
+- [x] Add health check endpoints: `GET /api/v1/health`, `GET /api/v1/health/db`, `GET /api/v1/health/redis`
+- [x] Add root `docker-compose.yml`
+- [x] Add root `Makefile` with common commands
+- [x] Add root `.gitignore`
+- [x] Align `.env.example` with all services
+- [x] Update README with local setup instructions
+- [x] Add landing page `/` and dashboard placeholder `/dashboard`
+- [x] Run pytest — 4/4 tests pass, zero warnings
+- [x] Commit and push
 
 ---
 

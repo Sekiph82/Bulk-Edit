@@ -42,5 +42,24 @@ All code in single repo: `apps/frontend`, `apps/backend`, `packages/shared`. Sim
 ### [SAFETY] External Write Protocol: 6-Step
 All Etsy writes require: preview → user confirmation → snapshot → permission check → subscription gate → audit log. Non-negotiable. Rationale: Etsy write mistakes can cause seller revenue loss and are hard to reverse without our Magic Revert system.
 
+---
+
+## 2026-06-25 (Sprint 1)
+
+### [BACKEND] Async SQLAlchemy engine pool config
+Set `pool_size=10`, `max_overflow=20`, `pool_pre_ping=True`. Sufficient for initial load. Can tune in Sprint 18 based on observed connection patterns.
+
+### [BACKEND] Health endpoints at /api/v1/health (not /health)
+Chose `/api/v1/health` prefix to stay consistent with API versioning. All future endpoints under `/api/v1/`.
+
+### [BACKEND] pydantic-settings model_config over inner Config class
+Used Pydantic v2 `model_config` dict syntax instead of deprecated inner `Config` class. Avoids deprecation warnings with Pydantic 2.x.
+
+### [DEPS] anyio 4.6.2 yanked warning
+`anyio==4.6.2` in requirements-dev.txt is yanked on PyPI (mistagged 4.5.2 code). Still functional. Will update when `anyio>=4.7.0` is stable and compatible with pytest-asyncio 0.24.x.
+
+### [FRONTEND] No shadcn/ui in Sprint 1
+shadcn/ui setup deferred to Sprint 2 when auth pages will benefit from its form components. Sprint 1 uses raw Tailwind only.
+
 ### [SAFETY] AI Output: Preview-Only
 AI output must never be applied directly to listings. Always goes through preview → user approval flow. Rationale: AI output quality varies; seller is responsible for their listing content.
