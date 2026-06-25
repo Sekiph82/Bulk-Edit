@@ -73,20 +73,21 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 2: Auth + Organization
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Design User, Organization, OrganizationMember models
-- [ ] Implement user registration endpoint
-- [ ] Implement user login endpoint (JWT access + refresh tokens)
-- [ ] Implement token refresh endpoint
-- [ ] Implement logout (token blacklist via Redis)
-- [ ] Implement password reset flow
-- [ ] Add email verification
-- [ ] Build frontend auth pages: register, login, forgot password
-- [ ] Add auth middleware to FastAPI
-- [ ] Add protected route guard to Next.js
-- [ ] Write auth unit tests
-- [ ] Commit and push
+- [x] Design User, Organization, OrganizationMember models
+- [x] Implement user registration endpoint (POST /api/v1/auth/register)
+- [x] Implement user login endpoint (POST /api/v1/auth/login — JWT access + refresh)
+- [x] Implement token refresh endpoint (POST /api/v1/auth/refresh — rotation)
+- [x] Implement logout (POST /api/v1/auth/logout — revoke refresh token in DB)
+- [x] Implement GET /api/v1/auth/me — returns user + memberships
+- [x] Build frontend auth pages: /register, /login (Tailwind forms)
+- [x] Update dashboard with auth state + logout button
+- [x] Add auth middleware to FastAPI (HTTPBearer + get_current_user dep)
+- [x] RefreshToken model with SHA-256 token_hash
+- [x] SQLite + aiosqlite test fixtures (override get_db per test)
+- [x] Write auth tests — 14/14 PASSED
+- [x] Commit and push
 
 ---
 

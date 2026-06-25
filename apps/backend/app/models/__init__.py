@@ -1,3 +1,5 @@
 # Import all models here so Alembic can detect them for autogenerate.
-# Example (add as models are created):
-# from app.models.user import User
+from app.models.user import User
+from app.models.organization import Organization
+from app.models.organization_member import OrganizationMember
+from app.models.refresh_token import RefreshToken

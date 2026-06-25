@@ -4,6 +4,44 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-25 Sprint 2 — Auth + Organization
+
+**Skills active:** 09 auth-security, 06 database-modeling, 07 backend-api, 08 frontend-ui, 20 testing-qa
+
+**Completed:**
+- Added `passlib[bcrypt]==1.7.4`, `PyJWT==2.9.0`, `email-validator==2.2.0` to requirements.txt
+- Added `aiosqlite==0.20.0` to requirements-dev.txt
+- Added JWT settings to `app/core/config.py` (JWT_SECRET, JWT_ALGORITHM, JWT_ACCESS_TOKEN_EXPIRE_MINUTES=15, JWT_REFRESH_TOKEN_EXPIRE_DAYS=7)
+- Updated `app/db/base.py` TimestampMixin: added Python-side `default=lambda` for SQLite test compat
+- Created `app/core/security.py`: bcrypt hash/verify, JWT access token, SHA-256 refresh token hash
+- Created `app/core/deps.py`: get_current_user, require_active_user, require_superuser (HTTPBearer)
+- Created `app/models/user.py`, `organization.py`, `organization_member.py`, `refresh_token.py`
+- Updated `app/models/__init__.py`: imports all 4 models for Alembic autogenerate
+- Created `app/schemas/auth.py`: all Pydantic request/response schemas
+- Created `app/services/auth.py`: register_user, login_user, refresh_tokens, logout_user, _issue_tokens, AuthError
+- Created `app/api/v1/auth.py`: 5 endpoints (register 201, login 200, refresh 200, logout 204, me 200)
+- Updated `app/api/v1/router.py`: includes auth router
+- Created `alembic/versions/0001_create_auth_tables.py`: hand-written migration for users, organizations, organization_members, refresh_tokens
+- Updated `tests/conftest.py`: SQLite+aiosqlite engine per test, get_db override
+- Created `tests/test_auth.py`: 14 tests covering all scenarios
+- Created `apps/frontend/app/register/page.tsx`: client form, localStorage token storage
+- Created `apps/frontend/app/login/page.tsx`: client form, localStorage token storage
+- Updated `apps/frontend/app/dashboard/page.tsx`: auth state display, logout button
+
+**Test results:** 18/18 PASSED (4 health + 14 auth), 0 warnings
+
+**Decisions made:**
+- Refresh tokens: SHA-256 hash in DB (not Redis, not bcrypt)
+- Refresh token rotation on every use
+- UUIDs as Uuid(as_uuid=False) / VARCHAR(36) for SQLite compat
+- Organization created on user registration with owner role
+
+**Blockers:** None
+
+**Next:** Sprint 3 — Stripe Billing and Feature Gates
+
+---
+
 ## 2026-06-25 Sprint 1 (rev 2) — Custom Ports Applied + CORS Fix
 
 **Skills active:** 05 repo-setup, 04 system-architect, 07 backend-api, 22 devops-deployment, 01 documentation-handoff

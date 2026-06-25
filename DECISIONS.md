@@ -73,3 +73,28 @@ shadcn/ui setup deferred to Sprint 2 when auth pages will benefit from its form 
 
 ### [SAFETY] AI Output: Preview-Only
 AI output must never be applied directly to listings. Always goes through preview → user approval flow. Rationale: AI output quality varies; seller is responsible for their listing content.
+
+---
+
+## 2026-06-25 (Sprint 2)
+
+### [AUTH] Refresh token stored as SHA-256 hash in DB (not Redis, not plaintext)
+SHA-256 hash (64 hex chars) stored in `refresh_tokens.token_hash`. SHA-256 is sufficient for random tokens because the token itself is already cryptographically random (secrets.token_urlsafe(64)). bcrypt rejected — designed for passwords (intentionally slow), overkill for random tokens. Redis rejected — tokens should survive Redis restart without forcing all users to re-login.
+
+### [AUTH] Refresh token rotation on every use
+Each use of a refresh token revokes the old one (`revoked=True`) and issues a new one. Provides refresh token rotation as a security measure against token theft. Old token cannot be reused after one rotation.
+
+### [AUTH] JWT access token 15 min, refresh token 7 days
+15 min access token limits damage window if token is intercepted. 7 day refresh provides good UX (users stay logged in). Both configurable via `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` and `JWT_REFRESH_TOKEN_EXPIRE_DAYS` in settings.
+
+### [AUTH] User creates Organization on register
+Each user gets an Organization with `role=owner` on registration. Organization name defaults to `{full_name}'s workspace` if not provided. Enforces multi-tenancy model from day one.
+
+### [AUTH] SQLite + aiosqlite for tests
+Tests use SQLite in-memory DB via `aiosqlite`. PostgreSQL-specific features (e.g., native UUID type) avoided in models by using `Uuid(as_uuid=False)` (stored as VARCHAR(36) on SQLite). TimestampMixin uses Python-side `default=lambda` in addition to `server_default=func.now()` so tests don't require DB round-trips.
+
+### [AUTH] UUIDs stored as String(36) / Uuid(as_uuid=False)
+`Uuid(as_uuid=False)` used instead of native PostgreSQL UUID type. SQLAlchemy renders as VARCHAR(36) on SQLite and UUID on PostgreSQL. Avoids test compatibility issues without sacrificing production correctness.
+
+### [DEPS] PyJWT 2.9.0 downgraded from 2.13.0
+Pinned to 2.9.0 per requirements.txt spec. Existing 2.13.0 was uninstalled. No breaking API changes for our usage (encode/decode). Pin exists for reproducibility.

@@ -15,10 +15,12 @@ class Settings(BaseSettings):
     BACKEND_URL: str = "http://localhost:8100"
 
     # Accepts plain string, comma-separated, or JSON array string.
-    # Examples: "http://localhost:3100"
-    #           "http://localhost:3100,https://app.example.com"
-    #           '["http://localhost:3100"]'
     BACKEND_CORS_ORIGINS: str = "http://localhost:3100"
+
+    JWT_SECRET: str = "change-me-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     def get_cors_origins(self) -> List[str]:
         v = self.BACKEND_CORS_ORIGINS.strip()
