@@ -342,7 +342,7 @@ export default function VariationsPage() {
             <button
               onClick={handleCreateAndPreview}
               disabled={loading || selectedIds.size === 0}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium px-5 py-2.5 rounded-lg text-sm transition-colors"
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium px-5 py-2.5 rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300"
             >
               {loading ? "Working..." : "Preview Changes"}
             </button>
@@ -357,7 +357,7 @@ export default function VariationsPage() {
               {canApply && (
                 <button
                   onClick={() => setShowConfirm(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition-colors"
+                  className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-green-300"
                 >
                   Apply Variations
                 </button>
@@ -462,7 +462,9 @@ export default function VariationsPage() {
                   }`}
                 >
                   <div className="text-xs text-gray-600">
-                    <span className="font-medium text-gray-800">{job.operation_type}</span>
+                    <span className="font-medium text-gray-800">
+                      {OPERATION_OPTIONS.find((o) => o.value === job.operation_type)?.label ?? job.operation_type}
+                    </span>
                     <span className="ml-2 text-gray-400">{job.selected_count} listings</span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -501,13 +503,13 @@ export default function VariationsPage() {
               <button
                 onClick={handleApply}
                 disabled={confirmText !== "APPLY VARIATIONS" || loading}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-green-300"
               >
                 Apply
               </button>
               <button
                 onClick={() => { setShowConfirm(false); setConfirmText(""); }}
-                className="flex-1 border border-gray-300 text-gray-700 font-medium py-2.5 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                className="flex-1 border border-gray-300 text-gray-700 font-medium py-2.5 rounded-lg text-sm hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-200"
               >
                 Cancel
               </button>

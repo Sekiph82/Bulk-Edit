@@ -59,6 +59,30 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-26 Productization UI Sprint — Apply Design System
+
+**Skills active:** 08 frontend-ui, 24 ux-polish, 01 documentation-handoff
+
+**Completed:**
+- `npm install` in apps/frontend — first-time dependency install (390 packages)
+- Fixed tsconfig.json: added `"target": "ES2017"` — pre-existing type error on `[...Set]` spread with ES3 target
+- Fixed `apps/frontend/app/billing/page.tsx`: wrapped in Suspense (useSearchParams requires it for static prerender)
+- Removed emoji from empty states: shops/page.tsx (🏪) and listings/page.tsx (📦)
+- `media/page.tsx`: removed sprint references from operation labels ("not available in Sprint 11" → "coming soon"); fixed unescaped apostrophe lint error; fixed error message ("This operation is not available in Sprint 11" → "This operation is not yet available")
+- `pricing/page.tsx`: replaced emoji ✓/✗ in FeatureRow with inline Heroicon SVGs (green check / gray X)
+- `listings/page.tsx`: added `loading="lazy"` to both thumbnail img tags (table row + detail sidebar)
+- All pages: added `focus:outline-none focus:ring-2 focus:ring-indigo-300` to buttons missing focus rings (bulk-edit, media, variations, shops, listings)
+- `variations/page.tsx`: job history now shows human-readable label from OPERATION_OPTIONS instead of snake_case operation_type; added focus rings to Preview/Apply/Cancel buttons
+- `media/page.tsx`: confirm modal shows human-readable label; job stats changed from emoji (✓✗) to text (ok/err/skip)
+- Build: 14 routes, zero errors, zero type errors
+
+**Key decisions:**
+- Did not rewrite entire pages (all functionality retained)
+- Used targeted edits only (focus rings, lazy loading, text fixes, svg replacements)
+- billing/page.tsx Suspense fix was a pre-existing bug surfaced by first build run
+
+---
+
 ## 2026-06-25 Sprint 11 — Photo / Video Bulk Editor
 
 **Skills active:** 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff

@@ -315,7 +315,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Productization UI Sprint (Design System)
 
-**Status:** `[x] COMPLETE — Prep`
+**Status:** `[x] COMPLETE`
 
 - [x] Install Impeccable (project-local, .claude/skills/impeccable/) via `npx impeccable install --providers=claude --scope=project`
 - [x] Install UI UX Pro Max (global uipro-cli + project-local skill files in .claude/skills/ui-ux-pro-max/)
@@ -328,7 +328,18 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Create docs/design/PRODUCT_UI_DIRECTION.md (page-by-page direction, anti-patterns list)
 - [x] Create docs/design/UI_AUDIT.md (full audit: 8/20 score, P0/P1/P2/P3 findings)
 - [x] Light cleanup: remove sprint labels from homepage, remove disabled roadmap cards from dashboard, remove API debug panel
-- [ ] Full Productization UI Sprint — apply design system to all customer-facing pages (Productization Sprint)
+- [x] Full Productization UI Sprint — apply design system to all customer-facing pages
+  - [x] npm install + lint + build baseline
+  - [x] Fix tsconfig.json target (ES2017) — pre-existing Set spread type error
+  - [x] Fix billing/page.tsx Suspense boundary for useSearchParams
+  - [x] Remove emoji from shops/page.tsx and listings/page.tsx empty states
+  - [x] Remove sprint labels from media/page.tsx operation labels and error messages
+  - [x] Replace emoji check/cross in pricing/page.tsx with SVG icons
+  - [x] Add loading="lazy" to all listing thumbnail img tags
+  - [x] Add focus:outline-none focus:ring-2 to all interactive elements across all pages
+  - [x] Human-readable operation labels in variations job history
+  - [x] Human-readable operation name in media confirm modal
+  - [x] Build passes — 14 routes, zero errors
 
 ---
 

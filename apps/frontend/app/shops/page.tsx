@@ -139,7 +139,7 @@ function ShopsContent() {
           <button
             onClick={connectShop}
             disabled={connecting}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium px-5 py-2.5 rounded-lg transition-colors text-sm"
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium px-5 py-2.5 rounded-lg transition-colors text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
           >
             {connecting ? "Redirecting to Etsy..." : "Connect Etsy Shop"}
           </button>
@@ -163,7 +163,6 @@ function ShopsContent() {
           </div>
         ) : shops.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
-            <p className="text-4xl mb-4">🏪</p>
             <h3 className="text-lg font-semibold text-gray-800 mb-2">No shops connected</h3>
             <p className="text-gray-500 text-sm mb-6">
               Connect your Etsy shop to start managing listings in bulk.
@@ -171,7 +170,7 @@ function ShopsContent() {
             <button
               onClick={connectShop}
               disabled={connecting}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium px-6 py-2.5 rounded-lg transition-colors text-sm"
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium px-6 py-2.5 rounded-lg transition-colors text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
             >
               {connecting ? "Redirecting..." : "Connect Etsy Shop"}
             </button>
@@ -205,7 +204,7 @@ function ShopsContent() {
                 </div>
                 <button
                   onClick={() => disconnectShop(shop.id)}
-                  className="text-sm text-red-500 hover:text-red-700 font-medium transition-colors"
+                  className="text-sm text-red-500 hover:text-red-700 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-red-200 rounded"
                 >
                   Disconnect
                 </button>

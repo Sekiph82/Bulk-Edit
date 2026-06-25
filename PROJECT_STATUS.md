@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Productization UI Sprint — Design System Prep COMPLETE**
+**Productization UI Sprint — COMPLETE**
 
 ## Status
 
-`Design system installed and prepared. Sprint 13 (AI Tools) or Productization UI Sprint next.`
+`All customer-facing pages polished. Sprint 13 (AI Tools) is next.`
 
 ## Last Updated
 
@@ -31,7 +31,7 @@ None (between sprints)
 - Sprint 10: Etsy Inventory Writes (Price/Quantity) ✓
 - Sprint 11: Photo / Video Bulk Editor ✓
 - Sprint 12: Variation Editor ✓
-- Productization UI Sprint — Design System Prep ✓ (Impeccable + UI UX Pro Max installed, PRODUCT.md/DESIGN.md/design-system/MASTER.md created, light cleanup done)
+- Productization UI Sprint ✓ (Design system installed, all 9 customer-facing pages polished, build passing)
 
 ## Local Development (Windows)
 
@@ -75,7 +75,8 @@ None
 | `pytest tests/test_bulk_edit_revert.py` | 28/28 PASSED |
 | `pytest tests/test_bulk_edit_inventory.py` | 19/19 PASSED |
 | `pytest tests/test_bulk_edit_media.py` | 25/25 PASSED |
-| **Full suite `pytest`** | **225/225 PASSED** |
+| `pytest tests/test_bulk_edit_variation.py` | 47/47 PASSED |
+| **Full suite `pytest`** | **272/272 PASSED** |
 
 ## Sprint 11 — New Files
 
@@ -151,12 +152,12 @@ All enforced in `apply_bulk_edit_session()` before any write:
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 11 / 18 |
+| Sprints complete | 13 / 18 (incl. Productization UI Sprint) |
 | Backend Python files | 98+ |
-| Frontend TypeScript files | 25 |
-| Total tests | 225 |
+| Frontend TypeScript files | 27 |
+| Total tests | 272 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 12: Variation Editor. See HANDOFF.md for exact prompt.
+Begin Sprint 13: AI Tools. See HANDOFF.md for exact prompt.

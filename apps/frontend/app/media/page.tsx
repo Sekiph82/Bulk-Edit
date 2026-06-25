@@ -21,9 +21,9 @@ const OPERATION_OPTIONS = [
   { value: "add_image", label: "Add Image", implemented: true },
   { value: "replace_image", label: "Replace Image (at rank)", implemented: true },
   { value: "delete_image", label: "Delete Image", implemented: true },
-  { value: "reorder_images", label: "Reorder Images (not available in Sprint 11)", implemented: false },
-  { value: "replace_video", label: "Replace Video (not available in Sprint 11)", implemented: false },
-  { value: "delete_video", label: "Delete Video (not available in Sprint 11)", implemented: false },
+  { value: "reorder_images", label: "Reorder Images (coming soon)", implemented: false },
+  { value: "replace_video", label: "Replace Video (coming soon)", implemented: false },
+  { value: "delete_video", label: "Delete Video (coming soon)", implemented: false },
 ];
 
 function StatusBadge({ status }: { status: string }) {
@@ -115,7 +115,7 @@ export default function MediaPage() {
     setMsg(null);
     if (selectedIds.size === 0) { setError("Select at least one listing."); return; }
     const op = OPERATION_OPTIONS.find(o => o.value === operationType);
-    if (!op?.implemented) { setError("This operation is not available in Sprint 11."); return; }
+    if (!op?.implemented) { setError("This operation is not yet available."); return; }
     if ((operationType === "add_image" || operationType === "replace_image") && !imageUrl) {
       setError("Image URL is required."); return;
     }
@@ -314,14 +314,14 @@ export default function MediaPage() {
             <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 mb-4">
               <p className="text-xs text-amber-800 font-medium">Backup Warning</p>
               <p className="text-xs text-amber-700 mt-0.5">
-                A backup snapshot of each listing's current media will be created before any changes are applied to Etsy.
+                A backup snapshot of each listing&apos;s current media will be created before any changes are applied to Etsy.
               </p>
             </div>
 
             <button
               onClick={handleCreateJob}
               disabled={loading || selectedIds.size === 0}
-              className="w-full py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition disabled:opacity-40"
+              className="w-full py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-300"
             >
               {loading ? "Processing..." : `Create Job for ${selectedIds.size} listing(s)`}
             </button>
@@ -334,7 +334,7 @@ export default function MediaPage() {
             <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
               <h3 className="text-lg font-bold text-gray-900 mb-2">Confirm Media Changes</h3>
               <p className="text-sm text-gray-600 mb-4">
-                This will apply <strong>{operationType}</strong> to <strong>{selectedIds.size}</strong> listing(s) on Etsy.
+                This will apply <strong>{OPERATION_OPTIONS.find((o) => o.value === operationType)?.label ?? operationType}</strong> to <strong>{selectedIds.size}</strong> listing(s) on Etsy.
                 A backup snapshot will be created first.
                 Type <code className="bg-gray-100 px-1 rounded">APPLY MEDIA</code> to confirm.
               </p>
@@ -347,14 +347,14 @@ export default function MediaPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => { setShowConfirm(false); setConfirmText(""); setPendingJobId(null); }}
-                  className="flex-1 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition"
+                  className="flex-1 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition focus:outline-none focus:ring-2 focus:ring-gray-200"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleApply}
                   disabled={confirmText !== "APPLY MEDIA" || loading}
-                  className="flex-1 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition disabled:opacity-40"
+                  className="flex-1 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-300"
                 >
                   Apply Now
                 </button>
@@ -388,7 +388,7 @@ export default function MediaPage() {
                       <td className="py-2 pr-4 text-gray-700">{job.operation_type}</td>
                       <td className="py-2 pr-4"><StatusBadge status={job.status} /></td>
                       <td className="py-2 pr-4 text-gray-600">
-                        {job.success_count}✓ {job.failure_count}✗ {job.skipped_count}–
+                        {job.success_count} ok / {job.failure_count} err / {job.skipped_count} skip
                       </td>
                       <td className="py-2 pr-4 text-gray-400 text-xs">
                         {new Date(job.created_at).toLocaleString()}
@@ -396,7 +396,7 @@ export default function MediaPage() {
                       <td className="py-2">
                         <button
                           onClick={() => loadResults(job.id)}
-                          className="text-xs text-indigo-600 hover:underline"
+                          className="text-xs text-indigo-600 hover:underline focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded"
                         >
                           Results
                         </button>

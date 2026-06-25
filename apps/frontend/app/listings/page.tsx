@@ -114,7 +114,7 @@ function DetailSidebar({ listingId, onClose }: { listingId: string; onClose: () 
         {detail && (
           <div className="px-6 py-5 space-y-5 text-sm">
             {detail.thumbnail_url && (
-              <img src={detail.thumbnail_url} alt={detail.title ?? ""} className="w-full aspect-square object-cover rounded-lg border border-gray-100" />
+              <img src={detail.thumbnail_url} alt={detail.title ?? ""} loading="lazy" className="w-full aspect-square object-cover rounded-lg border border-gray-100" />
             )}
 
             <div className="grid grid-cols-2 gap-x-4 gap-y-3">
@@ -654,7 +654,6 @@ function ListingsContent() {
           </div>
         ) : listings.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
-            <p className="text-4xl mb-3">📦</p>
             <h3 className="text-lg font-semibold text-gray-800 mb-2">No listings yet</h3>
             <p className="text-gray-500 text-sm mb-5">Connect a shop and sync to import your listings.</p>
             <Link href="/shops" className="text-indigo-600 text-sm font-medium hover:underline">Go to Shops →</Link>
@@ -703,7 +702,7 @@ function ListingsContent() {
                       {colVisible("thumbnail") && (
                         <td className="px-2 py-2">
                           {listing.thumbnail_url
-                            ? <img src={listing.thumbnail_url} alt="" className="w-9 h-9 object-cover rounded-lg border border-gray-100" />
+                            ? <img src={listing.thumbnail_url} alt="" loading="lazy" className="w-9 h-9 object-cover rounded-lg border border-gray-100" />
                             : <div className="w-9 h-9 bg-gray-100 rounded-lg" />}
                         </td>
                       )}

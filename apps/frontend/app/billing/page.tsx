@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -36,7 +36,7 @@ const STATUS_COLOR: Record<string, string> = {
   unpaid: "bg-red-100 text-red-700",
 };
 
-export default function BillingPage() {
+function BillingContent() {
   const searchParams = useSearchParams();
   const success = searchParams.get("success") === "true";
   const canceled = searchParams.get("canceled") === "true";
@@ -188,5 +188,13 @@ export default function BillingPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function BillingPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen flex items-center justify-center bg-gray-50"><p className="text-gray-500 text-sm">Loading billing…</p></main>}>
+      <BillingContent />
+    </Suspense>
   );
 }

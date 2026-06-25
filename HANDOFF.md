@@ -3,8 +3,8 @@
 ## Last Session
 
 **Date:** 2026-06-26
-**Sprint:** Productization UI Sprint — Design System Prep — COMPLETE
-**Completed:** Impeccable v3.1.0 + UI UX Pro Max v2.2.3 installed project-locally. PRODUCT.md, DESIGN.md, design-system/MASTER.md, 6 page-specific design overrides (design-system/pages/), docs/design/PRODUCT_UI_DIRECTION.md, docs/design/UI_AUDIT.md created. Light cleanup: sprint labels + API debug panel + disabled roadmap cards removed from homepage and dashboard. 272/272 backend tests passing (no backend files touched). Committed and pushed.
+**Sprint:** Productization UI Sprint — Apply Design System — COMPLETE
+**Completed:** npm install + full build baseline. Fixed tsconfig target (ES2017). Fixed billing/page.tsx Suspense wrapper. Removed emoji from empty states across shops/listings. Removed sprint labels from media operation labels. Replaced emoji check/cross in pricing with SVG. Added loading="lazy" to all thumbnail imgs. Added focus rings to all buttons across all 9 pages. Human-readable op labels in variations job history and media confirm modal. Build: 14 routes, zero errors. Committed and pushed.
 
 ## Current State
 
@@ -21,9 +21,12 @@
 - `tests/test_bulk_edit_variation.py` — 47 tests (unit: normalize/patch/selector/validate/preview; API: auth/validation/create/preview/apply gates/apply flow/org isolation/audit)
 
 **Frontend (`apps/frontend/`):**
-- `app/variations/page.tsx` — listing selector (filtered to has_variations=true), 8-operation picker, amount/SKU/find-replace/availability inputs, optional selector (property_name + value_name), Preview button, before/after variation table, APPLY VARIATIONS confirm modal, results panel, job history
+- `app/variations/page.tsx` — listing selector (filtered to has_variations=true), 8-operation picker, amount/SKU/find-replace/availability inputs, optional selector (property_name + value_name), Preview button, before/after variation table, APPLY VARIATIONS confirm modal, results panel, job history. Op labels now human-readable in job history.
 - `lib/api.ts` — VariationJob, VariationPreviewItem, VariationPreviewPage, VariationResult, VariationResultPage, VariationBackupSnapshot types + 8 helpers
 - `app/dashboard/page.tsx` — Variation Editor card added linking to /variations
+- All pages polished (Productization UI Sprint): focus rings on all buttons, lazy thumbnails, no emoji in data UI, no sprint labels, SVG icons in pricing, Suspense wrappers on billing
+- `tsconfig.json` — added `"target": "ES2017"` (was defaulting to ES3, broke Set spread)
+- Build: 14 routes, zero type errors, zero lint errors
 
 **What NOT implemented in Sprint 12 (by design):**
 - Variation revert — backup snapshots created to enable Sprint 13 revert
@@ -64,32 +67,6 @@ Never construct variation tree from local data alone. Always:
 
 ## Next Task
 
-**Productization UI Sprint: Apply Design System to All Customer-Facing Pages**
-
-Read PRODUCT.md, DESIGN.md, design-system/MASTER.md, and docs/design/UI_AUDIT.md before starting.
-
-Pages to redesign (in priority order):
-1. `apps/frontend/app/page.tsx` — Homepage (marketing landing, minimal)
-2. `apps/frontend/app/dashboard/page.tsx` — Dashboard (clean feature grid, no roadmap)
-3. `apps/frontend/app/listings/page.tsx` — Listings grid (table cleanup, empty state, lazy thumbnails)
-4. `apps/frontend/app/bulk-edit/page.tsx` — Bulk edit (2-column, preview table, confirm modal)
-5. `apps/frontend/app/media/page.tsx` — Media editor (compact, backup warning)
-6. `apps/frontend/app/variations/page.tsx` — Variation editor (same pattern as media)
-7. `apps/frontend/app/shops/page.tsx` — Shops (connect/disconnect, sync status)
-8. `apps/frontend/app/pricing/page.tsx` — Pricing (clean plan comparison)
-9. `apps/frontend/app/billing/page.tsx` — Billing (current plan, usage, portal button)
-
-Key fixes per UI audit:
-- P0: Remove any remaining sprint labels / API debug panels (already done for page.tsx + dashboard)
-- P1: Add focus rings to all interactive elements (`focus:outline-none focus:ring-2 focus:ring-indigo-300`)
-- P1: Add `<label>` to all form inputs
-- P1: Replace emoji icons with SVG throughout
-- P1: Add loading states / skeleton rows to async data tables
-- P1: Apply consistent Inter type scale
-- P2: Add empty states to all data tables
-- P2: Add `loading="lazy"` to all thumbnails
-- P3: Extract StatusBadge, AppNav to shared components
-
 **Sprint 13: AI Tools**
 
 Implement AI-powered listing optimizations using OpenAI GPT-4o and/or Anthropic Claude.
@@ -115,6 +92,10 @@ Implement:
 Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
 
 Start Sprint 13: AI Tools — implement AI-powered listing title, description, tag, alt-text optimization using OpenAI/Anthropic. AI output must be previewed and user-approved before applying. Feature-gated to Pro plan. All AI calls mocked in tests. No direct Etsy writes in this sprint.
+
+Backend: AISession model, /api/v1/ai/* endpoints, app/services/ai_tools.py.
+Frontend: AI tools panel with Accept/Reject per suggestion.
+Tests: 20+ tests with mocked AI calls.
 
 Active skills: 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff.
 ```

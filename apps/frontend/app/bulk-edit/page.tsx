@@ -175,7 +175,7 @@ function ListingSelector({
         <button
           onClick={() => onConfirm([...selected])}
           disabled={selected.size === 0}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-lg text-sm"
+          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
         >
           Create Bulk Edit Session →
         </button>
@@ -285,7 +285,7 @@ function ChangeEditor({
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
       <button onClick={handleAdd} disabled={adding}
-        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 rounded-lg">
+        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300">
         {adding ? "Adding…" : "+ Add Change"}
       </button>
 
@@ -310,7 +310,7 @@ function ChangeEditor({
                   </td>
                   <td className="px-4 py-2 text-right">
                     <button onClick={() => onChangeRemoved(c.id)}
-                      className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                      className="text-xs text-red-500 hover:text-red-700 focus:outline-none focus:ring-1 focus:ring-red-200 rounded">Remove</button>
                   </td>
                 </tr>
               ))}
@@ -613,7 +613,7 @@ function BulkEditContent() {
               <button
                 onClick={handleGeneratePreview}
                 disabled={previewLoading || session.changes.length === 0}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium px-6 py-2.5 rounded-lg text-sm"
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium px-6 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
               >
                 {previewLoading ? "Generating Preview…" : `Preview Changes (${session.changes.length} rule${session.changes.length !== 1 ? "s" : ""})`}
               </button>
@@ -692,7 +692,7 @@ function BulkEditContent() {
             <div className="flex items-center gap-3 justify-end">
               <button
                 onClick={() => setPhase("session")}
-                className="border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50"
+                className="border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200"
               >
                 ← Edit Changes
               </button>
@@ -700,7 +700,7 @@ function BulkEditContent() {
                 <button
                   onClick={() => { setRevertConfirmText(""); setShowRevertModal(true); }}
                   disabled={reverting}
-                  className="border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-60 text-sm font-medium px-4 py-2 rounded-lg"
+                  className="border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-60 text-sm font-medium px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-200"
                 >
                   {reverting ? "Reverting…" : "Magic Revert"}
                 </button>
@@ -709,7 +709,7 @@ function BulkEditContent() {
                 onClick={() => setShowApplyModal(true)}
                 disabled={hasInvalid || applying || !!applyJob}
                 title={hasInvalid ? "Fix invalid listings before applying" : ""}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium px-6 py-2.5 rounded-lg text-sm"
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium px-6 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
               >
                 {applying ? "Applying…" : applyJob ? "Applied" : "Apply to Etsy"}
               </button>
@@ -747,13 +747,13 @@ function BulkEditContent() {
                     />
                   </div>
                   <div className="flex gap-3 justify-end">
-                    <button onClick={() => setShowRevertModal(false)} className="border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50">
+                    <button onClick={() => setShowRevertModal(false)} className="border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200">
                       Cancel
                     </button>
                     <button
                       onClick={handleRevertConfirmed}
                       disabled={revertConfirmText !== "REVERT"}
-                      className="bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2 rounded-lg"
+                      className="bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-300"
                     >
                       Yes, Revert Etsy Listings
                     </button>
@@ -775,10 +775,10 @@ function BulkEditContent() {
                     <strong>Important:</strong> Changes are applied immediately. This action cannot be automatically undone, but backup snapshots are available via the API.
                   </div>
                   <div className="flex gap-3 justify-end">
-                    <button onClick={() => setShowApplyModal(false)} className="border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50">
+                    <button onClick={() => setShowApplyModal(false)} className="border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200">
                       Cancel
                     </button>
-                    <button onClick={handleApplyConfirmed} className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2 rounded-lg">
+                    <button onClick={handleApplyConfirmed} className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300">
                       Yes, Apply to Etsy
                     </button>
                   </div>
