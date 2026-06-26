@@ -24,8 +24,8 @@ const DURATIONS = [1200, 2200, 2800, 2800, 4000];
 export default function AnimatedProductDemo() {
   const [phase, setPhase] = useState(0);
   const prefersReduced = useReducedMotion();
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
+  const { resolved } = useTheme();
+  const isDark = resolved === "dark";
 
   useEffect(() => {
     if (prefersReduced) {

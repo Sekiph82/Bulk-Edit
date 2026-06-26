@@ -663,7 +663,7 @@ function BulkEditContent() {
             {applyJob && (
               <div className={`rounded-xl border px-5 py-4 text-sm ${applyJob.status === "completed" ? "bg-green-50 border-green-200 text-green-800" : applyJob.status === "failed" ? "bg-red-50 border-red-200 text-red-800" : "bg-yellow-50 border-yellow-200 text-yellow-800"}`}>
                 <p className="font-semibold mb-1">Apply complete — {applyJob.status}</p>
-                <p>Success: {applyJob.success_count} Â· Failed: {applyJob.failure_count} Â· Skipped: {applyJob.skipped_count}</p>
+                <p>Success: {applyJob.success_count} · Failed: {applyJob.failure_count} · Skipped: {applyJob.skipped_count}</p>
                 {applyJob.error_message && <p className="mt-1 text-xs">{applyJob.error_message}</p>}
               </div>
             )}
@@ -672,7 +672,7 @@ function BulkEditContent() {
             {revertJob && (
               <div className={`rounded-xl border px-5 py-4 text-sm ${revertJob.status === "completed" ? "bg-green-50 border-green-200 text-green-800" : revertJob.status === "failed" ? "bg-red-50 border-red-200 text-red-800" : "bg-yellow-50 border-yellow-200 text-yellow-800"}`}>
                 <p className="font-semibold mb-1">Revert complete — {revertJob.status}</p>
-                <p>Restored: {revertJob.success_count} Â· Failed: {revertJob.failure_count} Â· Skipped: {revertJob.skipped_count}</p>
+                <p>Restored: {revertJob.success_count} · Failed: {revertJob.failure_count} · Skipped: {revertJob.skipped_count}</p>
                 {revertJob.error_message && <p className="mt-1 text-xs">{revertJob.error_message}</p>}
               </div>
             )}
