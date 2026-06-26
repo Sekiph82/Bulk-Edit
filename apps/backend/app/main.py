@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -10,12 +11,16 @@ from app.db.session import AsyncSessionLocal
 from app.services.local_seed import seed_on_startup
 
 setup_logging()
+_logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with AsyncSessionLocal() as db:
-        await seed_on_startup(db)
+    try:
+        async with AsyncSessionLocal() as db:
+            await seed_on_startup(db)
+    except Exception as exc:
+        _logger.warning("Startup seed hook failed (backend continues normally): %s", exc)
     yield
 
 

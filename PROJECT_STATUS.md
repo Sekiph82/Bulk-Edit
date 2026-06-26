@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Local Dev Reliability — Superuser Seed + Startup Readiness — COMPLETE**
+**Local Dev — Seed-on-Startup Fix — COMPLETE. Ready for Sprint 16.**
 
 ## Status
 
-`Local demo superuser seed added (gitignored .local-superusers.env, seed script, 28 new tests). All 4 .bat startup scripts now poll backend health + frontend before opening browser — no more fixed-delay race conditions. 431/431 total tests pass. Sprint 16 (Scheduled Jobs) is next.`
+`FastAPI lifespan hook seeds local superusers from .local-superusers.env on backend startup. Bat files no longer prompt Y/N or invoke seed scripts. Login is unchanged. 431/431 tests pass. Sprint 16 (Scheduled Jobs) is next.`
 
 ## Last Updated
 
@@ -36,6 +36,7 @@ None (between sprints)
 - Sprint 13: AI Tools ✓ (provider abstraction, 9 endpoints, 32 tests, /ai page, 304/304 suite)
 - Sprint 14: CSV Import / Export ✓ (CSVJob + CSVRow models, 6 endpoints, 49 tests, /csv page, 353/353 suite)
 - Sprint 15: Dynamic Pricing ✓ (DynamicPricingJob + DynamicPricingRecommendation models, 10 endpoints, 50 tests, /pricing-rules page, 403/403 suite)
+- Local Dev Reliability ✓ (gitignored seed config, local_seed.py service, bat readiness polling, FastAPI lifespan startup hook, 431/431 suite)
 
 ## Local Development (Windows)
 
@@ -82,7 +83,10 @@ None
 | `pytest tests/test_bulk_edit_variation.py` | 47/47 PASSED |
 | `pytest tests/test_ai_tools.py` | 32/32 PASSED |
 | `pytest tests/test_csv_tools.py` | 49/49 PASSED |
-| **Full suite `pytest`** | **353/353 PASSED** |
+| `pytest tests/test_dynamic_pricing.py` | 50/50 PASSED |
+| `pytest tests/test_seed_local_superusers.py` | 23/23 PASSED |
+| `pytest tests/test_windows_batch_readiness.py` | 12/12 PASSED |
+| **Full suite `pytest`** | **431/431 PASSED** |
 
 ## Sprint 11 — New Files
 
@@ -158,12 +162,12 @@ All enforced in `apply_bulk_edit_session()` before any write:
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 16 / 18 (incl. Productization UI Sprint + Landing Animation Sprint + Sprint 13 AI Tools + Sprint 14 CSV) |
-| Backend Python files | 115+ |
+| Sprints complete | 17 / 18 (incl. Productization UI, Landing Animation, AI, CSV, DP, local dev) |
+| Backend Python files | 120+ |
 | Frontend TypeScript files | 29 |
-| Total tests | 353 |
+| Total tests | 431 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 15: Dynamic Pricing. See HANDOFF.md for exact prompt.
+Begin Sprint 16: Scheduled Jobs. See HANDOFF.md for exact prompt.
