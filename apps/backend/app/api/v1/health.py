@@ -47,3 +47,21 @@ async def health_redis():
                 "detail": str(exc),
             },
         )
+
+
+@router.get("/ready")
+async def health_ready():
+    """Readiness probe: 200 when DB reachable, 503 otherwise."""
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return {"status": "ready", "database": "connected"}
+    except Exception as exc:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "not_ready",
+                "database": "unreachable",
+                "detail": str(exc),
+            },
+        )

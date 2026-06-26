@@ -3,24 +3,33 @@
 ## Last Session
 
 **Date:** 2026-06-26
-**Task:** Sprint 17.5-B — Customer Theme System + fmcg Neon Liquid Glass Visual Language — COMPLETE
-**Commit:** feat: add customer theme modes and fmcg visual system
+**Task:** Sprint 18 — Security Hardening, Deployment Readiness, Polish — COMPLETE
+**Commit:** chore: Sprint 18 — security hardening, deployment readiness, tests, docs
 
 **What was built:**
-- `apps/frontend/app/globals.css` — Full rewrite: light `.be-*` design system + complete fmcg `[data-theme="dark"]` Tailwind class override block + `.liquid-glass`, `.glow-card`, `.glow-button`, `.glow-button-secondary`, `.glass-panel`, `.sidebar-text-glow` utilities.
-- `apps/frontend/components/theme/ThemeProvider.tsx` — React context: reads `localStorage["bulk-edit-theme"]`, watches `prefers-color-scheme`, applies `data-theme="light"|"dark"` to `document.documentElement`.
-- `apps/frontend/components/theme/ThemeToggle.tsx` — Dropdown with System/Light/Dark options and checkmark on active selection.
-- `apps/frontend/app/layout.tsx` — Anti-flash inline script + `<ThemeProvider>` wrapper, removed hardcoded body classes.
-- `apps/frontend/components/ui/AppShell.tsx` — fmcg-style sidebar + topbar: deep dark bg, neon active item, user email display, logout, ThemeToggle in topbar, mobile hamburger, all 11 nav links with icons.
-- `apps/frontend/app/(app)/layout.tsx` — Route group layout wrapping all app pages with AppShell.
-- **11 app pages migrated** to `app/(app)/`: dashboard, listings, bulk-edit, media, variations, ai, csv, pricing-rules, scheduled, billing, admin, shops. Outer `<div>` wrapper + inline `<nav>` removed from each. Unused `Link`/`useRouter` imports cleaned up.
-- `apps/frontend/components/marketing/MarketingNav.tsx` — Added `<ThemeToggle />`.
+- `apps/backend/app/api/v1/health.py` — added `GET /api/v1/health/ready` readiness probe (DB check, 200 when ready, 503 when not)
+- `apps/backend/tests/test_security_hardening.py` — 45 new security tests covering auth gates, JWT tampering, org isolation, SQL injection, no-secrets-in-responses, path traversal, input validation, stack trace safety
+- `apps/frontend/app/(app)/listings/page.tsx` — fixed mojibake × close buttons (lines 103, 469); added `type="button"` + `aria-label`
+- `apps/frontend/app/(app)/pricing-rules/page.tsx` — fixed mojibake ✕ dismiss button (line 310) + 4 JSX comment lines; added `type="button"` + `aria-label`
+- `docs/operations/ENVIRONMENT.md` — NEW: full environment variable reference
+- `docs/operations/TESTING.md` — full rewrite with current test counts (566), fixtures, security coverage, CI skeleton
+- TASKS.md, PROJECT_STATUS.md, HANDOFF.md, CHANGELOG_AI.md, DECISIONS.md, SECURITY.md updated
 
-**Tests:** 521/521 passed. Build: 22 routes clean.
+**Tests:** 566/566 passed. Build: 22 routes clean.
 
 ## Next Task
 
-**Sprint 18** — to be determined by user.
+**Sprint 19** — CI/CD pipeline, production Docker, rate limiting, CSP headers, Playwright E2E tests.
+
+## Next Prompt
+
+```
+Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
+
+Current state: 566/566 tests passing. Sprints 1-18 all COMPLETE.
+
+Start Sprint 19: CI/CD, Production Docker, Rate Limiting, E2E Tests.
+```
 
 ## Previous Last Session
 

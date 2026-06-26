@@ -100,7 +100,7 @@ function DetailSidebar({ listingId, onClose }: { listingId: string; onClose: () 
       >
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
           <h2 className="text-base font-semibold text-gray-900 truncate">{detail?.title ?? "Listing Detail"}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none ml-4">Ã—</button>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600 text-xl leading-none ml-4">&times;</button>
         </div>
 
         {loading && (
@@ -466,7 +466,7 @@ function ListingsContent() {
             {savedViews.map((v) => (
               <div key={v.name} className="flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 text-xs text-gray-700">
                 <button onClick={() => applyView(v)} className="hover:text-indigo-600">{v.name}</button>
-                <button onClick={() => deleteView(v.name)} className="text-gray-300 hover:text-red-400 ml-1">Ã—</button>
+                <button type="button" onClick={() => deleteView(v.name)} aria-label={`Delete saved view ${v.name}`} className="text-gray-300 hover:text-red-400 ml-1">&times;</button>
               </div>
             ))}
           </div>

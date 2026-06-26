@@ -38,6 +38,28 @@
 
 ---
 
+## Sprint 18 Security Audit Findings (2026-06-26)
+
+### Verified Clean
+- All 11 tested protected endpoints return 401/403 without a valid JWT
+- JWT tampering (corrupted signature) correctly returns 401
+- Superuser gate enforced on all 4 admin endpoints tested (403 for regular users)
+- No `password_hash` in any user response
+- No `access_token_enc` or Etsy tokens in any shop response
+- No Stripe secrets in any billing response
+- Org isolation confirmed: 6 resource types scope correctly to requesting organization
+- SQL injection in `title`, `tag`, `sort_by` query params: returns 422 or empty list, never 500
+- Path traversal and overlong IDs return 404/422, never 500
+- Python stack traces not exposed in error responses
+
+### Known Gaps (Future Sprints)
+- FastAPI `HTTPBearer` returns 403 (not 401) for missing Authorization header — RFC 7235 expects 401 for unauthenticated. Fix: configure `HTTPBearer(auto_error=False)` and raise 401 manually.
+- Rate limiting not implemented — add `slowapi` or reverse-proxy rate limiting in production.
+- CSP headers not configured — add `SecurityMiddleware` or nginx config in Sprint 19.
+- No Sentry DSN configured locally — configure in staging/production.
+
+---
+
 ## Local Superuser Seed Security Rules
 
 1. Real credentials for local demo users go in `apps/backend/.local-superusers.env` only.

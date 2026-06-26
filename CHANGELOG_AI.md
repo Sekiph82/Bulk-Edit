@@ -4,6 +4,23 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-26 Sprint 18 — Security Hardening, Deployment Readiness, Polish
+
+**Skills active:** 20 testing-qa, 08 security, 01 documentation-handoff, 05 frontend-component
+
+**What was done:**
+- `apps/backend/app/api/v1/health.py` — added `GET /api/v1/health/ready` readiness probe (DB check, returns 200/503)
+- `apps/backend/tests/test_security_hardening.py` — 45 new security tests: auth gates (11 endpoints, 401/403 without token), JWT tampering (tampered signature, empty bearer, wrong scheme), superuser gate (4 admin endpoints return 403 for regular users), no-secrets-in-responses (password_hash, stripe_secret, access_token_enc), org isolation (6 resource types), SQL injection in query params (title/tag/sort_by), path traversal, oversized IDs, input validation (XSS email, short password, duplicate email), stack trace safety
+- `apps/frontend/app/(app)/listings/page.tsx` — fixed mojibake × (U+00D7) close button (line 103) and delete-view button (line 469); added `type="button"` and `aria-label` attributes
+- `apps/frontend/app/(app)/pricing-rules/page.tsx` — fixed mojibake ✕ dismiss-error button (line 310) + 4 JSX comment lines with box-drawing chars; added `type="button"` and `aria-label`
+- `docs/operations/ENVIRONMENT.md` — NEW: full environment variable reference (required/optional, secrets rotation, local superuser seed, environment hierarchy)
+- `docs/operations/TESTING.md` — full rewrite: current test counts (566 total), test DB setup, key fixtures, security test coverage summary, CI/CD workflow skeleton
+- All project docs updated: TASKS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md
+
+**Test results:** 566/566 PASSED (521 baseline + 45 new)
+
+---
+
 ## 2026-06-26 Sprint 17.5 — Marketing Polish
 
 **Skills active:** 05 frontend-component, 19 marketing-copy, 01 documentation-handoff

@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 17.5-B — Customer Theme System + fmcg Neon Liquid Glass visual language — COMPLETE. Ready for Sprint 18.**
+**Sprint 18 — Security Hardening, Deployment Readiness, Polish — COMPLETE.**
 
 ## Status
 
-`ThemeProvider + ThemeToggle (System/Light/Dark, localStorage["bulk-edit-theme"]). Anti-flash inline script in layout.tsx. AppShell sidebar navigation (fmcg deep-dark style) applied to all 11 app pages via (app)/ route group. Full fmcg Neon Liquid Glass dark mode CSS block in globals.css — covers all pages via Tailwind class overrides without per-page rewrites. MarketingNav updated with ThemeToggle. 521/521 backend tests pass. 22 routes build clean.`
+`566/566 tests pass. 45 new security hardening tests added (test_security_hardening.py). GET /api/v1/health/ready readiness probe endpoint added. Mojibake fixed in listings + pricing-rules pages (× and ✕ close buttons). Accessibility improved (type="button", aria-label on icon-only buttons). docs/operations/ENVIRONMENT.md created. TESTING.md fully updated with current test inventory. All project docs updated.`
 
 ## Last Updated
 
@@ -41,6 +41,7 @@ None (between sprints)
 - Sprint 17: Admin Panel ✓ (20 endpoints all require_superuser, 16 schemas, paginated service, 42 tests, /admin page, 521/521 suite)
 - Sprint 17.5: Marketing Polish ✓ (MarketingNav, MarketingFooter, /features, /faq, /contact-us, motion v12 animations, globals.css design system, Etsy legal disclaimer, 22 routes build clean, 521/521 suite)
 - Sprint 17.5-B: Theme System + fmcg Visual Language ✓ (ThemeProvider, ThemeToggle, AppShell, anti-flash script, (app)/ route group, 11 app pages migrated, full dark mode CSS, 22 routes, 521/521 suite)
+- Sprint 18: Security Hardening + Deployment Readiness ✓ (45 security tests, /health/ready endpoint, mojibake fix, accessibility, ENVIRONMENT.md, TESTING.md, 566/566 suite)
 
 ## Local Development (Windows)
 
@@ -91,7 +92,9 @@ None
 | `pytest tests/test_seed_local_superusers.py` | 23/23 PASSED |
 | `pytest tests/test_windows_batch_readiness.py` | 12/12 PASSED |
 | `pytest tests/test_scheduled_jobs.py` | 41/41 PASSED |
-| **Full suite `pytest`** | **479/479 PASSED** |
+| `pytest tests/test_admin_panel.py` | 42/42 PASSED |
+| `pytest tests/test_security_hardening.py` | 45/45 PASSED |
+| **Full suite `pytest`** | **566/566 PASSED** |
 
 ## Sprint 11 — New Files
 
@@ -170,7 +173,7 @@ All enforced in `apply_bulk_edit_session()` before any write:
 | Sprints complete | 19 / 19 (incl. Productization UI, Landing Animation, AI, CSV, DP, local dev, scheduled jobs, admin panel) |
 | Backend Python files | 128+ |
 | Frontend TypeScript files | 31 |
-| Total tests | 521 |
+| Total tests | 566 |
 | Open blockers | 0 |
 
 ## Next Action

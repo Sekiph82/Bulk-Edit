@@ -307,11 +307,11 @@ export default function PricingRulesPage() {
       {error && (
         <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700 flex justify-between">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-4 text-red-400 hover:text-red-600">âœ•</button>
+          <button type="button" onClick={() => setError(null)} aria-label="Dismiss error" className="ml-4 text-red-400 hover:text-red-600">&times;</button>
         </div>
       )}
 
-      {/* â”€â”€ SETUP STEP â”€â”€ */}
+      {/* -- SETUP STEP -- */}
       {step === "setup" && (
         <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
 
@@ -559,7 +559,7 @@ export default function PricingRulesPage() {
         </div>
       )}
 
-      {/* â”€â”€ PREVIEW STEP â”€â”€ */}
+      {/* -- PREVIEW STEP -- */}
       {step === "preview" && currentJob && (
         <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
 
@@ -784,7 +784,7 @@ export default function PricingRulesPage() {
         </div>
       )}
 
-      {/* â”€â”€ HISTORY STEP â”€â”€ */}
+      {/* -- HISTORY STEP -- */}
       {step === "history" && (
         <div className="max-w-5xl mx-auto px-6 py-8">
           <h2 className="font-medium text-gray-900 mb-4">Pricing Job History</h2>
@@ -837,7 +837,7 @@ export default function PricingRulesPage() {
         </div>
       )}
 
-      {/* â”€â”€ CONVERT MODAL â”€â”€ */}
+      {/* -- CONVERT MODAL -- */}
       {showConvertModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">

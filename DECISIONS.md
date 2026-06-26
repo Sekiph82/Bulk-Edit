@@ -4,6 +4,19 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-06-26 (Sprint 18)
+
+### [SECURITY] FastAPI HTTPBearer returns 403 (not 401) for missing credentials
+FastAPI's `HTTPBearer` scheme returns HTTP 403 when no Authorization header is present (`auto_error=True` default). This is a known FastAPI behavior — 401 would be more semantically correct per RFC 7235 (Unauthorized = no credentials; Forbidden = credentials present but insufficient). Security tests accept `in (401, 403)` to be accurate. A future sprint can configure `HTTPBearer(auto_error=False)` and raise 401 manually.
+
+### [SECURITY] Security test assertions use `in (401, 403)` for unauthenticated access
+All 11 "no token" security tests assert `status_code in (401, 403)`. Rationale: FastAPI's bearer scheme returns 403 for missing token. Both codes correctly block access — the distinction is semantic. Keeping this as-is avoids modifying auth middleware and risking regressions.
+
+### [TESTING] Org isolation tests assert `r.json() == []` for flat-list endpoints
+`/api/v1/bulk-edit/sessions`, `/api/v1/csv/jobs`, `/api/v1/dynamic-pricing/jobs`, `/api/v1/scheduled-jobs/jobs` all return plain JSON arrays (not paginated `{"total": n, "items": [...]}` objects). Security isolation tests use `== []` assertions for these endpoints.
+
+---
+
 ## 2026-06-26 (Sprint 16)
 
 ### [SPRINT-16] Scheduled jobs never write to Etsy and never auto-apply changes
