@@ -145,33 +145,33 @@ echo.
 echo [STEP 6/7] Starting Docker Desktop...
 
 set "DOCKER_DESKTOP_EXE=C:\Program Files\Docker\Docker\Docker Desktop.exe"
-if exist "%DOCKER_DESKTOP_EXE%" (
-    echo [INFO] Starting Docker Desktop...
-    start "" "%DOCKER_DESKTOP_EXE%"
-) else (
-    echo [WARN] Docker Desktop executable not found at default path.
-    echo [WARN] If Docker is installed elsewhere, start Docker Desktop manually or update this script.
+docker info >nul 2>&1
+if errorlevel 1 (
+    if exist "%DOCKER_DESKTOP_EXE%" (
+        echo [INFO] Starting Docker Desktop...
+        start "" "%DOCKER_DESKTOP_EXE%"
+    ) else (
+        echo [WARN] Docker Desktop not found at default path. Start it manually if needed.
+    )
 )
 
 echo.
-echo [INFO] Waiting for Docker engine...
-set /a DOCKER_WAIT_SECONDS=0
+echo [INFO] Waiting for Docker engine to be ready...
+set /a DOCKER_WAIT=0
 
-:WAIT_FOR_DOCKER
+:WAIT_DOCKER
 docker info >nul 2>&1
 if not errorlevel 1 goto DOCKER_READY
-
-set /a DOCKER_WAIT_SECONDS+=5
-if %DOCKER_WAIT_SECONDS% GEQ 180 goto DOCKER_NOT_READY
-
-echo [INFO] Docker is not ready yet. Waiting 5 seconds... %DOCKER_WAIT_SECONDS%/180
+set /a DOCKER_WAIT+=5
+if %DOCKER_WAIT% GEQ 180 goto DOCKER_TIMEOUT
+echo [INFO] Docker not ready yet... %DOCKER_WAIT%/180s
 timeout /t 5 /nobreak >nul
-goto WAIT_FOR_DOCKER
+goto WAIT_DOCKER
 
-:DOCKER_NOT_READY
+:DOCKER_TIMEOUT
 echo.
-echo [ERROR] Docker Desktop did not become ready within 180 seconds.
-echo Please check Docker Desktop, WSL2, or restart Windows if Docker was just installed.
+echo [ERROR] Docker did not become ready within 180 seconds.
+echo Check Docker Desktop and WSL2. Restart Windows if Docker was just installed.
 echo.
 pause
 exit /b 1
@@ -182,8 +182,7 @@ echo [OK] Docker engine is ready.
 :: Check Docker Compose
 docker compose version >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Docker Compose is not available.
-    echo Please update Docker Desktop.
+    echo [ERROR] Docker Compose not available. Please update Docker Desktop.
     echo.
     pause
     exit /b 1
@@ -205,25 +204,82 @@ echo ============================================================
 echo  Building and starting Bulk-Edit from scratch...
 echo  This may take several minutes.
 echo.
-echo  Your browser will open automatically at:
-echo    http://localhost:3100
-echo.
-echo  Other URLs:
+echo  Other URLs once ready:
 echo    Backend API : http://localhost:8100
 echo    API Docs    : http://localhost:8100/docs
 echo    Health      : http://localhost:8100/api/v1/health
 echo.
-echo  Docker Compose project name: bulk-edit
-echo.
-echo  Press Ctrl+C to stop all services.
+echo  Docker Compose project: bulk-edit
 echo ============================================================
 echo.
 
-start "" cmd /c "timeout /t 12 /nobreak >nul && start http://localhost:3100"
-
-docker compose -p bulk-edit up --build
-
+docker compose -p bulk-edit up -d --build
+if errorlevel 1 (
+    echo [ERROR] docker compose up failed. Check Docker logs above.
+    echo.
+    pause
+    exit /b 1
+)
+echo [OK] Containers started. Running readiness checks...
 echo.
-echo [INFO] Docker stopped. Check logs above for any errors.
+
+:: Wait for backend health endpoint
+echo [INFO] Waiting for backend at http://localhost:8100/api/v1/health
+set /a BACKEND_WAIT=0
+
+:WAIT_BACKEND
+powershell -NoProfile -Command "try { $null = Invoke-WebRequest -Uri 'http://localhost:8100/api/v1/health' -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop; exit 0 } catch { exit 1 }" >nul 2>&1
+if not errorlevel 1 goto BACKEND_READY
+set /a BACKEND_WAIT+=5
+if %BACKEND_WAIT% GEQ 180 goto BACKEND_TIMEOUT
+echo [INFO] Backend not ready yet... %BACKEND_WAIT%/180s
+timeout /t 5 /nobreak >nul
+goto WAIT_BACKEND
+
+:BACKEND_TIMEOUT
+echo.
+echo [ERROR] Backend did not respond within 180 seconds.
+echo Run to see logs: docker compose -p bulk-edit logs backend
+echo.
+pause
+exit /b 1
+
+:BACKEND_READY
+echo [OK] Backend is ready.
+
+:: Wait for frontend
+echo [INFO] Waiting for frontend at http://localhost:3100
+set /a FRONTEND_WAIT=0
+
+:WAIT_FRONTEND
+powershell -NoProfile -Command "try { $null = Invoke-WebRequest -Uri 'http://localhost:3100' -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop; exit 0 } catch { exit 1 }" >nul 2>&1
+if not errorlevel 1 goto FRONTEND_READY
+set /a FRONTEND_WAIT+=5
+if %FRONTEND_WAIT% GEQ 180 goto FRONTEND_TIMEOUT
+echo [INFO] Frontend not ready yet... %FRONTEND_WAIT%/180s
+timeout /t 5 /nobreak >nul
+goto WAIT_FRONTEND
+
+:FRONTEND_TIMEOUT
+echo.
+echo [ERROR] Frontend did not respond within 180 seconds.
+echo Run to see logs: docker compose -p bulk-edit logs frontend
+echo.
+pause
+exit /b 1
+
+:FRONTEND_READY
+echo [OK] Frontend is ready.
+echo.
+
+:: All ready - open browser
+echo [INFO] All services are ready.
+echo [INFO] Opening http://localhost:3100 ...
+start "" "http://localhost:3100"
+echo.
+
+echo [INFO] Docker Compose is running in the background.
+echo [INFO] To see logs: docker compose -p bulk-edit logs -f
+echo [INFO] To stop services: docker compose -p bulk-edit down
 echo.
 pause

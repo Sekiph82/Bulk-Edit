@@ -4,6 +4,26 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-26 Local Dev Reliability — Superuser Seed + Startup Readiness
+
+**Skills active:** 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff
+
+**Completed:**
+- `.gitignore` — added explicit `apps/backend/.local-superusers.env`, `.local-superusers.env`, `*.local-superusers.env` entries
+- `apps/backend/.local-superusers.env.example` — committed example with placeholder values only
+- `apps/backend/app/services/local_seed.py` — async seed service: `load_seed_config`, `seed_superuser`, `run_seed`. Idempotent. No password in output. Reads `.local-superusers.env` from backend root (works both on host and in Docker via volume mount)
+- `apps/backend/scripts/seed_local_superusers.py` — thin CLI wrapper using asyncio.run(). Prints email/org/plan/status only
+- `start-dev.bat` — changed to `-d --build`, added backend health poll + frontend poll (PowerShell Invoke-WebRequest, 5s/180s), optional seed prompt, browser open after readiness, then logs -f
+- `start-dev-clean.bat` — same changes as start-dev.bat
+- `setup-and-start.bat` — changed to `-d --build`, added backend + frontend readiness checks, browser opens after readiness only
+- `setup-and-start-clean.bat` — same changes as setup-and-start.bat
+- `apps/backend/tests/test_seed_local_superusers.py` — 15 tests: missing file error/instructions, config parsing, user/org/member/subscription creation, free plan, pro plan, idempotency, password hashing, no password in output, gitignore coverage
+- `apps/backend/tests/test_windows_batch_readiness.py` — 13 tests: all .bat files exist, ASCII-only, no chcp 65001, no box drawing, docker info before compose, backend health wait present, frontend wait present, browser after readiness, no fixed-delay browser open, project name isolation, no hardcoded credentials, developer scripts have seed prompt
+
+**Tests:** 431/431 suite passing (28 new tests)
+
+---
+
 ## 2026-06-26 Sprint 15 — Dynamic Pricing
 
 **Skills active:** 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff

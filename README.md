@@ -43,13 +43,15 @@ Next: Sprint 2 — Auth + Organization
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - Git
 
-### Docker project isolation and auto-start
+### Docker project isolation and startup readiness
 
 All Windows scripts are plain ASCII-only CMD-safe batch files (no Unicode, no UTF-8, no chcp). They work reliably when double-clicked on any Windows 10/11 system.
 
-Scripts automatically start Docker Desktop if it is closed — no manual action needed. Each script polls `docker info` every 5 seconds (up to 180 seconds) and only proceeds once the Docker engine is ready.
+Scripts automatically start Docker Desktop if it is closed. Each script polls `docker info` every 5 seconds (up to 180 seconds) and only proceeds once the Docker engine is ready.
 
-All scripts force Docker Compose project name to `bulk-edit` via `docker compose -p bulk-edit` to prevent accidentally interfering with other Docker projects (e.g., `fmcg-erp-system-main`). The old ERP project is stopped safely before Bulk-Edit starts.
+After containers start, scripts poll the backend health endpoint (`http://localhost:8100/api/v1/health`) and the frontend (`http://localhost:3100`) before opening the browser. The browser only opens once both services are confirmed ready. If either service fails to respond within 180 seconds, the browser does NOT open and the script prints troubleshooting instructions.
+
+All scripts force Docker Compose project name to `bulk-edit` via `docker compose -p bulk-edit` to prevent accidentally interfering with other Docker projects. The old ERP project is stopped safely before Bulk-Edit starts.
 
 ### One-click Windows setup for a friend
 
@@ -61,11 +63,11 @@ No developer tools required. Your friend just needs Windows 10/11 with `winget` 
 3. The script installs Git and Docker Desktop automatically if missing.
 4. It clones this repository to their Desktop.
 5. It builds and starts all services.
-6. Their browser opens automatically at http://localhost:3100
+6. It waits for backend and frontend to be ready.
+7. Their browser opens automatically at http://localhost:3100
 ```
 
 > **Note:** Docker Desktop may require a Windows restart on first install (WSL2 setup).
-> If the browser does not open, restart the computer and double-click the script again.
 
 Need a full database reset?
 
@@ -80,8 +82,10 @@ Double-click  setup-and-start-clean.bat
 1. Clone the repo and open the folder in Explorer.
 2. Double-click  start-dev.bat
 3. The script checks Docker, creates .env from .env.example if missing,
-   stops any old containers, rebuilds, and streams logs.
-4. Press Ctrl+C in the CMD window to stop all services.
+   stops any old containers, rebuilds services detached, waits for health,
+   optionally runs the local superuser seed, opens the browser, then streams logs.
+4. Press Ctrl+C to stop log streaming (services keep running).
+5. To stop all services: docker compose -p bulk-edit down
 ```
 
 Need a full reset (wipes local database)?
@@ -90,6 +94,33 @@ Need a full reset (wipes local database)?
 Double-click  start-dev-clean.bat
 (Asks for confirmation before deleting volumes.)
 ```
+
+### Local Demo Superusers (optional, gitignored)
+
+To seed local demo accounts without any Stripe setup:
+
+```
+1. Copy:  apps/backend/.local-superusers.env.example
+      to: apps/backend/.local-superusers.env
+
+2. Edit apps/backend/.local-superusers.env with your local-only credentials.
+   This file is gitignored and never committed.
+
+3. Start services (start-dev.bat or docker compose up).
+
+4. Run the seed (inside the Docker backend container):
+   docker compose exec backend python scripts/seed_local_superusers.py
+
+   Or when prompted by start-dev.bat after services are ready: type Y.
+
+5. Login at http://localhost:3100 with the email/password from your local file.
+```
+
+Two demo users are created:
+- Free plan superuser (plan: free, all free-tier gates apply)
+- Paid/Pro plan superuser (plan: pro_monthly, all paid features unlocked including AI Tools and Dynamic Pricing)
+
+The seed is idempotent — safe to run multiple times. Passwords are never printed or logged.
 
 ### Run with Docker Compose (manual / Mac / Linux)
 

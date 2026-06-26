@@ -4,6 +4,22 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-06-26 (Local Dev Reliability)
+
+### [LOCAL-DEV] Seed script runs via docker compose exec, not on host
+The seed script (scripts/seed_local_superusers.py) runs inside the Docker backend container via `docker compose exec backend python scripts/seed_local_superusers.py`. The backend volume mount (./apps/backend:/app) makes the script and the .local-superusers.env file available inside the container. The container's DATABASE_URL env var already points to the internal postgres service. No host Python installation required.
+
+### [LOCAL-DEV] Subscription status is "active" not "free" for all seeded users
+Existing code creates subscriptions with status="free" as default. Seeded users always get status="active" so plan gates read correctly. The billing service uses subscription.plan (not status) for feature checks, so this is cosmetically correct.
+
+### [LOCAL-DEV] .bat scripts now run docker compose -d then poll health before browser open
+Previously scripts ran `docker compose up --build` (foreground) and opened browser after a fixed 12-second delay. Changed to: run `-d --build` (detached), poll backend health and frontend via PowerShell Invoke-WebRequest (5s intervals, 180s timeout), then open browser. Browser never opens if either service fails readiness. Ctrl+C stops log streaming, not the services.
+
+### [LOCAL-DEV] setup-and-start scripts do not include seed prompt
+Seed prompt added only to start-dev.bat and start-dev-clean.bat (developer scripts). setup-and-start.bat and setup-and-start-clean.bat are friend/reviewer scripts — they don't have .local-superusers.env or Python access expectations, so seed prompt is excluded to keep the experience simple.
+
+---
+
 ## 2026-06-26 (Sprint 15)
 
 ### [SPRINT-15] Dynamic Pricing converts to BulkEditSession draft, never writes Etsy

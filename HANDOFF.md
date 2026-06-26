@@ -3,6 +3,12 @@
 ## Last Session
 
 **Date:** 2026-06-26
+**Task:** Local Dev Reliability — Superuser Seed + Startup Readiness — COMPLETE
+**Completed:** .gitignore updated. .local-superusers.env.example created. local_seed.py service (async, idempotent, no password output). scripts/seed_local_superusers.py thin CLI wrapper. All 4 .bat files updated: run compose -d, poll backend health (8100/api/v1/health) + frontend (3100) via PowerShell Invoke-WebRequest before opening browser. start-dev.bat + start-dev-clean.bat have optional seed prompt. 28 new tests (seed + bat readiness). 431/431 full suite.
+
+## Previous Session
+
+**Date:** 2026-06-26
 **Sprint:** Sprint 15 — Dynamic Pricing — COMPLETE
 **Completed:** DynamicPricingJob + DynamicPricingRecommendation models (alembic 0012). dynamic_pricing_jobs_used on UsageCounter. Pro plan gate (can_use_dynamic_pricing, 100 jobs/month). Full calculation engine: percentage_adjustment, fixed_amount_adjustment, set_price, reference_price. Safety guardrails: margin floor (Decimal math), price floor, price cap, rounding (ending_99/95/nearest_50/nearest_100). accept/reject/accept-all/convert endpoints. Convert creates BulkEditSession draft + scoped BulkEditChange (target_listing_ids=[listing_id]) — NEVER writes to Etsy. 50 tests. /pricing-rules page (listing selector, rule builder, guardrails, preview table with per-row accept/reject, convert modal with "CONVERT PRICES" confirmation). Dashboard DP card. 403/403 full suite passing. Build: 16 routes, zero errors.
 

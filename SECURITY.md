@@ -38,6 +38,18 @@
 
 ---
 
+## Local Superuser Seed Security Rules
+
+1. Real credentials for local demo users go in `apps/backend/.local-superusers.env` only.
+2. That file is gitignored (`*.env` pattern + explicit paths) and must never be committed.
+3. The example file `apps/backend/.local-superusers.env.example` contains fake placeholder values only.
+4. The seed script never prints passwords and never logs secrets.
+5. No Stripe calls are made — subscription records are created directly in DB (local dev only).
+6. Seeded users are marked `is_superuser=True` for local dev access only.
+7. Do not use the same credentials in any other environment.
+
+---
+
 ## Security Findings Log
 
 | Date | Severity | Finding | Status |

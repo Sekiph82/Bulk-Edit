@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 15: Dynamic Pricing — COMPLETE**
+**Local Dev Reliability — Superuser Seed + Startup Readiness — COMPLETE**
 
 ## Status
 
-`Dynamic Pricing live (/pricing-rules). Rules-based price recommendations with safety guardrails. 50 DP tests, 403 total pass. Conversion creates BulkEditSession draft only — NEVER writes to Etsy. Sprint 16 is next.`
+`Local demo superuser seed added (gitignored .local-superusers.env, seed script, 28 new tests). All 4 .bat startup scripts now poll backend health + frontend before opening browser — no more fixed-delay race conditions. 431/431 total tests pass. Sprint 16 (Scheduled Jobs) is next.`
 
 ## Last Updated
 

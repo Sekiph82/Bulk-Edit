@@ -4,6 +4,11 @@
 .env.*.local
 *.env
 
+# Local superuser seed (never commit real credentials)
+apps/backend/.local-superusers.env
+.local-superusers.env
+*.local-superusers.env
+
 # Python
 __pycache__/
 *.py[cod]
