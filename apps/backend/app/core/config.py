@@ -37,6 +37,22 @@ class Settings(BaseSettings):
     ETSY_REDIRECT_URI: str = "http://localhost:8100/api/v1/etsy/callback"
     ETSY_SCOPES: str = "listings_r listings_w shops_r profile_r"
 
+    # AI providers
+    AI_PROVIDER: str = "mock"  # "mock" | "openai" | "anthropic"
+    OPENAI_API_KEY: str = "openai_api_key_placeholder"
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    ANTHROPIC_API_KEY: str = "anthropic_api_key_placeholder"
+    ANTHROPIC_MODEL: str = "claude-3-5-haiku-latest"
+    AI_REQUEST_TIMEOUT_SECONDS: int = 30
+
+    def is_openai_configured(self) -> bool:
+        key = self.OPENAI_API_KEY
+        return bool(key) and "placeholder" not in key.lower() and key.startswith("sk-")
+
+    def is_anthropic_configured(self) -> bool:
+        key = self.ANTHROPIC_API_KEY
+        return bool(key) and "placeholder" not in key.lower() and key.startswith("sk-ant-")
+
     def is_etsy_configured(self) -> bool:
         cid = self.ETSY_CLIENT_ID
         return bool(cid) and "placeholder" not in cid.lower() and cid != "REPLACE_ME"

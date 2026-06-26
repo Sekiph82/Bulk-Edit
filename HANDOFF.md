@@ -3,13 +3,13 @@
 ## Last Session
 
 **Date:** 2026-06-26
-**Sprint:** Landing Animation Sprint — AnimatedProductDemo — COMPLETE
+**Sprint:** Sprint 13 — AI Tools — COMPLETE
 **Completed:** Installed `motion` v12. Created `AnimatedProductDemo.tsx` (5-phase animation: idle → select → edit panel → preview → safety strip; easeOut only; reduced-motion support; aria-hidden; zero API calls). Rewrote `app/page.tsx` with 2-column hero layout (headline+CTAs+trust strip left, demo right), workflow strip below. Updated DESIGN.md motion rules. Updated design-system/pages/home.md. Lint clean, build 14 routes zero errors. Committed and pushed.
 
 ## Previous Session
 
 **Date:** 2026-06-26
-**Sprint:** Productization UI Sprint — Apply Design System — COMPLETE
+**Sprint:** Landing Animation Sprint — AnimatedProductDemo — COMPLETE
 **Completed:** npm install + full build baseline. Fixed tsconfig target (ES2017). Fixed billing/page.tsx Suspense wrapper. Removed emoji from empty states across shops/listings. Removed sprint labels from media operation labels. Replaced emoji check/cross in pricing with SVG. Added loading="lazy" to all thumbnail imgs. Added focus rings to all buttons across all 9 pages. Human-readable op labels in variations job history and media confirm modal. Build: 14 routes, zero errors. Committed and pushed.
 
 ## Current State
@@ -73,39 +73,40 @@ Never construct variation tree from local data alone. Always:
 
 ## Current State
 
-**Frontend additions (Landing Animation Sprint):**
-- `apps/frontend/components/AnimatedProductDemo.tsx` — 5-phase mock product demo, `motion` v12
-- `apps/frontend/app/page.tsx` — 2-column hero, workflow strip, new headline+CTAs
-- `apps/frontend/tsconfig.json` — `target: ES2017` (from prior sprint)
-- `motion` v12 added to dependencies
-
-**Animation phases:**
-0. Grid idle (1.2s)
-1. 3 rows selected, indigo highlight (2.2s)
-2. Edit panel slides in — append title, add tag, +10% price (2.8s)
-3. Preview panel — before/after rows, amber (2.8s)
-4. Safety strip — backup snapshot + magic revert + apply button (4.0s)
-Then loops to 0. If `prefers-reduced-motion`: static phase 4, no loop.
+**Sprint 13 additions (AI Tools):**
+- `apps/backend/app/services/ai_provider.py` — MockProvider/OpenAIProvider/AnthropicProvider; default=mock
+- `apps/backend/app/services/ai_prompts.py` — 5 prompt builders
+- `apps/backend/app/models/ai_session.py`, `ai_suggestion.py`, `ai_usage_log.py` — 3 new models
+- `apps/backend/alembic/versions/0010_create_ai_tools_tables.py` — migration
+- `apps/backend/app/schemas/ai.py` — 6 schemas
+- `apps/backend/app/services/ai_tools.py` — full service layer
+- `apps/backend/app/api/v1/ai.py` — 9 endpoints
+- `apps/backend/tests/test_ai_tools.py` — 32 tests (all mocked)
+- `apps/frontend/lib/api.ts` — AI types + 9 helpers
+- `apps/frontend/app/ai/page.tsx` — full AI tools page
+- `apps/frontend/app/dashboard/page.tsx` — AI Optimizer card
+- Full suite: 304/304 PASSED; build: 15 routes, zero errors
 
 ## Next Task
 
-**Sprint 13: AI Tools**
+**Sprint 14: CSV Import / Export**
 
-Implement AI-powered listing optimizations using OpenAI GPT-4o and/or Anthropic Claude.
+Implement CSV export of listings and CSV import with validation, preview, and bulk-apply.
 
 Context:
-- Listing model has `title`, `description`, `tags`, `materials`, `taxonomy_id` — all candidate AI fields
-- ListingImage has `alt_text` — candidate for AI alt text
-- AI output must NEVER be applied directly to Etsy — preview + user approval required
-- Feature gate: AI tools are a paid feature (Pro plan minimum)
-- No new Etsy writes in this sprint — just generate suggestions and store them for user review
+- Existing Listing model has all fields needed for CSV columns
+- Export: SELECT listings → stream CSV (title, description, tags, price, quantity, state, sku, etc.)
+- Import: upload CSV → validate rows → show diff preview → user confirms → create BulkEditSession
+- No direct Etsy writes in this sprint — import creates a BulkEditSession for user to apply
+- CSVJob model tracks import jobs (uploaded, validated, preview_ready, applied)
 
 Implement:
-- AI service (app/services/ai_tools.py) using OpenAI + Anthropic clients
-- Endpoints: POST /api/v1/ai/title, /api/v1/ai/description, /api/v1/ai/tags, /api/v1/ai/alt-text, /api/v1/ai/seo-score
-- AI suggestions stored in AISession model (org-scoped, listing_id, field, suggestion, accepted_at)
-- Frontend: AI tools panel showing suggestions with Accept / Reject per field
-- All AI calls mocked in tests (no real API calls in CI)
+- CSVJob model + Alembic migration 0011
+- Export endpoint: GET /api/v1/csv/export?shop_id=... → streams CSV file
+- Import endpoint: POST /api/v1/csv/import (multipart upload) → validates + creates CSVJob
+- Preview endpoint: GET /api/v1/csv/jobs/{id}/preview → diff view
+- Convert endpoint: POST /api/v1/csv/jobs/{id}/convert → creates BulkEditSession
+- Frontend: /csv page with export button + CSV upload + diff table + convert button
 - 20+ tests
 
 ## Next Prompt
@@ -113,11 +114,11 @@ Implement:
 ```
 Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
 
-Start Sprint 13: AI Tools — implement AI-powered listing title, description, tag, alt-text optimization using OpenAI/Anthropic. AI output must be previewed and user-approved before applying. Feature-gated to Pro plan. All AI calls mocked in tests. No direct Etsy writes in this sprint.
+Start Sprint 14: CSV Import/Export — implement CSV export of listings and CSV import with validation, preview, and conversion to BulkEditSession. No direct Etsy writes in this sprint.
 
-Backend: AISession model, /api/v1/ai/* endpoints, app/services/ai_tools.py.
-Frontend: AI tools panel with Accept/Reject per suggestion.
-Tests: 20+ tests with mocked AI calls.
+Backend: CSVJob model, /api/v1/csv/* endpoints, export + import + preview + convert.
+Frontend: /csv page with export + upload + diff preview + convert.
+Tests: 20+ tests.
 
 Active skills: 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff.
 ```

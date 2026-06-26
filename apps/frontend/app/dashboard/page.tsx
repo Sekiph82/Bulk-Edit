@@ -12,6 +12,7 @@ const activeFeatures = [
   { title: "Bulk Edit", description: "Edit titles, tags, prices, and more across listings", href: "/bulk-edit" },
   { title: "Media Editor", description: "Add, replace, and delete listing photos", href: "/media" },
   { title: "Variation Editor", description: "Bulk edit prices, quantities, and SKUs for variation listings", href: "/variations" },
+  { title: "AI Optimizer", description: "AI-powered title, description, tag, and alt text suggestions", href: "/ai" },
   { title: "Pricing", description: "View plans and feature limits", href: "/pricing" },
   { title: "Billing", description: "Manage your subscription", href: "/billing" },
 ];

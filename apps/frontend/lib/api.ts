@@ -716,3 +716,108 @@ export function getVariationResults(
 export function getVariationBackups(jobId: string): Promise<VariationBackupSnapshot[]> {
   return apiFetch(`/api/v1/bulk-edit/variations/jobs/${jobId}/backups`);
 }
+
+// ---- AI Tools Types ----
+
+export interface AISuggestion {
+  id: string;
+  organization_id: string;
+  ai_session_id: string;
+  listing_id: string | null;
+  field: string;
+  suggested_value: unknown;
+  reasoning: string | null;
+  status: string;
+  accepted_at: string | null;
+  rejected_at: string | null;
+  converted_to_session_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AISession {
+  id: string;
+  organization_id: string;
+  created_by_user_id: string | null;
+  listing_id: string | null;
+  tool: string;
+  status: string;
+  input_payload: Record<string, unknown>;
+  ai_provider: string | null;
+  ai_model: string | null;
+  error_message: string | null;
+  suggestion_count: number;
+  suggestions: AISuggestion[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AISessionPage {
+  items: AISession[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface AIUsage {
+  ai_credits_used: number;
+  ai_credits_limit: number;
+  period_key: string;
+}
+
+export interface ConvertResult {
+  bulk_edit_session_id: string;
+  message: string;
+}
+
+// ---- AI Tools API helpers ----
+
+export function createAISession(
+  listingId: string,
+  tool: string,
+  extraContext: Record<string, unknown> = {},
+): Promise<AISession> {
+  return apiFetch("/api/v1/ai/sessions", {
+    method: "POST",
+    body: JSON.stringify({ listing_id: listingId, tool, extra_context: extraContext }),
+  });
+}
+
+export function listAISessions(
+  params: { listing_id?: string; tool?: string; page?: number; page_size?: number } = {},
+): Promise<AISessionPage> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) qs.set(k, String(v));
+  }
+  const q = qs.toString();
+  return apiFetch(`/api/v1/ai/sessions${q ? `?${q}` : ""}`);
+}
+
+export function getAISession(sessionId: string): Promise<AISession> {
+  return apiFetch(`/api/v1/ai/sessions/${sessionId}`);
+}
+
+export function runAISession(sessionId: string): Promise<AISession> {
+  return apiFetch(`/api/v1/ai/sessions/${sessionId}/run`, { method: "POST" });
+}
+
+export function getAISuggestions(sessionId: string): Promise<AISuggestion[]> {
+  return apiFetch(`/api/v1/ai/sessions/${sessionId}/suggestions`);
+}
+
+export function acceptSuggestion(suggestionId: string): Promise<AISuggestion> {
+  return apiFetch(`/api/v1/ai/suggestions/${suggestionId}/accept`, { method: "POST" });
+}
+
+export function rejectSuggestion(suggestionId: string): Promise<AISuggestion> {
+  return apiFetch(`/api/v1/ai/suggestions/${suggestionId}/reject`, { method: "POST" });
+}
+
+export function convertAISession(sessionId: string): Promise<ConvertResult> {
+  return apiFetch(`/api/v1/ai/sessions/${sessionId}/convert`, { method: "POST" });
+}
+
+export function getAIUsage(): Promise<AIUsage> {
+  return apiFetch("/api/v1/ai/usage");
+}

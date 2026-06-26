@@ -30,3 +30,6 @@ from app.models.bulk_edit_variation_job import BulkEditVariationJob
 from app.models.bulk_edit_variation_preview_item import BulkEditVariationPreviewItem
 from app.models.bulk_edit_variation_result import BulkEditVariationResult
 from app.models.listing_variation_backup_snapshot import ListingVariationBackupSnapshot
+from app.models.ai_session import AISession
+from app.models.ai_suggestion import AISuggestion
+from app.models.ai_usage_log import AIUsageLog

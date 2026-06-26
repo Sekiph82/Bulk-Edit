@@ -4,6 +4,34 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-26 Sprint 13 — AI Tools
+
+**Skills active:** 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff
+
+**Completed:**
+- `app/services/ai_provider.py` — MockProvider / OpenAIProvider / AnthropicProvider abstraction; `get_provider()` factory reads `AI_PROVIDER` env var; default = mock; no real API calls in CI
+- `app/services/ai_prompts.py` — 5 prompt builders (title, description, tags, alt_text, seo_score)
+- `app/models/ai_session.py`, `ai_suggestion.py`, `ai_usage_log.py` — 3 new models
+- `alembic/versions/0010_create_ai_tools_tables.py` — migration for 3 tables
+- `app/schemas/ai.py` — AISessionCreate, AISessionOut, AISuggestionOut, AISessionPageOut, AIUsageOut, ConvertToSessionOut
+- `app/services/ai_tools.py` — full service layer: create_ai_session, run_ai_session, accept/reject, convert_to_bulk_edit (creates BulkEditSession+BulkEditChange — AI never writes to Etsy), get_ai_usage; billing gate: paid plan required before any AI run
+- `app/api/v1/ai.py` — 9 endpoints under /api/v1/ai
+- `app/api/v1/router.py` — ai_router added
+- `app/core/config.py` — 6 new env vars: AI_PROVIDER, OPENAI_API_KEY, OPENAI_MODEL, ANTHROPIC_API_KEY, ANTHROPIC_MODEL, AI_REQUEST_TIMEOUT_SECONDS
+- `requirements.txt` — added openai==1.57.0, anthropic==0.40.0
+- `apps/frontend/lib/api.ts` — AI types + 9 helpers
+- `apps/frontend/app/ai/page.tsx` — full AI tools page: usage card, listing selector, tool picker, suggestions panel with accept/reject, convert to bulk edit, session history
+- `apps/frontend/app/dashboard/page.tsx` — AI Optimizer card added
+- `tests/test_ai_tools.py` — 32 tests, all mocked
+- Full suite: 304/304 PASSED; build: 15 routes, zero errors
+
+**Key decisions:**
+- AI billing gate requires paid plan (not just non-zero credits) — sprint spec: "Pro plan minimum"
+- Convert-to-bulk-edit creates BulkEditSession with status=draft; user must still run existing bulk edit preview + apply flow
+- seo_score tool: accept/reject not surfaced (read-only scoring tool)
+
+---
+
 ## 2026-06-26 Landing Animation Sprint — AnimatedProductDemo
 
 **Skills active:** 08 frontend-ui, 24 ux-polish
