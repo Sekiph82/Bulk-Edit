@@ -766,3 +766,37 @@ Frontend:
 **Blockers:** None
 
 **Next:** Sprint 9 — Magic Revert (revert apply jobs using ListingBackupSnapshot records)
+
+---
+
+## Session 2026-06-26 — Sprint 17: Admin Panel
+
+**Status:** COMPLETE
+
+**New files:**
+- `apps/backend/app/schemas/admin.py` — 16 Pydantic schemas. Secrets redacted: no password_hash, no Etsy tokens, no Stripe secret keys.
+- `apps/backend/app/services/admin.py` — generic paginator + 14 list queries + 4 safe actions (disable/enable user, pause/resume scheduled job).
+- `apps/backend/app/api/v1/admin.py` — 20 endpoints all gated on `require_superuser`.
+- `apps/backend/tests/test_admin_panel.py` — 42 tests.
+- `apps/frontend/app/admin/page.tsx` — full admin UI with overview cards, 6 section tabs, pagination, and inline actions.
+
+**Modified files:**
+- `apps/backend/app/api/v1/router.py` — registered admin router.
+- `apps/frontend/lib/api.ts` — appended admin types + 11 API helpers.
+- `apps/frontend/app/dashboard/page.tsx` — added "Admin Panel" card.
+
+**Test results:** 521/521 PASSED (42 new admin tests)
+
+**Frontend build:** Clean, /admin route included
+
+**Security gates verified:**
+- All 20 endpoints require is_superuser=True → 403 for regular users
+- No password_hash in any response
+- No Etsy access_token/refresh_token in shop responses
+- No stripe_subscription_id or stripe_price_id in subscription responses
+- Cannot disable own account (400)
+- No destructive deletes
+
+**Blockers:** None
+
+**Next:** Sprint 18 — Tests, Deployment, Security Hardening, Polish

@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 16 — Scheduled Jobs — COMPLETE. Ready for Sprint 17.**
+**Sprint 17 — Admin Panel — COMPLETE. Ready for Sprint 18.**
 
 ## Status
 
-`ScheduledJob + ScheduledJobRun models. Migration 0013. 5 job types (etsy_sync, bulk_edit_draft, dynamic_pricing_preview, csv_export_snapshot). Schedule calculator with timezone support. 11 API endpoints. /scheduled page. Plan gates (free=0, basic=3, pro=25). 41 new tests. 479/479 total. Docker clean startup verified. Sprint 17 (Admin Panel) is next.`
+`20 admin endpoints under /api/v1/admin, all gated on require_superuser. 16 admin schemas (zero secrets). Paginated queries for 14 entity types. Safe actions: disable/enable user, pause/resume scheduled job. 42 new tests. 521/521 total. Frontend /admin page with overview cards, 6 sections, pagination. Build clean. Sprint 18 (Tests, Deployment, Security) is next.`
 
 ## Last Updated
 
@@ -38,6 +38,7 @@ None (between sprints)
 - Sprint 15: Dynamic Pricing ✓ (DynamicPricingJob + DynamicPricingRecommendation models, 10 endpoints, 50 tests, /pricing-rules page, 403/403 suite)
 - Local Dev Reliability ✓ (gitignored seed config, local_seed.py service, bat readiness polling, FastAPI lifespan startup hook, 431/431 suite)
 - Sprint 16: Scheduled Jobs ✓ (ScheduledJob + ScheduledJobRun models, migration 0013, schedule calculator, 11 API endpoints, plan gates, /scheduled page, 41 tests, 479/479 suite)
+- Sprint 17: Admin Panel ✓ (20 endpoints all require_superuser, 16 schemas, paginated service, 42 tests, /admin page, 521/521 suite)
 
 ## Local Development (Windows)
 
@@ -164,12 +165,12 @@ All enforced in `apply_bulk_edit_session()` before any write:
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 18 / 18 (incl. Productization UI, Landing Animation, AI, CSV, DP, local dev, scheduled jobs) |
-| Backend Python files | 125+ |
-| Frontend TypeScript files | 30 |
-| Total tests | 479 |
+| Sprints complete | 19 / 19 (incl. Productization UI, Landing Animation, AI, CSV, DP, local dev, scheduled jobs, admin panel) |
+| Backend Python files | 128+ |
+| Frontend TypeScript files | 31 |
+| Total tests | 521 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 17: Admin Panel. See HANDOFF.md for exact prompt.
+Begin Sprint 18: Tests, Deployment, Security Hardening. See HANDOFF.md for exact prompt.

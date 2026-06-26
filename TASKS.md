@@ -444,15 +444,19 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 17: Admin Panel
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Build admin user management page
-- [ ] Build admin subscription management page
-- [ ] Build admin audit log viewer
-- [ ] Build admin system health page
-- [ ] Add admin-only API routes with role gate
-- [ ] Write admin tests
-- [ ] Commit and push
+- [x] `app/schemas/admin.py` — 16 schemas, no secrets (no password_hash, no Etsy tokens, no Stripe secrets)
+- [x] `app/services/admin.py` — paginated queries for all 14 entity types + 4 safe actions
+- [x] `app/api/v1/admin.py` — 20 endpoints all gated on `require_superuser`
+- [x] Router registered in `app/api/v1/router.py`
+- [x] `tests/test_admin_panel.py` — 42 tests (auth gates, security, pagination, actions, not-found)
+- [x] `apps/frontend/lib/api.ts` — admin types + 11 API helpers appended
+- [x] `apps/frontend/app/admin/page.tsx` — full admin UI (overview cards, 6 sections, pagination, actions)
+- [x] Dashboard card added for Admin Panel
+- [x] 521/521 total tests passing
+- [x] Frontend build clean, `/admin` route included
+- [x] Commit and push
 
 ---
 

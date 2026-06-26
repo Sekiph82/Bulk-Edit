@@ -3,8 +3,27 @@
 ## Last Session
 
 **Date:** 2026-06-26
-**Task:** Fix Docker startup — migration FK type mismatch + bcrypt compat — COMPLETE
-**Commit:** `34ac4d2` — `fix: repair local docker startup and migration type mismatches`
+**Task:** Sprint 17 — Admin Panel — COMPLETE
+**Commit:** (pending push)
+
+**What was built:**
+- `app/schemas/admin.py` — 16 Pydantic schemas. No password_hash, no Etsy tokens, no Stripe secret keys, no raw billing event payload.
+- `app/services/admin.py` — `_paginate()` generic helper + 14 list functions + 4 safe action functions (disable/enable user, pause/resume job).
+- `app/api/v1/admin.py` — 20 endpoints all gated on `require_superuser` from deps.py. Prefix: `/api/v1/admin`.
+- Router registered in `app/api/v1/router.py`.
+- `tests/test_admin_panel.py` — 42 tests: auth gates, 403 for non-superuser, no secrets in responses, pagination, user disable/enable, job pause/resume, not-found handling.
+- `apps/frontend/lib/api.ts` — admin types + 11 API helpers appended at end.
+- `apps/frontend/app/admin/page.tsx` — admin UI: 8 overview cards, 6 section tabs (users, orgs, subs, shops, scheduled jobs, events), paginated tables, inline disable/enable and pause/resume actions, 403 handled cleanly.
+- Dashboard card added: "Admin Panel" → /admin.
+- 521/521 tests pass. Build clean.
+
+**Security verified:**
+- All endpoints → 403 without superuser role
+- No password_hash in any user response
+- No Etsy access_token/refresh_token in any shop response
+- No stripe_subscription_id or stripe_price_id in any subscription response
+- No destructive delete operations
+- Cannot disable own account (400)
 
 **Root Cause:**
 1. Sprint migrations 0008-0012 originally used `postgresql.UUID`/`sa.UUID` for FK columns while parent tables (`organizations`, `users`, `listings`, etc.) have `VARCHAR(36)` IDs (from migration 0001+). PostgreSQL rejects FK constraints across incompatible types.
@@ -129,18 +148,18 @@
 
 ## Next Task
 
-**Sprint 16: Scheduled Jobs**
+**Sprint 18: Tests, Deployment, Security Hardening, Polish**
 
-Implement Celery Beat scheduler for recurring listing sync and periodic bulk edits.
+CI/CD pipeline, production Docker config, OWASP security audit, >80% backend test coverage, accessibility.
 
 ## Next Prompt
 
 ```
 Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
 
-Current state: 431/431 tests passing. Sprints 1-15 + local dev reliability all COMPLETE.
+Current state: 521/521 tests passing. Sprints 1-17 all COMPLETE.
 
-Start Sprint 16 per TASKS.md.
+Start Sprint 18 per TASKS.md.
 ```
 
 ## Known Issues

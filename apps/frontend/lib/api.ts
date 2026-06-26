@@ -1207,3 +1207,150 @@ export function getAllRuns(): Promise<ScheduledJobRun[]> {
 export function runDueJobs(): Promise<RunDueResponse> {
   return apiFetch(`${SJ}/run-due`, { method: "POST" });
 }
+
+// ── Admin Panel ───────────────────────────────────────────────────────────────
+
+export interface AdminPage<T> {
+  items: T[];
+  page: number;
+  page_size: number;
+  total: number;
+}
+
+export interface AdminOverview {
+  total_users: number;
+  total_organizations: number;
+  active_subscriptions: number;
+  paid_subscriptions: number;
+  total_listings: number;
+  total_scheduled_jobs: number;
+  total_ai_sessions: number;
+  total_csv_jobs: number;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  full_name: string | null;
+  is_active: boolean;
+  is_verified: boolean;
+  is_superuser: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminOrganization {
+  id: string;
+  name: string;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminOrganizationDetail extends AdminOrganization {
+  subscription: AdminSubscription | null;
+  shop_count: number;
+  listing_count: number;
+}
+
+export interface AdminSubscription {
+  id: string;
+  organization_id: string;
+  plan: string;
+  status: string;
+  stripe_customer_id: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminShop {
+  id: string;
+  organization_id: string;
+  etsy_shop_id: string;
+  shop_name: string;
+  is_connected: boolean;
+  last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminScheduledJobSummary {
+  id: string;
+  organization_id: string;
+  name: string;
+  job_type: string;
+  status: string;
+  schedule_type: string;
+  timezone: string;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  run_count: number;
+  failure_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminAuditEvent {
+  id: string;
+  organization_id: string;
+  user_id: string | null;
+  event_type: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  message: string | null;
+  created_at: string;
+}
+
+export interface AdminActionResult {
+  ok: boolean;
+  message: string;
+}
+
+const ADM = "/api/v1/admin";
+
+export function adminGetOverview(): Promise<AdminOverview> {
+  return apiFetch(`${ADM}/overview`);
+}
+
+export function adminListUsers(page = 1, page_size = 25): Promise<AdminPage<AdminUser>> {
+  return apiFetch(`${ADM}/users?page=${page}&page_size=${page_size}`);
+}
+
+export function adminListOrganizations(page = 1, page_size = 25): Promise<AdminPage<AdminOrganization>> {
+  return apiFetch(`${ADM}/organizations?page=${page}&page_size=${page_size}`);
+}
+
+export function adminListSubscriptions(page = 1, page_size = 25): Promise<AdminPage<AdminSubscription>> {
+  return apiFetch(`${ADM}/subscriptions?page=${page}&page_size=${page_size}`);
+}
+
+export function adminListShops(page = 1, page_size = 25): Promise<AdminPage<AdminShop>> {
+  return apiFetch(`${ADM}/shops?page=${page}&page_size=${page_size}`);
+}
+
+export function adminListScheduledJobs(page = 1, page_size = 25): Promise<AdminPage<AdminScheduledJobSummary>> {
+  return apiFetch(`${ADM}/scheduled-jobs?page=${page}&page_size=${page_size}`);
+}
+
+export function adminListEvents(page = 1, page_size = 25): Promise<AdminPage<AdminAuditEvent>> {
+  return apiFetch(`${ADM}/events?page=${page}&page_size=${page_size}`);
+}
+
+export function adminDisableUser(userId: string): Promise<AdminActionResult> {
+  return apiFetch(`${ADM}/users/${userId}/disable`, { method: "POST" });
+}
+
+export function adminEnableUser(userId: string): Promise<AdminActionResult> {
+  return apiFetch(`${ADM}/users/${userId}/enable`, { method: "POST" });
+}
+
+export function adminPauseScheduledJob(jobId: string): Promise<AdminActionResult> {
+  return apiFetch(`${ADM}/scheduled-jobs/${jobId}/pause`, { method: "POST" });
+}
+
+export function adminResumeScheduledJob(jobId: string): Promise<AdminActionResult> {
+  return apiFetch(`${ADM}/scheduled-jobs/${jobId}/resume`, { method: "POST" });
+}
