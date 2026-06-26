@@ -3,8 +3,21 @@
 ## Last Session
 
 **Date:** 2026-06-26
-**Task:** Sprint 17 — Admin Panel — COMPLETE
+**Task:** Sprint 17.5 — Marketing Website, FAQ, Contact, Footer Disclaimer, Theme Polish — COMPLETE
 **Commit:** (pending push)
+
+**What was built:**
+- `apps/frontend/app/globals.css` — `.be-btn-primary`, `.be-btn-secondary`, `.be-card`, `.be-contact-card`, `.be-faq-item`, `.be-faq-trigger`, `.be-hero-bg`, `.be-section-accent`, `.be-icon-ring`, `.be-step`. Gradient buttons, hover-lift cards, reduced-motion guard.
+- `apps/frontend/components/marketing/MarketingNav.tsx` — sticky nav with active link highlighting, mobile-safe, links to /features /faq /contact-us /pricing.
+- `apps/frontend/components/marketing/MarketingFooter.tsx` — 4-col footer, legal Etsy disclaimer.
+- `apps/frontend/app/features/page.tsx` — 11-feature grid, 6-step workflow, safety checklist, CTA, animated listing preview visual.
+- `apps/frontend/app/faq/page.tsx` — animated accordion, 6 categories (General, Etsy Connection, Safety, Billing, AI Tools, CSV & Dynamic Pricing), 17 Q&As.
+- `apps/frontend/app/contact-us/page.tsx` — 4 contact cards, demo form with success state, FAQ cross-link.
+- `apps/frontend/app/page.tsx` — replaced inline nav with MarketingNav, added MarketingFooter, motion FadeUp animations, feature tease section.
+- `apps/frontend/app/pricing/page.tsx` — added MarketingNav + MarketingFooter, removed inline logo.
+- Build: 22 routes, 0 errors. 521/521 backend tests pass.
+
+## Previous Last Session
 
 **What was built:**
 - `app/schemas/admin.py` — 16 Pydantic schemas. No password_hash, no Etsy tokens, no Stripe secret keys, no raw billing event payload.

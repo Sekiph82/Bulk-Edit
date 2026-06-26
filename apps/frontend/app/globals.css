@@ -8,3 +8,169 @@
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BULK-EDIT DESIGN SYSTEM — light-mode marketing polish
+   Adapted interaction principles from design reference (gradient lifts,
+   smooth transitions, subtle glows — all in light-mode palette)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Primary button ─────────────────────────────────────────────────────── */
+.be-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.625rem 1.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  color: #fff;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  box-shadow: 0 1px 3px rgba(79,70,229,0.28), 0 4px 14px rgba(79,70,229,0.18);
+  transition: transform 160ms ease-out, box-shadow 160ms ease-out, filter 160ms ease-out;
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+}
+.be-btn-primary:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.09);
+  box-shadow: 0 6px 20px rgba(79,70,229,0.38), 0 10px 30px rgba(124,58,237,0.22);
+}
+.be-btn-primary:active { transform: translateY(0); filter: brightness(0.97); }
+.be-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(79,70,229,0.35); }
+
+/* ── Secondary button ───────────────────────────────────────────────────── */
+.be-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.625rem 1.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  color: #374151;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  transition: transform 160ms ease-out, box-shadow 160ms ease-out, border-color 160ms ease-out;
+  cursor: pointer;
+  text-decoration: none;
+}
+.be-btn-secondary:hover {
+  transform: translateY(-2px);
+  border-color: #c7d2fe;
+  box-shadow: 0 4px 14px rgba(99,102,241,0.14);
+  color: #1f2937;
+}
+.be-btn-secondary:active { transform: translateY(0); }
+.be-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(99,102,241,0.22); }
+
+/* ── Marketing card ─────────────────────────────────────────────────────── */
+.be-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 1rem;
+  transition: transform 200ms ease-out, box-shadow 200ms ease-out, border-color 200ms ease-out;
+}
+.be-card:hover {
+  transform: translateY(-3px);
+  border-color: #c7d2fe;
+  box-shadow: 0 8px 30px rgba(99,102,241,0.10), 0 2px 8px rgba(0,0,0,0.05);
+}
+
+/* ── Feature icon ring ──────────────────────────────────────────────────── */
+.be-icon-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, #eef2ff 0%, #f3e8ff 100%);
+  border: 1px solid #c7d2fe;
+  flex-shrink: 0;
+}
+
+/* ── Hero gradient background ───────────────────────────────────────────── */
+.be-hero-bg {
+  background:
+    radial-gradient(ellipse at 15% 30%, rgba(99,102,241,0.08) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 70%, rgba(124,58,237,0.07) 0%, transparent 55%),
+    #f9fafb;
+}
+
+/* ── Section gradient divider ───────────────────────────────────────────── */
+.be-section-accent {
+  background: linear-gradient(135deg, #f5f3ff 0%, #eff6ff 100%);
+}
+
+/* ── Workflow step ──────────────────────────────────────────────────────── */
+.be-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.625rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.be-step:hover {
+  border-color: #c7d2fe;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.10);
+}
+
+/* ── FAQ item ───────────────────────────────────────────────────────────── */
+.be-faq-item {
+  border-bottom: 1px solid #f3f4f6;
+}
+.be-faq-trigger {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.125rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+.be-faq-trigger:hover { color: #4f46e5; }
+
+/* ── Contact card ───────────────────────────────────────────────────────── */
+.be-contact-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: transform 200ms ease-out, box-shadow 200ms ease-out, border-color 200ms ease-out;
+}
+.be-contact-card:hover {
+  transform: translateY(-3px);
+  border-color: #c7d2fe;
+  box-shadow: 0 8px 28px rgba(99,102,241,0.10);
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .be-btn-primary,
+  .be-btn-secondary,
+  .be-card,
+  .be-contact-card,
+  .be-step {
+    transition: none !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}

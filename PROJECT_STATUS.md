@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 17 — Admin Panel — COMPLETE. Ready for Sprint 18.**
+**Sprint 17.5 — Marketing Website, FAQ, Contact, Footer Disclaimer, Theme Polish — COMPLETE. Ready for Sprint 18.**
 
 ## Status
 
-`20 admin endpoints under /api/v1/admin, all gated on require_superuser. 16 admin schemas (zero secrets). Paginated queries for 14 entity types. Safe actions: disable/enable user, pause/resume scheduled job. 42 new tests. 521/521 total. Frontend /admin page with overview cards, 6 sections, pagination. Build clean. Sprint 18 (Tests, Deployment, Security) is next.`
+`3 new marketing pages (/features, /faq, /contact-us). MarketingNav + MarketingFooter components with Etsy legal disclaimer. Design system in globals.css (.be-btn-primary, .be-btn-secondary, .be-card, .be-contact-card, .be-faq-item, .be-hero-bg, .be-section-accent). Motion v12 animations on all marketing pages. Home page and pricing page updated with shared nav/footer. 521/521 backend tests pass. 22 routes build clean.`
 
 ## Last Updated
 
@@ -39,6 +39,7 @@ None (between sprints)
 - Local Dev Reliability ✓ (gitignored seed config, local_seed.py service, bat readiness polling, FastAPI lifespan startup hook, 431/431 suite)
 - Sprint 16: Scheduled Jobs ✓ (ScheduledJob + ScheduledJobRun models, migration 0013, schedule calculator, 11 API endpoints, plan gates, /scheduled page, 41 tests, 479/479 suite)
 - Sprint 17: Admin Panel ✓ (20 endpoints all require_superuser, 16 schemas, paginated service, 42 tests, /admin page, 521/521 suite)
+- Sprint 17.5: Marketing Polish ✓ (MarketingNav, MarketingFooter, /features, /faq, /contact-us, motion v12 animations, globals.css design system, Etsy legal disclaimer, 22 routes build clean, 521/521 suite)
 
 ## Local Development (Windows)
 

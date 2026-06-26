@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import MarketingNav from "@/components/marketing/MarketingNav";
+import MarketingFooter from "@/components/marketing/MarketingFooter";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8100";
 
@@ -98,18 +100,23 @@ export default function PricingPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500 text-sm">Loading plans…</p>
-      </main>
+      <div className="min-h-screen bg-gray-50">
+        <MarketingNav />
+        <div className="flex items-center justify-center py-40">
+          <p className="text-gray-500 text-sm">Loading plans…</p>
+        </div>
+        <MarketingFooter />
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 py-16 px-4">
+    <div className="min-h-screen bg-gray-50">
+      <MarketingNav />
+      <main className="py-16 px-4">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-12">
-          <Link href="/" className="text-2xl font-extrabold text-indigo-600">Bulk-Edit</Link>
-          <h1 className="text-4xl font-bold text-gray-900 mt-4">Simple, transparent pricing</h1>
+          <h1 className="text-4xl font-bold text-gray-900">Simple, transparent pricing</h1>
           <p className="text-gray-500 mt-2">Start free. Upgrade when you need more.</p>
         </div>
 
@@ -180,6 +187,17 @@ export default function PricingPage() {
           All paid plans include a 7-day money-back guarantee. Cancel anytime.
         </p>
       </div>
-    </main>
+      </main>
+
+      {/* Footer disclaimer */}
+      <div className="bg-indigo-50 border-t border-indigo-100 px-6 sm:px-8 py-5 text-center">
+        <p className="text-xs text-indigo-700">
+          The term &ldquo;Etsy&rdquo; is a trademark of Etsy, Inc. Bulk-Edit uses the Etsy API but
+          is not endorsed or certified by Etsy, Inc.
+        </p>
+      </div>
+
+      <MarketingFooter />
+    </div>
   );
 }

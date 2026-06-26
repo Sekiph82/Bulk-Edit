@@ -4,6 +4,23 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-26 Sprint 17.5 — Marketing Polish
+
+**Skills active:** 05 frontend-component, 19 marketing-copy, 01 documentation-handoff
+
+**What was done:**
+- `globals.css` — full `.be-*` design system (gradient primary button, secondary button, card hover-lift, FAQ accordion, contact card, hero bg, section accent, reduced-motion guard)
+- `MarketingNav` — sticky nav, active link detection via `usePathname`, Features/FAQ/Contact/Pricing + Sign in + Get started
+- `MarketingFooter` — 4-column footer, Etsy legal disclaimer in both footer and page-level banner
+- `/features` page — 11-feature grid, 6-step workflow, safety checklist, AnimatedListingVisual, motion FadeUp + whileHover
+- `/faq` page — animated accordion (AnimatePresence height expand/collapse), 6 categories, 17 Q&As covering General/Etsy/Safety/Billing/AI/CSV
+- `/contact-us` page — 4 contact cards with motion, demo form with 800ms submit simulation + success state, FAQ cross-link
+- Home page — MarketingNav + MarketingFooter, FadeUp hero animations, feature tease section, workflow strip uses `.be-step`
+- Pricing page — MarketingNav + MarketingFooter, removed inline logo, preserved all billing/checkout logic
+- 521/521 backend tests. 22 routes build clean (0 errors, 3 warnings pre-existing).
+
+---
+
 ## 2026-06-26 Sprint 16 — Scheduled Jobs
 
 **Skills active:** 06 database-modeling, 07 backend-api, 20 testing-qa, 05 frontend-component, 01 documentation-handoff

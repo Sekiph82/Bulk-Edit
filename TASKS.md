@@ -460,6 +460,25 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
+## Sprint 17.5: Marketing Website, FAQ, Contact, Footer Disclaimer, Theme Polish
+
+**Status:** `[x] COMPLETE`
+
+- [x] `apps/frontend/app/globals.css` — full `.be-*` design system (gradient buttons, hover-lift cards, FAQ accordion, contact card, hero bg, section accent, reduced-motion guard)
+- [x] `apps/frontend/components/marketing/MarketingNav.tsx` — sticky nav, active link highlighting, Features/FAQ/Contact/Pricing
+- [x] `apps/frontend/components/marketing/MarketingFooter.tsx` — 4-column footer, Etsy legal disclaimer
+- [x] `apps/frontend/app/features/page.tsx` — 11-feature grid, 6-step workflow, safety checklist, animated listing visual
+- [x] `apps/frontend/app/faq/page.tsx` — animated accordion, 6 categories (17 Q&As), safety/billing/AI/CSV coverage
+- [x] `apps/frontend/app/contact-us/page.tsx` — 4 contact cards, demo form with success state, FAQ cross-link
+- [x] Home page — MarketingNav + MarketingFooter, FadeUp hero, feature tease section
+- [x] Pricing page — MarketingNav + MarketingFooter, billing logic unchanged
+- [x] Etsy legal disclaimer on all marketing pages
+- [x] 521/521 backend tests pass
+- [x] 22 routes build clean
+- [x] Commit and push
+
+---
+
 ## Sprint 18: Tests, Deployment, Security Hardening, Polish
 
 **Status:** `[ ] TODO`
