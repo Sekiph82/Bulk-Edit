@@ -25,7 +25,7 @@
 - `.local-superusers.env` gitignored, not staged
 - **438/438 tests pass on host**
 
-## Previous Last Session
+## Previous Session — Sprint 16
 
 **Date:** 2026-06-26
 **Task:** Fix local superuser workflow — seed on backend startup — COMPLETE

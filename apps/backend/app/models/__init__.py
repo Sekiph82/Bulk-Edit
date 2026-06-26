@@ -37,3 +37,5 @@ from app.models.csv_job import CSVJob
 from app.models.csv_row import CSVRow
 from app.models.dynamic_pricing_job import DynamicPricingJob
 from app.models.dynamic_pricing_recommendation import DynamicPricingRecommendation
+from app.models.scheduled_job import ScheduledJob
+from app.models.scheduled_job_run import ScheduledJobRun

@@ -1094,3 +1094,116 @@ export function convertDynamicPricingJob(jobId: string): Promise<DynamicPricingC
 export function getDynamicPricingSummary(jobId: string): Promise<DynamicPricingSummary> {
   return apiFetch(`${DP}/jobs/${jobId}/summary`);
 }
+
+// ── Scheduled Jobs ────────────────────────────────────────────────────────────
+
+export interface ScheduledJob {
+  id: string;
+  organization_id: string;
+  created_by_user_id: string | null;
+  name: string;
+  job_type: string;
+  status: string;
+  schedule_type: string;
+  schedule_payload: Record<string, unknown>;
+  job_payload: Record<string, unknown> | null;
+  timezone: string;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  run_count: number;
+  failure_count: number;
+  max_runs: number | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  disabled_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScheduledJobRun {
+  id: string;
+  organization_id: string;
+  scheduled_job_id: string;
+  triggered_by_user_id: string | null;
+  trigger_type: string;
+  job_type: string;
+  status: string;
+  started_at: string | null;
+  finished_at: string | null;
+  duration_ms: number | null;
+  output_payload: Record<string, unknown> | null;
+  error_message: string | null;
+  created_resource_type: string | null;
+  created_resource_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RunDueResponse {
+  executed: number;
+  run_ids: string[];
+}
+
+const SJ = "/api/v1/scheduled-jobs";
+
+export function createScheduledJob(body: {
+  name: string;
+  job_type: string;
+  schedule_type: string;
+  schedule_payload: Record<string, unknown>;
+  job_payload?: Record<string, unknown> | null;
+  timezone?: string;
+  max_runs?: number | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+}): Promise<ScheduledJob> {
+  return apiFetch(`${SJ}/jobs`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function listScheduledJobs(params?: {
+  status?: string;
+  job_type?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<ScheduledJob[]> {
+  const q = new URLSearchParams();
+  if (params?.status) q.set("status", params.status);
+  if (params?.job_type) q.set("job_type", params.job_type);
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.offset) q.set("offset", String(params.offset));
+  const qs = q.toString();
+  return apiFetch(`${SJ}/jobs${qs ? `?${qs}` : ""}`);
+}
+
+export function getScheduledJob(jobId: string): Promise<ScheduledJob> {
+  return apiFetch(`${SJ}/jobs/${jobId}`);
+}
+
+export function pauseScheduledJob(jobId: string): Promise<ScheduledJob> {
+  return apiFetch(`${SJ}/jobs/${jobId}/pause`, { method: "POST" });
+}
+
+export function resumeScheduledJob(jobId: string): Promise<ScheduledJob> {
+  return apiFetch(`${SJ}/jobs/${jobId}/resume`, { method: "POST" });
+}
+
+export function disableScheduledJob(jobId: string): Promise<ScheduledJob> {
+  return apiFetch(`${SJ}/jobs/${jobId}/disable`, { method: "POST" });
+}
+
+export function runScheduledJobNow(jobId: string): Promise<ScheduledJobRun> {
+  return apiFetch(`${SJ}/jobs/${jobId}/run-now`, { method: "POST" });
+}
+
+export function getJobRuns(jobId: string): Promise<ScheduledJobRun[]> {
+  return apiFetch(`${SJ}/jobs/${jobId}/runs`);
+}
+
+export function getAllRuns(): Promise<ScheduledJobRun[]> {
+  return apiFetch(`${SJ}/runs`);
+}
+
+export function runDueJobs(): Promise<RunDueResponse> {
+  return apiFetch(`${SJ}/run-due`, { method: "POST" });
+}

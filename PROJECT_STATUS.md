@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Docker Fix — FK Type Mismatch + bcrypt Compat — COMPLETE. Ready for Sprint 16.**
+**Sprint 16 — Scheduled Jobs — COMPLETE. Ready for Sprint 17.**
 
 ## Status
 
-`All Alembic migrations (0001–0012) run clean on fresh DB. All 43 model files use String(36) for IDs/FKs (matches VARCHAR(36) in DB). bcrypt pinned to 4.0.1 (passlib compat). Both local superusers seed and login correctly. 438/438 tests pass. Sprint 16 (Scheduled Jobs) is next.`
+`ScheduledJob + ScheduledJobRun models. Migration 0013. 5 job types (etsy_sync, bulk_edit_draft, dynamic_pricing_preview, csv_export_snapshot). Schedule calculator with timezone support. 11 API endpoints. /scheduled page. Plan gates (free=0, basic=3, pro=25). 41 new tests. 479/479 total. Docker clean startup verified. Sprint 17 (Admin Panel) is next.`
 
 ## Last Updated
 
@@ -37,6 +37,7 @@ None (between sprints)
 - Sprint 14: CSV Import / Export ✓ (CSVJob + CSVRow models, 6 endpoints, 49 tests, /csv page, 353/353 suite)
 - Sprint 15: Dynamic Pricing ✓ (DynamicPricingJob + DynamicPricingRecommendation models, 10 endpoints, 50 tests, /pricing-rules page, 403/403 suite)
 - Local Dev Reliability ✓ (gitignored seed config, local_seed.py service, bat readiness polling, FastAPI lifespan startup hook, 431/431 suite)
+- Sprint 16: Scheduled Jobs ✓ (ScheduledJob + ScheduledJobRun models, migration 0013, schedule calculator, 11 API endpoints, plan gates, /scheduled page, 41 tests, 479/479 suite)
 
 ## Local Development (Windows)
 
@@ -86,7 +87,8 @@ None
 | `pytest tests/test_dynamic_pricing.py` | 50/50 PASSED |
 | `pytest tests/test_seed_local_superusers.py` | 23/23 PASSED |
 | `pytest tests/test_windows_batch_readiness.py` | 12/12 PASSED |
-| **Full suite `pytest`** | **438/438 PASSED** |
+| `pytest tests/test_scheduled_jobs.py` | 41/41 PASSED |
+| **Full suite `pytest`** | **479/479 PASSED** |
 
 ## Sprint 11 — New Files
 
@@ -162,12 +164,12 @@ All enforced in `apply_bulk_edit_session()` before any write:
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 17 / 18 (incl. Productization UI, Landing Animation, AI, CSV, DP, local dev) |
-| Backend Python files | 120+ |
-| Frontend TypeScript files | 29 |
-| Total tests | 438 |
+| Sprints complete | 18 / 18 (incl. Productization UI, Landing Animation, AI, CSV, DP, local dev, scheduled jobs) |
+| Backend Python files | 125+ |
+| Frontend TypeScript files | 30 |
+| Total tests | 479 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 16: Scheduled Jobs. See HANDOFF.md for exact prompt.
+Begin Sprint 17: Admin Panel. See HANDOFF.md for exact prompt.

@@ -4,6 +4,22 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-06-26 (Sprint 16)
+
+### [SPRINT-16] Scheduled jobs never write to Etsy and never auto-apply changes
+All 4 job type executors are read-only from Etsy's perspective: `etsy_sync` calls the read-only sync service. `bulk_edit_draft` creates a `BulkEditSession(status="draft")` only. `dynamic_pricing_preview` creates a preview-only DynamicPricingJob. `csv_export_snapshot` returns metadata only. None of these trigger etsy_write.py or bulk_edit_apply.py. User action required before any Etsy write.
+
+### [SPRINT-16] min interval 60 minutes, day_of_month 1–28
+Minimum scheduled interval is 60 minutes to prevent runaway API calls. Monthly day_of_month is capped at 28 to avoid month-end edge cases (Feb has 28 days in non-leap years). These are enforced at validation time in schedule_calculator.py.
+
+### [SPRINT-16] No Celery for MVP scheduled job execution
+Celery background execution is deferred. Sprint 16 implements service-layer execution + run-due endpoint pattern. Calling POST /run-due executes all due jobs for the current user's organization. For production, a cron job or Celery Beat calls this endpoint. FastAPI has no infinite background loops.
+
+### [SPRINT-16] Active job count excludes paused/disabled/completed jobs for plan gate
+Plan limit `max_scheduled_jobs` counts only `status="active"` jobs. Paused, disabled, and completed jobs do not count. Rationale: a user who paused old jobs should not be penalized — they are not consuming scheduled resources.
+
+---
+
 ## 2026-06-26 (Docker Fix)
 
 ### [DB] All model ID and FK columns must use String(36), not Uuid(as_uuid=False)

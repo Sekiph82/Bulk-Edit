@@ -15,6 +15,7 @@ const activeFeatures = [
   { title: "AI Optimizer", description: "AI-powered title, description, tag, and alt text suggestions", href: "/ai" },
   { title: "CSV Import / Export", description: "Export listings to CSV, import changes as a draft bulk edit session", href: "/csv" },
   { title: "Dynamic Pricing", description: "Generate rules-based price recommendations and convert to a bulk edit draft", href: "/pricing-rules" },
+  { title: "Scheduled Jobs", description: "Schedule safe syncs, draft creation, and pricing previews — nothing publishes without your approval", href: "/scheduled" },
   { title: "Pricing", description: "View plans and feature limits", href: "/pricing" },
   { title: "Billing", description: "Manage your subscription", href: "/billing" },
 ];

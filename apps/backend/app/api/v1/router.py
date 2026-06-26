@@ -11,6 +11,7 @@ from app.api.v1.bulk_edit_variations import router as bulk_edit_variations_route
 from app.api.v1.ai import router as ai_router
 from app.api.v1.csv_tools import router as csv_router
 from app.api.v1.dynamic_pricing import router as dynamic_pricing_router
+from app.api.v1.scheduled_jobs import router as scheduled_jobs_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(health_router)
@@ -25,3 +26,4 @@ api_router.include_router(bulk_edit_variations_router)
 api_router.include_router(ai_router)
 api_router.include_router(csv_router)
 api_router.include_router(dynamic_pricing_router)
+api_router.include_router(scheduled_jobs_router)

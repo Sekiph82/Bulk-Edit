@@ -92,6 +92,7 @@ function BillingContent() {
     );
   }
 
+  const hasPaidPlan = sub != null && sub.plan !== "free" && (sub.status === "active" || sub.status === "trialing");
   const hasPaidCustomer = sub?.stripe_customer_id != null;
   const statusKey = sub?.status ?? "free";
 
@@ -172,6 +173,10 @@ function BillingContent() {
                 >
                   {portalLoading ? "Opening portal…" : "Manage Subscription"}
                 </button>
+              ) : hasPaidPlan ? (
+                <div className="flex-1 rounded-lg bg-gray-50 border border-gray-200 text-gray-500 text-sm text-center py-2.5">
+                  Subscription managed outside portal.
+                </div>
               ) : (
                 <div className="flex-1 rounded-lg bg-gray-50 border border-gray-200 text-gray-500 text-sm text-center py-2.5">
                   You are on the Free plan.

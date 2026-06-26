@@ -4,6 +4,34 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-26 Sprint 16 — Scheduled Jobs
+
+**Skills active:** 06 database-modeling, 07 backend-api, 20 testing-qa, 05 frontend-component, 01 documentation-handoff
+
+**Completed:**
+- `app/models/scheduled_job.py` — ScheduledJob model (String(36) IDs/FKs)
+- `app/models/scheduled_job_run.py` — ScheduledJobRun model
+- `app/models/__init__.py` — added new models
+- `alembic/versions/0013_create_scheduled_job_tables.py` — migration with indexes
+- `app/core/plans.py` — added `max_scheduled_jobs` (free=0, basic=3, pro=25)
+- `app/services/schedule_calculator.py` — validate_schedule, calculate_next_run, should_run_now; timezone-aware via zoneinfo; min interval 60 min; day_of_month 1–28
+- `app/services/scheduled_jobs.py` — full service: create/list/get/update/pause/resume/disable/run_now/find_due/run_due/execute; 4 job type executors (etsy_sync read-only, bulk_edit_draft creates draft only, dynamic_pricing_preview creates preview only, csv_export_snapshot returns metadata only); never calls etsy_write or bulk_edit_apply
+- `app/schemas/scheduled_jobs.py` — ScheduledJobCreate/Out/Update, ScheduledJobRunOut, RunDueResponse
+- `app/api/v1/scheduled_jobs.py` — 11 endpoints under /api/v1/scheduled-jobs
+- `app/api/v1/router.py` — registered scheduled_jobs_router
+- `apps/frontend/lib/api.ts` — ScheduledJob + ScheduledJobRun types, all API helpers
+- `apps/frontend/app/scheduled/page.tsx` — safety banner, create form, jobs table, run history
+- `apps/frontend/app/dashboard/page.tsx` — Scheduled Jobs card added
+- `apps/frontend/app/billing/page.tsx` — fixed "You are on the Free plan" for paid local users
+
+**Safety guarantee:** no scheduled Etsy writes. etsy_sync reads only. bulk_edit_draft creates status="draft". dynamic_pricing_preview never converts. csv_export_snapshot returns metadata only.
+
+**Tests:** 479/479 suite passing (41 new tests for Sprint 16)
+
+**Frontend:** 18 routes, zero lint errors, zero build errors
+
+---
+
 ## 2026-06-26 Docker Fix — FK Type Mismatch + bcrypt Compat
 
 **Skills active:** 06 database-modeling, 07 backend-api, 20 testing-qa, 01 documentation-handoff
