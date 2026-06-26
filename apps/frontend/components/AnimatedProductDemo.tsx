@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
+import { useTheme } from "@/components/theme/ThemeProvider";
 
 const LISTINGS = [
   { id: 1, title: "Ceramic mug set", tags: ["handmade", "gift"], price: 28.0 },
@@ -23,6 +24,8 @@ const DURATIONS = [1200, 2200, 2800, 2800, 4000];
 export default function AnimatedProductDemo() {
   const [phase, setPhase] = useState(0);
   const prefersReduced = useReducedMotion();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   useEffect(() => {
     if (prefersReduced) {
@@ -97,15 +100,23 @@ export default function AnimatedProductDemo() {
               return (
                 <motion.div
                   key={listing.id}
-                  animate={{ backgroundColor: selected ? "#EEF2FF" : "#FFFFFF" }}
+                  animate={{
+                    backgroundColor: selected
+                      ? (isDark ? "rgba(59,130,246,0.18)" : "#EEF2FF")
+                      : (isDark ? "rgba(7,15,38,0.45)"    : "#FFFFFF"),
+                  }}
                   transition={{ duration: 0.3, delay: i * 0.07 }}
                   className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100"
                 >
                   {/* Checkbox */}
                   <motion.div
                     animate={{
-                      borderColor: selected ? "#4F46E5" : "#D1D5DB",
-                      backgroundColor: selected ? "#4F46E5" : "#FFFFFF",
+                      borderColor: selected
+                        ? "#6366F1"
+                        : (isDark ? "rgba(96,165,250,0.40)" : "#D1D5DB"),
+                      backgroundColor: selected
+                        ? "#6366F1"
+                        : (isDark ? "rgba(2,12,24,0.85)" : "#FFFFFF"),
                     }}
                     transition={{ duration: 0.2, delay: i * 0.07 }}
                     className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0"
