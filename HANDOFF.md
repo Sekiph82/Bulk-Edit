@@ -4,7 +4,7 @@
 
 **Date:** 2026-06-26
 **Task:** Fix Docker startup — migration FK type mismatch + bcrypt compat — COMPLETE
-**Commit:** (see below)
+**Commit:** `34ac4d2` — `fix: repair local docker startup and migration type mismatches`
 
 **Root Cause:**
 1. Sprint migrations 0008-0012 originally used `postgresql.UUID`/`sa.UUID` for FK columns while parent tables (`organizations`, `users`, `listings`, etc.) have `VARCHAR(36)` IDs (from migration 0001+). PostgreSQL rejects FK constraints across incompatible types.
