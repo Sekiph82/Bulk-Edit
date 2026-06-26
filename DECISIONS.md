@@ -4,6 +4,25 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-06-26 (Sprint 15)
+
+### [SPRINT-15] Dynamic Pricing converts to BulkEditSession draft, never writes Etsy
+Approved recommendations create BulkEditSession(status="draft") + BulkEditChange(target_listing_ids=[listing_id]). Listing.price_amount is never updated. Rationale: must respect same Etsy write safety protocol as all other features — user must preview and apply in Bulk Edit before anything publishes.
+
+### [SPRINT-15] Variation listings skipped in dynamic pricing
+Listings with has_variations=True get status="skipped" and are not processed. Rationale: variation price structure is complex (per-offering); flat price_amount does not represent the listing correctly. Deferred to future sprint.
+
+### [SPRINT-15] Rounding rule ending_99: exact dollars go down
+apply_rounding_rule(2500, "ending_99") → 2499 (not 2599). Distance from 2500 to 2499 is 1; distance to 2599 is 99 → nearest wins. Rationale: consistent with retail psychology (price tags ending .99 are typically just below a round dollar).
+
+### [SPRINT-15] Margin floor uses Decimal arithmetic
+required_price = cost / (1 - margin_pct/100) computed with Decimal to avoid float rounding errors on price calculations. Rationale: price calculations are money — float arithmetic produces incorrect values.
+
+### [SPRINT-15] Convert modal requires "CONVERT PRICES" typed confirmation
+Frontend modal requires user to type exact string "CONVERT PRICES" before convert button activates. Rationale: convert is irreversible (creates draft session); confirmation prevents accidental conversion.
+
+---
+
 ## 2026-06-26
 
 ### [SPRINT-12] Fetch-patch-put for variation inventory writes

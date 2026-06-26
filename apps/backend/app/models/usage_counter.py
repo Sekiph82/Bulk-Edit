@@ -19,3 +19,4 @@ class UsageCounter(Base, TimestampMixin):
     bulk_edits_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ai_credits_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     media_assets_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    dynamic_pricing_jobs_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

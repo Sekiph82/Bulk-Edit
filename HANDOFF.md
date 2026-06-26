@@ -3,14 +3,14 @@
 ## Last Session
 
 **Date:** 2026-06-26
-**Sprint:** Sprint 14 — CSV Import / Export — COMPLETE
-**Completed:** CSVJob + CSVRow models (alembic 0011). Added target_listing_ids to BulkEditChange so per-row values scope to specific listings. 6 CSV endpoints under /api/v1/csv (export, template, import, jobs, preview, convert). Import converts to BulkEditSession only — never writes to Etsy directly. 49 CSV tests pass. Frontend /csv page (export tab, import tab with preview table and convert, job history tab). Dashboard CSV card. 353/353 full suite passing. Build: 15 routes, zero errors.
+**Sprint:** Sprint 15 — Dynamic Pricing — COMPLETE
+**Completed:** DynamicPricingJob + DynamicPricingRecommendation models (alembic 0012). dynamic_pricing_jobs_used on UsageCounter. Pro plan gate (can_use_dynamic_pricing, 100 jobs/month). Full calculation engine: percentage_adjustment, fixed_amount_adjustment, set_price, reference_price. Safety guardrails: margin floor (Decimal math), price floor, price cap, rounding (ending_99/95/nearest_50/nearest_100). accept/reject/accept-all/convert endpoints. Convert creates BulkEditSession draft + scoped BulkEditChange (target_listing_ids=[listing_id]) — NEVER writes to Etsy. 50 tests. /pricing-rules page (listing selector, rule builder, guardrails, preview table with per-row accept/reject, convert modal with "CONVERT PRICES" confirmation). Dashboard DP card. 403/403 full suite passing. Build: 16 routes, zero errors.
 
 ## Previous Session
 
 **Date:** 2026-06-26
-**Sprint:** Sprint 13 — AI Tools — COMPLETE
-**Completed:** Provider abstraction (mock/openai/anthropic). 5 prompt builders. AISession, AISuggestion, AIUsageLog models (alembic 0010). 9 endpoints under /api/v1/ai. Billing gate: paid plan required. Accept/reject suggestions per field. Convert accepted → BulkEditSession (draft only, never writes Etsy). 32 tests. /ai page. Dashboard AI card.
+**Sprint:** Sprint 14 — CSV Import / Export — COMPLETE
+**Completed:** CSVJob + CSVRow models (alembic 0011). Added target_listing_ids to BulkEditChange. 6 CSV endpoints under /api/v1/csv. Import converts to BulkEditSession only — never writes to Etsy directly. 49 CSV tests pass. /csv page. Dashboard CSV card. 353/353 suite passing.
 
 ## Current State
 
@@ -62,20 +62,53 @@ This allows per-row different values in a single BulkEditSession without breakin
 | PostgreSQL | 55432 | 5432 |
 | Redis | 56379 | 6379 |
 
+## Current State (Sprint 15 additions)
+
+**Backend (`apps/backend/`):**
+- `app/models/dynamic_pricing_job.py` — DynamicPricingJob model (status: draft → preview_ready → converted/failed)
+- `app/models/dynamic_pricing_recommendation.py` — DynamicPricingRecommendation model (per-listing: status, diff, margin, guardrail warnings)
+- `app/models/usage_counter.py` — added `dynamic_pricing_jobs_used` column
+- `app/core/plans.py` — added `dynamic_pricing_jobs_per_month` (free/basic: 0, pro: 100)
+- `app/services/billing.py` — added `dynamic_pricing_jobs_used` → `dynamic_pricing_jobs_per_month` to limit key mapping
+- `alembic/versions/0012_create_dynamic_pricing_tables.py` — migration (adds column + creates 2 tables)
+- `app/schemas/dynamic_pricing.py` — 6 schemas
+- `app/services/dynamic_pricing.py` — full engine: rule calculation, safety guardrails, accept/reject/accept-all/convert
+- `app/api/v1/dynamic_pricing.py` — 10 REST endpoints under /api/v1/dynamic-pricing
+- `app/api/v1/router.py` — includes dynamic_pricing_router
+- `tests/test_dynamic_pricing.py` — 50 tests (all passing)
+
+**Frontend (`apps/frontend/`):**
+- `app/pricing-rules/page.tsx` — 3-step page: Setup (listing selector + rule builder + guardrails), Preview (summary cards + rec table with accept/reject + convert modal), History
+- `lib/api.ts` — DynamicPricingJob, DynamicPricingRecommendation, DynamicPricingSummary, DynamicPricingConvertResponse types + 10 helpers
+- `app/dashboard/page.tsx` — Dynamic Pricing card
+
+## Safety Gates (Sprint 15)
+
+Dynamic Pricing enforces:
+1. Billing gate: can_use_dynamic_pricing must be True (Pro plan); dynamic_pricing_jobs_per_month limit checked
+2. Variation listings skipped (has_variations=True) — not processed
+3. Listings with no price_amount → status="invalid"
+4. Negative recommended price → status="invalid"
+5. Safety guardrails: margin floor (Decimal), price floor, price cap applied in order
+6. Convert requires job.status == "preview_ready" AND at least 1 accepted recommendation
+7. Convert creates BulkEditSession(status="draft") + BulkEditChange(target_listing_ids=[listing_id]) only
+8. Listing.price_amount is NEVER updated by dynamic pricing
+9. Convert modal requires user to type "CONVERT PRICES" before proceeding
+
 ## Next Task
 
-**Sprint 15: Dynamic Pricing**
+**Sprint 16: Scheduled Jobs**
 
-Implement rules-based price adjustments: percentage markup/markdown, rounding rules, competitor-based pricing.
+Implement Celery Beat scheduler for recurring listing sync and bulk edits.
 
 ## Next Prompt
 
 ```
 Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
 
-Current state: 353/353 tests passing. Sprint 14 (CSV Import/Export) is COMPLETE.
+Current state: 403/403 tests passing. Sprint 15 (Dynamic Pricing) is COMPLETE.
 
-Start Sprint 15 per TASKS.md.
+Start Sprint 16 per TASKS.md.
 ```
 
 ## Dev Startup Scripts

@@ -12,6 +12,7 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "can_use_magic_revert": False,
         "can_use_dynamic_pricing": False,
         "can_schedule_jobs": False,
+        "dynamic_pricing_jobs_per_month": 0,
     },
     "basic_monthly": {
         "max_shops": 3,
@@ -24,6 +25,7 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "can_use_magic_revert": True,
         "can_use_dynamic_pricing": False,
         "can_schedule_jobs": True,
+        "dynamic_pricing_jobs_per_month": 0,
     },
     "pro_monthly": {
         "max_shops": 10,
@@ -36,6 +38,7 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "can_use_magic_revert": True,
         "can_use_dynamic_pricing": True,
         "can_schedule_jobs": True,
+        "dynamic_pricing_jobs_per_month": 100,
     },
 }
 

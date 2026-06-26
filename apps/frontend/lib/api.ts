@@ -954,3 +954,143 @@ export function convertCSVJob(
     body: JSON.stringify({ ignore_invalid: ignoreInvalid }),
   });
 }
+
+// ── Dynamic Pricing ──────────────────────────────────────────────────────────
+
+export interface DynamicPricingJob {
+  id: string;
+  organization_id: string;
+  user_id: string | null;
+  status: string;
+  selected_listing_ids: string[];
+  rule_type: string;
+  rule_payload: Record<string, unknown>;
+  safety_payload: Record<string, unknown> | null;
+  row_count: number;
+  recommended_count: number;
+  skipped_count: number;
+  warning_count: number;
+  invalid_count: number;
+  converted_bulk_edit_session_id: string | null;
+  error_message: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DynamicPricingRecommendation {
+  id: string;
+  organization_id: string;
+  dynamic_pricing_job_id: string;
+  listing_id: string | null;
+  etsy_listing_id: string | null;
+  listing_title: string | null;
+  currency_code: string | null;
+  current_price_amount: number | null;
+  recommended_price_amount: number | null;
+  reference_price_amount: number | null;
+  cost_amount: number | null;
+  margin_percent: string | null;
+  diff_amount: number | null;
+  diff_percent: string | null;
+  status: string;
+  reason: string | null;
+  calculation_details: Record<string, unknown> | null;
+  validation_errors: string[] | null;
+  validation_warnings: string[] | null;
+  decided_at: string | null;
+  decided_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DynamicPricingRecommendationPage {
+  items: DynamicPricingRecommendation[];
+  total: number;
+  page: number;
+  per_page: number;
+  job_id: string;
+}
+
+export interface DynamicPricingSummary {
+  job_id: string;
+  total_listings: number;
+  current_total_price: number;
+  recommended_total_price: number;
+  total_diff_amount: number;
+  total_diff_percent: string | null;
+  recommended_count: number;
+  accepted_count: number;
+  skipped_count: number;
+  warning_count: number;
+  invalid_count: number;
+  converted_count: number;
+}
+
+export interface DynamicPricingConvertResponse {
+  bulk_edit_session_id: string;
+  converted_count: number;
+  created_changes: number;
+  message: string;
+}
+
+const DP = "/api/v1/dynamic-pricing";
+
+export function createDynamicPricingJob(body: {
+  selected_listing_ids: string[];
+  rule_type: string;
+  rule_payload: Record<string, unknown>;
+  safety_payload?: Record<string, unknown> | null;
+}): Promise<DynamicPricingJob> {
+  return apiFetch(`${DP}/jobs`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function listDynamicPricingJobs(): Promise<DynamicPricingJob[]> {
+  return apiFetch(`${DP}/jobs`);
+}
+
+export function getDynamicPricingJob(jobId: string): Promise<DynamicPricingJob> {
+  return apiFetch(`${DP}/jobs/${jobId}`);
+}
+
+export function generateDynamicPricingPreview(jobId: string): Promise<DynamicPricingJob> {
+  return apiFetch(`${DP}/jobs/${jobId}/preview`, { method: "POST" });
+}
+
+export function getDynamicPricingRecommendations(
+  jobId: string,
+  params?: { page?: number; per_page?: number; status?: string },
+): Promise<DynamicPricingRecommendationPage> {
+  const q = new URLSearchParams();
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.per_page) q.set("per_page", String(params.per_page));
+  if (params?.status) q.set("status", params.status);
+  const qs = q.toString();
+  return apiFetch(`${DP}/jobs/${jobId}/recommendations${qs ? `?${qs}` : ""}`);
+}
+
+export function acceptDynamicPricingRecommendation(
+  recommendationId: string,
+): Promise<DynamicPricingRecommendation> {
+  return apiFetch(`${DP}/recommendations/${recommendationId}/accept`, { method: "POST" });
+}
+
+export function rejectDynamicPricingRecommendation(
+  recommendationId: string,
+): Promise<DynamicPricingRecommendation> {
+  return apiFetch(`${DP}/recommendations/${recommendationId}/reject`, { method: "POST" });
+}
+
+export function acceptAllDynamicPricingRecommendations(
+  jobId: string,
+): Promise<{ accepted_count: number; message: string }> {
+  return apiFetch(`${DP}/jobs/${jobId}/accept-all`, { method: "POST" });
+}
+
+export function convertDynamicPricingJob(jobId: string): Promise<DynamicPricingConvertResponse> {
+  return apiFetch(`${DP}/jobs/${jobId}/convert`, { method: "POST" });
+}
+
+export function getDynamicPricingSummary(jobId: string): Promise<DynamicPricingSummary> {
+  return apiFetch(`${DP}/jobs/${jobId}/summary`);
+}

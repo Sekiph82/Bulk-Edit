@@ -14,6 +14,7 @@ const activeFeatures = [
   { title: "Variation Editor", description: "Bulk edit prices, quantities, and SKUs for variation listings", href: "/variations" },
   { title: "AI Optimizer", description: "AI-powered title, description, tag, and alt text suggestions", href: "/ai" },
   { title: "CSV Import / Export", description: "Export listings to CSV, import changes as a draft bulk edit session", href: "/csv" },
+  { title: "Dynamic Pricing", description: "Generate rules-based price recommendations and convert to a bulk edit draft", href: "/pricing-rules" },
   { title: "Pricing", description: "View plans and feature limits", href: "/pricing" },
   { title: "Billing", description: "Manage your subscription", href: "/billing" },
 ];

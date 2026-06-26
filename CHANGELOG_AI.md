@@ -4,6 +4,33 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-26 Sprint 15 — Dynamic Pricing
+
+**Skills active:** 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff
+
+**Completed:**
+- `app/models/dynamic_pricing_job.py` — DynamicPricingJob model (status machine: draft → preview_ready → converted/failed; counts: row, recommended, skipped, warning, invalid)
+- `app/models/dynamic_pricing_recommendation.py` — DynamicPricingRecommendation model (per-listing: status, current/recommended/reference price, diff, margin, guardrail warnings)
+- `app/models/usage_counter.py` — added `dynamic_pricing_jobs_used` mapped column
+- `app/core/plans.py` — added `dynamic_pricing_jobs_per_month` (free/basic: 0, pro: 100)
+- `app/services/billing.py` — added limit key mapping for dynamic_pricing_jobs_used
+- `alembic/versions/0012_create_dynamic_pricing_tables.py` — migration: adds column + creates 2 tables
+- `app/schemas/dynamic_pricing.py` — 6 schemas (JobCreate, JobOut, RecommendationOut, RecommendationPageOut, ConvertResponse, SummaryOut)
+- `app/services/dynamic_pricing.py` — full engine: apply_rounding_rule (ending_99/95/nearest_50/nearest_100), apply_margin_floor (Decimal), apply_price_cap, calculate_recommendation_for_listing (4 rule types + reference modes), create_job, generate_preview, accept/reject/accept_all, convert (creates BulkEditSession draft + scoped BulkEditChange, NEVER updates Listing.price_amount)
+- `app/api/v1/dynamic_pricing.py` — 10 REST endpoints under /api/v1/dynamic-pricing
+- `app/api/v1/router.py` — includes dynamic_pricing_router
+- `tests/test_dynamic_pricing.py` — 50 tests (unit + API, all passing)
+- `app/pricing-rules/page.tsx` — 3-step UI: listing selector, rule builder (4 rule types + reference modes), safety guardrails (margin/price floor/cap/rounding), preview with summary cards + per-row accept/reject, convert modal requiring "CONVERT PRICES" confirmation, job history
+- `lib/api.ts` — DP types + 10 API helpers appended
+- `app/dashboard/page.tsx` — Dynamic Pricing card added
+
+**Tests:** 403/403 suite passing (50 new DP tests)
+**Build:** 16 routes, zero errors
+
+**Safety:** Dynamic Pricing NEVER writes to Etsy. Convert creates BulkEditSession(status="draft") + BulkEditChange(target_listing_ids=[listing_id]). Listing.price_amount untouched. Pro billing gate enforced.
+
+---
+
 ## 2026-06-26 Sprint 14 — CSV Import / Export
 
 **Skills active:** 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff

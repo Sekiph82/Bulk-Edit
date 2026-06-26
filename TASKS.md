@@ -407,14 +407,24 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 15: Dynamic Pricing
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Design PricingRule model
-- [ ] Implement rule-based price calculation engine
-- [ ] Implement bulk price preview with rules applied
-- [ ] Build pricing rule editor UI
-- [ ] Write dynamic pricing tests
-- [ ] Commit and push
+- [x] Design DynamicPricingJob + DynamicPricingRecommendation models (alembic 0012)
+- [x] Add dynamic_pricing_jobs_used to UsageCounter
+- [x] Add dynamic_pricing_jobs_per_month to plan limits (Pro: 100, free/basic: 0)
+- [x] Implement calculation engine: percentage_adjustment, fixed_amount_adjustment, set_price, reference_price
+- [x] Implement safety guardrails: margin floor, price floor, price cap, rounding rules
+- [x] Build preview engine: per-listing DynamicPricingRecommendation rows with status/diff/warnings
+- [x] Billing gate: can_use_dynamic_pricing (Pro only), dynamic_pricing_jobs_per_month limit
+- [x] accept/reject/accept-all/convert endpoints
+- [x] convert → BulkEditSession + BulkEditChange (target_listing_ids scoped, NEVER writes to Etsy)
+- [x] 10 REST endpoints under /api/v1/dynamic-pricing
+- [x] Frontend types + API helpers in lib/api.ts
+- [x] Frontend: /pricing-rules page (listing selector, rule builder, guardrails, preview, rec table, convert modal)
+- [x] Dashboard card: Dynamic Pricing
+- [x] 50 dynamic pricing tests pass, 403 total pass
+- [x] lint clean, build clean
+- [x] Commit and push
 
 ---
 

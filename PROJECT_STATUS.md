@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 14: CSV Import / Export — COMPLETE**
+**Sprint 15: Dynamic Pricing — COMPLETE**
 
 ## Status
 
-`CSV import/export live (/csv). 49 CSV tests, 353 total pass. target_listing_ids on BulkEditChange enables per-row value scoping. Import converts to BulkEditSession only — never writes Etsy directly. Sprint 15 is next.`
+`Dynamic Pricing live (/pricing-rules). Rules-based price recommendations with safety guardrails. 50 DP tests, 403 total pass. Conversion creates BulkEditSession draft only — NEVER writes to Etsy. Sprint 16 is next.`
 
 ## Last Updated
 
@@ -35,6 +35,7 @@ None (between sprints)
 - Landing Animation Sprint ✓ (AnimatedProductDemo + 2-column hero, motion v12, build passing)
 - Sprint 13: AI Tools ✓ (provider abstraction, 9 endpoints, 32 tests, /ai page, 304/304 suite)
 - Sprint 14: CSV Import / Export ✓ (CSVJob + CSVRow models, 6 endpoints, 49 tests, /csv page, 353/353 suite)
+- Sprint 15: Dynamic Pricing ✓ (DynamicPricingJob + DynamicPricingRecommendation models, 10 endpoints, 50 tests, /pricing-rules page, 403/403 suite)
 
 ## Local Development (Windows)
 

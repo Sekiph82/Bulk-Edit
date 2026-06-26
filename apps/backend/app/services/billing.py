@@ -92,6 +92,7 @@ def _usage_to_limit_key(usage_key: str) -> str:
         "ai_credits_used": "ai_credits_per_month",
         "listings_synced": "max_listings",
         "media_assets_used": "media_assets",
+        "dynamic_pricing_jobs_used": "dynamic_pricing_jobs_per_month",
     }
     return mapping.get(usage_key, usage_key)
 
