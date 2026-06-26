@@ -3,32 +3,32 @@
 ## Last Session
 
 **Date:** 2026-06-26
-**Task:** Sprint 18 — Security Hardening, Deployment Readiness, Polish — COMPLETE
-**Commit:** chore: Sprint 18 — security hardening, deployment readiness, tests, docs
+**Task:** Sprint 19 — Internal Admin Business Dashboard — COMPLETE
+**Commit:** feat: add internal admin business dashboard (Sprint 19)
 
 **What was built:**
-- `apps/backend/app/api/v1/health.py` — added `GET /api/v1/health/ready` readiness probe (DB check, 200 when ready, 503 when not)
-- `apps/backend/tests/test_security_hardening.py` — 45 new security tests covering auth gates, JWT tampering, org isolation, SQL injection, no-secrets-in-responses, path traversal, input validation, stack trace safety
-- `apps/frontend/app/(app)/listings/page.tsx` — fixed mojibake × close buttons (lines 103, 469); added `type="button"` + `aria-label`
-- `apps/frontend/app/(app)/pricing-rules/page.tsx` — fixed mojibake ✕ dismiss button (line 310) + 4 JSX comment lines; added `type="button"` + `aria-label`
-- `docs/operations/ENVIRONMENT.md` — NEW: full environment variable reference
-- `docs/operations/TESTING.md` — full rewrite with current test counts (566), fixtures, security coverage, CI skeleton
-- TASKS.md, PROJECT_STATUS.md, HANDOFF.md, CHANGELOG_AI.md, DECISIONS.md, SECURITY.md updated
+- `apps/backend/app/schemas/admin.py` — added `AdminBillingSummary`, `AdminStripeSummary`, `AdminProductUsage`, `AdminSystemHealth` schemas
+- `apps/backend/app/services/admin.py` — added `get_billing_summary`, `get_stripe_summary`, `get_product_usage`, `get_system_health` service functions + `BillingEvent` import
+- `apps/backend/app/api/v1/admin.py` — added 5 new endpoints: `GET /admin/billing-summary`, `/stripe-summary`, `/product-usage`, `/system-health`, `/audit-log`; all require superuser
+- `apps/frontend/components/ui/AppShell.tsx` — Admin nav item now hidden from non-superusers; reads `is_superuser` from `/me` response
+- `apps/frontend/lib/api.ts` — added `AdminUsageSummary`, `AdminBillingSummary`, `AdminStripeSummary`, `AdminProductUsage`, `AdminSystemHealth` types + 6 new API helpers
+- `apps/frontend/app/(app)/admin/page.tsx` — full rewrite as 6-tab business dashboard (Overview, Users, Billing, Etsy, Usage, System)
+- `apps/backend/tests/test_admin_dashboard.py` — 17 new tests: auth gates, response shape, MRR field name safety, is_superuser in /me
 
-**Tests:** 566/566 passed. Build: 22 routes clean.
+**Tests:** 17/17 new tests pass. 59/59 total admin tests pass. Build: 20 routes, 0 errors. TypeScript: 0 errors.
 
 ## Next Task
 
-**Sprint 19** — CI/CD pipeline, production Docker, rate limiting, CSP headers, Playwright E2E tests.
+**Sprint 20** — CI/CD pipeline, production Docker, rate limiting, CSP headers, Playwright E2E tests.
 
 ## Next Prompt
 
 ```
 Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
 
-Current state: 566/566 tests passing. Sprints 1-18 all COMPLETE.
+Current state: Sprint 19 COMPLETE. Admin business dashboard live. 20 routes, 0 TS errors.
 
-Start Sprint 19: CI/CD, Production Docker, Rate Limiting, E2E Tests.
+Start Sprint 20 per TASKS.md.
 ```
 
 ## Previous Last Session

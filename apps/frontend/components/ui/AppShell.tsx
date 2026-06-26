@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import { useTheme } from "@/components/theme/ThemeProvider";
 
-const NAV = [
+const NAV_BASE = [
   {
     section: "Workspace",
     items: [
@@ -30,10 +30,11 @@ const NAV = [
     items: [
       { href: "/scheduled",      label: "Scheduled Jobs",  icon: <ClockIcon /> },
       { href: "/billing",        label: "Billing",         icon: <CardIcon /> },
-      { href: "/admin",          label: "Admin",           icon: <ShieldIcon /> },
     ],
   },
 ];
+
+const ADMIN_NAV_ITEM = { href: "/admin", label: "Admin", icon: <ShieldIcon /> };
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
 
@@ -46,6 +47,7 @@ export default function AppShell({ children }: AppShellProps) {
   const isDark = resolved === "dark";
 
   const [email, setEmail] = useState<string | null>(null);
+  const [isSuperuser, setIsSuperuser] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -55,9 +57,23 @@ export default function AppShell({ children }: AppShellProps) {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d?.user?.email) setEmail(d.user.email); })
+      .then((d) => {
+        if (d?.user?.email) setEmail(d.user.email);
+        if (d?.user?.is_superuser === true) setIsSuperuser(true);
+      })
       .catch(() => {});
   }, []);
+
+  const NAV = NAV_BASE.map((group) =>
+    group.section === "System"
+      ? {
+          ...group,
+          items: isSuperuser
+            ? [...group.items, ADMIN_NAV_ITEM]
+            : group.items,
+        }
+      : group
+  );
 
   async function handleLogout() {
     const rt = localStorage.getItem("refresh_token");

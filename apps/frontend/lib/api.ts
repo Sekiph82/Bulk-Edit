@@ -1354,3 +1354,85 @@ export function adminPauseScheduledJob(jobId: string): Promise<AdminActionResult
 export function adminResumeScheduledJob(jobId: string): Promise<AdminActionResult> {
   return apiFetch(`${ADM}/scheduled-jobs/${jobId}/resume`, { method: "POST" });
 }
+
+// ── Admin Business Dashboard Types ────────────────────────────────────────────
+
+export interface AdminUsageSummary {
+  id: string;
+  organization_id: string;
+  period_key: string;
+  listings_synced: number;
+  bulk_edits_used: number;
+  ai_credits_used: number;
+  media_assets_used: number;
+  dynamic_pricing_jobs_used: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminBillingSummary {
+  total_subscriptions: number;
+  free_plan_count: number;
+  basic_monthly_count: number;
+  basic_yearly_count: number;
+  pro_monthly_count: number;
+  pro_yearly_count: number;
+  active_count: number;
+  trialing_count: number;
+  canceled_count: number;
+  cancel_at_period_end_count: number;
+  estimated_monthly_revenue: number;
+}
+
+export interface AdminStripeSummary {
+  total_stripe_customers: number;
+  subscriptions_with_stripe_sub: number;
+  active_stripe_subscriptions: number;
+  canceling_at_period_end: number;
+  total_billing_events: number;
+}
+
+export interface AdminProductUsage {
+  total_listings: number;
+  total_bulk_edit_sessions: number;
+  total_ai_sessions: number;
+  total_csv_jobs: number;
+  total_dynamic_pricing_jobs: number;
+  total_sync_jobs: number;
+  total_shops: number;
+}
+
+export interface AdminSystemHealth {
+  database_status: string;
+  total_users: number;
+  total_organizations: number;
+  total_audit_events: number;
+  recent_failed_scheduled_runs: number;
+  recent_failed_ai_sessions: number;
+}
+
+// ── Admin Business Dashboard API helpers ──────────────────────────────────────
+
+export function adminGetBillingSummary(): Promise<AdminBillingSummary> {
+  return apiFetch(`${ADM}/billing-summary`);
+}
+
+export function adminGetStripeSummary(): Promise<AdminStripeSummary> {
+  return apiFetch(`${ADM}/stripe-summary`);
+}
+
+export function adminGetProductUsage(): Promise<AdminProductUsage> {
+  return apiFetch(`${ADM}/product-usage`);
+}
+
+export function adminGetSystemHealth(): Promise<AdminSystemHealth> {
+  return apiFetch(`${ADM}/system-health`);
+}
+
+export function adminListAuditLog(page = 1, page_size = 25): Promise<AdminPage<AdminAuditEvent>> {
+  return apiFetch(`${ADM}/audit-log?page=${page}&page_size=${page_size}`);
+}
+
+export function adminListUsage(page = 1, page_size = 25): Promise<AdminPage<AdminUsageSummary>> {
+  return apiFetch(`${ADM}/usage?page=${page}&page_size=${page_size}`);
+}

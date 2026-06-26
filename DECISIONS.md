@@ -4,6 +4,22 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-06-26 (Sprint 19)
+
+### [PRODUCT] Projected MRR labeled as "Expected — not guaranteed cash"
+The `estimated_monthly_revenue` field in `AdminBillingSummary` uses per-plan fixed monthly rates ($9 basic_monthly, $29 pro_monthly, $7.50 basic_yearly/12, $20.83 pro_yearly/12). This is a projection based on DB plan counts — not actual Stripe collected revenue. The field is named `estimated_monthly_revenue` (not `collected_revenue`) and the frontend displays it with sub-label "Expected — not guaranteed cash". Stripe collected revenue is not available without a live Stripe API call.
+
+### [SECURITY] Admin nav item hidden client-side + backend enforces superuser gate server-side
+The Admin nav link in AppShell is hidden when `is_superuser === false` (from `/me` response). This is UI convenience only — the backend still enforces `require_superuser` on every admin endpoint. A user who manually navigates to `/admin` will hit the 403 page (API returns 403, UI shows the access-denied screen). Defense in depth: both layers protect the resource.
+
+### [API] `/api/v1/admin/audit-log` duplicates `/api/v1/admin/events`
+Sprint 19 adds `/admin/audit-log` as a distinct endpoint (same backing service as `/events`). Rationale: business dashboard uses a tab called "Audit Log" for the System tab, while `/events` is used in the original admin CRUD panel section. Having two named endpoints clarifies intent and avoids breaking the existing admin panel.
+
+### [FRONTEND] AdminUsageSummary added to api.ts (was only in backend schema)
+The existing `/api/v1/admin/usage` endpoint lacked a TypeScript type in `lib/api.ts`. Sprint 19 adds `AdminUsageSummary` interface and `adminListUsage()` helper to support the new Usage tab.
+
+---
+
 ## 2026-06-26 (Sprint 18)
 
 ### [SECURITY] FastAPI HTTPBearer returns 403 (not 401) for missing credentials

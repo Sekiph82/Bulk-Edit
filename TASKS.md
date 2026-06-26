@@ -496,6 +496,21 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
+## Sprint 19: Internal Admin Business Dashboard
+
+**Status:** `[x] COMPLETE`
+
+- [x] Part A: Hide Admin nav link from non-superusers in AppShell; expose `is_superuser` in `/api/v1/auth/me` (already present in UserResponse schema)
+- [x] Part B: Add `/api/v1/admin/billing-summary` endpoint (plan distribution, projected MRR labeled as "Expected")
+- [x] Part C: Add `/api/v1/admin/stripe-summary`, `/api/v1/admin/product-usage`, `/api/v1/admin/system-health`, `/api/v1/admin/audit-log` endpoints
+- [x] Part D: Rewrite `apps/frontend/app/(app)/admin/page.tsx` as full business dashboard (6 tabs: Overview, Users, Billing, Etsy, Usage, System)
+- [x] Part E: Add new admin types + API helpers to `apps/frontend/lib/api.ts`
+- [x] Part F: Friendly 403 page for non-superusers visiting /admin (improved design)
+- [x] Part O: `tests/test_admin_dashboard.py` — 17 tests, all passing
+- [x] Build: 20 routes, 0 errors. TypeScript: 0 errors.
+
+---
+
 ## Backlog / Future
 
 - [ ] Shopify integration

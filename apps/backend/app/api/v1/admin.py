@@ -23,6 +23,10 @@ from app.schemas.admin import (
     AdminScheduledJobRunSummary,
     AdminAuditEventSummary,
     AdminActionResult,
+    AdminBillingSummary,
+    AdminStripeSummary,
+    AdminProductUsage,
+    AdminSystemHealth,
 )
 import app.services.admin as svc
 
@@ -315,3 +319,57 @@ async def admin_resume_scheduled_job(
 ):
     job = await svc.resume_scheduled_job(db, job_id)
     return AdminActionResult(ok=True, message=f"Scheduled job '{job.name}' resumed")
+
+
+# ── Business Dashboard Summary Endpoints ──────────────────────────────────────
+
+@router.get("/billing-summary", response_model=AdminBillingSummary)
+async def admin_billing_summary(
+    _su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    data = await svc.get_billing_summary(db)
+    return AdminBillingSummary(**data)
+
+
+@router.get("/stripe-summary", response_model=AdminStripeSummary)
+async def admin_stripe_summary(
+    _su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    data = await svc.get_stripe_summary(db)
+    return AdminStripeSummary(**data)
+
+
+@router.get("/product-usage", response_model=AdminProductUsage)
+async def admin_product_usage(
+    _su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    data = await svc.get_product_usage(db)
+    return AdminProductUsage(**data)
+
+
+@router.get("/system-health", response_model=AdminSystemHealth)
+async def admin_system_health(
+    _su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    data = await svc.get_system_health(db)
+    return AdminSystemHealth(**data)
+
+
+@router.get("/audit-log", response_model=AdminPage[AdminAuditEventSummary])
+async def admin_audit_log(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    _su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await svc.list_events(db, page=page, page_size=page_size)
+    return AdminPage[AdminAuditEventSummary](
+        items=[AdminAuditEventSummary.model_validate(e) for e in result["items"]],
+        page=result["page"],
+        page_size=result["page_size"],
+        total=result["total"],
+    )

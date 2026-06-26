@@ -4,6 +4,25 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-26 Sprint 19 — Internal Admin Business Dashboard
+
+**Skills active:** 05 frontend-component, 06 backend-api, 20 testing-qa
+
+**What was done:**
+- `apps/backend/app/schemas/admin.py` — added `AdminBillingSummary`, `AdminStripeSummary`, `AdminProductUsage`, `AdminSystemHealth` Pydantic schemas. All exclude secrets (no stripe_secret_key, no password_hash, no Etsy tokens).
+- `apps/backend/app/services/admin.py` — added `get_billing_summary()` (plan counts, projected MRR using $PLAN_MRR dict), `get_stripe_summary()` (stripe customer metrics from Subscription model), `get_product_usage()` (7 aggregate counts), `get_system_health()` (DB status + fail counts). Added `BillingEvent` import.
+- `apps/backend/app/api/v1/admin.py` — added 5 new endpoints all gated on `require_superuser`: `GET /admin/billing-summary`, `/stripe-summary`, `/product-usage`, `/system-health`, `/audit-log`.
+- `apps/frontend/components/ui/AppShell.tsx` — refactored NAV to `NAV_BASE` + `ADMIN_NAV_ITEM`. Added `isSuperuser` state, reads `d.user.is_superuser` from `/me`. Admin nav item only appended when `isSuperuser === true`. Normal customers never see Admin link.
+- `apps/frontend/lib/api.ts` — added 5 new TypeScript interfaces + `adminListUsage` + 5 new API helper functions targeting the new backend endpoints.
+- `apps/frontend/app/(app)/admin/page.tsx` — full rewrite. 6 tabs: Overview (overview cards + billing KPIs), Users (user table + org table), Billing (plan distribution + stripe summary + subscriptions table), Etsy (shops + scheduled jobs), Usage (product usage stats + usage counters table), System (health cards + audit log). Improved 403 page with shield icon.
+- `apps/backend/tests/test_admin_dashboard.py` — 17 new tests: auth gate (403 for regular user, 403 for unauthenticated), response shape validation for all 5 endpoints, MRR field name is `estimated_monthly_revenue` not `collected_revenue`, no stripe secrets in response, `is_superuser` exposed in `/me` as false for users and true for superusers, no `password_hash` in /me response.
+
+**Test results:** 17/17 new tests pass. 59/59 total admin tests pass. TypeScript: 0 errors. Build: 20 routes.
+
+**Security:** All 5 new endpoints require superuser. `estimated_monthly_revenue` labeled as projected (not guaranteed cash). No stripe secrets, no password_hash, no Etsy tokens in any response.
+
+---
+
 ## 2026-06-26 Sprint 18 — Security Hardening, Deployment Readiness, Polish
 
 **Skills active:** 20 testing-qa, 08 security, 01 documentation-handoff, 05 frontend-component

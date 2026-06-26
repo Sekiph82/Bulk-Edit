@@ -278,3 +278,46 @@ class AdminAuditEventSummary(BaseModel):
 class AdminActionResult(BaseModel):
     ok: bool
     message: str
+
+
+# ── Business Dashboard Summaries ──────────────────────────────────────────────
+
+class AdminBillingSummary(BaseModel):
+    total_subscriptions: int
+    free_plan_count: int
+    basic_monthly_count: int
+    basic_yearly_count: int
+    pro_monthly_count: int
+    pro_yearly_count: int
+    active_count: int
+    trialing_count: int
+    canceled_count: int
+    cancel_at_period_end_count: int
+    estimated_monthly_revenue: float  # projected, not guaranteed cash
+
+
+class AdminStripeSummary(BaseModel):
+    total_stripe_customers: int
+    subscriptions_with_stripe_sub: int
+    active_stripe_subscriptions: int
+    canceling_at_period_end: int
+    total_billing_events: int
+
+
+class AdminProductUsage(BaseModel):
+    total_listings: int
+    total_bulk_edit_sessions: int
+    total_ai_sessions: int
+    total_csv_jobs: int
+    total_dynamic_pricing_jobs: int
+    total_sync_jobs: int
+    total_shops: int
+
+
+class AdminSystemHealth(BaseModel):
+    database_status: str
+    total_users: int
+    total_organizations: int
+    total_audit_events: int
+    recent_failed_scheduled_runs: int
+    recent_failed_ai_sessions: int

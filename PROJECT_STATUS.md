@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 18 — Security Hardening, Deployment Readiness, Polish — COMPLETE.**
+**Sprint 19 — Internal Admin Business Dashboard — COMPLETE.**
 
 ## Status
 
-`566/566 tests pass. 45 new security hardening tests added (test_security_hardening.py). GET /api/v1/health/ready readiness probe endpoint added. Mojibake fixed in listings + pricing-rules pages (× and ✕ close buttons). Accessibility improved (type="button", aria-label on icon-only buttons). docs/operations/ENVIRONMENT.md created. TESTING.md fully updated with current test inventory. All project docs updated.`
+`17 new tests (test_admin_dashboard.py). 5 new admin summary endpoints: billing-summary, stripe-summary, product-usage, system-health, audit-log. Admin nav hidden from non-superusers in AppShell. Admin page rewritten as 6-tab business dashboard (Overview, Users, Billing, Etsy, Usage, System). 20 routes, 0 TypeScript errors. Note: 196 pre-existing test failures from missing ENCRYPTION_KEY in test env (unrelated to Sprint 19 — new tests all pass).`
 
 ## Last Updated
 
@@ -42,6 +42,7 @@ None (between sprints)
 - Sprint 17.5: Marketing Polish ✓ (MarketingNav, MarketingFooter, /features, /faq, /contact-us, motion v12 animations, globals.css design system, Etsy legal disclaimer, 22 routes build clean, 521/521 suite)
 - Sprint 17.5-B: Theme System + fmcg Visual Language ✓ (ThemeProvider, ThemeToggle, AppShell, anti-flash script, (app)/ route group, 11 app pages migrated, full dark mode CSS, 22 routes, 521/521 suite)
 - Sprint 18: Security Hardening + Deployment Readiness ✓ (45 security tests, /health/ready endpoint, mojibake fix, accessibility, ENVIRONMENT.md, TESTING.md, 566/566 suite)
+- Sprint 19: Internal Admin Business Dashboard ✓ (6-tab dashboard, 5 new summary endpoints, Admin nav gated to superusers, 17 new tests, 20 routes, 0 TS errors)
 
 ## Local Development (Windows)
 
