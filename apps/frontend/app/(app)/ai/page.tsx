@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
@@ -272,7 +272,7 @@ export default function AIToolsPage() {
         {usage && (
           <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold text-gray-700">AI Credits â€” {usage.period_key}</h2>
+              <h2 className="text-sm font-semibold text-gray-700">AI Credits — {usage.period_key}</h2>
               <span className="text-sm text-gray-500">
                 {usage.ai_credits_used} / {usage.ai_credits_limit}
               </span>
@@ -345,7 +345,7 @@ export default function AIToolsPage() {
               <h2 className="text-sm font-semibold text-gray-700">
                 Suggestions
                 <span className="ml-2 text-xs text-gray-400">
-                  ({activeSession.tool} â€” {activeSession.ai_provider ?? "mock"})
+                  ({activeSession.tool} — {activeSession.ai_provider ?? "mock"})
                 </span>
               </h2>
               <StatusBadge status={activeSession.status} />

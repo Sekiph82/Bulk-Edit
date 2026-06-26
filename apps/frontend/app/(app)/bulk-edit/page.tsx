@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
@@ -58,7 +58,7 @@ const VALIDATION_BADGE: Record<string, string> = {
 };
 
 function formatVal(v: unknown): string {
-  if (v === null || v === undefined) return "â€”";
+  if (v === null || v === undefined) return "—";
   if (Array.isArray(v)) return v.join(", ") || "(empty)";
   return String(v);
 }
@@ -112,7 +112,7 @@ function ListingSelector({
       <div className="flex gap-2">
         <input
           type="text"
-          placeholder="Search listingsâ€¦"
+          placeholder="Search listings…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") load(1); }}
@@ -145,12 +145,12 @@ function ListingSelector({
                     <input type="checkbox" readOnly checked={selected.has(l.id)} className="rounded" />
                   </td>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900 truncate max-w-xs">{l.title ?? "â€”"}</p>
+                    <p className="font-medium text-gray-900 truncate max-w-xs">{l.title ?? "—"}</p>
                     <p className="text-xs text-gray-400">#{l.etsy_listing_id}</p>
                   </td>
-                  <td className="px-4 py-3 text-gray-500">{l.state ?? "â€”"}</td>
+                  <td className="px-4 py-3 text-gray-500">{l.state ?? "—"}</td>
                   <td className="px-4 py-3 text-gray-700">
-                    {l.price_amount != null ? `${l.currency_code ?? ""} ${(l.price_amount / (l.price_divisor ?? 100)).toFixed(2)}` : "â€”"}
+                    {l.price_amount != null ? `${l.currency_code ?? ""} ${(l.price_amount / (l.price_divisor ?? 100)).toFixed(2)}` : "—"}
                   </td>
                 </tr>
               ))}
@@ -176,7 +176,7 @@ function ListingSelector({
           disabled={selected.size === 0}
           className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
         >
-          Create Bulk Edit Session â†’
+          Create Bulk Edit Session →
         </button>
       </div>
     </div>
@@ -285,7 +285,7 @@ function ChangeEditor({
 
       <button onClick={handleAdd} disabled={adding}
         className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300">
-        {adding ? "Addingâ€¦" : "+ Add Change"}
+        {adding ? "Adding…" : "+ Add Change"}
       </button>
 
       {changes.length > 0 && (
@@ -540,7 +540,7 @@ function BulkEditContent() {
             <h1 className="text-2xl font-bold text-gray-900">Bulk Edit</h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {phase === "select" && "Select listings to edit"}
-              {phase === "session" && `Session: ${session?.id.slice(0, 8)}â€¦ â€” ${session?.selected_count} listings`}
+              {phase === "session" && `Session: ${session?.id.slice(0, 8)}… — ${session?.selected_count} listings`}
               {phase === "preview" && "Preview changes before applying"}
             </p>
           </div>
@@ -582,7 +582,7 @@ function BulkEditContent() {
           </div>
         )}
 
-        {/* Phase: session â€” add changes */}
+        {/* Phase: session — add changes */}
         {phase === "session" && session && (
           <>
             <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -604,7 +604,7 @@ function BulkEditContent() {
                 disabled={previewLoading || session.changes.length === 0}
                 className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium px-6 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
               >
-                {previewLoading ? "Generating Previewâ€¦" : `Preview Changes (${session.changes.length} rule${session.changes.length !== 1 ? "s" : ""})`}
+                {previewLoading ? "Generating Preview…" : `Preview Changes (${session.changes.length} rule${session.changes.length !== 1 ? "s" : ""})`}
               </button>
             </div>
           </>
@@ -635,7 +635,7 @@ function BulkEditContent() {
                 ("price_amount" in item.diff || "quantity" in item.diff)
             ) && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-5 py-3 text-sm text-yellow-800">
-                <strong>Note:</strong> One or more listings have variations. Price and quantity changes will be skipped for those listings during apply â€” variation inventory support is coming in a future release. Text fields will still be updated.
+                <strong>Note:</strong> One or more listings have variations. Price and quantity changes will be skipped for those listings during apply — variation inventory support is coming in a future release. Text fields will still be updated.
               </div>
             )}
 
@@ -662,7 +662,7 @@ function BulkEditContent() {
             {/* Apply result */}
             {applyJob && (
               <div className={`rounded-xl border px-5 py-4 text-sm ${applyJob.status === "completed" ? "bg-green-50 border-green-200 text-green-800" : applyJob.status === "failed" ? "bg-red-50 border-red-200 text-red-800" : "bg-yellow-50 border-yellow-200 text-yellow-800"}`}>
-                <p className="font-semibold mb-1">Apply complete â€” {applyJob.status}</p>
+                <p className="font-semibold mb-1">Apply complete — {applyJob.status}</p>
                 <p>Success: {applyJob.success_count} Â· Failed: {applyJob.failure_count} Â· Skipped: {applyJob.skipped_count}</p>
                 {applyJob.error_message && <p className="mt-1 text-xs">{applyJob.error_message}</p>}
               </div>
@@ -671,7 +671,7 @@ function BulkEditContent() {
             {/* Revert result */}
             {revertJob && (
               <div className={`rounded-xl border px-5 py-4 text-sm ${revertJob.status === "completed" ? "bg-green-50 border-green-200 text-green-800" : revertJob.status === "failed" ? "bg-red-50 border-red-200 text-red-800" : "bg-yellow-50 border-yellow-200 text-yellow-800"}`}>
-                <p className="font-semibold mb-1">Revert complete â€” {revertJob.status}</p>
+                <p className="font-semibold mb-1">Revert complete — {revertJob.status}</p>
                 <p>Restored: {revertJob.success_count} Â· Failed: {revertJob.failure_count} Â· Skipped: {revertJob.skipped_count}</p>
                 {revertJob.error_message && <p className="mt-1 text-xs">{revertJob.error_message}</p>}
               </div>
@@ -683,7 +683,7 @@ function BulkEditContent() {
                 onClick={() => setPhase("session")}
                 className="border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200"
               >
-                â† Edit Changes
+                ← Edit Changes
               </button>
               {applyJob && (applyJob.status === "completed" || applyJob.status === "completed_with_errors") && !revertJob && (
                 <button
@@ -691,7 +691,7 @@ function BulkEditContent() {
                   disabled={reverting}
                   className="border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-60 text-sm font-medium px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-200"
                 >
-                  {reverting ? "Revertingâ€¦" : "Magic Revert"}
+                  {reverting ? "Reverting…" : "Magic Revert"}
                 </button>
               )}
               <button
@@ -700,7 +700,7 @@ function BulkEditContent() {
                 title={hasInvalid ? "Fix invalid listings before applying" : ""}
                 className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium px-6 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
               >
-                {applying ? "Applyingâ€¦" : applyJob ? "Applied" : "Apply to Etsy"}
+                {applying ? "Applying…" : applyJob ? "Applied" : "Apply to Etsy"}
               </button>
             </div>
 
@@ -782,7 +782,7 @@ function BulkEditContent() {
 
 export default function BulkEditPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400">Loadingâ€¦</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400">Loading…</div>}>
       <BulkEditContent />
     </Suspense>
   );

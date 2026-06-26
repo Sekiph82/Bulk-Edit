@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
@@ -57,7 +57,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function cents(amount: number | null | undefined): string {
-  if (amount == null) return "â€”";
+  if (amount == null) return "—";
   return "$" + (amount / 100).toFixed(2);
 }
 
@@ -328,7 +328,7 @@ export default function PricingRulesPage() {
               </div>
             </div>
             {loadingListings ? (
-              <div className="px-5 py-8 text-center text-gray-400 text-sm">Loading listingsâ€¦</div>
+              <div className="px-5 py-8 text-center text-gray-400 text-sm">Loading listings…</div>
             ) : listings.length === 0 ? (
               <div className="px-5 py-8 text-center text-gray-400 text-sm">No listings found.</div>
             ) : (
@@ -347,7 +347,7 @@ export default function PricingRulesPage() {
                     )}
                     {(l as unknown as { has_variations?: boolean }).has_variations && (
                       <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">
-                        variations â€” will skip
+                        variations — will skip
                       </span>
                     )}
                   </label>
@@ -553,7 +553,7 @@ export default function PricingRulesPage() {
               disabled={creatingJob || previewLoading || selectedIds.size === 0}
               className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {creatingJob || previewLoading ? "Generating previewâ€¦" : "Generate Price Preview"}
+              {creatingJob || previewLoading ? "Generating preview…" : "Generate Price Preview"}
             </button>
           </div>
         </div>
@@ -578,7 +578,7 @@ export default function PricingRulesPage() {
                 href={`/bulk-edit`}
                 className="px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700"
               >
-                Go to Bulk Edit â†’
+                Go to Bulk Edit →
               </Link>
             </div>
           )}
@@ -657,7 +657,7 @@ export default function PricingRulesPage() {
                 disabled={acceptingAll}
                 className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
               >
-                {acceptingAll ? "Acceptingâ€¦" : "Accept All Recommended"}
+                {acceptingAll ? "Accepting…" : "Accept All Recommended"}
               </button>
               <button
                 onClick={() => { setConvertConfirmText(""); setShowConvertModal(true); }}
@@ -672,7 +672,7 @@ export default function PricingRulesPage() {
           {/* Recommendations table */}
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             {recLoading ? (
-              <div className="p-8 text-center text-gray-400 text-sm">Loadingâ€¦</div>
+              <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
             ) : !recPage || recPage.items.length === 0 ? (
               <div className="p-8 text-center text-gray-400 text-sm">No recommendations.</div>
             ) : (
@@ -701,7 +701,7 @@ export default function PricingRulesPage() {
                           <span className={rec.diff_amount >= 0 ? "text-green-600" : "text-red-600"}>
                             {rec.diff_amount >= 0 ? "+" : ""}{cents(rec.diff_amount)}
                           </span>
-                        ) : "â€”"}
+                        ) : "—"}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[rec.status] ?? "bg-gray-100 text-gray-600"}`}>
@@ -789,7 +789,7 @@ export default function PricingRulesPage() {
         <div className="max-w-5xl mx-auto px-6 py-8">
           <h2 className="font-medium text-gray-900 mb-4">Pricing Job History</h2>
           {jobsLoading ? (
-            <p className="text-sm text-gray-400">Loadingâ€¦</p>
+            <p className="text-sm text-gray-400">Loading…</p>
           ) : jobs.length === 0 ? (
             <p className="text-sm text-gray-400">No jobs yet.</p>
           ) : (
@@ -821,9 +821,9 @@ export default function PricingRulesPage() {
                       <td className="px-4 py-3 text-gray-600">
                         {j.converted_bulk_edit_session_id ? (
                           <Link href="/bulk-edit" className="text-indigo-600 hover:underline text-xs">
-                            View session â†’
+                            View session →
                           </Link>
-                        ) : "â€”"}
+                        ) : "—"}
                       </td>
                       <td className="px-4 py-3 text-gray-400 text-xs">
                         {new Date(j.created_at).toLocaleDateString()}
@@ -872,7 +872,7 @@ export default function PricingRulesPage() {
                 disabled={convertConfirmText !== "CONVERT PRICES" || converting}
                 className="px-4 py-2 text-sm text-white bg-indigo-600 rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {converting ? "Convertingâ€¦" : "Convert"}
+                {converting ? "Converting…" : "Convert"}
               </button>
             </div>
           </div>

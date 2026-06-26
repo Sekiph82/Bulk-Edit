@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -370,7 +370,7 @@ export default function MediaPage() {
                 <tbody>
                   {jobs.map(job => (
                     <tr key={job.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2 pr-4 font-mono text-xs text-gray-500">{job.id.slice(0, 8)}â€¦</td>
+                      <td className="py-2 pr-4 font-mono text-xs text-gray-500">{job.id.slice(0, 8)}…</td>
                       <td className="py-2 pr-4 text-gray-700">{job.operation_type}</td>
                       <td className="py-2 pr-4"><StatusBadge status={job.status} /></td>
                       <td className="py-2 pr-4 text-gray-600">
@@ -400,7 +400,7 @@ export default function MediaPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold text-gray-800">
-                Results for {activeJobId.slice(0, 8)}â€¦
+                Results for {activeJobId.slice(0, 8)}…
               </h2>
               {backupCount !== null && (
                 <span className="text-xs text-gray-500">{backupCount} backup snapshot(s) saved</span>
