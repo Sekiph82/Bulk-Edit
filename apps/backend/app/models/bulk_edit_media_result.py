@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, ForeignKey, Uuid, JSON
+from sqlalchemy import String, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import mapped_column, Mapped
 from app.db.base import Base, TimestampMixin
 
@@ -8,11 +8,11 @@ from app.db.base import Base, TimestampMixin
 class BulkEditMediaResult(Base, TimestampMixin):
     __tablename__ = "bulk_edit_media_results"
 
-    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
-    organization_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
-    media_job_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), ForeignKey("bulk_edit_media_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
-    bulk_edit_session_id: Mapped[str | None] = mapped_column(Uuid(as_uuid=False), ForeignKey("bulk_edit_sessions.id", ondelete="SET NULL"), nullable=True, index=True)
-    listing_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    organization_id: Mapped[str] = mapped_column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    media_job_id: Mapped[str] = mapped_column(String(36), ForeignKey("bulk_edit_media_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    bulk_edit_session_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("bulk_edit_sessions.id", ondelete="SET NULL"), nullable=True, index=True)
+    listing_id: Mapped[str] = mapped_column(String(36), ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True)
     etsy_listing_id: Mapped[str] = mapped_column(String(50), nullable=False)
 
     operation_type: Mapped[str] = mapped_column(String(50), nullable=False)

@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, Boolean, JSON, ForeignKey, Uuid
+﻿from sqlalchemy import String, Integer, Boolean, JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin
 import uuid
@@ -7,8 +7,8 @@ import uuid
 class ListingVariation(Base, TimestampMixin):
     __tablename__ = "listing_variations"
 
-    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
-    listing_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    listing_id: Mapped[str] = mapped_column(String(36), ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True)
     etsy_product_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     sku: Mapped[str | None] = mapped_column(String(255), nullable=True)
     property_id: Mapped[str | None] = mapped_column(String(50), nullable=True)

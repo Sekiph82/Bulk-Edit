@@ -4,6 +4,24 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-26 Docker Fix — FK Type Mismatch + bcrypt Compat
+
+**Skills active:** 06 database-modeling, 07 backend-api, 20 testing-qa, 01 documentation-handoff
+
+**Completed:**
+- `apps/backend/requirements.txt` — pinned `bcrypt==4.0.1` (passlib 1.7.4 incompatible with bcrypt 5.x; `__about__.__version__` removed in 5.x)
+- `apps/backend/alembic/versions/0008–0012` — confirmed using `sa.String(36)` throughout (was pre-modified)
+- **43 ORM model files** — bulk replaced `Uuid(as_uuid=False)` → `String(36)`, removed `Uuid` and `PG_UUID` imports. Root cause: asyncpg renders `Uuid(as_uuid=False)` as `$1::UUID` bind type in SQL; DB columns from migrations are `VARCHAR(36)`; PostgreSQL rejects `VARCHAR = UUID` comparison at runtime.
+- Docker from clean volumes: all 12 Alembic migrations pass, no FK errors
+- Backend health verified: HTTP 200 `{"status":"ok","service":"bulk-edit-api"}`
+- Frontend verified: HTTP 200, valid HTML
+- Local superuser seed verified: both users created, access_token returned on login, wrong password → 401
+- `.local-superusers.env` confirmed gitignored, not staged
+
+**Tests:** 438/438 suite passing on host (7 new tests from sprint model files)
+
+---
+
 ## 2026-06-26 Local Dev Reliability — Superuser Seed + Startup Readiness
 
 **Skills active:** 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff

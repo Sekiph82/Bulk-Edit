@@ -17,9 +17,9 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "bulk_edit_variation_jobs",
-        sa.Column("id", sa.Uuid(as_uuid=False), primary_key=True),
-        sa.Column("organization_id", sa.Uuid(as_uuid=False), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("created_by_user_id", sa.Uuid(as_uuid=False), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("created_by_user_id", sa.String(36), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("operation_type", sa.String(50), nullable=False, index=True),
         sa.Column("operation_payload", sa.JSON, nullable=False),
         sa.Column("selected_listing_ids", sa.JSON, nullable=False),
@@ -39,10 +39,10 @@ def upgrade() -> None:
 
     op.create_table(
         "bulk_edit_variation_preview_items",
-        sa.Column("id", sa.Uuid(as_uuid=False), primary_key=True),
-        sa.Column("organization_id", sa.Uuid(as_uuid=False), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("variation_job_id", sa.Uuid(as_uuid=False), sa.ForeignKey("bulk_edit_variation_jobs.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("listing_id", sa.Uuid(as_uuid=False), sa.ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("variation_job_id", sa.String(36), sa.ForeignKey("bulk_edit_variation_jobs.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("listing_id", sa.String(36), sa.ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("etsy_listing_id", sa.String(50), nullable=False),
         sa.Column("listing_title", sa.Text, nullable=True),
         sa.Column("before_variations", sa.JSON, nullable=False),
@@ -57,10 +57,10 @@ def upgrade() -> None:
 
     op.create_table(
         "bulk_edit_variation_results",
-        sa.Column("id", sa.Uuid(as_uuid=False), primary_key=True),
-        sa.Column("organization_id", sa.Uuid(as_uuid=False), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("variation_job_id", sa.Uuid(as_uuid=False), sa.ForeignKey("bulk_edit_variation_jobs.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("listing_id", sa.Uuid(as_uuid=False), sa.ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("variation_job_id", sa.String(36), sa.ForeignKey("bulk_edit_variation_jobs.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("listing_id", sa.String(36), sa.ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("etsy_listing_id", sa.String(50), nullable=False),
         sa.Column("status", sa.String(50), nullable=False, server_default="pending", index=True),
         sa.Column("request_payload", sa.JSON, nullable=True),
@@ -74,17 +74,17 @@ def upgrade() -> None:
 
     op.create_table(
         "listing_variation_backup_snapshots",
-        sa.Column("id", sa.Uuid(as_uuid=False), primary_key=True),
-        sa.Column("organization_id", sa.Uuid(as_uuid=False), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("variation_job_id", sa.Uuid(as_uuid=False), sa.ForeignKey("bulk_edit_variation_jobs.id", ondelete="SET NULL"), nullable=True, index=True),
-        sa.Column("listing_id", sa.Uuid(as_uuid=False), sa.ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("etsy_shop_id", sa.Uuid(as_uuid=False), sa.ForeignKey("etsy_shops.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("variation_job_id", sa.String(36), sa.ForeignKey("bulk_edit_variation_jobs.id", ondelete="SET NULL"), nullable=True, index=True),
+        sa.Column("listing_id", sa.String(36), sa.ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("etsy_shop_id", sa.String(36), sa.ForeignKey("etsy_shops.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("etsy_listing_id", sa.String(50), nullable=False),
         sa.Column("snapshot_type", sa.String(50), nullable=False, server_default="pre_variation_write"),
         sa.Column("local_variations_snapshot", sa.JSON, nullable=True),
         sa.Column("etsy_inventory_snapshot", sa.JSON, nullable=True),
         sa.Column("raw_snapshot", sa.JSON, nullable=True),
-        sa.Column("created_by_user_id", sa.Uuid(as_uuid=False), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("created_by_user_id", sa.String(36), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )

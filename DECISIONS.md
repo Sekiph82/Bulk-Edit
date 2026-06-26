@@ -4,6 +4,16 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-06-26 (Docker Fix)
+
+### [DB] All model ID and FK columns must use String(36), not Uuid(as_uuid=False)
+Migration 0001 creates `users` and `organizations` with `VARCHAR(36)` primary keys (via `sa.String(36)`). All sprint migrations must use `sa.String(36)` for FK columns referencing these tables. ORM model files must also use `String(36)` (not `Uuid(as_uuid=False)`). Reason: asyncpg renders `Uuid(as_uuid=False)` as `$1::UUID` type cast; PostgreSQL cannot compare `UUID = VARCHAR(36)`, rejecting every WHERE clause using those columns. Converting the DB to native UUID type is not done — would require dropping and recreating all tables with data.
+
+### [DEPS] bcrypt must be pinned to 4.0.1
+passlib 1.7.4 (the last stable release) is not compatible with bcrypt 5.x. bcrypt 5.0.0 removed `__about__.__version__`, which passlib uses for backend detection. This causes `AttributeError` on startup and `password cannot be longer than 72 bytes` on every hash call. Pin `bcrypt==4.0.1` in requirements.txt. Upgrade only when passlib publishes a 5.x-compatible release.
+
+---
+
 ## 2026-06-26 (Local Dev Reliability)
 
 ### [LOCAL-DEV] Seed script runs via docker compose exec, not on host

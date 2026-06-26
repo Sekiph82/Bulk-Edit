@@ -3,6 +3,31 @@
 ## Last Session
 
 **Date:** 2026-06-26
+**Task:** Fix Docker startup — migration FK type mismatch + bcrypt compat — COMPLETE
+**Commit:** (see below)
+
+**Root Cause:**
+1. Sprint migrations 0008-0012 originally used `postgresql.UUID`/`sa.UUID` for FK columns while parent tables (`organizations`, `users`, `listings`, etc.) have `VARCHAR(36)` IDs (from migration 0001+). PostgreSQL rejects FK constraints across incompatible types.
+2. All parent-table ORM models (`organization.py`, `user.py`, `listing.py`, and 21 others) declared columns as `Uuid(as_uuid=False)`. With asyncpg, this generates `$1::UUID` bind type in SQL. PostgreSQL rejects `VARCHAR = UUID` comparisons.
+3. `bcrypt==5.0.0` (unpinned transitive dep) broke `passlib==1.7.4` — `__about__.__version__` removed, causing seed hash failure.
+
+**Fixes:**
+- Migrations 0008-0012: already fixed to use `sa.String(36)` (were in unstaged changes)
+- **ALL 43 model files**: replaced `Uuid(as_uuid=False)` → `String(36)`, removed `Uuid` imports (bulk PowerShell replace across 24 files)
+- `requirements.txt`: pinned `bcrypt==4.0.1` (last compatible with passlib 1.7.4)
+
+**Verified:**
+- `alembic upgrade head` from clean DB: all 12 migrations pass, no FK errors
+- Backend health: HTTP 200 `{"status":"ok","service":"bulk-edit-api"}`
+- Frontend: HTTP 200, valid HTML
+- Local superuser seed: `test@example.com (free, created) | test-su@example.com (pro_monthly, created)` — no errors
+- Login: both users return `access_token`; wrong password → 401
+- `.local-superusers.env` gitignored, not staged
+- **438/438 tests pass on host**
+
+## Previous Last Session
+
+**Date:** 2026-06-26
 **Task:** Fix local superuser workflow — seed on backend startup — COMPLETE
 **Commit:** `23e1520` — `chore: seed local superusers on backend startup`
 **Completed:**

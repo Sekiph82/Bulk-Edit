@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, Integer, JSON, ForeignKey, Uuid, UniqueConstraint
+﻿from sqlalchemy import String, Text, Integer, JSON, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin
 import uuid
@@ -10,8 +10,8 @@ class ListingImage(Base, TimestampMixin):
         UniqueConstraint("listing_id", "etsy_image_id", name="uq_image_listing_etsy_id"),
     )
 
-    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
-    listing_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    listing_id: Mapped[str] = mapped_column(String(36), ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True)
     etsy_image_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     url_fullxfull: Mapped[str | None] = mapped_column(Text, nullable=True)
     url_570xN: Mapped[str | None] = mapped_column(Text, nullable=True)

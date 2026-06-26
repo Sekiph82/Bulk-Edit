@@ -23,9 +23,9 @@ def upgrade() -> None:
 
     op.create_table(
         "dynamic_pricing_jobs",
-        sa.Column("id", sa.Uuid(as_uuid=False), primary_key=True),
-        sa.Column("organization_id", sa.Uuid(as_uuid=False), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("user_id", sa.Uuid(as_uuid=False), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("user_id", sa.String(36), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("status", sa.String(50), nullable=False, server_default="draft"),
         sa.Column("selected_listing_ids", sa.JSON(), nullable=False),
         sa.Column("rule_type", sa.String(100), nullable=False),
@@ -36,7 +36,7 @@ def upgrade() -> None:
         sa.Column("skipped_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("warning_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("invalid_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("converted_bulk_edit_session_id", sa.Uuid(as_uuid=False), nullable=True),
+        sa.Column("converted_bulk_edit_session_id", sa.String(36), nullable=True),
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
@@ -45,10 +45,10 @@ def upgrade() -> None:
 
     op.create_table(
         "dynamic_pricing_recommendations",
-        sa.Column("id", sa.Uuid(as_uuid=False), primary_key=True),
-        sa.Column("organization_id", sa.Uuid(as_uuid=False), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("dynamic_pricing_job_id", sa.Uuid(as_uuid=False), sa.ForeignKey("dynamic_pricing_jobs.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("listing_id", sa.Uuid(as_uuid=False), sa.ForeignKey("listings.id", ondelete="SET NULL"), nullable=True, index=True),
+        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("dynamic_pricing_job_id", sa.String(36), sa.ForeignKey("dynamic_pricing_jobs.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("listing_id", sa.String(36), sa.ForeignKey("listings.id", ondelete="SET NULL"), nullable=True, index=True),
         sa.Column("etsy_listing_id", sa.String(50), nullable=True),
         sa.Column("listing_title", sa.Text(), nullable=True),
         sa.Column("currency_code", sa.String(10), nullable=True),
@@ -65,7 +65,7 @@ def upgrade() -> None:
         sa.Column("validation_errors", sa.JSON(), nullable=True),
         sa.Column("validation_warnings", sa.JSON(), nullable=True),
         sa.Column("decided_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("decided_by_user_id", sa.Uuid(as_uuid=False), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("decided_by_user_id", sa.String(36), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )

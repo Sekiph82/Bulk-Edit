@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Local Dev — Seed-on-Startup Fix — COMPLETE. Ready for Sprint 16.**
+**Docker Fix — FK Type Mismatch + bcrypt Compat — COMPLETE. Ready for Sprint 16.**
 
 ## Status
 
-`FastAPI lifespan hook seeds local superusers from .local-superusers.env on backend startup. Bat files no longer prompt Y/N or invoke seed scripts. Login is unchanged. 431/431 tests pass. Sprint 16 (Scheduled Jobs) is next.`
+`All Alembic migrations (0001–0012) run clean on fresh DB. All 43 model files use String(36) for IDs/FKs (matches VARCHAR(36) in DB). bcrypt pinned to 4.0.1 (passlib compat). Both local superusers seed and login correctly. 438/438 tests pass. Sprint 16 (Scheduled Jobs) is next.`
 
 ## Last Updated
 
@@ -86,7 +86,7 @@ None
 | `pytest tests/test_dynamic_pricing.py` | 50/50 PASSED |
 | `pytest tests/test_seed_local_superusers.py` | 23/23 PASSED |
 | `pytest tests/test_windows_batch_readiness.py` | 12/12 PASSED |
-| **Full suite `pytest`** | **431/431 PASSED** |
+| **Full suite `pytest`** | **438/438 PASSED** |
 
 ## Sprint 11 — New Files
 
@@ -165,7 +165,7 @@ All enforced in `apply_bulk_edit_session()` before any write:
 | Sprints complete | 17 / 18 (incl. Productization UI, Landing Animation, AI, CSV, DP, local dev) |
 | Backend Python files | 120+ |
 | Frontend TypeScript files | 29 |
-| Total tests | 431 |
+| Total tests | 438 |
 | Open blockers | 0 |
 
 ## Next Action
