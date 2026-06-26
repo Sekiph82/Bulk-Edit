@@ -424,7 +424,9 @@ async def generate_bulk_edit_preview(
 
         after_data = before_data.copy()
         for change in changes:
-            after_data = apply_change_to_listing_data(after_data, change)
+            targets = change.target_listing_ids
+            if targets is None or lid in targets:
+                after_data = apply_change_to_listing_data(after_data, change)
 
         validation = validate_listing_data(after_data)
         vstatus = validation["status"]

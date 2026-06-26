@@ -821,3 +821,136 @@ export function convertAISession(sessionId: string): Promise<ConvertResult> {
 export function getAIUsage(): Promise<AIUsage> {
   return apiFetch("/api/v1/ai/usage");
 }
+
+// ---- CSV Types ----
+
+export interface CSVJob {
+  id: string;
+  organization_id: string;
+  user_id: string | null;
+  job_type: string;
+  status: string;
+  filename: string | null;
+  original_filename: string | null;
+  row_count: number;
+  valid_row_count: number;
+  invalid_row_count: number;
+  changed_row_count: number;
+  unchanged_row_count: number;
+  ignored_column_count: number;
+  ignored_columns: string[] | null;
+  summary: Record<string, unknown> | null;
+  error_message: string | null;
+  converted_bulk_edit_session_id: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CSVRow {
+  id: string;
+  organization_id: string;
+  csv_job_id: string;
+  row_number: number;
+  listing_id: string | null;
+  etsy_listing_id: string | null;
+  listing_title: string | null;
+  raw_data: Record<string, unknown>;
+  normalized_data: Record<string, unknown> | null;
+  diff: Record<string, unknown> | null;
+  status: string;
+  validation_errors: string[] | null;
+  validation_warnings: string[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CSVPreviewPage {
+  items: CSVRow[];
+  total: number;
+  page: number;
+  per_page: number;
+  csv_job_id: string;
+}
+
+export interface CSVImportSummary {
+  job_id: string;
+  status: string;
+  row_count: number;
+  valid_row_count: number;
+  invalid_row_count: number;
+  changed_row_count: number;
+  unchanged_row_count: number;
+  ignored_columns: string[];
+  message: string;
+}
+
+export interface CSVConvertResult {
+  bulk_edit_session_id: string;
+  converted_rows: number;
+  created_changes: number;
+  message: string;
+}
+
+// ---- CSV API helpers ----
+
+export function exportCSV(shopId?: string, state?: string): string {
+  const token = getAccessToken();
+  const qs = new URLSearchParams();
+  if (shopId) qs.set("shop_id", shopId);
+  if (state) qs.set("state", state);
+  if (token) qs.set("_token", token);
+  const q = qs.toString();
+  return `${BACKEND_URL}/api/v1/csv/export${q ? `?${q}` : ""}`;
+}
+
+export function downloadCSVTemplate(): string {
+  return `${BACKEND_URL}/api/v1/csv/template`;
+}
+
+export async function importCSV(file: File): Promise<CSVImportSummary> {
+  const token = getAccessToken();
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${BACKEND_URL}/api/v1/csv/import`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.detail ?? res.statusText);
+  }
+  return res.json();
+}
+
+export function listCSVJobs(jobType?: string): Promise<CSVJob[]> {
+  const qs = jobType ? `?job_type=${encodeURIComponent(jobType)}` : "";
+  return apiFetch(`/api/v1/csv/jobs${qs}`);
+}
+
+export function getCSVJob(jobId: string): Promise<CSVJob> {
+  return apiFetch(`/api/v1/csv/jobs/${jobId}`);
+}
+
+export function getCSVPreview(
+  jobId: string,
+  params: { page?: number; per_page?: number; status?: string } = {},
+): Promise<CSVPreviewPage> {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set("page", String(params.page));
+  if (params.per_page) qs.set("per_page", String(params.per_page));
+  if (params.status) qs.set("status", params.status);
+  const q = qs.toString();
+  return apiFetch(`/api/v1/csv/jobs/${jobId}/preview${q ? `?${q}` : ""}`);
+}
+
+export function convertCSVJob(
+  jobId: string,
+  ignoreInvalid = false,
+): Promise<CSVConvertResult> {
+  return apiFetch(`/api/v1/csv/jobs/${jobId}/convert`, {
+    method: "POST",
+    body: JSON.stringify({ ignore_invalid: ignoreInvalid }),
+  });
+}

@@ -4,6 +4,35 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-26 Sprint 14 — CSV Import / Export
+
+**Skills active:** 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff
+
+**Completed:**
+- `app/models/csv_job.py` — CSVJob model (status: processing → preview_ready → converted/failed; counts: row, valid, invalid, changed, unchanged, ignored)
+- `app/models/csv_row.py` — CSVRow model (per-row: listing_id, etsy_listing_id, raw_data, normalized_data, diff, status, validation_errors, validation_warnings)
+- `app/models/bulk_edit_change.py` — added `target_listing_ids` JSON nullable; backward compat: null = apply to all
+- `alembic/versions/0011_create_csv_import_export_tables.py` — adds column, creates 2 tables
+- `app/schemas/csv_tools.py` — 6 schemas
+- `app/services/csv_tools.py` — export (streaming CSV), template, parse_csv_upload (BOM-strip, 5000 row limit), create_csv_import_job (validate all rows, diff compute), get_csv_preview (paginated, status filter), convert_csv_job_to_bulk_edit_session (creates BulkEditSession + per-field BulkEditChange with target_listing_ids)
+- `app/services/bulk_edit.py` — preview engine: `if targets is None or lid in targets: apply_change()`
+- `app/api/v1/csv_tools.py` — 6 REST endpoints under /api/v1/csv
+- `app/api/v1/router.py` — csv_router added
+- `tests/test_csv_tools.py` — 49 tests: parsers, export, template, import, validation, row status, preview, convert, org isolation, backward compat
+- `apps/frontend/lib/api.ts` — CSV types + 7 helpers (importCSV uses FormData; exportCSV returns URL for direct download)
+- `apps/frontend/app/csv/page.tsx` — 3-tab page: Export (download CSV/template), Import (upload → summary stats → row preview table → convert button), Job History
+- `apps/frontend/app/dashboard/page.tsx` — CSV Import / Export card
+- Full suite: 353/353 PASSED; build: 15 routes, zero errors
+
+**Key decisions:**
+- `target_listing_ids` on BulkEditChange solves per-row different values: null = all (existing), [id] = specific listing (CSV)
+- Import → convert creates BulkEditSession with status=draft; user must run existing bulk edit preview+apply flow; no direct Etsy write in this sprint
+- Max 5,000 rows enforced at parse time
+- Pipe-separated arrays in CSV (tags, materials) normalized to lists
+- Both listing_id and etsy_listing_id supported for row identity resolution; cross-org rejected
+
+---
+
 ## 2026-06-26 Sprint 13 — AI Tools
 
 **Skills active:** 07 backend-api, 06 database-modeling, 20 testing-qa, 01 documentation-handoff

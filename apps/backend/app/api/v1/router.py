@@ -9,6 +9,7 @@ from app.api.v1.bulk_edit import router as bulk_edit_router
 from app.api.v1.bulk_edit_media import router as bulk_edit_media_router
 from app.api.v1.bulk_edit_variations import router as bulk_edit_variations_router
 from app.api.v1.ai import router as ai_router
+from app.api.v1.csv_tools import router as csv_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(health_router)
@@ -21,3 +22,4 @@ api_router.include_router(bulk_edit_router)
 api_router.include_router(bulk_edit_media_router)
 api_router.include_router(bulk_edit_variations_router)
 api_router.include_router(ai_router)
+api_router.include_router(csv_router)

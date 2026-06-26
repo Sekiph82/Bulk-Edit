@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 13: AI Tools — COMPLETE**
+**Sprint 14: CSV Import / Export — COMPLETE**
 
 ## Status
 
-`AI listing optimizer live (/ai). Provider abstraction (mock/openai/anthropic), 9 endpoints, 32 tests. Sprint 14 (CSV) is next.`
+`CSV import/export live (/csv). 49 CSV tests, 353 total pass. target_listing_ids on BulkEditChange enables per-row value scoping. Import converts to BulkEditSession only — never writes Etsy directly. Sprint 15 is next.`
 
 ## Last Updated
 
@@ -34,6 +34,7 @@ None (between sprints)
 - Productization UI Sprint ✓ (Design system installed, all 9 customer-facing pages polished, build passing)
 - Landing Animation Sprint ✓ (AnimatedProductDemo + 2-column hero, motion v12, build passing)
 - Sprint 13: AI Tools ✓ (provider abstraction, 9 endpoints, 32 tests, /ai page, 304/304 suite)
+- Sprint 14: CSV Import / Export ✓ (CSVJob + CSVRow models, 6 endpoints, 49 tests, /csv page, 353/353 suite)
 
 ## Local Development (Windows)
 
@@ -79,7 +80,8 @@ None
 | `pytest tests/test_bulk_edit_media.py` | 25/25 PASSED |
 | `pytest tests/test_bulk_edit_variation.py` | 47/47 PASSED |
 | `pytest tests/test_ai_tools.py` | 32/32 PASSED |
-| **Full suite `pytest`** | **304/304 PASSED** |
+| `pytest tests/test_csv_tools.py` | 49/49 PASSED |
+| **Full suite `pytest`** | **353/353 PASSED** |
 
 ## Sprint 11 — New Files
 
@@ -155,12 +157,12 @@ All enforced in `apply_bulk_edit_session()` before any write:
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 15 / 18 (incl. Productization UI Sprint + Landing Animation Sprint + Sprint 13 AI Tools) |
-| Backend Python files | 107+ |
-| Frontend TypeScript files | 28 |
-| Total tests | 304 |
+| Sprints complete | 16 / 18 (incl. Productization UI Sprint + Landing Animation Sprint + Sprint 13 AI Tools + Sprint 14 CSV) |
+| Backend Python files | 115+ |
+| Frontend TypeScript files | 29 |
+| Total tests | 353 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 14: CSV Import/Export. See HANDOFF.md for exact prompt.
+Begin Sprint 15: Dynamic Pricing. See HANDOFF.md for exact prompt.

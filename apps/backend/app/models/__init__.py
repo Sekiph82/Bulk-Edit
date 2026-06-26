@@ -33,3 +33,5 @@ from app.models.listing_variation_backup_snapshot import ListingVariationBackupS
 from app.models.ai_session import AISession
 from app.models.ai_suggestion import AISuggestion
 from app.models.ai_usage_log import AIUsageLog
+from app.models.csv_job import CSVJob
+from app.models.csv_row import CSVRow

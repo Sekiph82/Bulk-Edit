@@ -17,5 +17,8 @@ class BulkEditChange(Base, TimestampMixin):
     operation_value: Mapped[object] = mapped_column(JSON, nullable=True)
     validation_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     validation_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # When set, this change applies ONLY to the listed listing IDs.
+    # null means "apply to all selected listings" (existing bulk edit behavior).
+    target_listing_ids: Mapped[object] = mapped_column(JSON, nullable=True, default=None)
 
     session: Mapped["BulkEditSession"] = relationship("BulkEditSession", back_populates="changes")

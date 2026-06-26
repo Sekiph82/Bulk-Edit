@@ -388,15 +388,20 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Sprint 14: CSV Import / Export
 
-**Status:** `[ ] TODO`
+**Status:** `[x] COMPLETE`
 
-- [ ] Design CSVJob model
-- [ ] Implement CSV export of listings
-- [ ] Implement CSV import with validation
-- [ ] Build import preview (diff before apply)
-- [ ] Build frontend CSV import/export UI
-- [ ] Write CSV tests
-- [ ] Commit and push
+- [x] Design CSVJob + CSVRow models (alembic 0011)
+- [x] Add target_listing_ids to BulkEditChange (alembic 0011)
+- [x] Implement CSV export of listings
+- [x] Implement CSV template download
+- [x] Implement CSV import with validation (parse, normalize, diff)
+- [x] Build import preview endpoint (paginated, status filter)
+- [x] Build convert endpoint: CSV → BulkEditSession + BulkEditChange (NEVER writes to Etsy)
+- [x] Update bulk edit preview engine for target_listing_ids scoping
+- [x] Frontend: /csv page (export tab, import tab, job history tab)
+- [x] Dashboard card: CSV Import / Export
+- [x] 49 CSV tests pass, 353 total pass
+- [x] Commit and push
 
 ---
 
