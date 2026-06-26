@@ -3,8 +3,26 @@
 ## Last Session
 
 **Date:** 2026-06-26
-**Task:** Sprint 17.5 — Marketing Website, FAQ, Contact, Footer Disclaimer, Theme Polish — COMPLETE
-**Commit:** (pending push)
+**Task:** Sprint 17.5-B — Customer Theme System + fmcg Neon Liquid Glass Visual Language — COMPLETE
+**Commit:** feat: add customer theme modes and fmcg visual system
+
+**What was built:**
+- `apps/frontend/app/globals.css` — Full rewrite: light `.be-*` design system + complete fmcg `[data-theme="dark"]` Tailwind class override block + `.liquid-glass`, `.glow-card`, `.glow-button`, `.glow-button-secondary`, `.glass-panel`, `.sidebar-text-glow` utilities.
+- `apps/frontend/components/theme/ThemeProvider.tsx` — React context: reads `localStorage["bulk-edit-theme"]`, watches `prefers-color-scheme`, applies `data-theme="light"|"dark"` to `document.documentElement`.
+- `apps/frontend/components/theme/ThemeToggle.tsx` — Dropdown with System/Light/Dark options and checkmark on active selection.
+- `apps/frontend/app/layout.tsx` — Anti-flash inline script + `<ThemeProvider>` wrapper, removed hardcoded body classes.
+- `apps/frontend/components/ui/AppShell.tsx` — fmcg-style sidebar + topbar: deep dark bg, neon active item, user email display, logout, ThemeToggle in topbar, mobile hamburger, all 11 nav links with icons.
+- `apps/frontend/app/(app)/layout.tsx` — Route group layout wrapping all app pages with AppShell.
+- **11 app pages migrated** to `app/(app)/`: dashboard, listings, bulk-edit, media, variations, ai, csv, pricing-rules, scheduled, billing, admin, shops. Outer `<div>` wrapper + inline `<nav>` removed from each. Unused `Link`/`useRouter` imports cleaned up.
+- `apps/frontend/components/marketing/MarketingNav.tsx` — Added `<ThemeToggle />`.
+
+**Tests:** 521/521 passed. Build: 22 routes clean.
+
+## Next Task
+
+**Sprint 18** — to be determined by user.
+
+## Previous Last Session
 
 **What was built:**
 - `apps/frontend/app/globals.css` — `.be-btn-primary`, `.be-btn-secondary`, `.be-card`, `.be-contact-card`, `.be-faq-item`, `.be-faq-trigger`, `.be-hero-bg`, `.be-section-accent`, `.be-icon-ring`, `.be-step`. Gradient buttons, hover-lift cards, reduced-motion guard.

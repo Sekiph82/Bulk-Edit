@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import Link from "next/link";
@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   getShops, getListings, getListing, syncShop, getAccessToken, ApiError,
   type Shop, type ListingListItem, type ListingDetail, type ListingsParams,
-} from "../../lib/api";
+} from "@/lib/api";
 
 // ---- constants ----
 
@@ -65,14 +65,14 @@ function saveSavedViews(views: SavedView[]) {
 // ---- helpers ----
 
 function formatPrice(amount: number | null, divisor: number | null, currency: string | null): string {
-  if (amount == null) return "—";
+  if (amount == null) return "â€”";
   const val = amount / (divisor ?? 100);
   return `${currency ?? ""} ${val.toFixed(2)}`.trim();
 }
 
 function SortIcon({ col, sortBy, sortDir }: { col: string; sortBy: string; sortDir: string }) {
-  if (col !== sortBy) return <span className="text-gray-300 ml-1">↕</span>;
-  return <span className="text-indigo-600 ml-1">{sortDir === "asc" ? "↑" : "↓"}</span>;
+  if (col !== sortBy) return <span className="text-gray-300 ml-1">â†•</span>;
+  return <span className="text-indigo-600 ml-1">{sortDir === "asc" ? "â†‘" : "â†“"}</span>;
 }
 
 // ---- Detail Sidebar ----
@@ -100,7 +100,7 @@ function DetailSidebar({ listingId, onClose }: { listingId: string; onClose: () 
       >
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
           <h2 className="text-base font-semibold text-gray-900 truncate">{detail?.title ?? "Listing Detail"}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none ml-4">×</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none ml-4">Ã—</button>
         </div>
 
         {loading && (
@@ -121,7 +121,7 @@ function DetailSidebar({ listingId, onClose }: { listingId: string; onClose: () 
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide">State</p>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATE_BADGE[detail.state ?? ""] ?? "bg-gray-100 text-gray-500"}`}>
-                  {detail.state ?? "—"}
+                  {detail.state ?? "â€”"}
                 </span>
               </div>
               <div>
@@ -130,11 +130,11 @@ function DetailSidebar({ listingId, onClose }: { listingId: string; onClose: () 
               </div>
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide">Quantity</p>
-                <p className="text-gray-900">{detail.quantity ?? "—"}</p>
+                <p className="text-gray-900">{detail.quantity ?? "â€”"}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide">SKU</p>
-                <p className="text-gray-900">{detail.sku ?? "—"}</p>
+                <p className="text-gray-900">{detail.sku ?? "â€”"}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide">Has Variations</p>
@@ -142,15 +142,15 @@ function DetailSidebar({ listingId, onClose }: { listingId: string; onClose: () 
               </div>
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide">Personalizable</p>
-                <p className="text-gray-900">{detail.is_personalizable == null ? "—" : detail.is_personalizable ? "Yes" : "No"}</p>
+                <p className="text-gray-900">{detail.is_personalizable == null ? "â€”" : detail.is_personalizable ? "Yes" : "No"}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide">Customizable</p>
-                <p className="text-gray-900">{detail.is_customizable == null ? "—" : detail.is_customizable ? "Yes" : "No"}</p>
+                <p className="text-gray-900">{detail.is_customizable == null ? "â€”" : detail.is_customizable ? "Yes" : "No"}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide">Who Made</p>
-                <p className="text-gray-900">{detail.who_made ?? "—"}</p>
+                <p className="text-gray-900">{detail.who_made ?? "â€”"}</p>
               </div>
               {detail.taxonomy_id && (
                 <div>
@@ -187,7 +187,7 @@ function DetailSidebar({ listingId, onClose }: { listingId: string; onClose: () 
             {detail.url && (
               <a href={detail.url} target="_blank" rel="noopener noreferrer"
                 className="inline-block text-indigo-600 text-sm font-medium hover:underline">
-                View on Etsy →
+                View on Etsy â†’
               </a>
             )}
 
@@ -322,7 +322,7 @@ function ListingsContent() {
     try {
       const data = await syncShop(selectedShopId);
       if (data.status === "completed") {
-        setSyncMsg({ ok: true, text: `Sync complete — ${data.processed_items} listings synced.` });
+        setSyncMsg({ ok: true, text: `Sync complete â€” ${data.processed_items} listings synced.` });
         await fetchListings(1);
       } else {
         setSyncMsg({ ok: false, text: `Sync failed: ${data.error_message ?? "Unknown error"}` });
@@ -404,18 +404,8 @@ function ListingsContent() {
   const colVisible = (c: string) => visibleCols.has(c);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Nav */}
-      <nav className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <Link href="/dashboard" className="text-xl font-bold text-indigo-600">BulkEdit</Link>
-          <Link href="/shops" className="text-sm text-gray-500 hover:text-gray-700">Shops</Link>
-          <span className="text-sm font-medium text-gray-900">Listings</span>
-        </div>
-        <Link href="/billing" className="text-sm text-gray-500 hover:text-gray-700">Billing</Link>
-      </nav>
-
-      <main className="max-w-7xl mx-auto px-6 py-6 space-y-5">
+    <>
+    <main className="max-w-7xl mx-auto px-6 py-6 space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -431,7 +421,7 @@ function ListingsContent() {
                 }}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors"
               >
-                Bulk Edit {selected.size} Selected →
+                Bulk Edit {selected.size} Selected â†’
               </button>
             )}
             <button
@@ -439,7 +429,7 @@ function ListingsContent() {
               disabled={syncing || !selectedShopId}
               className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors"
             >
-              {syncing ? "Syncing…" : "Sync Listings"}
+              {syncing ? "Syncingâ€¦" : "Sync Listings"}
             </button>
           </div>
         </div>
@@ -476,7 +466,7 @@ function ListingsContent() {
             {savedViews.map((v) => (
               <div key={v.name} className="flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 text-xs text-gray-700">
                 <button onClick={() => applyView(v)} className="hover:text-indigo-600">{v.name}</button>
-                <button onClick={() => deleteView(v.name)} className="text-gray-300 hover:text-red-400 ml-1">×</button>
+                <button onClick={() => deleteView(v.name)} className="text-gray-300 hover:text-red-400 ml-1">Ã—</button>
               </div>
             ))}
           </div>
@@ -512,7 +502,7 @@ function ListingsContent() {
             <div className="flex gap-2 flex-1 min-w-48">
               <input
                 type="text"
-                placeholder="Search by title…"
+                placeholder="Search by titleâ€¦"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") fetchListings(1); }}
@@ -527,7 +517,7 @@ function ListingsContent() {
               onClick={() => setShowAdvanced((v) => !v)}
               className="text-sm text-indigo-600 hover:text-indigo-700 font-medium ml-auto"
             >
-              {showAdvanced ? "Hide filters ▲" : "More filters ▼"}
+              {showAdvanced ? "Hide filters â–²" : "More filters â–¼"}
             </button>
           </div>
 
@@ -632,7 +622,7 @@ function ListingsContent() {
               onClick={() => setShowColMenu((v) => !v)}
               className="border border-gray-300 bg-white rounded-lg text-sm text-gray-600 px-3 py-1.5 hover:bg-gray-50"
             >
-              Columns ▾
+              Columns â–¾
             </button>
             {showColMenu && (
               <div className="absolute right-0 top-9 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-3 min-w-40 space-y-1.5">
@@ -656,7 +646,7 @@ function ListingsContent() {
           <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
             <h3 className="text-lg font-semibold text-gray-800 mb-2">No listings yet</h3>
             <p className="text-gray-500 text-sm mb-5">Connect a shop and sync to import your listings.</p>
-            <Link href="/shops" className="text-indigo-600 text-sm font-medium hover:underline">Go to Shops →</Link>
+            <Link href="/shops" className="text-indigo-600 text-sm font-medium hover:underline">Go to Shops â†’</Link>
           </div>
         ) : (
           <>
@@ -708,7 +698,7 @@ function ListingsContent() {
                       )}
                       {colVisible("title") && (
                         <td className="px-4 py-3 max-w-xs">
-                          <p className="font-medium text-gray-900 truncate">{listing.title ?? "—"}</p>
+                          <p className="font-medium text-gray-900 truncate">{listing.title ?? "â€”"}</p>
                           <p className="text-xs text-gray-400">#{listing.etsy_listing_id}</p>
                         </td>
                       )}
@@ -716,17 +706,17 @@ function ListingsContent() {
                         <td className="px-4 py-3">
                           {listing.state
                             ? <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATE_BADGE[listing.state] ?? "bg-gray-100 text-gray-500"}`}>{listing.state}</span>
-                            : "—"}
+                            : "â€”"}
                         </td>
                       )}
                       {colVisible("price_amount") && (
                         <td className="px-4 py-3 text-gray-700">{formatPrice(listing.price_amount, listing.price_divisor, listing.currency_code)}</td>
                       )}
                       {colVisible("quantity") && (
-                        <td className="px-4 py-3 text-gray-700">{listing.quantity ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-700">{listing.quantity ?? "â€”"}</td>
                       )}
                       {colVisible("sku") && (
-                        <td className="px-4 py-3 text-gray-500 text-xs">{listing.sku ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-500 text-xs">{listing.sku ?? "â€”"}</td>
                       )}
                       {colVisible("has_variations") && (
                         <td className="px-4 py-3 text-gray-500 text-xs">{listing.has_variations ? "Yes" : "No"}</td>
@@ -760,14 +750,15 @@ function ListingsContent() {
 
       {/* Detail sidebar */}
       {detailId && <DetailSidebar listingId={detailId} onClose={() => setDetailId(null)} />}
-    </div>
+    </>
   );
 }
 
 export default function ListingsPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400">Loading…</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400">Loadingâ€¦</div>}>
       <ListingsContent />
     </Suspense>
   );
 }
+

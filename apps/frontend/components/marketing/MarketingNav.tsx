@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 
 const NAV_LINKS = [
   { href: "/features", label: "Features" },
@@ -40,6 +41,7 @@ export default function MarketingNav() {
         </div>
 
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <Link
             href="/login"
             className="hidden sm:block text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"

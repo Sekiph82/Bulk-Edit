@@ -1,7 +1,6 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   getAccessToken,
@@ -15,7 +14,7 @@ import {
   type ListingListItem,
   type MediaJob,
   type MediaResult,
-} from "../../lib/api";
+} from "@/lib/api";
 
 const OPERATION_OPTIONS = [
   { value: "add_image", label: "Add Image", implemented: true },
@@ -179,20 +178,7 @@ export default function MediaPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-        <Link href="/" className="text-xl font-extrabold text-gray-900 hover:text-indigo-600 transition-colors">
-          Bulk-Edit
-        </Link>
-        <div className="flex items-center gap-6 text-sm">
-          <Link href="/dashboard" className="text-gray-600 hover:text-indigo-600">Dashboard</Link>
-          <Link href="/listings" className="text-gray-600 hover:text-indigo-600">Listings</Link>
-          <Link href="/bulk-edit" className="text-gray-600 hover:text-indigo-600">Bulk Edit</Link>
-          <Link href="/media" className="text-indigo-600 font-semibold">Photo & Video</Link>
-        </div>
-      </nav>
-
-      <main className="max-w-6xl mx-auto px-6 py-8">
+    <main className="max-w-6xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Photo & Video Bulk Editor</h1>
         <p className="text-sm text-gray-500 mb-6">
           Safely add, replace, or delete images across multiple listings. Backups are created before every write.
@@ -384,7 +370,7 @@ export default function MediaPage() {
                 <tbody>
                   {jobs.map(job => (
                     <tr key={job.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2 pr-4 font-mono text-xs text-gray-500">{job.id.slice(0, 8)}…</td>
+                      <td className="py-2 pr-4 font-mono text-xs text-gray-500">{job.id.slice(0, 8)}â€¦</td>
                       <td className="py-2 pr-4 text-gray-700">{job.operation_type}</td>
                       <td className="py-2 pr-4"><StatusBadge status={job.status} /></td>
                       <td className="py-2 pr-4 text-gray-600">
@@ -414,7 +400,7 @@ export default function MediaPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold text-gray-800">
-                Results for {activeJobId.slice(0, 8)}…
+                Results for {activeJobId.slice(0, 8)}â€¦
               </h2>
               {backupCount !== null && (
                 <span className="text-xs text-gray-500">{backupCount} backup snapshot(s) saved</span>
@@ -441,6 +427,6 @@ export default function MediaPage() {
           </div>
         )}
       </main>
-    </div>
   );
 }
+

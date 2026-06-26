@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 17.5 — Marketing Website, FAQ, Contact, Footer Disclaimer, Theme Polish — COMPLETE. Ready for Sprint 18.**
+**Sprint 17.5-B — Customer Theme System + fmcg Neon Liquid Glass visual language — COMPLETE. Ready for Sprint 18.**
 
 ## Status
 
-`3 new marketing pages (/features, /faq, /contact-us). MarketingNav + MarketingFooter components with Etsy legal disclaimer. Design system in globals.css (.be-btn-primary, .be-btn-secondary, .be-card, .be-contact-card, .be-faq-item, .be-hero-bg, .be-section-accent). Motion v12 animations on all marketing pages. Home page and pricing page updated with shared nav/footer. 521/521 backend tests pass. 22 routes build clean.`
+`ThemeProvider + ThemeToggle (System/Light/Dark, localStorage["bulk-edit-theme"]). Anti-flash inline script in layout.tsx. AppShell sidebar navigation (fmcg deep-dark style) applied to all 11 app pages via (app)/ route group. Full fmcg Neon Liquid Glass dark mode CSS block in globals.css — covers all pages via Tailwind class overrides without per-page rewrites. MarketingNav updated with ThemeToggle. 521/521 backend tests pass. 22 routes build clean.`
 
 ## Last Updated
 
@@ -40,6 +40,7 @@ None (between sprints)
 - Sprint 16: Scheduled Jobs ✓ (ScheduledJob + ScheduledJobRun models, migration 0013, schedule calculator, 11 API endpoints, plan gates, /scheduled page, 41 tests, 479/479 suite)
 - Sprint 17: Admin Panel ✓ (20 endpoints all require_superuser, 16 schemas, paginated service, 42 tests, /admin page, 521/521 suite)
 - Sprint 17.5: Marketing Polish ✓ (MarketingNav, MarketingFooter, /features, /faq, /contact-us, motion v12 animations, globals.css design system, Etsy legal disclaimer, 22 routes build clean, 521/521 suite)
+- Sprint 17.5-B: Theme System + fmcg Visual Language ✓ (ThemeProvider, ThemeToggle, AppShell, anti-flash script, (app)/ route group, 11 app pages migrated, full dark mode CSS, 22 routes, 521/521 suite)
 
 ## Local Development (Windows)
 

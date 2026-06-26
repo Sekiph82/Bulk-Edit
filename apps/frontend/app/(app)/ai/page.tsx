@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
@@ -18,7 +18,7 @@ import {
   type AISession,
   type AISuggestion,
   type AIUsage,
-} from "../../lib/api";
+} from "@/lib/api";
 
 const TOOL_OPTIONS = [
   { value: "title", label: "Optimize Title", description: "SEO-optimized title suggestions" },
@@ -260,17 +260,7 @@ export default function AIToolsPage() {
   const hasAccepted = activeSession?.suggestions.some((s) => s.status === "accepted" && s.field !== "seo_score");
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-        <Link href="/dashboard" className="text-xl font-extrabold text-gray-900 hover:text-indigo-600 transition-colors">
-          Bulk-Edit
-        </Link>
-        <Link href="/dashboard" className="text-sm text-indigo-600 hover:underline font-medium">
-          Dashboard
-        </Link>
-      </nav>
-
-      <main className="max-w-5xl mx-auto px-6 py-10 space-y-8">
+    <main className="max-w-5xl mx-auto px-6 py-10 space-y-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">AI Listing Optimizer</h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -282,7 +272,7 @@ export default function AIToolsPage() {
         {usage && (
           <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold text-gray-700">AI Credits — {usage.period_key}</h2>
+              <h2 className="text-sm font-semibold text-gray-700">AI Credits â€” {usage.period_key}</h2>
               <span className="text-sm text-gray-500">
                 {usage.ai_credits_used} / {usage.ai_credits_limit}
               </span>
@@ -355,7 +345,7 @@ export default function AIToolsPage() {
               <h2 className="text-sm font-semibold text-gray-700">
                 Suggestions
                 <span className="ml-2 text-xs text-gray-400">
-                  ({activeSession.tool} — {activeSession.ai_provider ?? "mock"})
+                  ({activeSession.tool} â€” {activeSession.ai_provider ?? "mock"})
                 </span>
               </h2>
               <StatusBadge status={activeSession.status} />
@@ -427,6 +417,6 @@ export default function AIToolsPage() {
           </div>
         )}
       </main>
-    </div>
   );
 }
+

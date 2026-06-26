@@ -243,20 +243,7 @@ export default function AdminPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-        <Link href="/" className="text-xl font-extrabold text-gray-900 hover:text-indigo-600 transition-colors">
-          Bulk-Edit
-        </Link>
-        <div className="flex gap-4 items-center">
-          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold">ADMIN</span>
-          <Link href="/dashboard" className="text-sm text-gray-500 hover:underline">
-            Dashboard
-          </Link>
-        </div>
-      </nav>
-
-      <main className="max-w-7xl mx-auto px-8 py-10">
+    <main className="max-w-7xl mx-auto px-8 py-10">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1>
           <p className="text-gray-400 text-sm mt-0.5">Platform-level visibility — read-only + safe actions only</p>
@@ -536,6 +523,5 @@ export default function AdminPage() {
           )}
         </div>
       </main>
-    </div>
   );
 }

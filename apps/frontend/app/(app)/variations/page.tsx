@@ -1,7 +1,6 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   getAccessToken,
@@ -17,7 +16,7 @@ import {
   type VariationJob,
   type VariationPreviewItem,
   type VariationResult,
-} from "../../lib/api";
+} from "@/lib/api";
 
 const OPERATION_OPTIONS = [
   { value: "set_variation_price", label: "Set Variation Price" },
@@ -156,7 +155,7 @@ export default function VariationsPage() {
       const preview = await getVariationPreview(job.id, { per_page: 200 });
       setPreviewItems(preview.items);
       setResults([]);
-      setSuccess(`Preview ready — ${preview.total} listing(s).`);
+      setSuccess(`Preview ready â€” ${preview.total} listing(s).`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
     } finally {
@@ -172,7 +171,7 @@ export default function VariationsPage() {
       setJobs((prev) => prev.map((j) => (j.id === activeJobId ? updated : j)));
       const res = await getVariationResults(activeJobId, { per_page: 200 });
       setResults(res.items);
-      setSuccess(`Apply done — ${updated.success_count} success, ${updated.failure_count} failed, ${updated.skipped_count} skipped.`);
+      setSuccess(`Apply done â€” ${updated.success_count} success, ${updated.failure_count} failed, ${updated.skipped_count} skipped.`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
     } finally {
@@ -195,16 +194,8 @@ export default function VariationsPage() {
   ].includes(operationType);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200 px-8 py-4 flex items-center gap-4">
-        <Link href="/dashboard" className="text-xl font-extrabold text-gray-900 hover:text-indigo-600">
-          Bulk-Edit
-        </Link>
-        <span className="text-gray-300">/</span>
-        <span className="text-sm font-medium text-gray-600">Variation Editor</span>
-      </nav>
-
-      <main className="max-w-7xl mx-auto px-8 py-8 space-y-8">
+    <>
+    <main className="max-w-7xl mx-auto px-8 py-8 space-y-8">
         <h1 className="text-2xl font-bold text-gray-900">Variation Bulk Editor</h1>
 
         {error && (
@@ -313,7 +304,7 @@ export default function VariationsPage() {
 
             <div className="border-t border-gray-100 pt-4">
               <p className="text-xs font-medium text-gray-600 mb-2">
-                Selector (optional — leave blank to apply to ALL variations)
+                Selector (optional â€” leave blank to apply to ALL variations)
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -363,7 +354,7 @@ export default function VariationsPage() {
                 </button>
               )}
               {hasInvalidPreview && (
-                <span className="text-sm text-red-600 font-medium">Cannot apply — invalid items present</span>
+                <span className="text-sm text-red-600 font-medium">Cannot apply â€” invalid items present</span>
               )}
             </div>
             <div className="overflow-x-auto">
@@ -392,7 +383,7 @@ export default function VariationsPage() {
                           {before.slice(0, 3).map((v, i) => (
                             <div key={i} className="whitespace-nowrap">
                               {v.property_name ? `${v.property_name}: ${v.value_name}` : ""}
-                              {v.price_amount != null ? ` — $${(Number(v.price_amount) / (Number(v.price_divisor) || 100)).toFixed(2)}` : ""}
+                              {v.price_amount != null ? ` â€” $${(Number(v.price_amount) / (Number(v.price_divisor) || 100)).toFixed(2)}` : ""}
                               {v.quantity != null ? ` qty:${v.quantity}` : ""}
                               {v.sku ? ` sku:${v.sku}` : ""}
                             </div>
@@ -403,7 +394,7 @@ export default function VariationsPage() {
                           {after.slice(0, 3).map((v, i) => (
                             <div key={i} className="whitespace-nowrap">
                               {v.property_name ? `${v.property_name}: ${v.value_name}` : ""}
-                              {v.price_amount != null ? ` — $${(Number(v.price_amount) / (Number(v.price_divisor) || 100)).toFixed(2)}` : ""}
+                              {v.price_amount != null ? ` â€” $${(Number(v.price_amount) / (Number(v.price_divisor) || 100)).toFixed(2)}` : ""}
                               {v.quantity != null ? ` qty:${v.quantity}` : ""}
                               {v.sku ? ` sku:${v.sku}` : ""}
                             </div>
@@ -437,7 +428,7 @@ export default function VariationsPage() {
                     <tr key={r.id} className="hover:bg-gray-50">
                       <td className="py-2 px-3 text-gray-700">{r.etsy_listing_id}</td>
                       <td className="py-2 px-3"><StatusBadge status={r.status} /></td>
-                      <td className="py-2 px-3 text-red-600">{r.error_message ?? "—"}</td>
+                      <td className="py-2 px-3 text-red-600">{r.error_message ?? "â€”"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -517,6 +508,7 @@ export default function VariationsPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
+

@@ -97,7 +97,7 @@ function BillingContent() {
   const statusKey = sub?.status ?? "free";
 
   return (
-    <main className="min-h-screen bg-gray-50 py-16 px-4">
+    <main className="py-16 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8 flex items-center justify-between">
           <div>

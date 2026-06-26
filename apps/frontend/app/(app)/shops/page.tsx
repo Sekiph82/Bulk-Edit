@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8100";
@@ -115,22 +114,7 @@ function ShopsContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <Link href="/dashboard" className="text-xl font-bold text-indigo-600">
-            BulkEdit
-          </Link>
-          <Link href="/dashboard" className="text-sm text-gray-500 hover:text-gray-700">
-            Dashboard
-          </Link>
-        </div>
-        <Link href="/billing" className="text-sm text-gray-500 hover:text-gray-700">
-          Billing
-        </Link>
-      </nav>
-
-      <main className="max-w-4xl mx-auto px-8 py-10">
+    <main className="max-w-4xl mx-auto px-8 py-10">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Etsy Shops</h1>
@@ -213,7 +197,6 @@ function ShopsContent() {
           </div>
         )}
       </main>
-    </div>
   );
 }
 
