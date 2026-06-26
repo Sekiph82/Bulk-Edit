@@ -191,21 +191,6 @@ exit /b 1
 echo [OK] Frontend is ready.
 echo.
 
-:: Optional local superuser seed
-if exist "apps\backend\.local-superusers.env" (
-    echo [INFO] Local superuser seed file found: apps\backend\.local-superusers.env
-    set "SEED_CHOICE=N"
-    set /p SEED_CHOICE=Run local superuser seed? [Y/N] (default N):
-    if /I "!SEED_CHOICE!"=="Y" (
-        echo [INFO] Running seed...
-        docker compose -p bulk-edit exec -T backend python scripts/seed_local_superusers.py
-        echo.
-    ) else (
-        echo [INFO] Skipping seed.
-        echo.
-    )
-)
-
 :: All ready - open browser
 echo [INFO] All services are ready.
 echo [INFO] Opening http://localhost:3100 ...

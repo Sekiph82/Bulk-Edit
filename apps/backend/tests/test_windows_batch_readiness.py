@@ -140,13 +140,14 @@ def test_bat_files_no_hardcoded_credentials():
             )
 
 
-def test_start_dev_bat_has_seed_prompt():
-    """Developer startup scripts should offer the optional seed prompt."""
+def test_start_dev_bat_no_seed_prompt():
+    """Dev bat files must NOT contain seed prompt or seed script invocation.
+    Seeding is handled automatically by the FastAPI lifespan startup hook."""
     for f in [REPO_ROOT / "start-dev.bat", REPO_ROOT / "start-dev-clean.bat"]:
         content = _read(f)
-        assert ".local-superusers.env" in content, (
-            f"{f.name} missing optional seed file check"
+        assert "seed_local_superusers.py" not in content, (
+            f"{f.name} must not invoke seed_local_superusers.py — seeding is done by backend on startup"
         )
-        assert "seed_local_superusers.py" in content, (
-            f"{f.name} missing seed_local_superusers.py invocation"
+        assert "SEED_CHOICE" not in content, (
+            f"{f.name} must not contain seed Y/N prompt (SEED_CHOICE variable)"
         )
