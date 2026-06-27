@@ -53,6 +53,6 @@ test.describe("Onboarding checklist (requires PLAYWRIGHT_RUN_SEEDED_TESTS=1)", (
     await page.waitForLoadState("networkidle");
 
     await expect(page.locator("text=Etsy® is a trademark")).toBeVisible({ timeout: 8000 });
-    await expect(page.locator("text=Connect Etsy Shop")).toBeVisible();
+    await expect(page.locator("button:has-text('Connect Etsy Shop')").first()).toBeVisible();
   });
 });
