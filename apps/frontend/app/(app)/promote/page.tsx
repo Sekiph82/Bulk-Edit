@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, Suspense, useCallback } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getAccessToken } from "@/lib/api";
 
@@ -119,6 +119,119 @@ function usePopupOAuth(platform: "pinterest" | "instagram") {
 }
 
 // ---------------------------------------------------------------------------
+// SocialConnectModal
+// ---------------------------------------------------------------------------
+
+function SocialConnectModal({
+  open,
+  onClose,
+  platform,
+  state,
+  isSuperuser,
+  onStartOAuth,
+  oauthPending,
+  oauthError,
+  oauthPopupUrl,
+}: {
+  open: boolean;
+  onClose: () => void;
+  platform: "pinterest" | "instagram";
+  state: "app_not_configured" | "not_connected" | "expired";
+  isSuperuser: boolean;
+  onStartOAuth?: () => void;
+  oauthPending?: boolean;
+  oauthError?: string | null;
+  oauthPopupUrl?: string | null;
+}) {
+  if (!open) return null;
+  const displayName = platform === "pinterest" ? "Pinterest" : "Instagram";
+  const isConfigured = state !== "app_not_configured";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-5 border-b border-gray-100">
+          <h3 className="text-base font-semibold text-gray-900">
+            {state === "expired" ? `Reconnect ${displayName}` : `Connect ${displayName}`}
+          </h3>
+        </div>
+        <div className="p-5 space-y-3">
+          {!isConfigured ? (
+            <>
+              <p className="text-sm text-gray-700">
+                {displayName} connection is not available yet. Once Bulk-Edit enables {displayName} integration, you will be able to connect your {displayName} account here.
+              </p>
+              {platform === "instagram" && (
+                <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  Instagram publishing requires a <strong>Business</strong> or <strong>Creator</strong> account connected to a Facebook Page.
+                </p>
+              )}
+              {isSuperuser && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Admin setup required: configure {platform === "pinterest" ? "Pinterest" : "Meta"} app credentials in environment settings.
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-700">
+                {platform === "pinterest"
+                  ? state === "expired"
+                    ? "Your Pinterest connection has expired. Reconnect to continue creating Pins from your Etsy listings."
+                    : "Connect your Pinterest account to create Pins from your Etsy listings."
+                  : state === "expired"
+                    ? "Your Instagram connection has expired. Reconnect to continue."
+                    : "Connect Instagram through Meta to prepare posts from your Etsy listings."}
+              </p>
+              {platform === "instagram" && (
+                <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  Instagram publishing requires a <strong>Business</strong> or <strong>Creator</strong> account connected to a Facebook Page.
+                </p>
+              )}
+              {oauthError && (
+                <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {oauthError}
+                  {oauthPopupUrl && (
+                    <a
+                      href={oauthPopupUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block mt-1 text-indigo-600 underline"
+                    >
+                      Open {displayName} connection in new tab
+                    </a>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div className="p-5 pt-0 flex gap-2">
+          {isConfigured && onStartOAuth && (
+            <button
+              onClick={onStartOAuth}
+              disabled={oauthPending}
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              {oauthPending ? `Opening ${displayName}…` : `Connect with ${displayName}`}
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="text-sm text-gray-500 hover:text-gray-700 font-medium px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+          >
+            {isConfigured ? "Cancel" : "Close"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // PlatformCard
 // ---------------------------------------------------------------------------
 
@@ -127,102 +240,48 @@ function PlatformCard({
   icon,
   displayName,
   status,
-  onConnect,
+  onOpenConnectModal,
   onDisconnect,
-  connecting,
-  connectError,
-  connectPopupUrl,
   disconnecting,
 }: {
   platform: "pinterest" | "instagram";
   icon: string;
   displayName: string;
   status: PlatformStatus | null;
-  onConnect: () => void;
+  onOpenConnectModal: () => void;
   onDisconnect: () => void;
-  connecting: boolean;
-  connectError: string | null;
-  connectPopupUrl: string | null;
   disconnecting: boolean;
 }) {
   const state = status?.state ?? "not_connected";
 
-  const stateBadgeClass: Record<string, string> = {
-    connected: "bg-green-100 text-green-700",
-    expired: "bg-amber-100 text-amber-700",
-    not_connected: "bg-gray-100 text-gray-500",
-    app_not_configured: "bg-gray-100 text-gray-400",
-  };
-
-  const stateLabel: Record<string, string> = {
-    connected: "Connected",
-    expired: "Token expired",
-    not_connected: "Not connected",
-    app_not_configured: "Not configured",
-  };
-
-  const igNote = platform === "instagram" ? (
-    <p className="text-xs text-gray-500 mt-3 border-t border-gray-100 pt-3">
-      Instagram publishing requires a <strong>Business</strong> or <strong>Creator</strong> account
-      connected to a Facebook Page. Personal accounts cannot post via the API.
-    </p>
-  ) : null;
-
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+    <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
       <div className="flex items-center gap-3">
         <span className="text-2xl">{icon}</span>
         <h2 className="text-base font-semibold text-gray-900">{displayName}</h2>
-        <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${stateBadgeClass[state] ?? ""}`}>
-          {stateLabel[state] ?? state}
-        </span>
+        {state === "connected" && (
+          <span className="ml-auto text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
+            Connected
+          </span>
+        )}
+        {state === "expired" && (
+          <span className="ml-auto text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">
+            Expired
+          </span>
+        )}
       </div>
 
-      {state === "app_not_configured" && (
-        <div className="space-y-2">
-          <p className="text-sm text-gray-600">
-            {displayName} publishing is not configured by Bulk-Edit yet.
-          </p>
-          <p className="text-xs text-gray-400">
-            You can still copy captions and download images to post manually.
-          </p>
-          {igNote}
-        </div>
-      )}
-
-      {state === "not_connected" && (
-        <div className="space-y-3">
-          <p className="text-sm text-gray-600">
-            {platform === "pinterest"
-              ? "Connect your Pinterest account to create Pins from your Etsy listings."
-              : "Connect Instagram through Meta to prepare posts from your Etsy listings."}
-          </p>
-          <button
-            onClick={onConnect}
-            disabled={connecting}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-          >
-            {connecting ? `Opening ${displayName}…` : `Connect ${displayName}`}
-          </button>
-          {connectError && (
-            <p className="text-xs text-red-600">{connectError}</p>
-          )}
-          {connectPopupUrl && (
-            <a
-              href={connectPopupUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-indigo-600 underline block"
-            >
-              Open {displayName} connection in new tab
-            </a>
-          )}
-          {igNote}
-        </div>
+      {(state === "app_not_configured" || state === "not_connected") && (
+        <button
+          onClick={onOpenConnectModal}
+          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+        >
+          Connect {displayName}
+        </button>
       )}
 
       {state === "connected" && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-green-600 text-sm">✓</span>
             <p className="text-sm text-gray-700 font-medium">{displayName} connected.</p>
@@ -238,7 +297,7 @@ function PlatformCard({
           {status?.connected_at && (
             <p className="text-xs text-gray-400">
               Connected {new Date(status.connected_at).toLocaleDateString()}
-              {status.expires_at && ` · token expires ${new Date(status.expires_at).toLocaleDateString()}`}
+              {status.expires_at && ` · expires ${new Date(status.expires_at).toLocaleDateString()}`}
             </p>
           )}
           <button
@@ -248,22 +307,18 @@ function PlatformCard({
           >
             {disconnecting ? "Disconnecting…" : `Disconnect ${displayName}`}
           </button>
-          {igNote}
         </div>
       )}
 
       {state === "expired" && (
-        <div className="space-y-3">
-          <p className="text-sm text-gray-600">
-            {displayName} connection expired. Reconnect to continue sharing.
-          </p>
-          <div className="flex gap-3">
+        <div className="space-y-2">
+          <p className="text-sm text-gray-500">Connection expired.</p>
+          <div className="flex gap-2">
             <button
-              onClick={onConnect}
-              disabled={connecting}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+              onClick={onOpenConnectModal}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
             >
-              {connecting ? "Opening…" : `Reconnect ${displayName}`}
+              Reconnect {displayName}
             </button>
             <button
               onClick={onDisconnect}
@@ -273,28 +328,6 @@ function PlatformCard({
               {disconnecting ? "Removing…" : "Remove"}
             </button>
           </div>
-          {connectError && <p className="text-xs text-red-600">{connectError}</p>}
-          {connectPopupUrl && (
-            <a
-              href={connectPopupUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-indigo-600 underline block"
-            >
-              Open {displayName} connection in new tab
-            </a>
-          )}
-          {igNote}
-        </div>
-      )}
-
-      {state !== "app_not_configured" && (
-        <div className="border-t border-gray-100 pt-3 flex items-center gap-4 text-xs text-gray-400">
-          <span>Always available:</span>
-          <span className="text-gray-500">Copy caption</span>
-          <span>·</span>
-          <span className="text-gray-500">Download image</span>
-          <span className="ml-auto">(post manually)</span>
         </div>
       )}
     </div>
@@ -580,6 +613,7 @@ function Toast({ text, type, onClose }: { text: string; type: "success" | "error
 function PromoteContent() {
   const router = useRouter();
 
+  const [isSuperuser, setIsSuperuser] = useState(false);
   const [pinterestStatus, setPinterestStatus] = useState<PlatformStatus | null>(null);
   const [instagramStatus, setInstagramStatus] = useState<PlatformStatus | null>(null);
   const [listings, setListings] = useState<PromoteListing[]>([]);
@@ -590,6 +624,11 @@ function PromoteContent() {
   const [disconnectingPinterest, setDisconnectingPinterest] = useState(false);
   const [disconnectingInstagram, setDisconnectingInstagram] = useState(false);
 
+  // Connect modals (explanation / OAuth trigger)
+  const [pinterestConnectOpen, setPinterestConnectOpen] = useState(false);
+  const [instagramConnectOpen, setInstagramConnectOpen] = useState(false);
+
+  // Share modals
   const [shareTarget, setShareTarget] = useState<PromoteListing | null>(null);
   const [pinterestModalOpen, setPinterestModalOpen] = useState(false);
   const [instagramModalOpen, setInstagramModalOpen] = useState(false);
@@ -600,11 +639,13 @@ function PromoteContent() {
   const loadStatuses = useCallback(async () => {
     const token = getAccessToken();
     if (!token) { router.push("/login"); return; }
-    const [pr, ir, lr] = await Promise.allSettled([
+    const [me, pr, ir, lr] = await Promise.allSettled([
+      authFetch("/api/v1/auth/me").then((r) => r.ok ? r.json() : null),
       authFetch("/api/v1/promote/pinterest/status").then((r) => r.ok ? r.json() : null),
       authFetch("/api/v1/promote/instagram/status").then((r) => r.ok ? r.json() : null),
       authFetch("/api/v1/promote/listings").then((r) => r.ok ? r.json() : null),
     ]);
+    if (me.status === "fulfilled" && me.value) setIsSuperuser(me.value.user?.is_superuser === true);
     if (pr.status === "fulfilled" && pr.value) setPinterestStatus(pr.value);
     if (ir.status === "fulfilled" && ir.value) setInstagramStatus(ir.value);
     if (lr.status === "fulfilled" && lr.value) {
@@ -618,15 +659,17 @@ function PromoteContent() {
     loadStatuses();
   }, [loadStatuses]);
 
-  async function handleConnectPinterest() {
+  function handleOAuthPinterest() {
     pinterestOAuth.startConnect(async () => {
+      setPinterestConnectOpen(false);
       await loadStatuses();
       setToast({ text: "Pinterest connected successfully.", type: "success" });
     });
   }
 
-  async function handleConnectInstagram() {
+  function handleOAuthInstagram() {
     instagramOAuth.startConnect(async () => {
+      setInstagramConnectOpen(false);
       await loadStatuses();
       setToast({ text: "Instagram connected successfully.", type: "success" });
     });
@@ -659,11 +702,19 @@ function PromoteContent() {
   }
 
   function handleSharePinterest(listing: PromoteListing) {
+    if (!pinterestConnected) {
+      setPinterestConnectOpen(true);
+      return;
+    }
     setShareTarget(listing);
     setPinterestModalOpen(true);
   }
 
   function handleShareInstagram(listing: PromoteListing) {
+    if (!instagramConnected) {
+      setInstagramConnectOpen(true);
+      return;
+    }
     setShareTarget(listing);
     setInstagramModalOpen(true);
   }
@@ -699,11 +750,8 @@ function PromoteContent() {
                 icon="📌"
                 displayName="Pinterest"
                 status={pinterestStatus}
-                onConnect={handleConnectPinterest}
+                onOpenConnectModal={() => { pinterestOAuth.clearError(); setPinterestConnectOpen(true); }}
                 onDisconnect={handleDisconnectPinterest}
-                connecting={pinterestOAuth.pending}
-                connectError={pinterestOAuth.error}
-                connectPopupUrl={pinterestOAuth.popupUrl}
                 disconnecting={disconnectingPinterest}
               />
               <PlatformCard
@@ -711,11 +759,8 @@ function PromoteContent() {
                 icon="📸"
                 displayName="Instagram"
                 status={instagramStatus}
-                onConnect={handleConnectInstagram}
+                onOpenConnectModal={() => { instagramOAuth.clearError(); setInstagramConnectOpen(true); }}
                 onDisconnect={handleDisconnectInstagram}
-                connecting={instagramOAuth.pending}
-                connectError={instagramOAuth.error}
-                connectPopupUrl={instagramOAuth.popupUrl}
                 disconnecting={disconnectingInstagram}
               />
             </div>
@@ -746,14 +791,38 @@ function PromoteContent() {
         </>
       )}
 
-      {/* Modals */}
+      {/* Connect modals */}
+      <SocialConnectModal
+        open={pinterestConnectOpen}
+        onClose={() => setPinterestConnectOpen(false)}
+        platform="pinterest"
+        state={(pinterestStatus?.state as "app_not_configured" | "not_connected" | "expired") ?? "not_connected"}
+        isSuperuser={isSuperuser}
+        onStartOAuth={handleOAuthPinterest}
+        oauthPending={pinterestOAuth.pending}
+        oauthError={pinterestOAuth.error}
+        oauthPopupUrl={pinterestOAuth.popupUrl}
+      />
+      <SocialConnectModal
+        open={instagramConnectOpen}
+        onClose={() => setInstagramConnectOpen(false)}
+        platform="instagram"
+        state={(instagramStatus?.state as "app_not_configured" | "not_connected" | "expired") ?? "not_connected"}
+        isSuperuser={isSuperuser}
+        onStartOAuth={handleOAuthInstagram}
+        oauthPending={instagramOAuth.pending}
+        oauthError={instagramOAuth.error}
+        oauthPopupUrl={instagramOAuth.popupUrl}
+      />
+
+      {/* Share modals */}
       <ShareModal
         open={pinterestModalOpen}
         onClose={() => { setPinterestModalOpen(false); setShareTarget(null); }}
         listing={shareTarget}
         platform="pinterest"
         platformConnected={pinterestConnected}
-        onConnect={handleConnectPinterest}
+        onConnect={() => { setPinterestModalOpen(false); setPinterestConnectOpen(true); }}
       />
       <ShareModal
         open={instagramModalOpen}
@@ -761,7 +830,7 @@ function PromoteContent() {
         listing={shareTarget}
         platform="instagram"
         platformConnected={instagramConnected}
-        onConnect={handleConnectInstagram}
+        onConnect={() => { setInstagramModalOpen(false); setInstagramConnectOpen(true); }}
       />
 
       {toast && (
