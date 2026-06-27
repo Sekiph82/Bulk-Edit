@@ -290,7 +290,22 @@ async def get_product_usage(db: AsyncSession) -> dict:
     }
 
 
+async def _check_redis_health(redis_url: str) -> str:
+    if not redis_url:
+        return "not_configured"
+    try:
+        import redis.asyncio as aioredis
+        r = aioredis.from_url(redis_url, socket_connect_timeout=2)
+        await r.ping()
+        await r.aclose()
+        return "ok"
+    except Exception:
+        return "error"
+
+
 async def get_system_health(db: AsyncSession) -> dict:
+    from app.core.config import settings
+
     total_users = (await db.execute(select(func.count()).select_from(User))).scalar_one()
     total_orgs = (await db.execute(select(func.count()).select_from(Organization))).scalar_one()
     total_audit = (await db.execute(select(func.count()).select_from(AuditLog))).scalar_one()
@@ -301,8 +316,19 @@ async def get_system_health(db: AsyncSession) -> dict:
         select(func.count()).select_from(AISession).where(AISession.status == "failed")
     )).scalar_one()
 
+    redis_status = await _check_redis_health(settings.REDIS_URL)
+
+    sentry_dsn = settings.SENTRY_DSN or ""
+    sentry_configured = bool(sentry_dsn) and "placeholder" not in sentry_dsn.lower() and not sentry_dsn.startswith("YOUR_")
+
     return {
         "database_status": "ok",
+        "redis_status": redis_status,
+        "rate_limit_backend": settings.RATE_LIMIT_BACKEND,
+        "rate_limit_enabled": settings.RATE_LIMIT_ENABLED,
+        "sentry_configured": sentry_configured,
+        "worker_status": "not_configured",
+        "csp_mode": "unsafe_inline_deferred",
         "total_users": total_users,
         "total_organizations": total_orgs,
         "total_audit_events": total_audit,

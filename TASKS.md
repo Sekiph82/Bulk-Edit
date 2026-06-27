@@ -528,9 +528,30 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
+## Sprint 21: Production Monitoring, Redis Rate Limiting, Sentry, Celery Readiness
+
+**Status:** `[x] COMPLETE`
+
+- [x] Part A: Upgrade rate limiter to Redis-backed dual backend (memory fallback on Redis unavailability) — `app/core/rate_limit.py`
+- [x] Part B: Add `RATE_LIMIT_REDIS_URL`, `RATE_LIMIT_CONTACT_PER_HOUR`, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE` to config
+- [x] Part C: Sentry backend integration — `_init_sentry()` no-op when DSN absent; `_scrub_sentry_event()` redacts sensitive keys; FastApiIntegration + SqlalchemyIntegration
+- [x] Part D: Upgrade `AdminSystemHealth` schema with 6 new monitoring fields: `redis_status`, `rate_limit_backend`, `rate_limit_enabled`, `sentry_configured`, `worker_status`, `csp_mode`
+- [x] Part E: `_check_redis_health()` service — probes Redis with 2s timeout; never exposes Redis URL in response
+- [x] Part F: Remove `unsafe-eval` from production CSP; add HSTS for `NODE_ENV=production`; document sha256 for future nonce CSP
+- [x] Part G: Add `sentry-sdk[fastapi]==2.19.2` to requirements.txt
+- [x] Part H: Expand `tests/test_rate_limiting.py` to 9 tests (was 3) — includes Redis config fields, Sentry config, disabled bypass
+- [x] Part I: Expand `tests/test_security_headers.py` to 10 tests (was 3) — includes monitoring fields, Redis URL not exposed, Sentry DSN not exposed, worker status
+- [x] Part J: `docs/operations/MONITORING.md` — health endpoints, Sentry, rate limiting, Stripe, Etsy, scheduled jobs, admin checks, daily checklist
+- [x] Part K: `docs/operations/RUNBOOK.md` — 14 incident scenarios + rollback + secret rotation
+- [x] Part L: `docs/operations/WORKERS.md` — inline scheduler docs + future Celery architecture
+- [x] Part M: `.github/workflows/e2e.yml` — manual Playwright workflow with artifact upload
+- [x] Build: 22 routes, 0 errors. TypeScript: 0 errors. 617/617 backend tests pass.
+
+---
+
 ## Backlog / Future
 
-- [ ] Sprint 21: CSP nonce hardening, Celery production workers, monitoring/alerting, post-launch
+- [ ] Sprint 22: User onboarding flow, empty state polish, first-run wizard, analytics events, advanced feature gates
 - [ ] Shopify integration
 - [ ] Multi-language support
 - [ ] Mobile app

@@ -1,13 +1,24 @@
 /** @type {import('next').NextConfig} */
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8100";
+const IS_PROD = process.env.NODE_ENV === "production";
 
-// CSP: pragmatic for self-hosted SaaS.
-// 'unsafe-inline' required for the anti-flash theme script in app/layout.tsx.
-// Nonce-based CSP hardening is deferred to Sprint 21 (see docs/operations/LAUNCH_CHECKLIST.md).
+// CSP notes:
+// - 'unsafe-inline' in script-src is required because Next.js App Router injects several
+//   inline bootstrap scripts in production beyond just our anti-flash script. The sha256
+//   approach only covers one known inline script; Next.js may add others per build.
+// - Anti-flash script sha256 (for future nonce CSP reference):
+//   sha256-tRVAlVKnDSmcZQ61d+9zNAPSQWWgJxOlnrg/ZOZsLFM=
+// - Full CSP hardening (removing 'unsafe-inline') requires Next.js middleware nonce injection.
+//   See docs/operations/LAUNCH_CHECKLIST.md — planned for post-launch Sprint 22.
+// - 'unsafe-eval' removed for production; only included in dev where Next.js HMR needs it.
+const scriptSrc = IS_PROD
+  ? `'self' 'unsafe-inline' https://js.stripe.com`
+  : `'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com`;
+
 const ContentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com`,
+  `script-src ${scriptSrc}`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
@@ -32,6 +43,14 @@ const securityHeaders = [
     value: ContentSecurityPolicy,
   },
 ];
+
+// HSTS: only in production — never in dev/staging without SSL
+if (IS_PROD) {
+  securityHeaders.push({
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains; preload",
+  });
+}
 
 const nextConfig = {
   reactStrictMode: true,

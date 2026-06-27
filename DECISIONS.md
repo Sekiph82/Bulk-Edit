@@ -410,3 +410,31 @@ If DELETE /images/{image_id} returns 404, the image is already deleted on Etsy. 
 
 ### [MEDIA] Backup snapshot: images only (not videos) in Sprint 11
 `ListingMediaBackupSnapshot.videos_snapshot` is stored as NULL in Sprint 11 because video fetch is best-effort and video write operations are stubs. Snapshot schema supports videos for future sprints.
+
+---
+
+## Sprint 21 Decisions
+
+### [RATE_LIMIT] IP-only key for login/register (no email extraction)
+FastAPI body is consumed by Pydantic model validation before the rate limit dependency runs. Attempting `await request.json()` in the dependency raises an error (body already consumed). Decision: login and register rate limit keys use IP only: `rl:login:{ip}`. This prevents per-email tracking but is still effective for brute-force protection at the IP level. Comment in code explains why.
+
+### [RATE_LIMIT] Memory fallback on Redis unavailability
+If Redis is unavailable (connection error, timeout, or not configured), rate limiter falls back to in-memory dict automatically. Logged as warning. No HTTP error surfaced to users. This ensures rate limiting never takes the app down — a Redis outage degrades to less robust rate limiting, not a service failure.
+
+### [RATE_LIMIT] RATE_LIMIT_ENABLED defaults False
+Tests and local dev do not need rate limiting. Defaulting to False avoids flaky test failures from legitimate test login loops. Production must explicitly set RATE_LIMIT_ENABLED=true.
+
+### [SENTRY] No-op when DSN absent or placeholder
+_init_sentry() returns early if DSN is empty, contains "placeholder", or starts with "YOUR_". This ensures local dev and CI never accidentally try to connect to Sentry. sentry-sdk is installed (it's a dep) but never initialized.
+
+### [SENTRY] Secrets scrubbed before Sentry send
+_scrub_sentry_event() recursively redacts any dict key in _SENSITIVE set (14 keys: password, password_hash, access_token, refresh_token, etsy_access_token, etsy_refresh_token, stripe_secret_key, openai_api_key, anthropic_api_key, secret_key, authorization, cookie, sentry_dsn, redis_url). Applied via before_send hook — Sentry never receives raw values.
+
+### [CSP] unsafe-eval removed in production only
+Next.js App Router injects multiple inline scripts per build. These require unsafe-inline (SHA256 approach only covers one specific script). unsafe-eval however is not needed in production — only Next.js dev server hot-reload uses it. Decision: keep unsafe-inline everywhere, remove unsafe-eval in production only (NODE_ENV=production).
+
+### [MONITORING] system-health fields: never expose URLs
+_check_redis_health() accepts the URL internally and returns only "ok" | "not_configured" | "error". The response schema has no field for the Redis URL. Test test_system_health_no_redis_url_exposed verifies "redis://" is not in the response body. Same approach for Sentry DSN — sentry_configured is bool only.
+
+### [CELERY] Deferred — inline jobs sufficient for Sprint 21
+No Celery worker container added. Scheduled jobs run inline in HTTP thread. Volume doesn't warrant a separate worker process yet. WORKERS.md documents the future Celery architecture (worker.py template, docker-compose service stub, beat scheduler). worker_status field returns "not_configured".

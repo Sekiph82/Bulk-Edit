@@ -3,6 +3,29 @@
 ## Last Session
 
 **Date:** 2026-06-27
+**Task:** Sprint 21 — Production Monitoring, Redis Rate Limiting, Sentry, Celery Readiness — COMPLETE
+**Commit:** chore: add production monitoring redis rate limiting sentry and celery readiness (Sprint 21)
+
+**What was built:**
+- `apps/backend/app/core/rate_limit.py` — upgraded to Redis+memory dual backend; IP-only key for login (Pydantic already consumed body); memory fallback on Redis unavailability; `contact_rate_limit` dependency added
+- `apps/backend/app/core/config.py` — added RATE_LIMIT_REDIS_URL, RATE_LIMIT_CONTACT_PER_HOUR, SENTRY_DSN, SENTRY_ENVIRONMENT, SENTRY_TRACES_SAMPLE_RATE
+- `apps/backend/app/main.py` — `_init_sentry()` + `_scrub_sentry_event()` (scrubs password, tokens, keys); safe no-op when DSN absent
+- `apps/backend/requirements.txt` — added `sentry-sdk[fastapi]==2.19.2`
+- `apps/backend/app/schemas/admin.py` — AdminSystemHealth upgraded: redis_status, rate_limit_backend, rate_limit_enabled, sentry_configured, worker_status, csp_mode
+- `apps/backend/app/services/admin.py` — `_check_redis_health()` probe; `get_system_health()` returns all new fields; never exposes Redis URL
+- `apps/frontend/next.config.mjs` — removed `unsafe-eval` in production; added HSTS for production (NODE_ENV=production); sha256 hash documented as comment
+- `apps/backend/tests/test_rate_limiting.py` — 9 tests (up from 3)
+- `apps/backend/tests/test_security_headers.py` — 10 tests (up from 3); system-health monitoring field tests, no-Redis-URL, no-Sentry-DSN, worker_status
+- `docs/operations/MONITORING.md` — NEW: health endpoints, Sentry, rate limits, Stripe, Etsy, scheduled jobs, Redis, admin checks, daily checklist
+- `docs/operations/RUNBOOK.md` — NEW: 14 incident scenarios + rollback + secret rotation procedures
+- `docs/operations/WORKERS.md` — NEW: current inline scheduler docs + future Celery architecture
+- `.github/workflows/e2e.yml` — NEW: manual workflow_dispatch for Playwright E2E with artifact upload
+
+**Tests:** 609/609 backend tests pass. Build: 22 routes, 0 errors.
+
+## Previous Last Session
+
+**Date:** 2026-06-27
 **Task:** Sprint 20 — Launch QA, CI/CD, E2E, Rate Limiting, CSP — COMPLETE
 **Commit:** chore: add launch qa ci e2e rate limiting and security headers (Sprint 20)
 
@@ -29,9 +52,18 @@
 
 ## Next Task
 
-**Sprint 21** — CSP nonce hardening, Celery production workers, monitoring/alerting (Sentry), post-launch operations.
+**Sprint 22** — Post-launch: user onboarding flow, empty state polish, first-run wizard, analytics events, advanced feature gates.
 
 ## Next Prompt
+
+```
+Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
+
+Current state: Sprint 21 COMPLETE. Redis rate limiting, Sentry backend, system-health monitoring fields, MONITORING.md, RUNBOOK.md, WORKERS.md all delivered. 609/609 tests. 22 routes. 0 errors.
+
+Start Sprint 22: user onboarding, empty states, first-run wizard, analytics events.
+
+## Next Prompt (legacy Sprint 21 — DONE)
 
 ```
 Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.

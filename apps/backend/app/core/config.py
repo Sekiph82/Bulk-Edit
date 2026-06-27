@@ -40,8 +40,15 @@ class Settings(BaseSettings):
     # Rate limiting
     RATE_LIMIT_ENABLED: bool = False  # Enable in production; off by default for local dev / tests
     RATE_LIMIT_BACKEND: str = "memory"  # "memory" or "redis"
+    RATE_LIMIT_REDIS_URL: str = ""  # defaults to REDIS_URL if empty
     RATE_LIMIT_LOGIN_PER_MINUTE: int = 10
     RATE_LIMIT_REGISTER_PER_MINUTE: int = 5
+    RATE_LIMIT_CONTACT_PER_HOUR: int = 5
+
+    # Sentry error monitoring (optional)
+    SENTRY_DSN: str = ""  # leave empty to disable
+    SENTRY_ENVIRONMENT: str = "development"
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.0
 
     # AI providers
     AI_PROVIDER: str = "mock"  # "mock" | "openai" | "anthropic"

@@ -102,8 +102,20 @@ For local Docker development, the `.env` file at the repo root is mounted into a
 
 | Variable | Example | Description |
 |---|---|---|
-| `SENTRY_DSN` | `https://...@sentry.io/...` | Sentry error tracking DSN. Omit to disable. |
+| `SENTRY_DSN` | `https://...@sentry.io/...` | Sentry error tracking DSN. Leave empty to disable Sentry entirely. Never expose real value in logs. |
+| `SENTRY_ENVIRONMENT` | `production` | Sentry environment tag. Default: `development`. |
+| `SENTRY_TRACES_SAMPLE_RATE` | `0.1` | Fraction of transactions to trace (0.0–1.0). Default: `0.0` (disabled). |
 | `DEBUG` | `false` | Enables `/docs` and `/redoc` on backend. Never enable in production. |
+
+### Rate Limiting
+
+| Variable | Example | Default | Description |
+|---|---|---|---|
+| `RATE_LIMIT_ENABLED` | `true` | `false` | Master toggle. Set `false` in tests and local dev. |
+| `RATE_LIMIT_REDIS_URL` | `redis://redis:6379/1` | *(empty — uses `REDIS_URL`)* | Redis URL for rate limit counters. Falls back to `REDIS_URL` if empty; falls back to in-memory if Redis unavailable. |
+| `RATE_LIMIT_LOGIN_PER_MINUTE` | `10` | `10` | Max login attempts per IP per minute. |
+| `RATE_LIMIT_REGISTER_PER_MINUTE` | `5` | `5` | Max register attempts per IP per minute. |
+| `RATE_LIMIT_CONTACT_PER_HOUR` | `5` | `5` | Max contact-form submissions per IP per hour. |
 
 ### Project Isolation
 

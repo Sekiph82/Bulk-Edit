@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 20 — Launch QA, CI/CD, E2E, Rate Limiting, CSP — COMPLETE.**
+**Sprint 21 — Production Monitoring, Redis Rate Limiting, CSP Nonce, Sentry, Celery Worker Readiness — COMPLETE.**
 
 ## Status
 
-`12 new tests (test_rate_limiting.py × 3, test_security_headers.py × 3, Playwright E2E × 6). 595/595 backend tests pass. CI/CD pipeline live (.github/workflows/ci.yml). Playwright 11/13 pass (2 seeded-user tests skip without PLAYWRIGHT_RUN_SEEDED_TESTS=1). Rate limiting on login/register (disabled by default, env-gated). Security headers on frontend (CSP+4 headers) and backend (4 headers). Launch checklist at docs/operations/LAUNCH_CHECKLIST.md. 22 routes, 0 TypeScript errors.`
+`Sprint 21 complete. Redis-backed rate limiter (memory fallback on Redis unavailability). Sentry integration (backend only, scrubs secrets, disabled without DSN). Admin system-health upgraded: redis_status, rate_limit_backend, sentry_configured, worker_status, csp_mode. CSP: removed unsafe-eval in production, HSTS added for production, sha256 documented. Monitoring guide + runbook + workers doc created. E2E manual workflow added. 609/609 backend tests pass. 22 routes, 0 TS errors.`
 
 ## Last Updated
 
@@ -44,6 +44,7 @@ None (between sprints)
 - Sprint 18: Security Hardening + Deployment Readiness ✓ (45 security tests, /health/ready endpoint, mojibake fix, accessibility, ENVIRONMENT.md, TESTING.md, 566/566 suite)
 - Sprint 19: Internal Admin Business Dashboard ✓ (6-tab dashboard, 5 new summary endpoints, Admin nav gated to superusers, 17 new tests, 20 routes, 0 TS errors)
 - Sprint 20: Launch QA, CI/CD, E2E, Rate Limiting, CSP ✓ (GitHub Actions CI, Playwright E2E, rate limiting, security headers, CSP, launch checklist, 595/595 tests)
+- Sprint 21: Production Monitoring, Redis Rate Limiting, Sentry, Celery Readiness ✓ (Redis rate limiter, Sentry backend, system-health monitoring fields, MONITORING.md, RUNBOOK.md, WORKERS.md, e2e.yml, 609/609 tests)
 
 ## Local Development (Windows)
 
@@ -96,7 +97,10 @@ None
 | `pytest tests/test_scheduled_jobs.py` | 41/41 PASSED |
 | `pytest tests/test_admin_panel.py` | 42/42 PASSED |
 | `pytest tests/test_security_hardening.py` | 45/45 PASSED |
-| **Full suite `pytest`** | **566/566 PASSED** |
+| `pytest tests/test_rate_limiting.py` | 9/9 PASSED |
+| `pytest tests/test_security_headers.py` | 10/10 PASSED |
+| `pytest tests/test_admin_dashboard.py` | 17/17 PASSED |
+| **Full suite `pytest`** | **617/617 PASSED** |
 
 ## Sprint 11 — New Files
 
@@ -172,12 +176,12 @@ All enforced in `apply_bulk_edit_session()` before any write:
 
 | Metric | Value |
 |---|---|
-| Sprints complete | 19 / 19 (incl. Productization UI, Landing Animation, AI, CSV, DP, local dev, scheduled jobs, admin panel) |
-| Backend Python files | 128+ |
+| Sprints complete | 21 / 21 (incl. Productization UI, Landing Animation, AI, CSV, DP, local dev, scheduled jobs, admin panel, admin dashboard, CI/CD, monitoring) |
+| Backend Python files | 132+ |
 | Frontend TypeScript files | 31 |
-| Total tests | 566 |
+| Total tests | 617 |
 | Open blockers | 0 |
 
 ## Next Action
 
-Begin Sprint 18: Tests, Deployment, Security Hardening. See HANDOFF.md for exact prompt.
+Begin Sprint 22: User onboarding flow, empty state polish, first-run wizard, analytics events. See HANDOFF.md for exact prompt.

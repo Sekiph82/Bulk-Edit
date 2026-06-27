@@ -15,6 +15,53 @@ setup_logging()
 _logger = logging.getLogger(__name__)
 
 
+def _scrub_sentry_event(event: dict, hint: dict) -> dict:
+    """Remove sensitive fields before sending to Sentry."""
+    _SENSITIVE = {
+        "password", "password_hash", "access_token", "refresh_token",
+        "etsy_access_token", "etsy_refresh_token", "stripe_secret_key",
+        "openai_api_key", "anthropic_api_key", "secret_key",
+        "authorization", "cookie",
+    }
+
+    def _scrub(obj):
+        if isinstance(obj, dict):
+            return {
+                k: "[REDACTED]" if k.lower() in _SENSITIVE else _scrub(v)
+                for k, v in obj.items()
+            }
+        if isinstance(obj, list):
+            return [_scrub(i) for i in obj]
+        return obj
+
+    return _scrub(event)
+
+
+def _init_sentry() -> None:
+    """Initialize Sentry if DSN is configured. Safe no-op when missing."""
+    dsn = settings.SENTRY_DSN
+    if not dsn or "placeholder" in dsn.lower() or dsn.startswith("YOUR_"):
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+        sentry_sdk.init(
+            dsn=dsn,
+            environment=settings.SENTRY_ENVIRONMENT,
+            traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+            integrations=[FastApiIntegration(), SqlalchemyIntegration()],
+            before_send=_scrub_sentry_event,
+        )
+        _logger.info("Sentry initialized (environment=%s)", settings.SENTRY_ENVIRONMENT)
+    except Exception as e:
+        _logger.warning("Sentry init failed (backend continues normally): %s", e)
+
+
+_init_sentry()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:

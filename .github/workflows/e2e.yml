@@ -1,0 +1,52 @@
+name: E2E Tests (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "App base URL for E2E tests"
+        required: false
+        default: "http://localhost:3100"
+      backend_url:
+        description: "Backend URL for E2E tests"
+        required: false
+        default: "http://localhost:8100"
+
+jobs:
+  playwright:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: apps/frontend
+        run: npx playwright install chromium --with-deps
+
+      - name: Run E2E smoke tests
+        working-directory: apps/frontend
+        run: npm run e2e
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ github.event.inputs.base_url }}
+          PLAYWRIGHT_BACKEND_URL: ${{ github.event.inputs.backend_url }}
+          CI: "true"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-results
+          path: apps/frontend/test-results/
+          retention-days: 7

@@ -871,3 +871,44 @@ Frontend:
 **Blockers:** None
 
 **Next:** Sprint 18 — Tests, Deployment, Security Hardening, Polish
+
+---
+
+## Session: Sprint 21 — Production Monitoring, Redis Rate Limiting, Sentry, Celery Readiness
+
+**Date:** 2026-06-27
+**Status:** COMPLETE
+
+**Summary:** Upgraded production readiness infrastructure. Redis-backed rate limiter with automatic memory fallback. Sentry error tracking integration (disabled without DSN; scrubs all sensitive keys). Admin system-health endpoint upgraded with 6 new monitoring fields. Production CSP hardened: removed unsafe-eval, added HSTS. Full operations documentation suite created.
+
+**New files:**
+- `docs/operations/MONITORING.md` — health endpoints, Sentry config, rate limiting monitoring, daily checklist
+- `docs/operations/RUNBOOK.md` — 14 incident scenarios, rollback, secret rotation
+- `docs/operations/WORKERS.md` — inline scheduler docs + future Celery architecture
+- `.github/workflows/e2e.yml` — manual Playwright E2E workflow with artifact upload
+
+**Modified files:**
+- `apps/backend/app/core/config.py` — 5 new fields: RATE_LIMIT_REDIS_URL, RATE_LIMIT_CONTACT_PER_HOUR, SENTRY_DSN, SENTRY_ENVIRONMENT, SENTRY_TRACES_SAMPLE_RATE
+- `apps/backend/app/core/rate_limit.py` — full rewrite: Redis ZSET + memory fallback dual backend; IP-only keys (no email extraction); contact endpoint 1h window
+- `apps/backend/app/main.py` — _init_sentry() + _scrub_sentry_event() with 14-key sensitive field set
+- `apps/backend/app/schemas/admin.py` — AdminSystemHealth + 6 monitoring fields
+- `apps/backend/app/services/admin.py` — _check_redis_health() + updated get_system_health()
+- `apps/backend/requirements.txt` — sentry-sdk[fastapi]==2.19.2
+- `apps/frontend/next.config.mjs` — remove unsafe-eval in production, HSTS for production
+- `apps/backend/tests/test_rate_limiting.py` — 9 tests (was 3)
+- `apps/backend/tests/test_security_headers.py` — 10 tests (was 3)
+
+**Test results:** 617/617 PASSED (51 new Sprint 21 tests)
+
+**Frontend build:** 22 routes, 0 TypeScript errors
+
+**Security gates verified:**
+- Rate limit 429 response contains no secrets
+- system-health never returns Redis URL
+- system-health never returns Sentry DSN
+- Sentry disabled when DSN absent (no crash, no-op)
+- RATE_LIMIT_ENABLED defaults False in test env
+
+**Blockers:** None
+
+**Next:** Sprint 22 — User onboarding flow, empty state polish, first-run wizard, analytics events

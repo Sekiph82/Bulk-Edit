@@ -316,6 +316,12 @@ class AdminProductUsage(BaseModel):
 
 class AdminSystemHealth(BaseModel):
     database_status: str
+    redis_status: str          # "ok" | "not_configured" | "error"
+    rate_limit_backend: str    # "memory" | "redis"
+    rate_limit_enabled: bool
+    sentry_configured: bool
+    worker_status: str         # "not_configured" | "configured"
+    csp_mode: str              # "unsafe_inline_deferred" | "hash_based"
     total_users: int
     total_organizations: int
     total_audit_events: int
