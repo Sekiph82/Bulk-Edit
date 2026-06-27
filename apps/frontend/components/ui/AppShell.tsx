@@ -15,7 +15,9 @@ const NAV_BASE = [
       { href: "/listings",       label: "Listings",        icon: <ListIcon /> },
       { href: "/listing-health", label: "Listing Health",  icon: <HeartIcon /> },
       { href: "/profit",         label: "Profit",          icon: <DollarIcon /> },
+      { href: "/insights",       label: "Insights",        icon: <InsightsIcon /> },
       { href: "/bulk-edit",      label: "Bulk Edit",       icon: <PencilIcon /> },
+      { href: "/bulk-create",    label: "Bulk Create",     icon: <CreateIcon /> },
       { href: "/media",          label: "Media",           icon: <ImageIcon /> },
       { href: "/variations",     label: "Variations",      icon: <LayersIcon /> },
     ],
@@ -26,6 +28,8 @@ const NAV_BASE = [
       { href: "/ai",             label: "AI Tools",        icon: <SparkleIcon /> },
       { href: "/csv",            label: "CSV Import/Export",icon: <TableIcon /> },
       { href: "/pricing-rules",  label: "Dynamic Pricing", icon: <ChartIcon /> },
+      { href: "/promote",        label: "Promote",         icon: <PromoteIcon /> },
+      { href: "/video-generator",label: "Video Generator", icon: <VideoIcon /> },
     ],
   },
   {
@@ -247,6 +251,7 @@ export default function AppShell({ children }: AppShellProps) {
 
           {/* Right actions */}
           <div className="flex items-center gap-1.5">
+            <SoundToggle isDark={isDark} />
             <ThemeToggle />
           </div>
         </header>
@@ -277,3 +282,55 @@ function HamburgerIcon(){ return <svg viewBox="0 0 20 20" fill="currentColor" cl
 function HeartIcon()    { return <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>; }
 function ShopIcon()     { return <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" /></svg>; }
 function DollarIcon()   { return <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" /><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" /></svg>; }
+function InsightsIcon() { return <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>; }
+function PromoteIcon()  { return <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z" /></svg>; }
+function VideoIcon()    { return <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" /></svg>; }
+function CreateIcon()   { return <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>; }
+
+/* ── Sound Toggle ────────────────────────────────────────────────────────── */
+function SoundToggle({ isDark }: { isDark: boolean }) {
+  const [enabled, setEnabled] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    setEnabled(localStorage.getItem("bulk-edit-sound-enabled") === "true");
+  }, []);
+
+  function toggle() {
+    const next = !enabled;
+    setEnabled(next);
+    localStorage.setItem("bulk-edit-sound-enabled", String(next));
+    if (next) {
+      try {
+        const a = new Audio("/sounds/cha-ching.mp3");
+        a.play().catch(() => {});
+      } catch {}
+    }
+  }
+
+  if (!mounted) return null;
+
+  return (
+    <button
+      onClick={toggle}
+      title={enabled ? "Success chime on (click to mute)" : "Success chime off (click to enable)"}
+      aria-pressed={enabled}
+      className={`p-1.5 rounded-lg transition-colors ${
+        isDark
+          ? enabled ? "text-blue-300 hover:bg-white/8" : "text-slate-500 hover:bg-white/6"
+          : enabled ? "text-indigo-600 hover:bg-indigo-50" : "text-gray-400 hover:bg-gray-100"
+      }`}
+    >
+      {enabled ? (
+        <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+          <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+          <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      )}
+    </button>
+  );
+}

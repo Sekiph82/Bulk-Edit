@@ -5,7 +5,9 @@ import { motion, useReducedMotion } from "motion/react";
 import MarketingNav from "@/components/marketing/MarketingNav";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 
-const FEATURES = [
+type FeatureItem = { icon: string; title: string; desc: string; color: string; href?: string };
+
+const FEATURES: FeatureItem[] = [
   {
     icon: "⚡",
     title: "Bulk Listing Editor",
@@ -77,14 +79,36 @@ const FEATURES = [
     title: "Listing Health Score",
     desc: "Score every listing 0–100. Detect missing tags, weak titles, thin descriptions, and low photo counts before they cost you sales.",
     color: "from-green-50 to-teal-50 border-green-200",
-    href: "/listing-health",
   },
   {
     icon: "📈",
     title: "Profit & Cost Calculator",
     desc: "Track product cost, POD base cost, Etsy fees, shipping, and ad costs to estimate net profit and margin per listing.",
     color: "from-violet-50 to-indigo-50 border-violet-200",
-    href: "/profit",
+  },
+  {
+    icon: "📊",
+    title: "Shop Insights",
+    desc: "Date-range analytics for your shop — views, favourites, and revenue trends over time.",
+    color: "from-sky-50 to-blue-50 border-sky-200",
+  },
+  {
+    icon: "📣",
+    title: "Social Promote",
+    desc: "Generate Pinterest and Instagram captions from your listings. Copy, download, or share when ready — never auto-posted.",
+    color: "from-pink-50 to-rose-50 border-pink-200",
+  },
+  {
+    icon: "🎬",
+    title: "Product Video Generator",
+    desc: "Turn listing photos into a short product video. Review the preview before saving — never auto-uploaded to Etsy.",
+    color: "from-orange-50 to-amber-50 border-orange-200",
+  },
+  {
+    icon: "✨",
+    title: "Bulk Create Listings",
+    desc: "Upload a folder of photos, fill a quick form, and create draft Etsy listings in bulk. You review and publish when ready.",
+    color: "from-lime-50 to-green-50 border-lime-200",
   },
 ];
 

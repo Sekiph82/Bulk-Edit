@@ -107,6 +107,45 @@ const FAQ_DATA: Array<{ category: string; items: FaqItem[] }> = [
       },
     ],
   },
+  {
+    category: "Insights & Credits",
+    items: [
+      {
+        q: "What does the Shop Insights page show?",
+        a: "The Insights page shows date-range analytics for your shop — including views, favourites, and revenue trends. You choose the date range and the data updates immediately. Insights data comes from your connected Etsy shop.",
+      },
+      {
+        q: "What are AI credits and bulk edit credits?",
+        a: "AI credits are consumed each time Bulk-Edit calls an AI model to generate suggestions (titles, tags, descriptions). Bulk edit credits are consumed when you apply a bulk edit session to Etsy. Your plan includes a monthly allowance of each. You can see your current usage in the dashboard.",
+      },
+    ],
+  },
+  {
+    category: "Promote & Video",
+    items: [
+      {
+        q: "Does the Promote feature automatically post to Pinterest or Instagram?",
+        a: "No — never. The Promote feature generates captions and prepares images from your listings. You can copy the caption, download the image, or explicitly confirm before anything is shared. Nothing is auto-posted to any social platform.",
+      },
+      {
+        q: "Does the Video Generator automatically upload videos to Etsy?",
+        a: "No. The Video Generator creates a short product showcase video from your listing photos. You preview and download the video first, then manually decide whether to add it to your Etsy listing. Videos are never auto-uploaded.",
+      },
+    ],
+  },
+  {
+    category: "Bulk Create",
+    items: [
+      {
+        q: "What is Bulk Create and how does it work?",
+        a: "Bulk Create lets you upload a folder of product photos and quickly fill in listing details to create multiple Etsy listings at once. Each upload creates a draft for your review. No listing is published to Etsy without your explicit confirmation — the same preview-and-confirm workflow applies here.",
+      },
+      {
+        q: "Can Bulk Create publish listings to Etsy automatically?",
+        a: "No. Bulk Create creates draft listings for your review. You check each draft, make any edits, and then choose to publish when you are ready. Publishing always requires your explicit action — nothing goes live automatically.",
+      },
+    ],
+  },
 ];
 
 function FaqAccordion({ items }: { items: FaqItem[] }) {

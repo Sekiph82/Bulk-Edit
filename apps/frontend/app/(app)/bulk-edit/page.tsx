@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   getAccessToken, getListings, createBulkEditSession, getBulkEditSession,
   addBulkEditChange, removeBulkEditChange, generateBulkEditPreview,
@@ -386,6 +386,7 @@ function PreviewTable({ items }: { items: BulkEditPreviewItem[] }) {
 
 function BulkEditContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Phase: select | session | preview
   const [phase, setPhase] = useState<"select" | "session" | "preview">("select");
@@ -408,13 +409,18 @@ function BulkEditContent() {
   const [revertJob, setRevertJob] = useState<RevertJob | null>(null);
   const [revertConfirmText, setRevertConfirmText] = useState("");
 
+  // Support preselection from URL (?listing_ids=id1,id2) or localStorage
   const preselected: string[] = (() => {
+    const urlIds = searchParams.get("listing_ids");
+    if (urlIds) return urlIds.split(",").filter(Boolean);
     if (typeof window === "undefined") return [];
     try {
       const raw = localStorage.getItem("bulk_edit_selected_listing_ids");
       return raw ? JSON.parse(raw) : [];
     } catch { return []; }
   })();
+
+  const fromHealthPage = preselected.length > 0 && !!searchParams.get("listing_ids");
 
   useEffect(() => {
     if (!getAccessToken()) { router.push("/login"); }
@@ -572,6 +578,12 @@ function BulkEditContent() {
         {phase === "select" && (
           <div className="bg-white border border-gray-200 rounded-xl p-6">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Select Listings</h2>
+            {fromHealthPage && (
+              <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-800">
+                <span>🩺</span>
+                <span>{preselected.length} listing{preselected.length !== 1 ? "s" : ""} pre-selected from Listing Health. Review and confirm below.</span>
+              </div>
+            )}
             {creating ? (
               <div className="flex justify-center py-8">
                 <div className="w-6 h-6 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />

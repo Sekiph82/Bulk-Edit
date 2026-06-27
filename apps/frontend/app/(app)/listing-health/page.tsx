@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -60,6 +60,7 @@ function ListingHealthContent() {
   const [sort, setSort] = useState("score_asc");
   const [aiResults, setAiResults] = useState<Record<string, AISuggestions>>({});
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const pageSize = 50;
 
@@ -181,6 +182,25 @@ function ListingHealthContent() {
         </button>
       </div>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm">
+          <span className="font-medium">{selectedIds.size} listing{selectedIds.size !== 1 ? "s" : ""} selected</span>
+          <Link
+            href={`/bulk-edit?listing_ids=${Array.from(selectedIds).join(",")}`}
+            className="ml-auto bg-white text-indigo-700 font-semibold px-3 py-1 rounded hover:bg-indigo-50 transition-colors"
+          >
+            Send to Bulk Edit →
+          </Link>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-indigo-200 hover:text-white text-xs"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       {loading ? (
         <div className="flex justify-center py-16">
@@ -201,6 +221,22 @@ function ListingHealthContent() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
+                    <th className="px-4 py-3 w-8">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all on this page"
+                        checked={listings.length > 0 && listings.every((l) => selectedIds.has(l.listing_id))}
+                        onChange={(e) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) listings.forEach((l) => next.add(l.listing_id));
+                            else listings.forEach((l) => next.delete(l.listing_id));
+                            return next;
+                          });
+                        }}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Listing</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Score</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Grade</th>
@@ -214,7 +250,23 @@ function ListingHealthContent() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {listings.map((listing) => (
-                    <tr key={listing.listing_id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={listing.listing_id} className={`hover:bg-gray-50 transition-colors ${selectedIds.has(listing.listing_id) ? "bg-indigo-50/40" : ""}`}>
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${listing.title ?? listing.listing_id}`}
+                          checked={selectedIds.has(listing.listing_id)}
+                          onChange={(e) => {
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(listing.listing_id);
+                              else next.delete(listing.listing_id);
+                              return next;
+                            });
+                          }}
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                      </td>
                       <td className="px-4 py-3 max-w-xs">
                         <p className="font-medium text-gray-900 truncate text-sm">{listing.title ?? "—"}</p>
                         <p className="text-xs text-gray-400">{listing.state ?? ""}</p>
@@ -249,7 +301,12 @@ function ListingHealthContent() {
                           >
                             {aiLoading[listing.listing_id] ? "Loading…" : "AI Suggestions"}
                           </button>
-                          <Link href="/bulk-edit" className="text-xs text-gray-500 hover:text-gray-700">Bulk Edit</Link>
+                          <Link
+                            href={`/bulk-edit?listing_ids=${listing.listing_id}`}
+                            className="text-xs text-gray-500 hover:text-gray-700"
+                          >
+                            Bulk Edit
+                          </Link>
                         </div>
                       </td>
                     </tr>

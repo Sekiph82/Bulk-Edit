@@ -209,9 +209,9 @@ const OPERATION_OPTIONS = [
   { value: "add_image", label: "Add Image", implemented: true },
   { value: "replace_image", label: "Replace Image (at rank)", implemented: true },
   { value: "delete_image", label: "Delete Image", implemented: true },
-  { value: "reorder_images", label: "Reorder Images (coming soon)", implemented: false },
-  { value: "replace_video", label: "Replace Video (coming soon)", implemented: false },
-  { value: "delete_video", label: "Delete Video (coming soon)", implemented: false },
+  { value: "reorder_images", label: "Reorder Images", implemented: true },
+  { value: "replace_video", label: "Replace Video", implemented: true },
+  { value: "delete_video", label: "Delete Video", implemented: true },
 ];
 
 function StatusBadge({ status }: { status: string }) {

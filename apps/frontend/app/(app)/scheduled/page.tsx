@@ -17,7 +17,7 @@ import {
 
 const JOB_TYPES = [
   { value: "csv_export_snapshot", label: "CSV Export Snapshot", description: "Export listing data as a metadata snapshot" },
-  { value: "bulk_edit_draft", label: "Bulk Edit Draft", description: "Create a draft bulk edit session" },
+  { value: "bulk_edit_draft", label: "Apply Approved Bulk Edit Draft", description: "Apply a pre-approved bulk edit draft to Etsy listings (requires prior approval)" },
   { value: "dynamic_pricing_preview", label: "Pricing Preview", description: "Generate dynamic pricing recommendations" },
   { value: "etsy_sync", label: "Etsy Sync", description: "Sync listings from Etsy (read-only)" },
 ];
@@ -304,20 +304,24 @@ export default function ScheduledPage() {
               </div>
             )}
 
-            <div>
-              <label className="text-xs text-gray-500 font-medium">Job payload (JSON)</label>
-              <textarea
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono"
-                rows={4}
-                value={form.job_payload_json}
-                onChange={e => setForm({ ...form, job_payload_json: e.target.value })}
-                placeholder={'{\n  "shop_id": "your-shop-id"\n}'}
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                etsy_sync: {`{"shop_id":"..."}`} &nbsp;|&nbsp;
-                bulk_edit_draft: {`{"listing_ids":[...],"changes":[{"field_name":"title","operation":"set","value":"..."}]}`}
-              </p>
-            </div>
+            <details className="group">
+              <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600 select-none py-1">
+                Advanced: Job payload (JSON)
+              </summary>
+              <div className="mt-2">
+                <textarea
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono"
+                  rows={4}
+                  value={form.job_payload_json}
+                  onChange={e => setForm({ ...form, job_payload_json: e.target.value })}
+                  placeholder={'{\n  "shop_id": "your-shop-id"\n}'}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  etsy_sync: {`{"shop_id":"..."}`} &nbsp;|&nbsp;
+                  bulk_edit_draft: {`{"session_id":"..."}`}
+                </p>
+              </div>
+            </details>
 
             <div className="flex gap-3">
               <button

@@ -58,6 +58,25 @@ class Settings(BaseSettings):
     ANTHROPIC_MODEL: str = "claude-3-5-haiku-latest"
     AI_REQUEST_TIMEOUT_SECONDS: int = 30
 
+    # Etsy API rate limit guidance
+    ETSY_API_REQUESTS_PER_SECOND: float = 5.0
+    ETSY_API_DAILY_LIMIT: int = 5000
+    ETSY_API_BURST_LIMIT: int = 10
+    ETSY_BULK_WRITE_BATCH_SIZE: int = 10
+    ETSY_BULK_WRITE_DELAY_MS: int = 200
+    ETSY_RETRY_MAX_ATTEMPTS: int = 3
+
+    # Social integrations (optional — empty = not configured)
+    PINTEREST_CLIENT_ID: str = ""
+    PINTEREST_CLIENT_SECRET: str = ""
+    PINTEREST_REDIRECT_URI: str = ""
+    META_APP_ID: str = ""
+    META_APP_SECRET: str = ""
+    INSTAGRAM_REDIRECT_URI: str = ""
+
+    # Video renderer
+    VIDEO_RENDERER_ENABLED: bool = False
+
     def is_openai_configured(self) -> bool:
         key = self.OPENAI_API_KEY
         return bool(key) and "placeholder" not in key.lower() and key.startswith("sk-")

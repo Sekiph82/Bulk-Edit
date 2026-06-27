@@ -5,6 +5,13 @@ import { useEffect, useState } from "react";
 import OnboardingChecklist from "@/components/onboarding/OnboardingChecklist";
 import { getListingHealthSummary, getProfitSummary, type ListingHealthSummary, type ProfitSummary } from "@/lib/api";
 
+interface ActionItem {
+  id: string;
+  type: string;
+  label: string;
+  href: string;
+}
+
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
 
 const activeFeatures = [
@@ -30,6 +37,7 @@ export default function DashboardPage() {
   const [listingCount, setListingCount] = useState<number | null>(null);
   const [healthSummary, setHealthSummary] = useState<ListingHealthSummary | null>(null);
   const [profitSummary, setProfitSummary] = useState<ProfitSummary | null>(null);
+  const [actionQueue, setActionQueue] = useState<ActionItem[]>([]);
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
@@ -55,6 +63,13 @@ export default function DashboardPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => { setListingCount(data?.total ?? data?.listings?.length ?? 0); })
       .catch(() => { setListingCount(0); });
+
+    fetch(`${BACKEND_URL}/api/v1/action-queue`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data?.items) setActionQueue(data.items); })
+      .catch(() => {});
 
     getListingHealthSummary().then(setHealthSummary).catch(() => {});
     getProfitSummary().then(setProfitSummary).catch(() => {});
@@ -109,6 +124,32 @@ export default function DashboardPage() {
               </div>
             </Link>
           )}
+        </div>
+      )}
+
+      {/* Action Queue widget */}
+      {actionQueue.length > 0 && (
+        <div className="mb-6 bg-white border border-amber-200 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">⏳</span>
+            <h2 className="text-base font-semibold text-gray-900">Action Queue</h2>
+            <span className="ml-auto text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+              {actionQueue.length} awaiting approval
+            </span>
+          </div>
+          <ul className="divide-y divide-gray-100">
+            {actionQueue.map((item) => (
+              <li key={item.id} className="py-2.5 flex items-center gap-3">
+                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium capitalize">
+                  {item.type.replace(/_/g, " ")}
+                </span>
+                <span className="text-sm text-gray-700 flex-1 truncate">{item.label}</span>
+                <Link href={item.href} className="text-xs text-indigo-600 font-medium hover:underline flex-shrink-0">
+                  Review →
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
