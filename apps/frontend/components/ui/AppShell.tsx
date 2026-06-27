@@ -164,6 +164,7 @@ export default function AppShell({ children }: AppShellProps) {
                       <Link
                         href={item.href}
                         onClick={() => setSidebarOpen(false)}
+                        data-testid={item.href === "/admin" ? "admin-nav-link" : undefined}
                         className={`
                           flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium
                           transition-all duration-150

@@ -511,8 +511,26 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
+## Sprint 20: Launch QA, CI/CD, E2E, Rate Limiting, CSP
+
+**Status:** `[x] COMPLETE`
+
+- [x] Part A: Baseline verification — 595/595 tests, lint, build, mojibake scan, Docker, 22 routes
+- [x] Part B: GitHub Actions CI — `.github/workflows/ci.yml` (backend tests + postgres:16 + redis:7 services, frontend lint+build, docker-compose validate)
+- [x] Part C: Playwright E2E — `playwright.config.ts` + 3 spec files (public-pages, theme, auth-flow); 11 pass / 2 skipped (seeded tests need `PLAYWRIGHT_RUN_SEEDED_TESTS=1`)
+- [x] Part D: Backend rate limiting — `app/core/rate_limit.py` (in-memory, disabled by default; `RATE_LIMIT_ENABLED` env var); login 10/min, register 5/min per IP
+- [x] Part E: CSP + frontend security headers via `next.config.mjs` (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, Content-Security-Policy)
+- [x] Part F: Backend security headers middleware (`app/core/security_headers.py` — SecurityHeadersMiddleware on all API responses)
+- [x] Part G: data-testid attributes for E2E selectors (`admin-nav-link`, `admin-access-denied`, `admin-dashboard`)
+- [x] Part H: Launch checklist — `docs/operations/LAUNCH_CHECKLIST.md` (10 sections, 60+ checkboxes)
+- [x] Part O: `tests/test_rate_limiting.py` (3 tests) + `tests/test_security_headers.py` (3 tests) — all 6 pass
+- [x] Build: 22 routes, 0 errors. TypeScript: 0 errors. 595/595 backend tests pass.
+
+---
+
 ## Backlog / Future
 
+- [ ] Sprint 21: CSP nonce hardening, Celery production workers, monitoring/alerting, post-launch
 - [ ] Shopify integration
 - [ ] Multi-language support
 - [ ] Mobile app

@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     ETSY_REDIRECT_URI: str = "http://localhost:8100/api/v1/etsy/callback"
     ETSY_SCOPES: str = "listings_r listings_w shops_r profile_r"
 
+    # Rate limiting
+    RATE_LIMIT_ENABLED: bool = False  # Enable in production; off by default for local dev / tests
+    RATE_LIMIT_BACKEND: str = "memory"  # "memory" or "redis"
+    RATE_LIMIT_LOGIN_PER_MINUTE: int = 10
+    RATE_LIMIT_REGISTER_PER_MINUTE: int = 5
+
     # AI providers
     AI_PROVIDER: str = "mock"  # "mock" | "openai" | "anthropic"
     OPENAI_API_KEY: str = "openai_api_key_placeholder"

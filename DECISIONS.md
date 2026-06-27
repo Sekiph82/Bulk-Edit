@@ -4,6 +4,25 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-06-27 (Sprint 20)
+
+### [SECURITY] CSP uses 'unsafe-inline' for scripts — nonce hardening deferred to Sprint 21
+The anti-flash theme script in `app/layout.tsx` uses `dangerouslySetInnerHTML` (inline script). CSP without `'unsafe-inline'` would block it and cause a white flash before React hydrates. Chose pragmatic CSP with `'unsafe-inline'` for initial launch. Sprint 21: implement nonce-based CSP via Next.js middleware (inject nonce into both the script tag and the CSP header per-request).
+
+### [SECURITY] Rate limiter is in-memory (not Redis) by default
+Chose custom in-memory limiter over slowapi to avoid adding a new package dependency. Memory limiter is per-process and resets on restart — not suitable for multi-instance production. `RATE_LIMIT_BACKEND=redis` is documented as the production setting. Sprint 21: implement Redis-backed limiting via `aioredis` or `slowapi` when Celery workers are deployed.
+
+### [SECURITY] RATE_LIMIT_ENABLED defaults False
+Rate limiting defaults to disabled to prevent test suite instability (429s from rapid test execution). Production must set `RATE_LIMIT_ENABLED=true` in environment. CI workflow explicitly sets `RATE_LIMIT_ENABLED=false`.
+
+### [DEVOPS] Playwright seeded-user tests use PLAYWRIGHT_RUN_SEEDED_TESTS=1 env var
+Seeded-user E2E tests require a running Docker stack with seeded users. CI has no backend running during frontend checks job. Used an explicit opt-in env var (`PLAYWRIGHT_RUN_SEEDED_TESTS=1`) rather than `CI` env check to allow running them locally even when other env vars are set.
+
+### [DEVOPS] GitHub Actions backend job uses SQLite tests (via conftest.py)
+The test suite uses `sqlite+aiosqlite` in-memory DB (set in `conftest.py`). The CI postgres:16 service is available for future migration testing but current tests don't use it. The `alembic upgrade head` step runs against the postgres service to validate migrations. Test suite runs against SQLite as before.
+
+---
+
 ## 2026-06-26 (Sprint 19)
 
 ### [PRODUCT] Projected MRR labeled as "Expected — not guaranteed cash"

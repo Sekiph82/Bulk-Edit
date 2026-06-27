@@ -54,9 +54,41 @@
 
 ### Known Gaps (Future Sprints)
 - FastAPI `HTTPBearer` returns 403 (not 401) for missing Authorization header — RFC 7235 expects 401 for unauthenticated. Fix: configure `HTTPBearer(auto_error=False)` and raise 401 manually.
-- Rate limiting not implemented — add `slowapi` or reverse-proxy rate limiting in production.
-- CSP headers not configured — add `SecurityMiddleware` or nginx config in Sprint 19.
 - No Sentry DSN configured locally — configure in staging/production.
+
+---
+
+## Sprint 20 Security Additions (2026-06-27)
+
+### Rate Limiting
+- `app/core/rate_limit.py` — in-memory rate limiter. `RATE_LIMIT_ENABLED=false` by default (enabled in production).
+- Login: 10 attempts/min per IP (`POST /api/v1/auth/login`).
+- Register: 5 attempts/min per IP (`POST /api/v1/auth/register`).
+- Returns HTTP 429 + `{"detail": "Too many requests. Please try again later."}` + `Retry-After` header.
+- Production: set `RATE_LIMIT_ENABLED=true` and `RATE_LIMIT_BACKEND=redis`. Redis-backed implementation deferred to Sprint 21.
+
+### Backend Security Headers
+All API responses now include via `SecurityHeadersMiddleware`:
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+
+### Frontend Security Headers (CSP)
+All frontend routes include via `next.config.mjs` headers config:
+- `Content-Security-Policy` — default-src 'self'; script-src includes 'unsafe-inline' (see note below)
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(self)`
+- `X-DNS-Prefetch-Control: on`
+
+**CSP 'unsafe-inline' Note:** Required by the anti-flash theme script injected via `dangerouslySetInnerHTML` in `app/layout.tsx`. This is a known weakness. Sprint 21 will implement nonce-based CSP to remove 'unsafe-inline'.
+
+### GitHub Actions CI
+- All CI jobs use dummy/placeholder secrets — never real keys.
+- `RATE_LIMIT_ENABLED=false` in CI to prevent 429 test flakiness.
+- No `.env` files or `.local-superusers.env` committed or used in CI.
 
 ---
 

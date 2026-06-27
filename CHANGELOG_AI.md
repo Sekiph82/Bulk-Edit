@@ -4,6 +4,24 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-27 Sprint 20 — Launch QA, CI/CD, E2E, Rate Limiting, CSP
+
+**Skills active:** 06 backend-api, 20 testing-qa, 22 devops
+
+**What was done:**
+- `.github/workflows/ci.yml` — GitHub Actions CI pipeline: 3 jobs (backend-tests with postgres:16+redis:7 services, frontend-checks, docker-compose-validate). No real secrets in CI. RATE_LIMIT_ENABLED=false in CI env.
+- `playwright.config.ts` + `e2e/*.spec.ts` — Playwright smoke tests for public pages, theme (anti-flash + light/dark), auth flow (dashboard gating). Seeded-user tests skip unless `PLAYWRIGHT_RUN_SEEDED_TESTS=1`. 11/13 pass locally; 2 seeded tests skipped.
+- `app/core/rate_limit.py` — In-memory rate limiter. No new package dependency (avoids slowapi). `RATE_LIMIT_ENABLED` defaults `False` so tests never hit 429. Login 10/min, register 5/min per IP.
+- `app/core/security_headers.py` + `app/main.py` — SecurityHeadersMiddleware on all FastAPI responses: X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy: strict-origin-when-cross-origin, Permissions-Policy.
+- `apps/frontend/next.config.mjs` — Full security header suite + CSP on all frontend routes. CSP uses 'unsafe-inline' for scripts (required by anti-flash theme script). Nonce-based hardening deferred to Sprint 21.
+- `data-testid` attributes on Admin nav link, admin access-denied div, admin dashboard main.
+- `tests/test_rate_limiting.py` (3 tests) + `tests/test_security_headers.py` (3 tests) — 6 new tests, all pass.
+- `docs/operations/LAUNCH_CHECKLIST.md` — NEW: 10-section production launch checklist (infrastructure, env vars, Stripe, Etsy, AI, admin, security, E2E, go/no-go, post-launch).
+
+**Test results:** 595/595 backend tests pass (+12 from Sprint 20). Playwright: 11 passed, 2 skipped. Build: 22 routes, 0 errors.
+
+---
+
 ## 2026-06-26 Sprint 19 — Internal Admin Business Dashboard
 
 **Skills active:** 05 frontend-component, 06 backend-api, 20 testing-qa

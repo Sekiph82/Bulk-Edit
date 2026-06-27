@@ -2,15 +2,15 @@
 
 ## Current Phase
 
-**Sprint 19 — Internal Admin Business Dashboard — COMPLETE.**
+**Sprint 20 — Launch QA, CI/CD, E2E, Rate Limiting, CSP — COMPLETE.**
 
 ## Status
 
-`17 new tests (test_admin_dashboard.py). 5 new admin summary endpoints: billing-summary, stripe-summary, product-usage, system-health, audit-log. Admin nav hidden from non-superusers in AppShell. Admin page rewritten as 6-tab business dashboard (Overview, Users, Billing, Etsy, Usage, System). 20 routes, 0 TypeScript errors. Note: 196 pre-existing test failures from missing ENCRYPTION_KEY in test env (unrelated to Sprint 19 — new tests all pass).`
+`12 new tests (test_rate_limiting.py × 3, test_security_headers.py × 3, Playwright E2E × 6). 595/595 backend tests pass. CI/CD pipeline live (.github/workflows/ci.yml). Playwright 11/13 pass (2 seeded-user tests skip without PLAYWRIGHT_RUN_SEEDED_TESTS=1). Rate limiting on login/register (disabled by default, env-gated). Security headers on frontend (CSP+4 headers) and backend (4 headers). Launch checklist at docs/operations/LAUNCH_CHECKLIST.md. 22 routes, 0 TypeScript errors.`
 
 ## Last Updated
 
-2026-06-26
+2026-06-27
 
 ## Active Skills
 
@@ -43,6 +43,7 @@ None (between sprints)
 - Sprint 17.5-B: Theme System + fmcg Visual Language ✓ (ThemeProvider, ThemeToggle, AppShell, anti-flash script, (app)/ route group, 11 app pages migrated, full dark mode CSS, 22 routes, 521/521 suite)
 - Sprint 18: Security Hardening + Deployment Readiness ✓ (45 security tests, /health/ready endpoint, mojibake fix, accessibility, ENVIRONMENT.md, TESTING.md, 566/566 suite)
 - Sprint 19: Internal Admin Business Dashboard ✓ (6-tab dashboard, 5 new summary endpoints, Admin nav gated to superusers, 17 new tests, 20 routes, 0 TS errors)
+- Sprint 20: Launch QA, CI/CD, E2E, Rate Limiting, CSP ✓ (GitHub Actions CI, Playwright E2E, rate limiting, security headers, CSP, launch checklist, 595/595 tests)
 
 ## Local Development (Windows)
 

@@ -252,7 +252,7 @@ export default function AdminDashboardPage() {
 
   if (forbidden) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center" data-testid="admin-access-denied">
         <div className="bg-white border border-red-200 rounded-2xl p-10 text-center max-w-md shadow-sm">
           <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -279,7 +279,7 @@ export default function AdminDashboardPage() {
   ];
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-8">
+    <main className="max-w-7xl mx-auto px-6 py-8" data-testid="admin-dashboard">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Admin Business Dashboard</h1>

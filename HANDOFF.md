@@ -2,9 +2,46 @@
 
 ## Last Session
 
-**Date:** 2026-06-26
-**Task:** Sprint 19 — Internal Admin Business Dashboard — COMPLETE
-**Commit:** feat: add internal admin business dashboard (Sprint 19)
+**Date:** 2026-06-27
+**Task:** Sprint 20 — Launch QA, CI/CD, E2E, Rate Limiting, CSP — COMPLETE
+**Commit:** chore: add launch qa ci e2e rate limiting and security headers (Sprint 20)
+
+**What was built:**
+- `.github/workflows/ci.yml` — GitHub Actions CI: backend tests + postgres:16 + redis:7 services, Alembic migration, pytest; frontend lint+build; docker-compose config validate
+- `apps/frontend/playwright.config.ts` — Playwright config targeting localhost:3100
+- `apps/frontend/e2e/public-pages.spec.ts` — 7 tests: 5 marketing pages + 2 auth pages
+- `apps/frontend/e2e/theme.spec.ts` — 3 tests: anti-flash script, light mode, dark mode
+- `apps/frontend/e2e/auth-flow.spec.ts` — 1 test (dashboard loads) + 2 seeded-user tests (skipped without `PLAYWRIGHT_RUN_SEEDED_TESTS=1`)
+- `apps/backend/app/core/rate_limit.py` — in-memory rate limiter; login 10/min, register 5/min per IP; disabled by default (`RATE_LIMIT_ENABLED=false`)
+- `apps/backend/app/core/security_headers.py` — `SecurityHeadersMiddleware` adding 4 headers to all API responses
+- `apps/backend/app/main.py` — imports + registers SecurityHeadersMiddleware
+- `apps/backend/app/core/config.py` — added RATE_LIMIT_ENABLED, RATE_LIMIT_BACKEND, RATE_LIMIT_LOGIN_PER_MINUTE, RATE_LIMIT_REGISTER_PER_MINUTE
+- `apps/backend/app/api/v1/auth.py` — added `Depends(login_rate_limit)` / `Depends(register_rate_limit)` to login + register
+- `apps/frontend/next.config.mjs` — CSP + X-Content-Type-Options + X-Frame-Options + Referrer-Policy + Permissions-Policy + X-DNS-Prefetch-Control on all routes
+- `apps/frontend/components/ui/AppShell.tsx` — `data-testid="admin-nav-link"` on Admin link
+- `apps/frontend/app/(app)/admin/page.tsx` — `data-testid="admin-access-denied"` + `data-testid="admin-dashboard"`
+- `apps/backend/tests/test_rate_limiting.py` — 3 tests
+- `apps/backend/tests/test_security_headers.py` — 3 tests
+- `docs/operations/LAUNCH_CHECKLIST.md` — NEW: 10-section production launch checklist
+- TASKS.md, PROJECT_STATUS.md, HANDOFF.md, CHANGELOG_AI.md, DECISIONS.md, SECURITY.md updated
+
+**Tests:** 595/595 backend tests pass. Playwright: 11 passed, 2 skipped. Build: 22 routes, 0 errors.
+
+## Next Task
+
+**Sprint 21** — CSP nonce hardening, Celery production workers, monitoring/alerting (Sentry), post-launch operations.
+
+## Next Prompt
+
+```
+Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
+
+Current state: Sprint 20 COMPLETE. CI/CD live, Playwright E2E added, rate limiting + security headers active. 595/595 tests. 22 routes. 0 errors.
+
+Start Sprint 21: CSP nonce hardening, Celery production workers, monitoring, post-launch ops.
+```
+
+## Previous Last Session
 
 **What was built:**
 - `apps/backend/app/schemas/admin.py` — added `AdminBillingSummary`, `AdminStripeSummary`, `AdminProductUsage`, `AdminSystemHealth` schemas
