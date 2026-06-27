@@ -4,6 +4,19 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-06-27 (Sprint 25)
+
+### [ARCHITECTURE] Media local upload is frontend-only (Option A) — no backend upload endpoint
+`LocalUploadPanel` uses `File API` + `URL.createObjectURL()`. No multipart upload, no S3 presign, no path traversal risk. Thumbnails are object URLs revoked on remove/clear. Rationale: no existing backend upload infrastructure; feature purpose is preview/staging, not permanent storage.
+
+### [UX] Etsy disclaimer in FAQ removed — retained only in shared MarketingFooter
+MarketingFooter already renders the full Etsy trademark disclaimer in its legal section. The FAQ-specific indigo block was redundant and inconsistent with other marketing pages that rely on footer-only disclaimer.
+
+### [UX] Shops added to AppShell nav — placed in Workspace section between Dashboard and Listings
+Route `/shops` existed (Sprint 4/22) but was not linked in main nav. Added ShopIcon + Shops entry for discoverability. Position between Dashboard and Listings reflects typical onboarding flow.
+
+---
+
 ## 2026-06-27 (Sprint 24)
 
 ### [ARCHITECTURE] Listing health score is dynamic — no snapshot table

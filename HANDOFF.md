@@ -3,6 +3,40 @@
 ## Last Session
 
 **Date:** 2026-06-27
+**Task:** Sprint 25 — Promote Health & Profit Features + Media Local Upload — COMPLETE
+**Commit:** feat: surface optimization features and add media upload (Sprint 25)
+
+**What was built:**
+- `apps/frontend/app/faq/page.tsx` — removed standalone Etsy disclaimer `<div className="bg-indigo-50 border-t border-indigo-100">` block. MarketingFooter still shows disclaimer.
+- `apps/frontend/app/features/page.tsx` — added Listing Health Score + Profit Calculator to FEATURES array (icon, title, desc, color, href). Updated grid to render optional href as "Open →" link. Updated subtitle to "Thirteen tools".
+- `apps/frontend/app/page.tsx` — added "Optimize listings. Protect your margin." section with 2 cards (health + profit). Fixed `it's` → `it&apos;s` apostrophe.
+- `apps/frontend/app/pricing/page.tsx` — added 4 FeatureRow entries after existing rows: Listing Health Score (always true), Profit Calculator (always true), AI listing suggestions (not free), Multiple cost profiles (pro only).
+- `apps/frontend/components/ui/AppShell.tsx` — added Shops nav item + ShopIcon SVG between Dashboard and Listings in NAV_BASE Workspace section.
+- `apps/frontend/app/(app)/listings/page.tsx` — green tip banner linking to /listing-health.
+- `apps/frontend/app/(app)/listing-health/page.tsx` — violet cross-link banner to /profit after header.
+- `apps/frontend/app/(app)/profit/page.tsx` — green cross-link banner to /listing-health after header.
+- `apps/frontend/app/(app)/media/page.tsx` — `LocalUploadPanel` component: drag-drop + click-to-upload, MIME type + extension dual validation (JPG/PNG/WEBP), 10 MB per file, 20 files max, URL.createObjectURL() thumbnails, URL.revokeObjectURL() cleanup, rejection messages, Copy URL button, per-file + clear-all remove. Preview-only (not uploaded to Etsy).
+- `apps/frontend/e2e/faq.spec.ts` — 2 tests: loads without crash, no mid-page indigo disclaimer.
+- `apps/frontend/e2e/media-upload.spec.ts` — 2 tests: loads without crash, redirect if unauth.
+
+**Tests:** 673/673 backend pass. 25/25 Playwright pass (base + seeded). 0 lint errors. 24 routes build clean. 13/13 smoke checks. 16 dev env warnings 0 errors. No mojibake.
+
+## Next Task
+
+**Sprint 26 suggestion:** Listing Bulk Edit Performance — virtual scroll for large listing grids, lazy loading, and optimistic updates in the bulk editor.
+
+**Or:** Real Etsy sync integration — wire the existing /shops OAuth flow to a live Etsy sandbox shop and test actual listing sync. Requires `ETSY_CLIENT_ID` + `ETSY_REDIRECT_URI` in .env.
+
+**Next prompt template:**
+```
+You are working inside: C:\Users\sekip\Desktop\Bulk-Edit
+Start Sprint 26: [task name]
+[spec here]
+```
+
+## Previous Last Session
+
+**Date:** 2026-06-27
 **Task:** Sprint 24 — Listing Health Score + Profit & Cost Calculator — COMPLETE
 **Commit:** feat: add listing health score and profit calculator modules (Sprint 24)
 

@@ -208,14 +208,6 @@ export default function FaqPage() {
         </div>
       </section>
 
-      {/* Footer disclaimer */}
-      <div className="bg-indigo-50 border-t border-indigo-100 px-6 sm:px-8 py-5 text-center">
-        <p className="text-xs text-indigo-700">
-          The term &ldquo;Etsy&rdquo; is a trademark of Etsy, Inc. Bulk-Edit uses the Etsy API but
-          is not endorsed or certified by Etsy, Inc.
-        </p>
-      </div>
-
       <MarketingFooter />
     </div>
   );

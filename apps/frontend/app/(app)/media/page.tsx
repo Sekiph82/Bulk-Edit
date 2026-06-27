@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   getAccessToken,
@@ -15,6 +15,195 @@ import {
   type MediaJob,
   type MediaResult,
 } from "@/lib/api";
+
+// ── Local upload types & constants ──────────────────────────────────────────
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"] as const;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_FILES = 20;
+
+type LocalUpload = { id: string; file: File; preview: string; sizeLabel: string };
+
+function isAllowedFile(file: File): boolean {
+  const ext = ("." + (file.name.split(".").pop() ?? "")).toLowerCase();
+  return (
+    (ALLOWED_TYPES as readonly string[]).includes(file.type) &&
+    (ALLOWED_EXTENSIONS as readonly string[]).includes(ext)
+  );
+}
+
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function LocalUploadPanel() {
+  const [uploads, setUploads] = useState<LocalUpload[]>([]);
+  const [rejections, setRejections] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function processFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const errs: string[] = [];
+    const accepted: LocalUpload[] = [];
+
+    if (uploads.length + files.length > MAX_FILES) {
+      errs.push(`Max ${MAX_FILES} files allowed. Clear some before adding more.`);
+      setRejections(errs);
+      return;
+    }
+
+    Array.from(files).forEach((file) => {
+      if (!isAllowedFile(file)) {
+        errs.push(`"${file.name}" — unsupported type. Only JPG, PNG, WEBP allowed.`);
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        errs.push(`"${file.name}" — file too large (${fmtSize(file.size)}). Max 10 MB.`);
+        return;
+      }
+      accepted.push({
+        id: crypto.randomUUID(),
+        file,
+        preview: URL.createObjectURL(file),
+        sizeLabel: fmtSize(file.size),
+      });
+    });
+
+    setRejections(errs);
+    setUploads((prev) => [...prev, ...accepted]);
+  }
+
+  function handleRemove(id: string) {
+    setUploads((prev) => {
+      const item = prev.find((u) => u.id === id);
+      if (item) URL.revokeObjectURL(item.preview);
+      return prev.filter((u) => u.id !== id);
+    });
+  }
+
+  function handleClearAll() {
+    uploads.forEach((u) => URL.revokeObjectURL(u.preview));
+    setUploads([]);
+    setRejections([]);
+  }
+
+  useEffect(() => {
+    return () => { uploads.forEach((u) => URL.revokeObjectURL(u.preview)); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function copyUrlToClipboard(preview: string) {
+    navigator.clipboard.writeText(preview).catch(() => {});
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold text-gray-800">Upload Images from Computer</h2>
+        {uploads.length > 0 && (
+          <button
+            onClick={handleClearAll}
+            className="text-xs text-gray-400 hover:text-red-600 transition-colors"
+          >
+            Clear all ({uploads.length})
+          </button>
+        )}
+      </div>
+
+      <p className="text-xs text-gray-400 mb-3">
+        JPG, PNG, WEBP · Max 10 MB per file · Max {MAX_FILES} files · Preview-only (files are not uploaded to Etsy)
+      </p>
+
+      {/* Drop zone */}
+      <div
+        className={`relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors mb-4 ${
+          dragging
+            ? "border-indigo-400 bg-indigo-50"
+            : "border-gray-200 hover:border-indigo-300 hover:bg-gray-50"
+        }`}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          processFiles(e.dataTransfer.files);
+        }}
+        onClick={() => inputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        aria-label="Upload images"
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") inputRef.current?.click(); }}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".jpg,.jpeg,.png,.webp"
+          multiple
+          className="sr-only"
+          onChange={(e) => processFiles(e.target.files)}
+        />
+        <svg className="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <p className="text-sm text-gray-500">
+          <span className="font-medium text-indigo-600">Click to upload</span> or drag and drop
+        </p>
+        <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP up to 10 MB</p>
+      </div>
+
+      {/* Rejections */}
+      {rejections.length > 0 && (
+        <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200">
+          {rejections.map((r, i) => (
+            <p key={i} className="text-xs text-red-700">{r}</p>
+          ))}
+        </div>
+      )}
+
+      {/* Uploaded preview grid */}
+      {uploads.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {uploads.map((u) => (
+            <div key={u.id} className="relative group border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={u.preview}
+                alt={u.file.name}
+                className="w-full h-24 object-cover"
+              />
+              <div className="p-2">
+                <p className="text-xs text-gray-700 truncate font-medium" title={u.file.name}>
+                  {u.file.name}
+                </p>
+                <p className="text-xs text-gray-400">{u.sizeLabel}</p>
+                <button
+                  onClick={() => copyUrlToClipboard(u.preview)}
+                  className="text-xs text-indigo-600 hover:underline mt-1"
+                  title="Copy preview URL to use in Image URL field above"
+                >
+                  Copy URL
+                </button>
+              </div>
+              <button
+                onClick={() => handleRemove(u.id)}
+                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/50 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label={`Remove ${u.file.name}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {uploads.length === 0 && rejections.length === 0 && (
+        <p className="text-xs text-gray-400 text-center">No images uploaded yet.</p>
+      )}
+    </div>
+  );
+}
 
 const OPERATION_OPTIONS = [
   { value: "add_image", label: "Add Image", implemented: true },
@@ -183,6 +372,9 @@ export default function MediaPage() {
         <p className="text-sm text-gray-500 mb-6">
           Safely add, replace, or delete images across multiple listings. Backups are created before every write.
         </p>
+
+        {/* Local image upload (frontend-only preview) */}
+        <LocalUploadPanel />
 
         {error && (
           <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>

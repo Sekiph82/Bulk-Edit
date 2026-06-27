@@ -4,6 +4,26 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-27 Sprint 25 — Promote Health & Profit Features + Media Local Upload
+
+**Skills active:** 07 frontend-page, 05 frontend-component
+
+**What shipped:**
+- FAQ: removed standalone Etsy disclaimer block (redundant with MarketingFooter).
+- Features page: Listing Health Score + Profit Calculator added to FEATURES array. Grid updated for optional href. Subtitle updated "Eleven" → "Thirteen tools".
+- Homepage: "Optimize listings. Protect your margin." section with 2 feature cards. Fixed `it's` → `it&apos;s` ESLint apostrophe error.
+- Pricing: 4 new FeatureRow entries (Listing Health, Profit, AI suggestions, multiple profiles).
+- AppShell: Shops nav item + ShopIcon SVG added to Workspace section between Dashboard and Listings.
+- Cross-links: Listings → Listing Health (green tip banner), Listing Health → Profit (violet banner), Profit → Listing Health (green banner).
+- Media page: `LocalUploadPanel` — drag-drop + click, MIME + extension dual validation, 10 MB / 20 files limits, objectURL thumbnail grid, Copy URL, cleanup on remove. No backend call (preview-only).
+- E2E: `e2e/faq.spec.ts` (2 tests), `e2e/media-upload.spec.ts` (2 tests).
+
+**Results:** 673/673 backend · 25/25 Playwright (all pass) · 0 lint errors · 24 routes clean · 13/13 smoke · 16 dev env warnings 0 errors.
+
+**Issues fixed:** Spurious `<div style={{display:"none"}}>` artifact in profit/page.tsx cross-link edit removed immediately. ESLint apostrophe in app/page.tsx fixed.
+
+---
+
 ## 2026-06-27 Sprint 24 — Listing Health Score + Profit & Cost Calculator
 
 **Skills active:** 06 backend-api, 07 frontend-page, 03 data-model

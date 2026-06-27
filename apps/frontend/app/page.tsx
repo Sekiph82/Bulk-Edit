@@ -154,7 +154,7 @@ export default function HomePage() {
             viewport={{ once: true }}
             transition={{ duration: 0.45, delay: 0.07 }}
           >
-            AI optimization, CSV import/export, variation editing, photo bulk edit, dynamic pricing, and more.
+            AI optimization, CSV import/export, variation editing, photo bulk edit, dynamic pricing, listing health scoring, profit tracking, and more.
           </motion.p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/features" className="be-btn-primary px-7 py-3">
@@ -163,6 +163,56 @@ export default function HomePage() {
             <Link href="/pricing" className="be-btn-secondary px-7 py-3">
               See pricing
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Optimize & protect margin */}
+      <section className="py-16 px-6 sm:px-8 bg-white border-t border-gray-100">
+        <div className="max-w-5xl mx-auto">
+          <motion.div
+            className="text-center mb-10"
+            initial={reduced ? false : { opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.45 }}
+          >
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Optimize listings. Protect your margin.</h2>
+            <p className="text-gray-500">Two new tools to help you find what to fix and know if it&apos;s worth it.</p>
+          </motion.div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <motion.div
+              className="be-card p-6 bg-gradient-to-br from-green-50 to-teal-50 border border-green-200"
+              initial={reduced ? false : { opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: 0.05 }}
+            >
+              <div className="text-3xl mb-3" aria-hidden="true">🩺</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Listing Health Score</h3>
+              <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+                Score every listing 0–100. Find missing tags, weak titles, thin descriptions, and low photo counts before they cost you sales.
+              </p>
+              <Link href="/features" className="text-xs font-medium text-green-700 hover:underline">
+                Learn more →
+              </Link>
+            </motion.div>
+            <motion.div
+              className="be-card p-6 bg-gradient-to-br from-violet-50 to-indigo-50 border border-violet-200"
+              initial={reduced ? false : { opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+            >
+              <div className="text-3xl mb-3" aria-hidden="true">📈</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Profit & Cost Calculator</h3>
+              <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+                Track product cost, Etsy fees, shipping, and ad costs to see real net profit and margin per listing. Know which listings are worth optimizing.
+              </p>
+              <Link href="/features" className="text-xs font-medium text-violet-700 hover:underline">
+                Learn more →
+              </Link>
+            </motion.div>
           </div>
         </div>
       </section>

@@ -92,6 +92,17 @@ All frontend routes include via `next.config.mjs` headers config:
 
 ---
 
+## Sprint 25 Security Notes (2026-06-27)
+
+### Media Local Upload
+- `LocalUploadPanel` is frontend-only. No file is sent to any server.
+- Object URLs (`blob:`) are scoped to the current tab and revoked on file removal and component unmount.
+- Dual validation: MIME type (`file.type`) AND extension (`file.name` suffix). Rejects files where either check fails.
+- Max file size: 10 MB. Max count: 20. Rejected files show user-facing error messages, never auto-processed.
+- No path traversal risk — no filesystem write path involved.
+
+---
+
 ## Local Superuser Seed Security Rules
 
 1. Real credentials for local demo users go in `apps/backend/.local-superusers.env` only.

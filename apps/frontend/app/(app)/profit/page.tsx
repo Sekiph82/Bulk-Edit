@@ -160,6 +160,15 @@ function ProfitContent() {
         </p>
       </div>
 
+      {/* Cross-link to Listing Health */}
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+        <span>🩺</span>
+        <span>Optimize high-margin listings first.</span>
+        <Link href="/listing-health" className="font-medium underline underline-offset-2 hover:text-green-900">
+          Review Listing Health →
+        </Link>
+      </div>
+
       {/* Warning banner */}
       <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
         Fee rates are configurable. Confirm your Etsy fee profile before relying on profit calculations.

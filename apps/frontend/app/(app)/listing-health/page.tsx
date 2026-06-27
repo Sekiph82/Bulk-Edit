@@ -116,6 +116,15 @@ function ListingHealthContent() {
         </p>
       </div>
 
+      {/* Cross-link to Profit */}
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-violet-50 border border-violet-200 rounded-lg text-sm text-violet-800">
+        <span>📈</span>
+        <span>Combine margin data with listing health to prioritize profitable improvements.</span>
+        <Link href="/profit" className="font-medium underline underline-offset-2 hover:text-violet-900">
+          View Profit →
+        </Link>
+      </div>
+
       {error && (
         <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-sm">{error}</div>
       )}

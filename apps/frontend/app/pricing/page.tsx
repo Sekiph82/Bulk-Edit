@@ -160,6 +160,16 @@ export default function PricingPage() {
                   <FeatureRow label="Magic Revert" value={limits.can_use_magic_revert} />
                   <FeatureRow label="Dynamic Pricing" value={limits.can_use_dynamic_pricing} />
                   <FeatureRow label="Scheduled Jobs" value={limits.can_schedule_jobs} />
+                  <FeatureRow label="Listing Health Score" value={true} />
+                  <FeatureRow label="Profit Calculator" value={true} />
+                  <FeatureRow
+                    label="AI listing suggestions"
+                    value={planKey !== "free"}
+                  />
+                  <FeatureRow
+                    label="Multiple cost profiles"
+                    value={planKey === "pro_monthly" || planKey === "pro_yearly"}
+                  />
                 </ul>
 
                 {isFree ? (

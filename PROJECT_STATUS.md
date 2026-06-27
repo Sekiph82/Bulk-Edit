@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 24 — Listing Health Score + Profit & Cost Calculator — COMPLETE.**
+**Sprint 25 — Promote Health & Profit Features + Media Local Upload — COMPLETE.**
 
 ## Status
 
-`Sprint 24 complete. Rule-based listing health score engine (0-100, grade, priority, per-category issues). Profit calculator with Decimal arithmetic + Etsy fee profiles. Migration 0014 (cost_profiles, listing_costs). 9 new API endpoints under /listing-health/* and /profit/*. Two new frontend pages (/listing-health, /profit). Dashboard widgets. AppShell nav updated. 52 new tests. 673/673 backend tests. 24 routes build clean.`
+`Sprint 25 complete. Listing Health Score and Profit Calculator surfaced across all marketing and app pages. FAQ mid-page Etsy disclaimer removed (MarketingFooter disclaimer retained). Features page updated to 13 tools. Homepage optimization section added. Pricing page updated with 4 new FeatureRows. AppShell Shops nav item added. Cross-links between Listings, Listing Health, and Profit pages. LocalUploadPanel added to Media page (drag-drop, MIME+ext validation, 10 MB / 20 files, thumbnails, no backend upload). 4 new Playwright E2E tests. 673/673 backend tests. 25/25 Playwright tests. 0 lint errors. 24 routes build clean.`
 
 ## Last Updated
 
@@ -48,6 +48,7 @@ None (between sprints)
 - Sprint 22: First-Run Onboarding, Non-Superuser Seed, Etsy Connection UX ✓ (seed role fix, OnboardingChecklist, dashboard shop/listing count fetch, Etsy trademark note, 621/621 tests)
 - Sprint 23: Production Deployment Readiness Kit ✓ (validate_env.py, smoke_test scripts, docker-compose.prod.example.yml, 6 ops docs, CI validate_env step, 621/621 tests)
 - Sprint 24: Listing Health Score + Profit & Cost Calculator ✓ (health score engine, profit calculator, migration 0014, 9 API endpoints, 2 frontend pages, dashboard widgets, 52 new tests, 673/673 total)
+- Sprint 25: Promote Health & Profit + Media Local Upload ✓ (FAQ disclaimer removed, features/homepage/pricing updated, Shops nav added, cross-links added, LocalUploadPanel in media, 4 new E2E tests, 673/673 backend, 25/25 Playwright)
 
 ## Local Development (Windows)
 

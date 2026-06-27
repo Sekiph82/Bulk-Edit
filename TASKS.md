@@ -609,6 +609,25 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
+## Sprint 25: Promote Health & Profit Features + Media Local Upload
+
+**Status:** `[x] COMPLETE`
+
+- [x] Part A: Remove mid-page Etsy disclaimer block from `/faq` page (footer disclaimer retained)
+- [x] Part B: Add Listing Health Score + Profit Calculator to `/features` FEATURES array with optional href
+- [x] Part C: Update `/features` subtitle from "Eleven" to "Thirteen tools"
+- [x] Part D: Add optimization section (2 new cards) to homepage `/`; fix apostrophe entity
+- [x] Part E: Add 4 FeatureRow entries to `/pricing` (Listing Health, Profit, AI suggestions, multiple profiles)
+- [x] Part F: Add Shops nav item + ShopIcon SVG to AppShell between Dashboard and Listings
+- [x] Part G: Cross-links — Listings → Listing Health (green tip banner), Listing Health → Profit, Profit → Listing Health
+- [x] Part H: `LocalUploadPanel` component in `/media` page (drag-drop, MIME+extension validation, 10 MB / 20 files limits, thumbnail grid, Copy URL, clear all, URL.revokeObjectURL cleanup)
+- [x] Part I: `e2e/faq.spec.ts` + `e2e/media-upload.spec.ts` — 4 new Playwright tests
+- [x] Part J: 673/673 backend tests pass; 25/25 Playwright tests pass; 0 lint errors; build 24 routes clean
+- [x] Part K: 13/13 smoke test checks; 16 dev env warnings 0 errors
+- [x] Part L: Docs updated, safety check, commit + push
+
+---
+
 ## Backlog / Future
 - [ ] Shopify integration
 - [ ] Multi-language support

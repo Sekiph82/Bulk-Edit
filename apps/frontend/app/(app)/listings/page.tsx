@@ -406,6 +406,15 @@ function ListingsContent() {
   return (
     <>
     <main className="max-w-7xl mx-auto px-6 py-6 space-y-5">
+        {/* Health tip */}
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+          <span>🩺</span>
+          <span>Not sure what to fix first?</span>
+          <Link href="/listing-health" className="font-medium underline underline-offset-2 hover:text-green-900">
+            Review Listing Health →
+          </Link>
+        </div>
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

@@ -72,6 +72,20 @@ const FEATURES = [
     desc: "Platform operators get a secure admin panel with paginated views of all entities. No secrets exposed.",
     color: "from-slate-50 to-gray-50 border-slate-200",
   },
+  {
+    icon: "🩺",
+    title: "Listing Health Score",
+    desc: "Score every listing 0–100. Detect missing tags, weak titles, thin descriptions, and low photo counts before they cost you sales.",
+    color: "from-green-50 to-teal-50 border-green-200",
+    href: "/listing-health",
+  },
+  {
+    icon: "📈",
+    title: "Profit & Cost Calculator",
+    desc: "Track product cost, POD base cost, Etsy fees, shipping, and ad costs to estimate net profit and margin per listing.",
+    color: "from-violet-50 to-indigo-50 border-violet-200",
+    href: "/profit",
+  },
 ];
 
 const WORKFLOW = [
@@ -173,7 +187,7 @@ export default function FeaturesPage() {
           <FadeUp className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-3">Built around your workflow</h2>
             <p className="text-gray-500 max-w-xl mx-auto">
-              Eleven tools that work together — from first sync to bulk apply to instant revert.
+              Thirteen tools that work together — from first sync to bulk apply, health scoring, profit tracking, and instant revert.
             </p>
           </FadeUp>
 
@@ -181,7 +195,7 @@ export default function FeaturesPage() {
             {FEATURES.map((f, i) => (
               <FadeUp key={f.title} delay={i * 0.04}>
                 <motion.div
-                  className={`be-card p-6 h-full bg-gradient-to-br ${f.color} border`}
+                  className={`be-card p-6 h-full bg-gradient-to-br ${f.color} border flex flex-col`}
                   whileHover={reduced ? {} : { y: -4 }}
                   transition={{ duration: 0.18 }}
                 >
@@ -189,7 +203,15 @@ export default function FeaturesPage() {
                     {f.icon}
                   </div>
                   <h3 className="font-semibold text-gray-900 mb-2">{f.title}</h3>
-                  <p className="text-sm text-gray-600 leading-relaxed">{f.desc}</p>
+                  <p className="text-sm text-gray-600 leading-relaxed flex-1">{f.desc}</p>
+                  {"href" in f && f.href && (
+                    <Link
+                      href={f.href}
+                      className="mt-3 text-xs font-medium text-indigo-600 hover:underline"
+                    >
+                      Open →
+                    </Link>
+                  )}
                 </motion.div>
               </FadeUp>
             ))}
