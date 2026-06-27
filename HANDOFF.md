@@ -3,6 +3,38 @@
 ## Last Session
 
 **Date:** 2026-06-27
+**Task:** Social Connect and Product Sharing UX — COMPLETE
+**Commit:** 13421bd fix: complete social connect and product sharing UX
+
+**What was built:**
+- `apps/backend/app/api/v1/promote.py` — popup OAuth callbacks (HTML not redirect), connect-url endpoints, GET /listings (org-isolated), POST /pinterest/share + /instagram/share (deferred, no fake success), config-status now public, disconnect sets revoked/clears token, timezone-naive fix in _consume_state
+- `apps/backend/app/models/social_connection.py` — added status, account_name, username, external_account_id, disconnected_at columns; access_token_encrypted now nullable
+- `apps/backend/alembic/versions/0018_add_social_connection_account_fields.py` — migration adds 5 columns + alters nullable
+- `apps/backend/tests/test_promote.py` — 54 tests (22 new): popup HTML, token exposure, org isolation, deferred share, listings empty state
+- `apps/frontend/app/(app)/promote/page.tsx` — popup OAuth (window.open + postMessage), fallback link if blocked, SocialConnectionCard 4 states, PromoteListingCard grid, ShareModal with caption editor + deferred notice + copy/download fallbacks, Toast, product listings section
+- **797/797 backend tests passing**
+- **Frontend build: 0 errors**
+- Docker Desktop was offline during session — migration 0018 will apply on next `docker compose up`
+
+## Next Task
+
+**Sprint 27 suggestion:** Real Etsy sync integration, Celery workers, email integration, or profit page editable cost fields.
+
+**Deferred (documented):**
+- Full Pinterest Pin creation (pending Pinterest developer app approval)
+- Full Instagram publishing (pending Meta app review for instagram_content_publish)
+- Pinterest board selector (requires boards:read API call)
+- Etsy listing video upload via API
+
+**Next prompt template:**
+```
+Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
+
+Current state: Social UX COMPLETE. Popup OAuth for Pinterest/Instagram, product listing cards, share modals, deferred posting. 797/797 tests. Migration 0018 pending Docker restart.
+
+## Previous Session (Sprint 26 polish)
+
+**Date:** 2026-06-27
 **Task:** Sprint 26 polish — Etsy Video Spec Compliance + Promote Page Clarity — COMPLETE
 **Commit:** (see below)
 

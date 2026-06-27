@@ -4,6 +4,23 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-27 Social Connect + Product Sharing UX — COMPLETE
+
+**Skills active:** 04 backend-router, 07 frontend-page
+**Commit:** 13421bd fix: complete social connect and product sharing UX
+
+- Popup OAuth flow for Pinterest and Instagram (window.open + postMessage)
+- Callbacks return HTML page (not redirect) — postMessage never includes token
+- SocialConnection model: +status, +account_name, +username, +external_account_id, +disconnected_at
+- Migration 0018: add 5 columns, make access_token_encrypted nullable
+- Status endpoints: return connected bool + account_name + username
+- GET /promote/listings: org-isolated, 50 active listings, empty state
+- POST /promote/pinterest/share + /instagram/share: deferred=true (no fake success)
+- config-status now public (no auth), includes missing_vars lists
+- Frontend: popup OAuth, SocialConnectionCard 4 states, PromoteListingCard grid, ShareModal
+- Instagram Business/Creator + Facebook Page requirement always shown
+- 797/797 backend tests passing; frontend build 0 errors
+
 ## 2026-06-27 Sprint 26 follow-up — Real Video Rendering + Social OAuth Account Connection
 
 **Skills active:** 04 backend-router, 06 backend-service, 07 frontend-page
