@@ -3,6 +3,43 @@
 ## Last Session
 
 **Date:** 2026-06-27
+**Task:** Sprint 26 follow-up — Real Video Rendering + Social OAuth — COMPLETE
+**Commit:** 430eaa6 — feat: enable video rendering and social account connections
+
+**What was built:**
+- `apps/backend/Dockerfile` — added `apt-get install -y --no-install-recommends ffmpeg`
+- `apps/backend/app/core/config.py` — added FFMPEG_PATH, VIDEO_OUTPUT_DIR, VIDEO_MAX_DURATION_SECONDS, VIDEO_MAX_IMAGES
+- `apps/backend/app/services/video_renderer.py` — NEW: `check_ffmpeg()` returns (state, message) with states disabled/dependency_missing/working; `render_slideshow_mp4()` builds ffmpeg concat list, runs subprocess with arg list (never shell=True), 1080×1080 letterbox pad, libx264 fast preset
+- `apps/backend/app/models/video_render.py` — NEW: VideoRender model (id, org_id, template_id, status, image_count, duration_seconds, file_size_bytes, file_path [never in API responses], error_message, completed_at)
+- `apps/backend/alembic/versions/0015_create_video_render_tables.py` — NEW: video_renders table
+- `apps/backend/app/api/v1/video_generator.py` — REWRITTEN: 5 endpoints (GET /status with 3 states, GET /templates, POST /render 202+background task, GET /renders/{id}, GET /renders/{id}/download FileResponse auth+org-isolated)
+- `apps/backend/app/services/token_encryption.py` — NOT created; existing `app.core.encryption` (encrypt_token/decrypt_token) reused
+- `apps/backend/app/models/social_connection.py` — NEW: SocialConnection (org, platform, access_token_encrypted, token_type, scope, expires_at; unique org+platform)
+- `apps/backend/app/models/social_oauth_state.py` — NEW: SocialOAuthState (org, user, platform, state_hash=SHA256(state_value), expires_at, consumed_at)
+- `apps/backend/alembic/versions/0016_create_social_tables.py` — NEW: social_connections + social_oauth_states tables
+- `apps/backend/app/api/v1/promote.py` — REWRITTEN: 8 endpoints for Pinterest+Instagram (GET /status 4 states, GET /connect-url CSRF state, GET /callback token exchange + redirect, DELETE /disconnect); Fernet-encrypted tokens via app.core.encryption; tokens NEVER in API responses
+- `apps/frontend/app/(app)/video-generator/page.tsx` — REWRITTEN: 3-state UI (disabled/dependency_missing/working), template selector, image URL textarea, POST /render, status polling every 2s, download via fetch+blob
+- `apps/frontend/app/(app)/promote/page.tsx` — REWRITTEN: per-platform PlatformCard with 4 states, connect/disconnect buttons, OAuth redirect flow, error/success toast from ?connected= ?error= query params, Instagram Business requirement note
+
+**Tests:** 617/617 backend tests pass (all pre-existing). TypeScript: 0 errors. All new module imports verified clean.
+
+## Next Task
+
+**Sprint 27 suggestion:** Real Etsy sync integration — wire the /shops OAuth flow to a live Etsy sandbox shop. Requires ETSY_CLIENT_ID + ETSY_REDIRECT_URI in .env. Or: profit page editable cost fields + persist to backend. Or: listing analytics — surface per-listing views/favs from Etsy API.
+
+**Next prompt template:**
+```
+Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
+
+Current state: Sprint 26 follow-up COMPLETE. Real video rendering (ffmpeg) + Pinterest/Instagram OAuth account connection flows implemented. 617/617 tests. Commit: 430eaa6.
+
+Start Sprint 27: [task name]
+[spec here]
+```
+
+## Previous Last Session
+
+**Date:** 2026-06-27
 **Task:** Sprint 26 — Growth, Insights, Credits, Media Reorder, Social Promote, Action Queue, Video Generator, Bulk Create — COMPLETE
 **Commit:** feat: add insights credits promote action queue video generator and bulk create (Sprint 26)
 

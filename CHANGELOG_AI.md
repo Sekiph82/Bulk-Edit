@@ -4,6 +4,23 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-27 Sprint 26 follow-up — Real Video Rendering + Social OAuth Account Connection
+
+**Skills active:** 04 backend-router, 06 backend-service, 07 frontend-page
+**Commit:** 430eaa6 feat: enable video rendering and social account connections
+
+- Added ffmpeg to Dockerfile (apt-get)
+- New `video_renderer` service: check_ffmpeg() 3-state, render_slideshow_mp4() ffmpeg subprocess arg-list
+- New VideoRender model + migration 0015
+- Rewrote video_generator.py: 5 endpoints, background task render with httpx image download, FileResponse download (auth + org isolation, file_path never in response)
+- New SocialConnection + SocialOAuthState models + migration 0016
+- Rewrote promote.py: Pinterest + Instagram OAuth (CSRF: state_value → SHA256 → store; single-use + expiry; Fernet-encrypted tokens; 4-state platform status)
+- Rewrote video-generator frontend: 3-state + polling + download
+- Rewrote promote frontend: 4-state per platform + connect/disconnect + query-param toast
+- 617/617 backend tests pass. TypeScript: 0 errors.
+
+---
+
 ## 2026-06-27 Sprint 26 — Growth, Insights, Credits, Media Reorder, Social Promote, Action Queue, Video Generator, Bulk Create
 
 **Skills active:** 07 frontend-page, 05 frontend-component, 04 backend-router

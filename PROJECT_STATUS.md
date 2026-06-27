@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 26 — Growth, Insights, Credits, Media Reorder, Social Promote, Action Queue, Video Generator, Bulk Create — COMPLETE.**
+**Sprint 26 follow-up — Video Rendering + Social OAuth — COMPLETE.**
 
 ## Status
 
-`Sprint 26 complete. Sound chime (cha-ching.mp3, SoundToggle, default off). Features page "Open →" cleanup + 6 new feature cards. 8 new FAQ entries. Listing Health bulk select + Send to Bulk Edit. Bulk Edit ?listing_ids= URL param + banner. Dashboard Action Queue widget. Media reorder/video ops enabled (no longer coming soon). Scheduled jobs payload hidden under Advanced collapsible. AppShell nav: Insights, Bulk Create, Promote, Video Generator. Backend: action_queue, insights, promote, video_generator, usage, bulk_create endpoints registered. Config: Etsy rate limit vars, social vars, VIDEO_RENDERER_ENABLED. 24 new backend tests. 4 new Playwright E2E smoke tests. Frontend build: 28 routes clean.`
+`Sprint 26 follow-up complete. Real ffmpeg-based MP4 rendering (check_ffmpeg() → disabled/dependency_missing/working, render_slideshow_mp4() via subprocess arg-list). VideoRender model + migration 0015. video_generator.py: 5 real endpoints (/status, /templates, /render 202+background, /renders/{id}, /renders/{id}/download FileResponse). Pinterest + Instagram OAuth (CSRF state: SHA256 hash stored, state_value sent to OAuth; single-use + expiry; Fernet-encrypted tokens; 4 states per platform). SocialConnection + SocialOAuthState models + migration 0016. promote.py: 8 endpoints (status, connect-url, callback, disconnect × 2 platforms). Frontend: video-generator 3-state UI + polling + download; promote 4-state UI + connect/disconnect flow. ffmpeg added to Dockerfile. 617/617 backend tests pass. TypeScript: 0 errors. Commit: 430eaa6.`
 
 ## Last Updated
 
