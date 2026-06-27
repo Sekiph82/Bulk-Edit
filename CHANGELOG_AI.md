@@ -4,6 +4,16 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-27 Sprint 26 — Growth, Insights, Credits, Media Reorder, Social Promote, Action Queue, Video Generator, Bulk Create
+
+**Skills active:** 07 frontend-page, 05 frontend-component, 04 backend-router
+**Commit:** 864e104 feat: add insights credits promote action queue video generator and bulk create (Sprint 26)
+**Tests:** 24 new backend tests pass. 28 frontend routes build clean.
+
+New: sound.ts chime utility, SoundToggle, 6 new feature cards, 8 FAQ entries, listing-health bulk select + Send to Bulk Edit, bulk-edit ?listing_ids= URL preselection, dashboard Action Queue widget, media reorder enabled, scheduled jobs payload hidden under Advanced, AppShell 4 new nav items, 4 new frontend pages (insights, promote, video-generator, bulk-create), 6 new backend endpoints (action_queue, insights, promote, video_generator, usage, bulk_create).
+
+---
+
 ## 2026-06-27 Sprint 25 — Promote Health & Profit Features + Media Local Upload
 
 **Skills active:** 07 frontend-page, 05 frontend-component

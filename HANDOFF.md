@@ -3,29 +3,37 @@
 ## Last Session
 
 **Date:** 2026-06-27
-**Task:** Sprint 25 — Promote Health & Profit Features + Media Local Upload — COMPLETE
-**Commit:** feat: surface optimization features and add media upload (Sprint 25)
+**Task:** Sprint 26 — Growth, Insights, Credits, Media Reorder, Social Promote, Action Queue, Video Generator, Bulk Create — COMPLETE
+**Commit:** feat: add insights credits promote action queue video generator and bulk create (Sprint 26)
 
 **What was built:**
-- `apps/frontend/app/faq/page.tsx` — removed standalone Etsy disclaimer `<div className="bg-indigo-50 border-t border-indigo-100">` block. MarketingFooter still shows disclaimer.
-- `apps/frontend/app/features/page.tsx` — added Listing Health Score + Profit Calculator to FEATURES array (icon, title, desc, color, href). Updated grid to render optional href as "Open →" link. Updated subtitle to "Thirteen tools".
-- `apps/frontend/app/page.tsx` — added "Optimize listings. Protect your margin." section with 2 cards (health + profit). Fixed `it's` → `it&apos;s` apostrophe.
-- `apps/frontend/app/pricing/page.tsx` — added 4 FeatureRow entries after existing rows: Listing Health Score (always true), Profit Calculator (always true), AI listing suggestions (not free), Multiple cost profiles (pro only).
-- `apps/frontend/components/ui/AppShell.tsx` — added Shops nav item + ShopIcon SVG between Dashboard and Listings in NAV_BASE Workspace section.
-- `apps/frontend/app/(app)/listings/page.tsx` — green tip banner linking to /listing-health.
-- `apps/frontend/app/(app)/listing-health/page.tsx` — violet cross-link banner to /profit after header.
-- `apps/frontend/app/(app)/profit/page.tsx` — green cross-link banner to /listing-health after header.
-- `apps/frontend/app/(app)/media/page.tsx` — `LocalUploadPanel` component: drag-drop + click-to-upload, MIME type + extension dual validation (JPG/PNG/WEBP), 10 MB per file, 20 files max, URL.createObjectURL() thumbnails, URL.revokeObjectURL() cleanup, rejection messages, Copy URL button, per-file + clear-all remove. Preview-only (not uploaded to Etsy).
-- `apps/frontend/e2e/faq.spec.ts` — 2 tests: loads without crash, no mid-page indigo disclaimer.
-- `apps/frontend/e2e/media-upload.spec.ts` — 2 tests: loads without crash, redirect if unauth.
+- `apps/frontend/lib/sound.ts` — playSuccessSound(), isSoundEnabled(), setSoundEnabled() using /sounds/cha-ching.mp3
+- `apps/frontend/components/ui/AppShell.tsx` — SoundToggle in topbar (default off, localStorage key bulk-edit-sound-enabled); new nav items: Insights, Bulk Create, Promote, Video Generator; new icons: InsightsIcon, PromoteIcon, VideoIcon, CreateIcon
+- `apps/frontend/app/features/page.tsx` — removed href from Listing Health + Profit (no more "Open →"); added 6 new feature cards; FeatureItem type for TypeScript
+- `apps/frontend/app/faq/page.tsx` — 8 new FAQ entries: Insights, Credits, Promote, Video, Bulk Create sections
+- `apps/frontend/app/(app)/listing-health/page.tsx` — checkboxes on every row + select-all header + bulk action bar ("Send to Bulk Edit →" with ?listing_ids= URL); individual Bulk Edit links pass listing_id
+- `apps/frontend/app/(app)/bulk-edit/page.tsx` — reads ?listing_ids= URL param + banner "X listings pre-selected from Listing Health"
+- `apps/frontend/app/(app)/dashboard/page.tsx` — Action Queue widget: fetches /api/v1/action-queue, shows preview_ready jobs across all types
+- `apps/frontend/app/(app)/media/page.tsx` — reorder_images, replace_video, delete_video set to implemented: true (no longer "coming soon")
+- `apps/frontend/app/(app)/scheduled/page.tsx` — bulk_edit_draft renamed "Apply Approved Bulk Edit Draft"; job payload JSON hidden under <details> Advanced
+- `apps/frontend/app/(app)/insights/page.tsx` — date range picker + metrics grid + empty state note
+- `apps/frontend/app/(app)/promote/page.tsx` — Pinterest + Instagram not-configured safe states; safety notice; config-driven
+- `apps/frontend/app/(app)/video-generator/page.tsx` — "renderer not configured" safe state; safety notice
+- `apps/frontend/app/(app)/bulk-create/page.tsx` — folder upload UI + draft editor; "not_configured" safe state; safety notice
+- `apps/backend/app/api/v1/action_queue.py` — GET /action-queue; queries variation, media, csv, pricing jobs with status preview_ready
+- `apps/backend/app/api/v1/insights.py` — GET /insights/summary with date_from/date_to query params
+- `apps/backend/app/api/v1/promote.py` — GET /promote/config-status (pinterest_configured, instagram_configured)
+- `apps/backend/app/api/v1/video_generator.py` — GET /video-generator/status (renderer_enabled from VIDEO_RENDERER_ENABLED config)
+- `apps/backend/app/api/v1/usage.py` — GET /usage/summary (ai_credits, bulk_edits stub)
+- `apps/backend/app/api/v1/bulk_create.py` — GET /bulk-create/status, POST /bulk-create/drafts (both return not_configured)
+- `apps/backend/app/core/config.py` — Etsy rate limit vars, PINTEREST_*/META_*/INSTAGRAM_* social vars, VIDEO_RENDERER_ENABLED
+- `apps/frontend/e2e/new-pages.spec.ts` — 4 smoke tests for insights, promote, video-generator, bulk-create
 
-**Tests:** 673/673 backend pass. 25/25 Playwright pass (base + seeded). 0 lint errors. 24 routes build clean. 13/13 smoke checks. 16 dev env warnings 0 errors. No mojibake.
+**Tests:** 24 new backend tests pass. 28 frontend routes build clean. Pre-existing Fernet test failures unrelated to Sprint 26 (confirmed pre-existing).
 
 ## Next Task
 
-**Sprint 26 suggestion:** Listing Bulk Edit Performance — virtual scroll for large listing grids, lazy loading, and optimistic updates in the bulk editor.
-
-**Or:** Real Etsy sync integration — wire the existing /shops OAuth flow to a live Etsy sandbox shop and test actual listing sync. Requires `ETSY_CLIENT_ID` + `ETSY_REDIRECT_URI` in .env.
+**Sprint 27 suggestion:** Real Etsy sync integration — wire the /shops OAuth flow to a live Etsy sandbox shop. Requires ETSY_CLIENT_ID + ETSY_REDIRECT_URI in .env. Or: profit page editable cost fields + persist to backend. Or: listing analytics — surface per-listing views/favs from Etsy API.
 
 **Next prompt template:**
 ```

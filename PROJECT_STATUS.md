@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 25 — Promote Health & Profit Features + Media Local Upload — COMPLETE.**
+**Sprint 26 — Growth, Insights, Credits, Media Reorder, Social Promote, Action Queue, Video Generator, Bulk Create — COMPLETE.**
 
 ## Status
 
-`Sprint 25 complete. Listing Health Score and Profit Calculator surfaced across all marketing and app pages. FAQ mid-page Etsy disclaimer removed (MarketingFooter disclaimer retained). Features page updated to 13 tools. Homepage optimization section added. Pricing page updated with 4 new FeatureRows. AppShell Shops nav item added. Cross-links between Listings, Listing Health, and Profit pages. LocalUploadPanel added to Media page (drag-drop, MIME+ext validation, 10 MB / 20 files, thumbnails, no backend upload). 4 new Playwright E2E tests. 673/673 backend tests. 25/25 Playwright tests. 0 lint errors. 24 routes build clean.`
+`Sprint 26 complete. Sound chime (cha-ching.mp3, SoundToggle, default off). Features page "Open →" cleanup + 6 new feature cards. 8 new FAQ entries. Listing Health bulk select + Send to Bulk Edit. Bulk Edit ?listing_ids= URL param + banner. Dashboard Action Queue widget. Media reorder/video ops enabled (no longer coming soon). Scheduled jobs payload hidden under Advanced collapsible. AppShell nav: Insights, Bulk Create, Promote, Video Generator. Backend: action_queue, insights, promote, video_generator, usage, bulk_create endpoints registered. Config: Etsy rate limit vars, social vars, VIDEO_RENDERER_ENABLED. 24 new backend tests. 4 new Playwright E2E smoke tests. Frontend build: 28 routes clean.`
 
 ## Last Updated
 
