@@ -408,6 +408,68 @@ async def test_seed_idempotent_subscription_no_duplicates(db_session):
     assert len(subs.scalars().all()) == 1
 
 
+# ── is_superuser role tests ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_free_user_is_not_superuser(db_session):
+    """FREE seed account must be a normal customer — is_superuser=False."""
+    await seed_superuser(
+        db_session,
+        email="free-role@seed.test",
+        password="FreeRole1!",
+        full_name="Free Role",
+        org_name="Free Role Org",
+        plan="free",
+        is_superuser=False,
+    )
+    row = await db_session.execute(select(User).where(User.email == "free-role@seed.test"))
+    user = row.scalar_one()
+    assert user.is_superuser is False
+
+
+@pytest.mark.asyncio
+async def test_paid_user_is_superuser(db_session):
+    """PAID seed account must be an internal admin — is_superuser=True."""
+    await seed_superuser(
+        db_session,
+        email="paid-role@seed.test",
+        password="PaidRole1!",
+        full_name="Paid Role",
+        org_name="Paid Role Org",
+        plan="pro_monthly",
+        is_superuser=True,
+    )
+    row = await db_session.execute(select(User).where(User.email == "paid-role@seed.test"))
+    user = row.scalar_one()
+    assert user.is_superuser is True
+
+
+@pytest.mark.asyncio
+async def test_seed_on_startup_free_user_is_not_superuser(db_session):
+    """seed_on_startup must seed the FREE user with is_superuser=False."""
+    tmp = _make_env_file(EXAMPLE_ENV)
+    try:
+        await seed_on_startup(db_session, env_path=tmp)
+        row = await db_session.execute(select(User).where(User.email == "free@startup.test"))
+        user = row.scalar_one()
+        assert user.is_superuser is False
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_seed_on_startup_paid_user_is_superuser(db_session):
+    """seed_on_startup must seed the PAID user with is_superuser=True."""
+    tmp = _make_env_file(EXAMPLE_ENV)
+    try:
+        await seed_on_startup(db_session, env_path=tmp)
+        row = await db_session.execute(select(User).where(User.email == "paid@startup.test"))
+        user = row.scalar_one()
+        assert user.is_superuser is True
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 # ── gitignore check ────────────────────────────────────────────────────────
 
 def test_gitignore_covers_local_superusers_env():

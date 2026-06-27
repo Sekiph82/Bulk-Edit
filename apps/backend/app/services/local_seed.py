@@ -82,6 +82,7 @@ async def _upsert_user(
     email: str,
     password: str,
     full_name: str,
+    is_superuser: bool = False,
 ) -> tuple[User, bool]:
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
@@ -89,7 +90,7 @@ async def _upsert_user(
         user.full_name = full_name
         user.is_active = True
         user.is_verified = True
-        user.is_superuser = True
+        user.is_superuser = is_superuser
         user.password_hash = hash_password(password)
         await db.flush()
         return user, False
@@ -99,7 +100,7 @@ async def _upsert_user(
         full_name=full_name,
         is_active=True,
         is_verified=True,
-        is_superuser=True,
+        is_superuser=is_superuser,
     )
     db.add(user)
     await db.flush()
@@ -158,12 +159,14 @@ async def seed_superuser(
     full_name: str,
     org_name: str,
     plan: str,
+    is_superuser: bool = True,
 ) -> dict[str, Any]:
     """
-    Create or update one demo superuser with organization and subscription.
+    Create or update one demo user with organization and subscription.
+    Pass is_superuser=False for normal customer accounts.
     Idempotent. Returns summary dict — password is never included.
     """
-    user, user_created = await _upsert_user(db, email, password, full_name)
+    user, user_created = await _upsert_user(db, email, password, full_name, is_superuser=is_superuser)
     org, org_created = await _upsert_org(db, user.id, org_name)
     await _upsert_member(db, org.id, user.id)
     await _upsert_subscription(db, org.id, plan)
@@ -203,8 +206,8 @@ async def seed_on_startup(db: AsyncSession, env_path: Path | None = None) -> Non
         paid_org_name = config.get("PAID_SUPERUSER_ORG_NAME", "Paid Demo Org")
         paid_plan = config.get("PAID_SUPERUSER_PLAN", "pro_monthly")
 
-        r1 = await seed_superuser(db, free_email, free_password, free_full_name, free_org_name, "free")
-        r2 = await seed_superuser(db, paid_email, paid_password, paid_full_name, paid_org_name, paid_plan)
+        r1 = await seed_superuser(db, free_email, free_password, free_full_name, free_org_name, "free", is_superuser=False)
+        r2 = await seed_superuser(db, paid_email, paid_password, paid_full_name, paid_org_name, paid_plan, is_superuser=True)
 
         _logger.info(
             "Local superuser seed: %s (%s, %s) | %s (%s, %s)",
@@ -244,10 +247,10 @@ async def run_seed(env_path: Path | None = None) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     async with session_factory() as db:
         results.append(
-            await seed_superuser(db, free_email, free_password, free_full_name, free_org_name, "free")
+            await seed_superuser(db, free_email, free_password, free_full_name, free_org_name, "free", is_superuser=False)
         )
         results.append(
-            await seed_superuser(db, paid_email, paid_password, paid_full_name, paid_org_name, paid_plan)
+            await seed_superuser(db, paid_email, paid_password, paid_full_name, paid_org_name, paid_plan, is_superuser=True)
         )
 
     await engine.dispose()

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import OnboardingChecklist from "@/components/onboarding/OnboardingChecklist";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
 
@@ -22,17 +23,36 @@ const activeFeatures = [
 
 export default function DashboardPage() {
   const [email, setEmail] = useState<string | null>(null);
+  const [shopCount, setShopCount] = useState<number | null>(null);
+  const [listingCount, setListingCount] = useState<number | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
     if (!token) return;
+
     fetch(`${BACKEND_URL}/api/v1/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => { if (data) setEmail(data.user.email); })
       .catch(() => {});
+
+    fetch(`${BACKEND_URL}/api/v1/etsy/shops`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { setShopCount(data?.shops?.length ?? 0); })
+      .catch(() => { setShopCount(0); });
+
+    fetch(`${BACKEND_URL}/api/v1/listings?limit=1`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { setListingCount(data?.total ?? data?.listings?.length ?? 0); })
+      .catch(() => { setListingCount(0); });
   }, []);
+
+  const showChecklist = shopCount !== null && listingCount !== null;
 
   return (
     <main className="max-w-7xl mx-auto px-8 py-10">
@@ -42,6 +62,10 @@ export default function DashboardPage() {
           {email ? `Welcome, ${email}` : "Manage your Etsy listings"}
         </p>
       </div>
+
+      {showChecklist && (
+        <OnboardingChecklist shopCount={shopCount!} listingCount={listingCount!} />
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {activeFeatures.map((feature) => (
