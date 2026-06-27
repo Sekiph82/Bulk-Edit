@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, Suspense, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { getAccessToken } from "@/lib/api";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
@@ -11,9 +11,28 @@ type PlatformState = "app_not_configured" | "not_connected" | "connected" | "exp
 interface PlatformStatus {
   platform: string;
   state: PlatformState;
-  connected_at: string | null;
-  expires_at: string | null;
+  connected: boolean;
+  connected_at?: string | null;
+  expires_at?: string | null;
   account_name?: string | null;
+  username?: string | null;
+  external_account_id?: string | null;
+}
+
+interface PromoteListing {
+  listing_id: string;
+  title: string;
+  price?: string | null;
+  currency_code?: string | null;
+  primary_image_url?: string | null;
+  etsy_listing_url?: string | null;
+}
+
+interface ShareResult {
+  success: boolean;
+  deferred?: boolean;
+  message: string;
+  caption?: string;
 }
 
 function authFetch(path: string, options?: RequestInit) {
@@ -21,11 +40,87 @@ function authFetch(path: string, options?: RequestInit) {
   return fetch(`${BACKEND_URL}${path}`, {
     ...options,
     headers: {
+      "Content-Type": "application/json",
       ...(options?.headers ?? {}),
       Authorization: `Bearer ${token}`,
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Popup OAuth hook
+// ---------------------------------------------------------------------------
+
+function usePopupOAuth(platform: "pinterest" | "instagram") {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [popupUrl, setPopupUrl] = useState<string | null>(null);
+
+  const startConnect = useCallback(async (onSuccess: () => void) => {
+    setPending(true);
+    setError(null);
+    setPopupUrl(null);
+    try {
+      const r = await authFetch(`/api/v1/promote/${platform}/connect-url`);
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        setError(err.detail ?? `Failed to get ${platform} connection URL.`);
+        setPending(false);
+        return;
+      }
+      const { url } = await r.json();
+
+      const width = 600;
+      const height = 700;
+      const left = Math.round(window.screen.width / 2 - width / 2);
+      const top = Math.round(window.screen.height / 2 - height / 2);
+      const popup = window.open(
+        url,
+        `${platform}_oauth`,
+        `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+      );
+
+      if (!popup || popup.closed) {
+        setPopupUrl(url);
+        setError("Popup was blocked. Use the link below to connect.");
+        setPending(false);
+        return;
+      }
+
+      const messageHandler = (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+        const msg = event.data;
+        if (!msg || msg.type !== "bulk-edit-social-oauth" || msg.platform !== platform) return;
+        window.removeEventListener("message", messageHandler);
+        clearInterval(pollTimer);
+        setPending(false);
+        if (msg.status === "success") {
+          onSuccess();
+        } else {
+          setError(msg.message ?? "Connection failed. Please try again.");
+        }
+      };
+      window.addEventListener("message", messageHandler);
+
+      const pollTimer = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(pollTimer);
+          window.removeEventListener("message", messageHandler);
+          setPending(false);
+        }
+      }, 500);
+    } catch {
+      setError(`Network error. Please try again.`);
+      setPending(false);
+    }
+  }, [platform]);
+
+  return { startConnect, pending, error, popupUrl, clearError: () => { setError(null); setPopupUrl(null); } };
+}
+
+// ---------------------------------------------------------------------------
+// PlatformCard
+// ---------------------------------------------------------------------------
 
 function PlatformCard({
   platform,
@@ -35,6 +130,8 @@ function PlatformCard({
   onConnect,
   onDisconnect,
   connecting,
+  connectError,
+  connectPopupUrl,
   disconnecting,
 }: {
   platform: "pinterest" | "instagram";
@@ -44,52 +141,52 @@ function PlatformCard({
   onConnect: () => void;
   onDisconnect: () => void;
   connecting: boolean;
+  connectError: string | null;
+  connectPopupUrl: string | null;
   disconnecting: boolean;
 }) {
   const state = status?.state ?? "not_connected";
 
-  const stateLabel = {
+  const stateBadgeClass: Record<string, string> = {
+    connected: "bg-green-100 text-green-700",
+    expired: "bg-amber-100 text-amber-700",
+    not_connected: "bg-gray-100 text-gray-500",
+    app_not_configured: "bg-gray-100 text-gray-400",
+  };
+
+  const stateLabel: Record<string, string> = {
     connected: "Connected",
     expired: "Token expired",
     not_connected: "Not connected",
     app_not_configured: "Not configured",
-  }[state];
+  };
 
-  const stateBadgeClass = {
-    connected: "bg-green-100 text-green-700",
-    expired: "bg-amber-100 text-amber-700",
-    not_connected: "bg-gray-100 text-gray-500",
-    app_not_configured: "bg-gray-100 text-gray-500",
-  }[state];
+  const igNote = platform === "instagram" ? (
+    <p className="text-xs text-gray-500 mt-3 border-t border-gray-100 pt-3">
+      Instagram publishing requires a <strong>Business</strong> or <strong>Creator</strong> account
+      connected to a Facebook Page. Personal accounts cannot post via the API.
+    </p>
+  ) : null;
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <span className="text-2xl">{icon}</span>
         <h2 className="text-base font-semibold text-gray-900">{displayName}</h2>
-        <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${stateBadgeClass}`}>
-          {stateLabel}
+        <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${stateBadgeClass[state] ?? ""}`}>
+          {stateLabel[state] ?? state}
         </span>
       </div>
 
-      {/* State-specific content */}
-
       {state === "app_not_configured" && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <p className="text-sm text-gray-600">
-            {platform === "pinterest"
-              ? "Pinterest connection is not set up on this server. A site admin needs to configure Pinterest app credentials before users can connect their accounts."
-              : "Instagram connection is not set up on this server. A site admin needs to configure Meta app credentials before users can connect their accounts."}
+            {displayName} publishing is not configured by Bulk-Edit yet.
           </p>
-          <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500 font-mono">
-            {platform === "pinterest"
-              ? "PINTEREST_CLIENT_ID, PINTEREST_CLIENT_SECRET, PINTEREST_REDIRECT_URI"
-              : "META_APP_ID, META_APP_SECRET, INSTAGRAM_REDIRECT_URI"}
-          </div>
           <p className="text-xs text-gray-400">
             You can still copy captions and download images to post manually.
           </p>
+          {igNote}
         </div>
       )}
 
@@ -97,38 +194,45 @@ function PlatformCard({
         <div className="space-y-3">
           <p className="text-sm text-gray-600">
             {platform === "pinterest"
-              ? "Connect your Pinterest account to pin listing photos directly to your boards with an auto-generated caption."
-              : "Connect your Instagram Business or Creator account to generate captions from your listing details. Requires a Business or Creator account linked to a Facebook Page."}
+              ? "Connect your Pinterest account to create Pins from your Etsy listings."
+              : "Connect Instagram through Meta to prepare posts from your Etsy listings."}
           </p>
-          {platform === "instagram" && (
-            <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-              <span className="mt-0.5">ℹ️</span>
-              <span>
-                Instagram posting requires a <strong>Business</strong> or <strong>Creator</strong> account
-                connected to a Facebook Page. Personal accounts cannot post via the API.
-              </span>
-            </div>
-          )}
           <button
             onClick={onConnect}
             disabled={connecting}
             className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
           >
-            {connecting ? "Redirecting to " + displayName + "…" : `Connect ${displayName} account`}
+            {connecting ? `Opening ${displayName}…` : `Connect ${displayName}`}
           </button>
+          {connectError && (
+            <p className="text-xs text-red-600">{connectError}</p>
+          )}
+          {connectPopupUrl && (
+            <a
+              href={connectPopupUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-indigo-600 underline block"
+            >
+              Open {displayName} connection in new tab
+            </a>
+          )}
+          {igNote}
         </div>
       )}
 
       {state === "connected" && (
         <div className="space-y-3">
-          <p className="text-sm text-gray-600">
-            {platform === "pinterest"
-              ? "Your Pinterest account is connected. You can pin listing photos to your boards."
-              : "Your Instagram account is connected. You can generate and copy captions for your posts."}
-          </p>
-          {status?.account_name && (
+          <div className="flex items-center gap-2">
+            <span className="text-green-600 text-sm">✓</span>
+            <p className="text-sm text-gray-700 font-medium">{displayName} connected.</p>
+          </div>
+          {(status?.account_name || status?.username) && (
             <p className="text-xs text-gray-500">
-              Account: <strong>{status.account_name}</strong>
+              Account: <strong>{status.account_name ?? status.username}</strong>
+              {status.username && status.account_name && status.username !== status.account_name && (
+                <span className="text-gray-400"> (@{status.username})</span>
+              )}
             </p>
           )}
           {status?.connected_at && (
@@ -137,15 +241,6 @@ function PlatformCard({
               {status.expires_at && ` · token expires ${new Date(status.expires_at).toLocaleDateString()}`}
             </p>
           )}
-          {platform === "instagram" && (
-            <div className="flex items-start gap-2 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
-              <span className="mt-0.5">ℹ️</span>
-              <span>
-                Direct posting to Instagram requires <strong>Business</strong> or <strong>Creator</strong> account
-                connected to a Facebook Page. If your account is personal, use "Copy caption" instead.
-              </span>
-            </div>
-          )}
           <button
             onClick={onDisconnect}
             disabled={disconnecting}
@@ -153,32 +248,22 @@ function PlatformCard({
           >
             {disconnecting ? "Disconnecting…" : `Disconnect ${displayName}`}
           </button>
+          {igNote}
         </div>
       )}
 
       {state === "expired" && (
         <div className="space-y-3">
           <p className="text-sm text-gray-600">
-            {platform === "pinterest"
-              ? "Your Pinterest access token has expired. Reconnect to continue pinning from your listings."
-              : "Your Instagram access token has expired. Reconnect to continue using the integration."}
+            {displayName} connection expired. Reconnect to continue sharing.
           </p>
-          {platform === "instagram" && (
-            <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-              <span className="mt-0.5">ℹ️</span>
-              <span>
-                Instagram posting requires a <strong>Business</strong> or <strong>Creator</strong> account
-                connected to a Facebook Page.
-              </span>
-            </div>
-          )}
           <div className="flex gap-3">
             <button
               onClick={onConnect}
               disabled={connecting}
               className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
             >
-              {connecting ? "Redirecting…" : `Reconnect ${displayName}`}
+              {connecting ? "Opening…" : `Reconnect ${displayName}`}
             </button>
             <button
               onClick={onDisconnect}
@@ -188,119 +273,406 @@ function PlatformCard({
               {disconnecting ? "Removing…" : "Remove"}
             </button>
           </div>
+          {connectError && <p className="text-xs text-red-600">{connectError}</p>}
+          {connectPopupUrl && (
+            <a
+              href={connectPopupUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-indigo-600 underline block"
+            >
+              Open {displayName} connection in new tab
+            </a>
+          )}
+          {igNote}
         </div>
       )}
 
-      {/* Always-available fallback for any state */}
       {state !== "app_not_configured" && (
-        <div className="border-t border-gray-100 pt-3 flex items-center gap-4">
-          <span className="text-xs text-gray-400">Always available:</span>
-          <span className="text-xs text-gray-500">Copy caption</span>
-          <span className="text-xs text-gray-300">·</span>
-          <span className="text-xs text-gray-500">Download image</span>
-          <span className="text-xs text-gray-400 ml-auto">(post manually)</span>
+        <div className="border-t border-gray-100 pt-3 flex items-center gap-4 text-xs text-gray-400">
+          <span>Always available:</span>
+          <span className="text-gray-500">Copy caption</span>
+          <span>·</span>
+          <span className="text-gray-500">Download image</span>
+          <span className="ml-auto">(post manually)</span>
         </div>
       )}
     </div>
   );
 }
 
-function PromoteContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+// ---------------------------------------------------------------------------
+// PromoteListingCard
+// ---------------------------------------------------------------------------
 
-  const [pinterestStatus, setPinterestStatus] = useState<PlatformStatus | null>(null);
-  const [instagramStatus, setInstagramStatus] = useState<PlatformStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<{ text: string; type: "success" | "error" } | null>(null);
+function PromoteListingCard({
+  listing,
+  pinterestConnected,
+  instagramConnected,
+  onSharePinterest,
+  onShareInstagram,
+}: {
+  listing: PromoteListing;
+  pinterestConnected: boolean;
+  instagramConnected: boolean;
+  onSharePinterest: (l: PromoteListing) => void;
+  onShareInstagram: (l: PromoteListing) => void;
+}) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+      <div className="aspect-square bg-gray-100 relative">
+        {listing.primary_image_url ? (
+          <img
+            src={listing.primary_image_url}
+            alt={listing.title}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300">
+            <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+            </svg>
+          </div>
+        )}
+      </div>
+      <div className="p-3 space-y-2">
+        <p className="text-sm font-medium text-gray-900 truncate" title={listing.title}>
+          {listing.title}
+        </p>
+        {listing.price && (
+          <p className="text-xs text-gray-500">
+            {listing.currency_code ?? ""} {listing.price}
+          </p>
+        )}
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={() => onSharePinterest(listing)}
+            title={pinterestConnected ? "Share to Pinterest" : "Connect Pinterest first"}
+            className={`flex-1 text-xs py-1.5 rounded-lg border font-medium transition-colors ${
+              pinterestConnected
+                ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                : "bg-gray-50 border-gray-200 text-gray-400 cursor-pointer"
+            }`}
+          >
+            📌 Pin
+          </button>
+          <button
+            onClick={() => onShareInstagram(listing)}
+            title={instagramConnected ? "Share to Instagram" : "Connect Instagram first"}
+            className={`flex-1 text-xs py-1.5 rounded-lg border font-medium transition-colors ${
+              instagramConnected
+                ? "bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                : "bg-gray-50 border-gray-200 text-gray-400 cursor-pointer"
+            }`}
+          >
+            📸 Post
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  const [connectingPinterest, setConnectingPinterest] = useState(false);
-  const [connectingInstagram, setConnectingInstagram] = useState(false);
-  const [disconnectingPinterest, setDisconnectingPinterest] = useState(false);
-  const [disconnectingInstagram, setDisconnectingInstagram] = useState(false);
+// ---------------------------------------------------------------------------
+// Share Modal (reused for Pinterest + Instagram)
+// ---------------------------------------------------------------------------
 
-  async function loadStatuses() {
-    const token = getAccessToken();
-    if (!token) { router.push("/login"); return; }
-    const [pr, ir] = await Promise.allSettled([
-      authFetch("/api/v1/promote/pinterest/status").then((r) => r.ok ? r.json() : null),
-      authFetch("/api/v1/promote/instagram/status").then((r) => r.ok ? r.json() : null),
-    ]);
-    if (pr.status === "fulfilled") setPinterestStatus(pr.value);
-    if (ir.status === "fulfilled") setInstagramStatus(ir.value);
-    setLoading(false);
-  }
+function ShareModal({
+  open,
+  onClose,
+  listing,
+  platform,
+  platformConnected,
+  onConnect,
+}: {
+  open: boolean;
+  onClose: () => void;
+  listing: PromoteListing | null;
+  platform: "pinterest" | "instagram";
+  platformConnected: boolean;
+  onConnect: () => void;
+}) {
+  const [caption, setCaption] = useState("");
+  const [sharing, setSharing] = useState(false);
+  const [result, setResult] = useState<ShareResult | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    loadStatuses();
-  }, []);
-
-  useEffect(() => {
-    const connected = searchParams.get("connected");
-    const error = searchParams.get("error");
-    if (connected) {
-      const name = connected.charAt(0).toUpperCase() + connected.slice(1);
-      setToast({ text: `${name} connected successfully.`, type: "success" });
-      loadStatuses();
-      window.history.replaceState({}, "", "/promote");
-    } else if (error) {
-      const messages: Record<string, string> = {
-        pinterest_not_configured: "Pinterest is not configured on this server.",
-        pinterest_invalid_state: "Pinterest connection failed — invalid or expired state.",
-        pinterest_token_exchange_failed: "Pinterest token exchange failed. Check your app credentials.",
-        pinterest_no_token: "Pinterest did not return an access token.",
-        instagram_not_configured: "Instagram is not configured on this server.",
-        instagram_invalid_state: "Instagram connection failed — invalid or expired state.",
-        instagram_token_exchange_failed: "Instagram token exchange failed. Check your app credentials.",
-        instagram_no_token: "Instagram did not return an access token.",
-      };
-      setToast({ text: messages[error] ?? `Connection error: ${error}`, type: "error" });
-      window.history.replaceState({}, "", "/promote");
+    if (listing) {
+      const base = listing.title || "";
+      const suffix = listing.etsy_listing_url ? ` ${listing.etsy_listing_url}` : "";
+      setCaption(`${base} #etsy #handmade${suffix}`);
     }
-  }, [searchParams]);
+    setResult(null);
+    setCopied(false);
+  }, [listing, open]);
 
-  useEffect(() => {
-    if (toast) {
-      const t = setTimeout(() => setToast(null), 5000);
-      return () => clearTimeout(t);
-    }
-  }, [toast]);
+  if (!open || !listing) return null;
 
-  async function handleConnect(platform: "pinterest" | "instagram") {
-    const setConnecting = platform === "pinterest" ? setConnectingPinterest : setConnectingInstagram;
-    setConnecting(true);
+  const displayName = platform === "pinterest" ? "Pinterest" : "Instagram";
+  const endpoint = `/api/v1/promote/${platform}/share`;
+
+  async function handleShare() {
+    if (!listing) return;
+    setSharing(true);
+    setResult(null);
     try {
-      const r = await authFetch(`/api/v1/promote/${platform}/connect-url`);
+      const r = await authFetch(endpoint, {
+        method: "POST",
+        body: JSON.stringify({
+          listing_id: listing.listing_id,
+          caption,
+          image_url: listing.primary_image_url,
+          destination_url: listing.etsy_listing_url,
+        }),
+      });
+      const data = await r.json();
       if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        setToast({ text: err.detail ?? `Failed to get ${platform} connect URL.`, type: "error" });
-        return;
+        setResult({ success: false, message: data.detail ?? "Share failed." });
+      } else {
+        setResult(data);
       }
-      const { url } = await r.json();
-      window.location.href = url;
     } catch {
-      setToast({ text: `Network error connecting ${platform}.`, type: "error" });
-      setConnecting(false);
+      setResult({ success: false, message: "Network error. Please try again." });
+    } finally {
+      setSharing(false);
     }
   }
 
-  async function handleDisconnect(platform: "pinterest" | "instagram") {
-    const setDisconnecting = platform === "pinterest" ? setDisconnectingPinterest : setDisconnectingInstagram;
-    setDisconnecting(true);
-    try {
-      await authFetch(`/api/v1/promote/${platform}/disconnect`, { method: "DELETE" });
-      const name = platform.charAt(0).toUpperCase() + platform.slice(1);
-      setToast({ text: `${name} disconnected.`, type: "success" });
-      await loadStatuses();
-    } catch {
-      setToast({ text: `Failed to disconnect ${platform}.`, type: "error" });
-    } finally {
-      setDisconnecting(false);
-    }
+  async function handleCopy() {
+    await navigator.clipboard.writeText(caption);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleDownload() {
+    if (!listing?.primary_image_url) return;
+    const a = document.createElement("a");
+    a.href = listing.primary_image_url;
+    a.download = `${listing.title || "product"}.jpg`;
+    a.target = "_blank";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-6 py-6 space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-5 border-b border-gray-100">
+          <h3 className="text-base font-semibold text-gray-900">
+            Share to {displayName}
+          </h3>
+        </div>
+        <div className="p-5 space-y-4">
+          {listing.primary_image_url && (
+            <img
+              src={listing.primary_image_url}
+              alt={listing.title}
+              className="w-full h-40 object-cover rounded-xl"
+            />
+          )}
+          <p className="text-sm font-medium text-gray-900">{listing.title}</p>
+
+          {platform === "instagram" && (
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Instagram publishing requires a <strong>Business</strong> or <strong>Creator</strong> account connected to a Facebook Page.
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Caption</label>
+            <textarea
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              rows={3}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+          </div>
+
+          {listing.etsy_listing_url && (
+            <p className="text-xs text-gray-400 truncate">
+              Etsy link: <a href={listing.etsy_listing_url} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">{listing.etsy_listing_url}</a>
+            </p>
+          )}
+
+          {result && (
+            <div className={`text-sm px-3 py-2 rounded-lg ${result.success ? "bg-green-50 text-green-700 border border-green-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
+              {result.message}
+            </div>
+          )}
+
+          {!platformConnected && (
+            <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+              Connect your {displayName} account to share.{" "}
+              <button onClick={onConnect} className="text-indigo-600 font-medium underline">
+                Connect {displayName}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="p-5 pt-0 flex gap-2 flex-wrap">
+          {platformConnected && (
+            <button
+              onClick={handleShare}
+              disabled={sharing}
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              {sharing ? "Sharing…" : platform === "pinterest" ? "Create Pin" : "Share to Instagram"}
+            </button>
+          )}
+          <button
+            onClick={handleCopy}
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            {copied ? "Copied!" : "Copy caption"}
+          </button>
+          {listing.primary_image_url && (
+            <button
+              onClick={handleDownload}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              Download image
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="ml-auto text-sm text-gray-500 hover:text-gray-700 font-medium px-4 py-2"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Toast
+// ---------------------------------------------------------------------------
+
+function Toast({ text, type, onClose }: { text: string; type: "success" | "error"; onClose: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 5000);
+    return () => clearTimeout(t);
+  }, [onClose]);
+
+  return (
+    <div
+      className={`fixed bottom-5 right-5 z-50 px-4 py-3 text-sm rounded-xl shadow-lg cursor-pointer ${
+        type === "error" ? "bg-red-700 text-white" : "bg-gray-900 text-white"
+      }`}
+      onClick={onClose}
+    >
+      {text}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main content
+// ---------------------------------------------------------------------------
+
+function PromoteContent() {
+  const router = useRouter();
+
+  const [pinterestStatus, setPinterestStatus] = useState<PlatformStatus | null>(null);
+  const [instagramStatus, setInstagramStatus] = useState<PlatformStatus | null>(null);
+  const [listings, setListings] = useState<PromoteListing[]>([]);
+  const [listingsEmpty, setListingsEmpty] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  const [disconnectingPinterest, setDisconnectingPinterest] = useState(false);
+  const [disconnectingInstagram, setDisconnectingInstagram] = useState(false);
+
+  const [shareTarget, setShareTarget] = useState<PromoteListing | null>(null);
+  const [pinterestModalOpen, setPinterestModalOpen] = useState(false);
+  const [instagramModalOpen, setInstagramModalOpen] = useState(false);
+
+  const pinterestOAuth = usePopupOAuth("pinterest");
+  const instagramOAuth = usePopupOAuth("instagram");
+
+  const loadStatuses = useCallback(async () => {
+    const token = getAccessToken();
+    if (!token) { router.push("/login"); return; }
+    const [pr, ir, lr] = await Promise.allSettled([
+      authFetch("/api/v1/promote/pinterest/status").then((r) => r.ok ? r.json() : null),
+      authFetch("/api/v1/promote/instagram/status").then((r) => r.ok ? r.json() : null),
+      authFetch("/api/v1/promote/listings").then((r) => r.ok ? r.json() : null),
+    ]);
+    if (pr.status === "fulfilled" && pr.value) setPinterestStatus(pr.value);
+    if (ir.status === "fulfilled" && ir.value) setInstagramStatus(ir.value);
+    if (lr.status === "fulfilled" && lr.value) {
+      setListings(lr.value.listings ?? []);
+      setListingsEmpty(lr.value.empty ?? true);
+    }
+    setLoading(false);
+  }, [router]);
+
+  useEffect(() => {
+    loadStatuses();
+  }, [loadStatuses]);
+
+  async function handleConnectPinterest() {
+    pinterestOAuth.startConnect(async () => {
+      await loadStatuses();
+      setToast({ text: "Pinterest connected successfully.", type: "success" });
+    });
+  }
+
+  async function handleConnectInstagram() {
+    instagramOAuth.startConnect(async () => {
+      await loadStatuses();
+      setToast({ text: "Instagram connected successfully.", type: "success" });
+    });
+  }
+
+  async function handleDisconnectPinterest() {
+    setDisconnectingPinterest(true);
+    try {
+      await authFetch("/api/v1/promote/pinterest/disconnect", { method: "DELETE" });
+      setToast({ text: "Pinterest disconnected.", type: "success" });
+      await loadStatuses();
+    } catch {
+      setToast({ text: "Failed to disconnect Pinterest.", type: "error" });
+    } finally {
+      setDisconnectingPinterest(false);
+    }
+  }
+
+  async function handleDisconnectInstagram() {
+    setDisconnectingInstagram(true);
+    try {
+      await authFetch("/api/v1/promote/instagram/disconnect", { method: "DELETE" });
+      setToast({ text: "Instagram disconnected.", type: "success" });
+      await loadStatuses();
+    } catch {
+      setToast({ text: "Failed to disconnect Instagram.", type: "error" });
+    } finally {
+      setDisconnectingInstagram(false);
+    }
+  }
+
+  function handleSharePinterest(listing: PromoteListing) {
+    setShareTarget(listing);
+    setPinterestModalOpen(true);
+  }
+
+  function handleShareInstagram(listing: PromoteListing) {
+    setShareTarget(listing);
+    setInstagramModalOpen(true);
+  }
+
+  const pinterestConnected = pinterestStatus?.connected === true;
+  const instagramConnected = instagramStatus?.connected === true;
+
+  return (
+    <main className="max-w-4xl mx-auto px-6 py-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Promote</h1>
         <p className="text-sm text-gray-500 mt-0.5">
@@ -309,46 +681,91 @@ function PromoteContent() {
       </div>
 
       <div className="px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-        Posts are <strong>never auto-published</strong>. You will review and confirm every post before it goes live.
+        Posts are <strong>never auto-published</strong>. You review and confirm every post before it goes live.
       </div>
-
-      {toast && (
-        <div
-          className={`px-4 py-3 text-sm rounded-lg shadow ${
-            toast.type === "error" ? "bg-red-700 text-white" : "bg-gray-900 text-white"
-          }`}
-        >
-          {toast.text}
-        </div>
-      )}
 
       {loading ? (
         <div className="flex justify-center py-16">
           <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="space-y-4">
-          <PlatformCard
-            platform="pinterest"
-            icon="📌"
-            displayName="Pinterest"
-            status={pinterestStatus}
-            onConnect={() => handleConnect("pinterest")}
-            onDisconnect={() => handleDisconnect("pinterest")}
-            connecting={connectingPinterest}
-            disconnecting={disconnectingPinterest}
-          />
-          <PlatformCard
-            platform="instagram"
-            icon="📸"
-            displayName="Instagram"
-            status={instagramStatus}
-            onConnect={() => handleConnect("instagram")}
-            onDisconnect={() => handleDisconnect("instagram")}
-            connecting={connectingInstagram}
-            disconnecting={disconnectingInstagram}
-          />
-        </div>
+        <>
+          {/* Connected Accounts */}
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Connected Accounts</h2>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <PlatformCard
+                platform="pinterest"
+                icon="📌"
+                displayName="Pinterest"
+                status={pinterestStatus}
+                onConnect={handleConnectPinterest}
+                onDisconnect={handleDisconnectPinterest}
+                connecting={pinterestOAuth.pending}
+                connectError={pinterestOAuth.error}
+                connectPopupUrl={pinterestOAuth.popupUrl}
+                disconnecting={disconnectingPinterest}
+              />
+              <PlatformCard
+                platform="instagram"
+                icon="📸"
+                displayName="Instagram"
+                status={instagramStatus}
+                onConnect={handleConnectInstagram}
+                onDisconnect={handleDisconnectInstagram}
+                connecting={instagramOAuth.pending}
+                connectError={instagramOAuth.error}
+                connectPopupUrl={instagramOAuth.popupUrl}
+                disconnecting={disconnectingInstagram}
+              />
+            </div>
+          </section>
+
+          {/* Products */}
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Your Products</h2>
+            {listingsEmpty ? (
+              <div className="bg-gray-50 border border-gray-200 rounded-xl py-12 text-center text-gray-500 text-sm">
+                Sync your Etsy listings first to promote products.
+              </div>
+            ) : (
+              <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+                {listings.map((listing) => (
+                  <PromoteListingCard
+                    key={listing.listing_id}
+                    listing={listing}
+                    pinterestConnected={pinterestConnected}
+                    instagramConnected={instagramConnected}
+                    onSharePinterest={handleSharePinterest}
+                    onShareInstagram={handleShareInstagram}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+
+      {/* Modals */}
+      <ShareModal
+        open={pinterestModalOpen}
+        onClose={() => { setPinterestModalOpen(false); setShareTarget(null); }}
+        listing={shareTarget}
+        platform="pinterest"
+        platformConnected={pinterestConnected}
+        onConnect={handleConnectPinterest}
+      />
+      <ShareModal
+        open={instagramModalOpen}
+        onClose={() => { setInstagramModalOpen(false); setShareTarget(null); }}
+        listing={shareTarget}
+        platform="instagram"
+        platformConnected={instagramConnected}
+        onConnect={handleConnectInstagram}
+      />
+
+      {toast && (
+        <Toast text={toast.text} type={toast.type} onClose={() => setToast(null)} />
       )}
     </main>
   );

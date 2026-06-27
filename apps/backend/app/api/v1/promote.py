@@ -1,13 +1,14 @@
-"""Promote — Pinterest and Instagram OAuth account connection."""
+"""Promote — Pinterest and Instagram OAuth account connection and product sharing."""
 
 import hashlib
+import json
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,8 @@ from app.core.config import settings
 from app.core.deps import get_current_org_id, require_active_user
 from app.core.encryption import encrypt_token
 from app.db.session import get_db
+from app.models.listing import Listing
+from app.models.listing_image import ListingImage
 from app.models.social_connection import SocialConnection
 from app.models.social_oauth_state import SocialOAuthState
 
@@ -24,41 +27,139 @@ router = APIRouter(prefix="/promote", tags=["promote"])
 _OAUTH_STATE_EXPIRY_MINUTES = 10
 
 
-# --- Schemas ---
+# ---------------------------------------------------------------------------
+# Schemas
+# ---------------------------------------------------------------------------
 
 class PlatformStatus(BaseModel):
     platform: str
-    # "app_not_configured" | "not_connected" | "connected" | "expired"
-    state: str
+    state: str  # "app_not_configured" | "not_connected" | "connected" | "expired"
+    connected: bool = False
     connected_at: Optional[str] = None
     expires_at: Optional[str] = None
+    account_name: Optional[str] = None
+    username: Optional[str] = None
+    external_account_id: Optional[str] = None
 
 
 class ConnectUrlResponse(BaseModel):
     url: str
+    platform: str
 
 
 class ConfigStatus(BaseModel):
     pinterest_configured: bool
+    pinterest_missing_vars: list[str]
     instagram_configured: bool
+    instagram_missing_vars: list[str]
 
 
-# --- Helpers ---
+class PinterestShareRequest(BaseModel):
+    listing_id: Optional[str] = None
+    image_url: Optional[str] = None
+    caption: str
+    board_id: Optional[str] = None
+    destination_url: Optional[str] = None
+
+
+class InstagramShareRequest(BaseModel):
+    listing_id: Optional[str] = None
+    image_url: Optional[str] = None
+    caption: str
+
+
+# ---------------------------------------------------------------------------
+# Config helpers
+# ---------------------------------------------------------------------------
+
+def _pinterest_missing_vars() -> list[str]:
+    missing = []
+    if not (settings.PINTEREST_CLIENT_ID and "placeholder" not in settings.PINTEREST_CLIENT_ID):
+        missing.append("PINTEREST_CLIENT_ID")
+    if not settings.PINTEREST_CLIENT_SECRET:
+        missing.append("PINTEREST_CLIENT_SECRET")
+    if not settings.PINTEREST_REDIRECT_URI:
+        missing.append("PINTEREST_REDIRECT_URI")
+    return missing
+
+
+def _instagram_missing_vars() -> list[str]:
+    missing = []
+    if not (settings.META_APP_ID and "placeholder" not in settings.META_APP_ID):
+        missing.append("META_APP_ID")
+    if not settings.META_APP_SECRET:
+        missing.append("META_APP_SECRET")
+    if not settings.INSTAGRAM_REDIRECT_URI:
+        missing.append("INSTAGRAM_REDIRECT_URI")
+    return missing
+
 
 def _is_pinterest_configured() -> bool:
-    cid = settings.PINTEREST_CLIENT_ID
-    return bool(cid and settings.PINTEREST_CLIENT_SECRET and settings.PINTEREST_REDIRECT_URI and "placeholder" not in cid)
+    return len(_pinterest_missing_vars()) == 0
 
 
 def _is_instagram_configured() -> bool:
-    app_id = settings.META_APP_ID
-    return bool(app_id and settings.META_APP_SECRET and settings.INSTAGRAM_REDIRECT_URI and "placeholder" not in app_id)
+    return len(_instagram_missing_vars()) == 0
 
+
+# ---------------------------------------------------------------------------
+# Popup HTML helpers — postMessage never includes tokens
+# ---------------------------------------------------------------------------
+
+def _popup_success_html(platform: str, message: str) -> str:
+    p = json.dumps(platform)
+    m = json.dumps(message)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Connecting…</title></head>
+<body>
+<script>
+(function() {{
+  var msg = {{ type: "bulk-edit-social-oauth", platform: {p}, status: "success", message: {m} }};
+  if (window.opener && !window.opener.closed) {{
+    window.opener.postMessage(msg, window.location.origin);
+  }}
+  setTimeout(function() {{ window.close(); }}, 200);
+}})();
+</script>
+<p style="font-family:sans-serif;color:#555;text-align:center;margin-top:60px;">
+  Connected successfully. This window will close automatically.
+</p>
+</body>
+</html>"""
+
+
+def _popup_error_html(platform: str, message: str) -> str:
+    p = json.dumps(platform)
+    m = json.dumps(message)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Connection failed</title></head>
+<body>
+<script>
+(function() {{
+  var msg = {{ type: "bulk-edit-social-oauth", platform: {p}, status: "error", message: {m} }};
+  if (window.opener && !window.opener.closed) {{
+    window.opener.postMessage(msg, window.location.origin);
+  }}
+  setTimeout(function() {{ window.close(); }}, 800);
+}})();
+</script>
+<p style="font-family:sans-serif;color:#777;text-align:center;margin-top:60px;">
+  Connection failed. This window will close automatically.
+</p>
+</body>
+</html>"""
+
+
+# ---------------------------------------------------------------------------
+# DB helpers
+# ---------------------------------------------------------------------------
 
 async def _platform_status(platform: str, org_id: str, db: AsyncSession) -> PlatformStatus:
     configured = _is_pinterest_configured() if platform == "pinterest" else _is_instagram_configured()
     if not configured:
-        return PlatformStatus(platform=platform, state="app_not_configured")
+        return PlatformStatus(platform=platform, state="app_not_configured", connected=False)
 
     result = await db.execute(
         select(SocialConnection).where(
@@ -67,23 +168,31 @@ async def _platform_status(platform: str, org_id: str, db: AsyncSession) -> Plat
         )
     )
     conn = result.scalar_one_or_none()
-    if not conn:
-        return PlatformStatus(platform=platform, state="not_connected")
+    if not conn or conn.status == "revoked":
+        return PlatformStatus(platform=platform, state="not_connected", connected=False)
 
     now = datetime.now(timezone.utc)
     if conn.expires_at and conn.expires_at < now:
         return PlatformStatus(
             platform=platform,
             state="expired",
+            connected=False,
             connected_at=conn.created_at.isoformat(),
             expires_at=conn.expires_at.isoformat(),
+            account_name=conn.account_name,
+            username=conn.username,
+            external_account_id=conn.external_account_id,
         )
 
     return PlatformStatus(
         platform=platform,
         state="connected",
+        connected=True,
         connected_at=conn.created_at.isoformat(),
         expires_at=conn.expires_at.isoformat() if conn.expires_at else None,
+        account_name=conn.account_name,
+        username=conn.username,
+        external_account_id=conn.external_account_id,
     )
 
 
@@ -118,7 +227,11 @@ async def _consume_state(state_value: str, platform: str, db: AsyncSession) -> S
     now = datetime.now(timezone.utc)
     if record.consumed_at is not None:
         raise HTTPException(status_code=400, detail="OAuth state already consumed.")
-    if record.expires_at < now:
+    # SQLite returns naive datetimes; normalise before comparison
+    expires_at = record.expires_at
+    if hasattr(expires_at, "tzinfo") and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < now:
         raise HTTPException(status_code=400, detail="OAuth state expired.")
     record.consumed_at = now
     await db.commit()
@@ -132,6 +245,9 @@ async def _upsert_connection(
     token_type: str,
     scope: str,
     expires_in: Optional[int],
+    account_name: Optional[str],
+    username: Optional[str],
+    external_account_id: Optional[str],
     db: AsyncSession,
 ) -> None:
     encrypted = encrypt_token(access_token)
@@ -151,6 +267,11 @@ async def _upsert_connection(
         conn.token_type = token_type
         conn.scope = scope
         conn.expires_at = expires_at
+        conn.status = "connected"
+        conn.account_name = account_name
+        conn.username = username
+        conn.external_account_id = external_account_id
+        conn.disconnected_at = None
     else:
         db.add(SocialConnection(
             organization_id=org_id,
@@ -159,24 +280,90 @@ async def _upsert_connection(
             token_type=token_type,
             scope=scope,
             expires_at=expires_at,
+            status="connected",
+            account_name=account_name,
+            username=username,
+            external_account_id=external_account_id,
         ))
     await db.commit()
 
 
-# --- Config status ---
+async def _get_connected_connection(platform: str, org_id: str, db: AsyncSession) -> SocialConnection:
+    result = await db.execute(
+        select(SocialConnection).where(
+            SocialConnection.organization_id == org_id,
+            SocialConnection.platform == platform,
+        )
+    )
+    conn = result.scalar_one_or_none()
+    if not conn or conn.status != "connected":
+        raise HTTPException(status_code=403, detail=f"{platform.capitalize()} account not connected.")
+    return conn
+
+
+# ---------------------------------------------------------------------------
+# Platform account info helpers — called after token exchange
+# ---------------------------------------------------------------------------
+
+async def _fetch_pinterest_account(access_token: str) -> dict:
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://api.pinterest.com/v5/user_account",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+        if resp.is_success:
+            data = resp.json()
+            uname = data.get("username")
+            return {
+                "account_name": uname,
+                "username": uname,
+                "external_account_id": data.get("id"),
+            }
+    except Exception:
+        pass
+    return {}
+
+
+async def _fetch_instagram_account(access_token: str) -> dict:
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://graph.facebook.com/me",
+                params={"fields": "name,id", "access_token": access_token},
+            )
+        if resp.is_success:
+            data = resp.json()
+            name = data.get("name")
+            fb_id = data.get("id")
+            return {
+                "account_name": name,
+                "username": name,
+                "external_account_id": fb_id,
+            }
+    except Exception:
+        pass
+    return {}
+
+
+# ---------------------------------------------------------------------------
+# Endpoints — Config
+# ---------------------------------------------------------------------------
 
 @router.get("/config-status", response_model=ConfigStatus)
-async def config_status(
-    org_id: str = Depends(get_current_org_id),
-    _user=Depends(require_active_user),
-):
+async def config_status():
+    """Public endpoint — checks if social platform env vars are configured."""
     return ConfigStatus(
         pinterest_configured=_is_pinterest_configured(),
+        pinterest_missing_vars=_pinterest_missing_vars(),
         instagram_configured=_is_instagram_configured(),
+        instagram_missing_vars=_instagram_missing_vars(),
     )
 
 
-# --- Pinterest ---
+# ---------------------------------------------------------------------------
+# Endpoints — Pinterest
+# ---------------------------------------------------------------------------
 
 @router.get("/pinterest/status", response_model=PlatformStatus)
 async def pinterest_status(
@@ -204,22 +391,30 @@ async def pinterest_connect_url(
         f"&scope=boards:read,pins:write,user_accounts:read"
         f"&state={state_value}"
     )
-    return ConnectUrlResponse(url=url)
+    return ConnectUrlResponse(url=url, platform="pinterest")
 
 
 @router.get("/pinterest/callback")
 async def pinterest_callback(
-    code: str = Query(...),
-    state: str = Query(...),
+    code: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
+    if error or not code or not state:
+        return HTMLResponse(content=_popup_error_html(
+            "pinterest", "Pinterest connection was cancelled or failed. Please try again."
+        ))
+
     if not _is_pinterest_configured():
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/promote?error=pinterest_not_configured")
+        return HTMLResponse(content=_popup_error_html(
+            "pinterest", "Pinterest is not configured on this server."
+        ))
 
     try:
         state_record = await _consume_state(state, "pinterest", db)
-    except HTTPException:
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/promote?error=pinterest_invalid_state")
+    except HTTPException as exc:
+        return HTMLResponse(content=_popup_error_html("pinterest", exc.detail))
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -234,14 +429,22 @@ async def pinterest_callback(
                 headers={"Accept": "application/json"},
             )
         if not resp.is_success:
-            return RedirectResponse(url=f"{settings.FRONTEND_URL}/promote?error=pinterest_token_exchange_failed")
+            return HTMLResponse(content=_popup_error_html(
+                "pinterest", "Token exchange failed. Please try again."
+            ))
         data = resp.json()
     except Exception:
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/promote?error=pinterest_token_exchange_failed")
+        return HTMLResponse(content=_popup_error_html(
+            "pinterest", "Token exchange failed. Please try again."
+        ))
 
     access_token = data.get("access_token")
     if not access_token:
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/promote?error=pinterest_no_token")
+        return HTMLResponse(content=_popup_error_html(
+            "pinterest", "Pinterest did not return an access token."
+        ))
+
+    account_info = await _fetch_pinterest_account(access_token)
 
     await _upsert_connection(
         org_id=state_record.organization_id,
@@ -250,9 +453,15 @@ async def pinterest_callback(
         token_type=data.get("token_type", "Bearer"),
         scope=data.get("scope", ""),
         expires_in=data.get("expires_in"),
+        account_name=account_info.get("account_name"),
+        username=account_info.get("username"),
+        external_account_id=account_info.get("external_account_id"),
         db=db,
     )
-    return RedirectResponse(url=f"{settings.FRONTEND_URL}/promote?connected=pinterest")
+
+    return HTMLResponse(content=_popup_success_html(
+        "pinterest", "Pinterest connected successfully."
+    ))
 
 
 @router.delete("/pinterest/disconnect", status_code=204)
@@ -261,16 +470,71 @@ async def pinterest_disconnect(
     _user=Depends(require_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await db.execute(
-        delete(SocialConnection).where(
+    result = await db.execute(
+        select(SocialConnection).where(
             SocialConnection.organization_id == org_id,
             SocialConnection.platform == "pinterest",
         )
     )
-    await db.commit()
+    conn = result.scalar_one_or_none()
+    if conn:
+        conn.access_token_encrypted = None
+        conn.status = "revoked"
+        conn.disconnected_at = datetime.now(timezone.utc)
+        await db.commit()
 
 
-# --- Instagram (Meta) ---
+@router.delete("/pinterest/connection", status_code=204)
+async def pinterest_connection_delete(
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Alias for /pinterest/disconnect."""
+    result = await db.execute(
+        select(SocialConnection).where(
+            SocialConnection.organization_id == org_id,
+            SocialConnection.platform == "pinterest",
+        )
+    )
+    conn = result.scalar_one_or_none()
+    if conn:
+        conn.access_token_encrypted = None
+        conn.status = "revoked"
+        conn.disconnected_at = datetime.now(timezone.utc)
+        await db.commit()
+
+
+@router.post("/pinterest/share")
+async def pinterest_share(
+    req: PinterestShareRequest,
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_connected_connection("pinterest", org_id, db)
+
+    if req.listing_id:
+        listing_result = await db.execute(
+            select(Listing).where(
+                Listing.id == req.listing_id,
+                Listing.organization_id == org_id,
+            )
+        )
+        if not listing_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Listing not found.")
+
+    return {
+        "success": False,
+        "message": "Pinterest Pin creation is not fully enabled yet. You can copy the caption or download the image.",
+        "deferred": True,
+        "caption": req.caption,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Endpoints — Instagram
+# ---------------------------------------------------------------------------
 
 @router.get("/instagram/status", response_model=PlatformStatus)
 async def instagram_status(
@@ -290,7 +554,6 @@ async def instagram_connect_url(
     if not _is_instagram_configured():
         raise HTTPException(status_code=503, detail="Instagram app credentials are not configured.")
     state_value = await _create_state("instagram", org_id, str(user.id), db)
-    # Note: Instagram publishing requires a Business or Creator account
     url = (
         "https://www.facebook.com/dialog/oauth"
         f"?client_id={settings.META_APP_ID}"
@@ -299,22 +562,30 @@ async def instagram_connect_url(
         f"&scope=instagram_basic,instagram_content_publish"
         f"&state={state_value}"
     )
-    return ConnectUrlResponse(url=url)
+    return ConnectUrlResponse(url=url, platform="instagram")
 
 
 @router.get("/instagram/callback")
 async def instagram_callback(
-    code: str = Query(...),
-    state: str = Query(...),
+    code: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
+    if error or not code or not state:
+        return HTMLResponse(content=_popup_error_html(
+            "instagram", "Instagram connection was cancelled or failed. Please try again."
+        ))
+
     if not _is_instagram_configured():
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/promote?error=instagram_not_configured")
+        return HTMLResponse(content=_popup_error_html(
+            "instagram", "Instagram is not configured on this server."
+        ))
 
     try:
         state_record = await _consume_state(state, "instagram", db)
-    except HTTPException:
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/promote?error=instagram_invalid_state")
+    except HTTPException as exc:
+        return HTMLResponse(content=_popup_error_html("instagram", exc.detail))
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -330,14 +601,22 @@ async def instagram_callback(
                 headers={"Accept": "application/json"},
             )
         if not resp.is_success:
-            return RedirectResponse(url=f"{settings.FRONTEND_URL}/promote?error=instagram_token_exchange_failed")
+            return HTMLResponse(content=_popup_error_html(
+                "instagram", "Token exchange failed. Please try again."
+            ))
         data = resp.json()
     except Exception:
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/promote?error=instagram_token_exchange_failed")
+        return HTMLResponse(content=_popup_error_html(
+            "instagram", "Token exchange failed. Please try again."
+        ))
 
     access_token = data.get("access_token")
     if not access_token:
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/promote?error=instagram_no_token")
+        return HTMLResponse(content=_popup_error_html(
+            "instagram", "Instagram did not return an access token."
+        ))
+
+    account_info = await _fetch_instagram_account(access_token)
 
     await _upsert_connection(
         org_id=state_record.organization_id,
@@ -346,9 +625,15 @@ async def instagram_callback(
         token_type=data.get("token_type", "Bearer"),
         scope=data.get("scope", "instagram_basic,instagram_content_publish"),
         expires_in=data.get("expires_in"),
+        account_name=account_info.get("account_name"),
+        username=account_info.get("username"),
+        external_account_id=account_info.get("external_account_id"),
         db=db,
     )
-    return RedirectResponse(url=f"{settings.FRONTEND_URL}/promote?connected=instagram")
+
+    return HTMLResponse(content=_popup_success_html(
+        "instagram", "Instagram connected successfully."
+    ))
 
 
 @router.delete("/instagram/disconnect", status_code=204)
@@ -357,10 +642,112 @@ async def instagram_disconnect(
     _user=Depends(require_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await db.execute(
-        delete(SocialConnection).where(
+    result = await db.execute(
+        select(SocialConnection).where(
             SocialConnection.organization_id == org_id,
             SocialConnection.platform == "instagram",
         )
     )
-    await db.commit()
+    conn = result.scalar_one_or_none()
+    if conn:
+        conn.access_token_encrypted = None
+        conn.status = "revoked"
+        conn.disconnected_at = datetime.now(timezone.utc)
+        await db.commit()
+
+
+@router.delete("/instagram/connection", status_code=204)
+async def instagram_connection_delete(
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Alias for /instagram/disconnect."""
+    result = await db.execute(
+        select(SocialConnection).where(
+            SocialConnection.organization_id == org_id,
+            SocialConnection.platform == "instagram",
+        )
+    )
+    conn = result.scalar_one_or_none()
+    if conn:
+        conn.access_token_encrypted = None
+        conn.status = "revoked"
+        conn.disconnected_at = datetime.now(timezone.utc)
+        await db.commit()
+
+
+@router.post("/instagram/share")
+async def instagram_share(
+    req: InstagramShareRequest,
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_connected_connection("instagram", org_id, db)
+
+    if req.listing_id:
+        listing_result = await db.execute(
+            select(Listing).where(
+                Listing.id == req.listing_id,
+                Listing.organization_id == org_id,
+            )
+        )
+        if not listing_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Listing not found.")
+
+    return {
+        "success": False,
+        "message": "Instagram publishing is not fully enabled yet. Instagram publishing requires Meta app review. You can copy the caption or download the image.",
+        "deferred": True,
+        "caption": req.caption,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Endpoints — Listings for Promote page
+# ---------------------------------------------------------------------------
+
+@router.get("/listings")
+async def promote_listings(
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Listing)
+        .where(Listing.organization_id == org_id)
+        .where(Listing.state == "active")
+        .order_by(Listing.updated_at.desc())
+        .limit(50)
+    )
+    listings = result.scalars().all()
+
+    items = []
+    for listing in listings:
+        img_result = await db.execute(
+            select(ListingImage)
+            .where(ListingImage.listing_id == listing.id)
+            .order_by(ListingImage.rank.asc())
+            .limit(1)
+        )
+        primary_image = img_result.scalar_one_or_none()
+
+        price_str = None
+        if listing.price_amount is not None and listing.price_divisor:
+            price_str = f"{listing.price_amount / listing.price_divisor:.2f}"
+
+        items.append({
+            "listing_id": listing.id,
+            "title": listing.title or "",
+            "price": price_str,
+            "currency_code": listing.currency_code,
+            "primary_image_url": primary_image.url_fullxfull if primary_image else None,
+            "etsy_listing_url": listing.url,
+        })
+
+    return {
+        "listings": items,
+        "empty": len(items) == 0,
+        "message": "Sync your Etsy listings first to promote products." if not items else None,
+    }
