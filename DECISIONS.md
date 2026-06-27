@@ -4,6 +4,19 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-06-27 (Sprint 22)
+
+### [SEED] FREE seed user is is_superuser=False; PAID seed user is is_superuser=True
+The original `local_seed.py` hardcoded `is_superuser=True` for all seeded users, making local testing of normal-customer UX impossible. Fixed by adding `is_superuser: bool` param to `_upsert_user()` and `seed_superuser()`. `seed_on_startup()` explicitly passes `is_superuser=False` for FREE and `is_superuser=True` for PAID. Default for `seed_superuser()` stays `True` for backward compat with direct callers. All existing tests continue to pass because they call `seed_superuser()` without the param.
+
+### [UX] OnboardingChecklist hides when all steps complete
+The checklist renders `null` when `completedCount === steps.length`. This avoids an empty card flash. Steps 3 and 4 (try bulk edit, explore paid features) are permanently `done: false` — they are prompts, not completion-trackable actions. Only shop connection and listing sync are derived from API counts.
+
+### [UX] Dashboard fetches shop/listing counts on mount; checklist gated on both resolving
+Used two independent `fetch` calls so a slow listings endpoint doesn't block the checklist from showing at all. `showChecklist` is only true when both counts are non-null. If either fetch fails, the corresponding count defaults to 0 (shows step as incomplete — safe conservative default).
+
+---
+
 ## 2026-06-27 (Sprint 20)
 
 ### [SECURITY] CSP uses 'unsafe-inline' for scripts — nonce hardening deferred to Sprint 21

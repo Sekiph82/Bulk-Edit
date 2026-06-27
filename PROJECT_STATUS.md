@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 21 — Production Monitoring, Redis Rate Limiting, CSP Nonce, Sentry, Celery Worker Readiness — COMPLETE.**
+**Sprint 22 — First-Run Onboarding, Non-Superuser Seed, Etsy Connection UX — COMPLETE.**
 
 ## Status
 
-`Sprint 21 complete. Redis-backed rate limiter (memory fallback on Redis unavailability). Sentry integration (backend only, scrubs secrets, disabled without DSN). Admin system-health upgraded: redis_status, rate_limit_backend, sentry_configured, worker_status, csp_mode. CSP: removed unsafe-eval in production, HSTS added for production, sha256 documented. Monitoring guide + runbook + workers doc created. E2E manual workflow added. 609/609 backend tests pass. 22 routes, 0 TS errors.`
+`Sprint 22 complete. local_seed.py fix: FREE user seeded as is_superuser=False (normal customer), PAID user as is_superuser=True (admin). 4 new role tests. OnboardingChecklist component (4-step progress bar, hides when all complete). Dashboard fetches shop/listing counts and shows checklist for new users. Shops empty state: Etsy trademark note + OAuth explanation. New e2e/onboarding.spec.ts. 621/621 backend tests pass. 22 routes, 0 TS errors. Playwright: 13 passed, 4 skipped.`
 
 ## Last Updated
 
@@ -45,6 +45,7 @@ None (between sprints)
 - Sprint 19: Internal Admin Business Dashboard ✓ (6-tab dashboard, 5 new summary endpoints, Admin nav gated to superusers, 17 new tests, 20 routes, 0 TS errors)
 - Sprint 20: Launch QA, CI/CD, E2E, Rate Limiting, CSP ✓ (GitHub Actions CI, Playwright E2E, rate limiting, security headers, CSP, launch checklist, 595/595 tests)
 - Sprint 21: Production Monitoring, Redis Rate Limiting, Sentry, Celery Readiness ✓ (Redis rate limiter, Sentry backend, system-health monitoring fields, MONITORING.md, RUNBOOK.md, WORKERS.md, e2e.yml, 609/609 tests)
+- Sprint 22: First-Run Onboarding, Non-Superuser Seed, Etsy Connection UX ✓ (seed role fix, OnboardingChecklist, dashboard shop/listing count fetch, Etsy trademark note, 621/621 tests)
 
 ## Local Development (Windows)
 

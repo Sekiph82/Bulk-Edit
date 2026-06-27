@@ -3,6 +3,23 @@
 ## Last Session
 
 **Date:** 2026-06-27
+**Task:** Sprint 22 — First-Run Onboarding, Non-Superuser Seed, Etsy Connection UX — COMPLETE
+**Commit:** feat: add first-run onboarding and customer seed flow (Sprint 22)
+
+**What was built:**
+- `apps/backend/app/services/local_seed.py` — `_upsert_user()` now takes `is_superuser: bool = False`; `seed_superuser()` takes `is_superuser: bool = True`; `seed_on_startup()` calls FREE with `is_superuser=False`, PAID with `is_superuser=True`; `run_seed()` updated same way
+- `apps/backend/tests/test_seed_local_superusers.py` — 4 new tests: `test_free_user_is_not_superuser`, `test_paid_user_is_superuser`, `test_seed_on_startup_free_user_is_not_superuser`, `test_seed_on_startup_paid_user_is_superuser` (27 total in file, 621 total backend)
+- `apps/frontend/components/onboarding/OnboardingChecklist.tsx` — NEW: 4-step checklist (connect shop, sync listings, try bulk edit, explore paid features), progress bar, hides when all complete, dark mode safe via `be-card`, `data-testid="onboarding-checklist"`
+- `apps/frontend/app/(app)/dashboard/page.tsx` — fetches `/api/v1/etsy/shops` (shopCount) and `/api/v1/listings?limit=1` (listingCount); shows `OnboardingChecklist` above feature cards when counts loaded
+- `apps/frontend/app/(app)/shops/page.tsx` — empty state: added Etsy trademark note + OAuth explanation; button text changed to "Redirecting to Etsy..."
+- `apps/frontend/e2e/onboarding.spec.ts` — NEW: 2 always-run tests (unauthenticated dashboard, shops no-crash) + 2 seeded-user tests (checklist visible, trademark note)
+- Live seed verification: `test@example.com is_superuser=False` ✓, `test-su@example.com is_superuser=True` ✓
+
+**Tests:** 621/621 backend tests pass. Playwright: 13 passed, 4 skipped. Build: 22 routes, 0 TS errors.
+
+## Previous Last Session
+
+**Date:** 2026-06-27
 **Task:** Sprint 21 — Production Monitoring, Redis Rate Limiting, Sentry, Celery Readiness — COMPLETE
 **Commit:** chore: add production monitoring redis rate limiting sentry and celery readiness (Sprint 21)
 
@@ -52,16 +69,17 @@
 
 ## Next Task
 
-**Sprint 22** — Post-launch: user onboarding flow, empty state polish, first-run wizard, analytics events, advanced feature gates.
+**Sprint 23** — CSP nonce via Next.js middleware (full `unsafe-inline` removal), or next user-facing sprint from TASKS.md.
 
 ## Next Prompt
 
 ```
 Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
 
-Current state: Sprint 21 COMPLETE. Redis rate limiting, Sentry backend, system-health monitoring fields, MONITORING.md, RUNBOOK.md, WORKERS.md all delivered. 609/609 tests. 22 routes. 0 errors.
+Current state: Sprint 22 COMPLETE. Seed role fix (test@example.com is_superuser=False, test-su@example.com is_superuser=True). OnboardingChecklist component. Dashboard fetches shop/listing counts. Shops Etsy trademark note. 621/621 tests. 22 routes. 0 errors.
 
-Start Sprint 22: user onboarding, empty states, first-run wizard, analytics events.
+Start Sprint 23 per TASKS.md.
+```
 
 ## Next Prompt (legacy Sprint 21 — DONE)
 

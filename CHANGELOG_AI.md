@@ -4,6 +4,22 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-27 Sprint 22 — First-Run Onboarding, Non-Superuser Seed, Etsy Connection UX
+
+**Skills active:** 06 backend-api, 20 testing-qa, frontend-ux
+
+**What shipped:**
+- `local_seed.py`: `_upsert_user` + `seed_superuser` now accept `is_superuser` param. FREE seed = `is_superuser=False` (normal customer). PAID seed = `is_superuser=True` (internal admin).
+- 4 new backend role tests. 621/621 total.
+- `OnboardingChecklist.tsx`: 4-step checklist with progress bar, hides when all steps done, dark-mode safe.
+- Dashboard: fetches shop count + listing count; shows checklist above feature cards for new users.
+- Shops empty state: Etsy® trademark disclaimer + OAuth explanation added.
+- `e2e/onboarding.spec.ts`: 2 always-run + 2 seeded-user tests.
+- Live verified: `test@example.com is_superuser=False`, `test-su@example.com is_superuser=True`.
+- Playwright: 13 passed, 4 skipped. 0 TS errors.
+
+---
+
 ## 2026-06-27 Sprint 20 — Launch QA, CI/CD, E2E, Rate Limiting, CSP
 
 **Skills active:** 06 backend-api, 20 testing-qa, 22 devops
