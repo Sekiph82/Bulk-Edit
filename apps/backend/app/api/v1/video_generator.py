@@ -1,5 +1,6 @@
-"""Video Generator — real ffmpeg-based MP4 generation."""
+"""Video Generator — real ffmpeg-based MP4 generation compliant with Etsy video specs."""
 
+import json
 import os
 import shutil
 import tempfile
@@ -10,7 +11,7 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,7 +20,13 @@ from app.core.deps import get_current_org_id, require_active_user
 from app.db.session import get_db, AsyncSessionLocal
 from app.models.video_render import VideoRender
 from app.services.video_renderer import (
+    ASPECT_RATIO_PRESETS,
+    ETSY_MAX_FILE_SIZE_BYTES,
+    ETSY_MIN_DURATION,
+    ETSY_MAX_DURATION,
+    ETSY_MIN_RESOLUTION,
     check_ffmpeg,
+    check_etsy_ready,
     render_slideshow_mp4,
     RendererNotAvailableError,
     RenderError,
@@ -31,22 +38,50 @@ router = APIRouter(prefix="/video-generator", tags=["video-generator"])
 # --- Schemas ---
 
 class VideoGeneratorStatus(BaseModel):
-    renderer_state: str  # "disabled" | "dependency_missing" | "working"
+    renderer_enabled: bool
+    renderer_available: bool
     message: str
+
+
+class AspectRatioOption(BaseModel):
+    value: str
+    label: str
+    width: int
+    height: int
+    recommended: bool = False
+
+
+class EtsySpecs(BaseModel):
+    max_file_size_mb: int
+    min_duration_seconds: int
+    max_duration_seconds: int
+    min_resolution_px: int
+    supported_aspect_ratios: list[str]
+    format: str
 
 
 class VideoTemplate(BaseModel):
     id: str
     name: str
     description: str
+    implemented: bool
     max_images: int
-    duration_seconds_per_image: float
     output_format: str
+
+
+class TemplatesResponse(BaseModel):
+    templates: list[VideoTemplate]
+    aspect_ratios: list[AspectRatioOption]
+    etsy_specs: EtsySpecs
+    renderer_enabled: bool
+    renderer_available: bool
 
 
 class RenderRequest(BaseModel):
     template_id: str
     image_urls: list[str]
+    aspect_ratio: str = Field(default="9:16")
+    duration_seconds: float = Field(default=10.0, ge=1.0, le=60.0)
 
 
 class RenderResponse(BaseModel):
@@ -54,6 +89,8 @@ class RenderResponse(BaseModel):
     status: str
     template_id: str
     image_count: int
+    aspect_ratio: str
+    duration_seconds: float
     created_at: str
 
 
@@ -62,25 +99,67 @@ class RenderStatusResponse(BaseModel):
     status: str
     template_id: str
     image_count: int
+    aspect_ratio: Optional[str] = None
     duration_seconds: Optional[float] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
     file_size_bytes: Optional[int] = None
+    is_etsy_ready: Optional[bool] = None
+    etsy_issues: Optional[list[str]] = None
     error_message: Optional[str] = None
+    download_url: Optional[str] = None
     created_at: str
     completed_at: Optional[str] = None
 
 
-# --- Static template catalog ---
+# --- Static data ---
+
+def _aspect_ratio_options() -> list[AspectRatioOption]:
+    return [
+        AspectRatioOption(value="9:16", label="9:16 Vertical (Recommended)", width=1080, height=1920, recommended=True),
+        AspectRatioOption(value="1:1", label="1:1 Square", width=1080, height=1080),
+        AspectRatioOption(value="4:5", label="4:5 Vertical", width=1080, height=1350),
+        AspectRatioOption(value="16:9", label="16:9 Horizontal", width=1920, height=1080),
+    ]
+
+
+def _etsy_specs() -> EtsySpecs:
+    return EtsySpecs(
+        max_file_size_mb=100,
+        min_duration_seconds=ETSY_MIN_DURATION,
+        max_duration_seconds=ETSY_MAX_DURATION,
+        min_resolution_px=ETSY_MIN_RESOLUTION,
+        supported_aspect_ratios=list(ASPECT_RATIO_PRESETS.keys()),
+        format="MP4 (H.264)",
+    )
+
 
 def _get_templates() -> list[VideoTemplate]:
     return [
         VideoTemplate(
-            id="slideshow",
-            name="Simple Slideshow",
-            description="Cycle through listing photos with letterbox padding. Best for product showcases.",
+            id="clean_zoom",
+            name="Clean Zoom",
+            description="Gentle zoom on each product photo with letterbox padding. Best for product showcases.",
+            implemented=True,
             max_images=settings.VIDEO_MAX_IMAGES,
-            duration_seconds_per_image=2.5,
-            output_format="MP4 (H.264, 1080×1080)",
-        )
+            output_format="MP4 (H.264)",
+        ),
+        VideoTemplate(
+            id="soft_pan",
+            name="Soft Pan",
+            description="Subtle horizontal pan across each photo. Coming soon.",
+            implemented=False,
+            max_images=settings.VIDEO_MAX_IMAGES,
+            output_format="MP4 (H.264)",
+        ),
+        VideoTemplate(
+            id="marketplace_promo",
+            name="Marketplace Promo",
+            description="Bold title card intro with product photos. Coming soon.",
+            implemented=False,
+            max_images=settings.VIDEO_MAX_IMAGES,
+            output_format="MP4 (H.264)",
+        ),
     ]
 
 
@@ -91,19 +170,30 @@ async def get_video_generator_status(
     org_id: str = Depends(get_current_org_id),
     _user=Depends(require_active_user),
 ):
+    renderer_enabled = settings.VIDEO_RENDERER_ENABLED
     state, message = check_ffmpeg()
-    return VideoGeneratorStatus(renderer_state=state, message=message)
+    return VideoGeneratorStatus(
+        renderer_enabled=renderer_enabled,
+        renderer_available=(state == "working"),
+        message=message,
+    )
 
 
-@router.get("/templates", response_model=list[VideoTemplate])
+@router.get("/templates", response_model=TemplatesResponse)
 async def list_video_templates(
     org_id: str = Depends(get_current_org_id),
     _user=Depends(require_active_user),
 ):
-    state, message = check_ffmpeg()
-    if state == "disabled":
-        raise HTTPException(status_code=503, detail=message)
-    return _get_templates()
+    state, _msg = check_ffmpeg()
+    renderer_enabled = settings.VIDEO_RENDERER_ENABLED
+    renderer_available = state == "working"
+    return TemplatesResponse(
+        templates=_get_templates(),
+        aspect_ratios=_aspect_ratio_options(),
+        etsy_specs=_etsy_specs(),
+        renderer_enabled=renderer_enabled,
+        renderer_available=renderer_available,
+    )
 
 
 @router.post("/render", response_model=RenderResponse, status_code=202)
@@ -118,6 +208,18 @@ async def create_render(
     if state != "working":
         raise HTTPException(status_code=503, detail=message)
 
+    if req.aspect_ratio not in ASPECT_RATIO_PRESETS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid aspect ratio '{req.aspect_ratio}'. Must be one of: {', '.join(ASPECT_RATIO_PRESETS)}.",
+        )
+
+    if req.duration_seconds < ETSY_MIN_DURATION:
+        raise HTTPException(status_code=400, detail="Video duration must be at least 5 seconds.")
+
+    if req.duration_seconds > ETSY_MAX_DURATION:
+        raise HTTPException(status_code=400, detail="Video duration must be 15 seconds or less.")
+
     if not req.image_urls:
         raise HTTPException(status_code=422, detail="At least one image URL is required.")
 
@@ -129,6 +231,11 @@ async def create_render(
     template = next((t for t in templates if t.id == req.template_id), None)
     if not template:
         raise HTTPException(status_code=404, detail=f"Template '{req.template_id}' not found.")
+    if not template.implemented:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Template '{req.template_id}' is not yet available. Use 'clean_zoom'.",
+        )
 
     render = VideoRender(
         id=str(uuid.uuid4()),
@@ -136,6 +243,8 @@ async def create_render(
         template_id=req.template_id,
         status="pending",
         image_count=len(req.image_urls),
+        aspect_ratio=req.aspect_ratio,
+        duration_seconds=req.duration_seconds,
     )
     db.add(render)
     await db.commit()
@@ -146,7 +255,8 @@ async def create_render(
         render_id=render.id,
         org_id=org_id,
         image_urls=req.image_urls,
-        template=template,
+        aspect_ratio=req.aspect_ratio,
+        duration_seconds=req.duration_seconds,
     )
 
     return RenderResponse(
@@ -154,6 +264,8 @@ async def create_render(
         status=render.status,
         template_id=render.template_id,
         image_count=render.image_count,
+        aspect_ratio=render.aspect_ratio or req.aspect_ratio,
+        duration_seconds=render.duration_seconds or req.duration_seconds,
         created_at=render.created_at.isoformat(),
     )
 
@@ -175,14 +287,26 @@ async def get_render_status(
     if not render:
         raise HTTPException(status_code=404, detail="Render not found.")
 
+    download_url = (
+        f"/api/v1/video-generator/renders/{render.id}/download"
+        if render.status == "completed"
+        else None
+    )
+
     return RenderStatusResponse(
         id=render.id,
         status=render.status,
         template_id=render.template_id,
         image_count=render.image_count,
+        aspect_ratio=render.aspect_ratio,
         duration_seconds=render.duration_seconds,
+        width=render.width,
+        height=render.height,
         file_size_bytes=render.file_size_bytes,
+        is_etsy_ready=render.is_etsy_ready,
+        etsy_issues=render.get_etsy_issues() if render.is_etsy_ready is not None else None,
         error_message=render.error_message,
+        download_url=download_url,
         created_at=render.created_at.isoformat(),
         completed_at=render.completed_at.isoformat() if render.completed_at else None,
     )
@@ -222,7 +346,8 @@ async def _run_render(
     render_id: str,
     org_id: str,
     image_urls: list[str],
-    template: VideoTemplate,
+    aspect_ratio: str,
+    duration_seconds: float,
 ) -> None:
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(VideoRender).where(VideoRender.id == render_id))
@@ -241,15 +366,24 @@ async def _run_render(
             return
 
         output_dir = os.path.join(settings.VIDEO_OUTPUT_DIR, org_id)
-        output_path = await render_slideshow_mp4(
+        render_result = await render_slideshow_mp4(
             image_paths=local_paths,
             output_dir=output_dir,
-            duration_per_image=template.duration_seconds_per_image,
+            duration_seconds=duration_seconds,
+            aspect_ratio=aspect_ratio,
         )
 
-        duration = min(
-            len(local_paths) * template.duration_seconds_per_image,
-            float(settings.VIDEO_MAX_DURATION_SECONDS),
+        output_path = render_result["output_path"]
+        file_size_bytes = render_result["file_size_bytes"]
+        width = render_result["width"]
+        height = render_result["height"]
+
+        is_etsy_ready, etsy_issues = check_etsy_ready(
+            file_size_bytes=file_size_bytes,
+            duration_seconds=duration_seconds,
+            aspect_ratio=aspect_ratio,
+            width=width,
+            height=height,
         )
 
         async with AsyncSessionLocal() as db:
@@ -258,8 +392,11 @@ async def _run_render(
             if render:
                 render.status = "completed"
                 render.file_path = output_path
-                render.file_size_bytes = os.path.getsize(output_path)
-                render.duration_seconds = duration
+                render.file_size_bytes = file_size_bytes
+                render.width = width
+                render.height = height
+                render.is_etsy_ready = is_etsy_ready
+                render.etsy_issues_json = json.dumps(etsy_issues)
                 render.completed_at = datetime.now(timezone.utc)
                 await db.commit()
 

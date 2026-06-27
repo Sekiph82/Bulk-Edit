@@ -3,6 +3,38 @@
 ## Last Session
 
 **Date:** 2026-06-27
+**Task:** Sprint 26 polish — Etsy Video Spec Compliance + Promote Page Clarity — COMPLETE
+**Commit:** (see below)
+
+**What was built:**
+- `apps/backend/app/services/video_renderer.py` — ASPECT_RATIO_PRESETS dict (9:16/1:1/4:5/16:9 with width×height), check_ffmpeg(ffmpeg_path=None), render_slideshow_mp4() returns dict {output_path, file_size_bytes, width, height} + uses aspect ratio in vf filter, check_etsy_ready(file_size_bytes, duration_seconds, aspect_ratio, width, height) → (bool, list[str])
+- `apps/backend/app/models/video_render.py` — added aspect_ratio, width, height, is_etsy_ready, etsy_issues_json columns; get_etsy_issues() helper
+- `apps/backend/alembic/versions/0017_add_video_render_etsy_fields.py` — migration adds 5 new columns to video_renders table
+- `apps/backend/app/api/v1/video_generator.py` — NEW schemas: VideoGeneratorStatus (renderer_enabled/available), TemplatesResponse (templates/aspect_ratios/etsy_specs), RenderRequest (aspect_ratio/duration_seconds), RenderStatusResponse (width/height/is_etsy_ready/etsy_issues/download_url); duration validation 5–15s → 400; aspect ratio validation; unimplemented template → 400; file_path/stored_filename NEVER in response; /config-status endpoint
+- `apps/backend/app/api/v1/promote.py` — added ConfigStatus schema + GET /config-status endpoint
+- `apps/frontend/app/(app)/video-generator/page.tsx` — format selector (9:16 default, 4 options), duration input (min=5, max=15, default=10, helper text), EtsyReadyChecklist component (5 checks: format/duration/size/resolution/aspect), download_url from API response
+- `apps/frontend/app/(app)/promote/page.tsx` — state-specific copy blocks for all 4 states × 2 platforms; always-visible Instagram Business/Creator note in not_connected/connected/expired states; fallback copy+download row for non-app_not_configured states; typed toast {text, type}
+- `apps/backend/tests/test_video_renderer.py` — NEW: 26 tests (check_ffmpeg, presets, check_etsy_ready boundary/multi-issue, render_slideshow_mp4)
+- `apps/backend/tests/test_video_generator.py` — REWRITTEN: 17 tests (auth, status schema, templates, duration/aspect/template validation, file_path not exposed, org isolation)
+- 747/747 backend tests pass. TypeScript: 0 errors.
+
+## Next Task
+
+**Sprint 27 suggestion:** Real Etsy sync integration, Celery workers, email integration, or profit page editable cost fields.
+
+**Next prompt template:**
+```
+Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
+
+Current state: Sprint 26 polish COMPLETE. Etsy video spec compliance (4 aspect ratios, 5-15s validation, 100MB check, etsy_ready checklist) + promote page per-state clarity. 747/747 tests. Migration 0017 applied.
+
+Start Sprint 27: [task name]
+[spec here]
+```
+
+## Previous Last Session
+
+**Date:** 2026-06-27
 **Task:** Sprint 26 follow-up — Real Video Rendering + Social OAuth — COMPLETE
 **Commit:** 430eaa6 — feat: enable video rendering and social account connections
 

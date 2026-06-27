@@ -13,6 +13,7 @@ interface PlatformStatus {
   state: PlatformState;
   connected_at: string | null;
   expires_at: string | null;
+  account_name?: string | null;
 }
 
 function authFetch(path: string, options?: RequestInit) {
@@ -30,17 +31,15 @@ function PlatformCard({
   platform,
   icon,
   displayName,
-  description,
   status,
   onConnect,
   onDisconnect,
   connecting,
   disconnecting,
 }: {
-  platform: string;
+  platform: "pinterest" | "instagram";
   icon: string;
   displayName: string;
-  description: string;
   status: PlatformStatus | null;
   onConnect: () => void;
   onDisconnect: () => void;
@@ -49,56 +48,103 @@ function PlatformCard({
 }) {
   const state = status?.state ?? "not_connected";
 
+  const stateLabel = {
+    connected: "Connected",
+    expired: "Token expired",
+    not_connected: "Not connected",
+    app_not_configured: "Not configured",
+  }[state];
+
+  const stateBadgeClass = {
+    connected: "bg-green-100 text-green-700",
+    expired: "bg-amber-100 text-amber-700",
+    not_connected: "bg-gray-100 text-gray-500",
+    app_not_configured: "bg-gray-100 text-gray-500",
+  }[state];
+
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+      {/* Header */}
       <div className="flex items-center gap-3">
         <span className="text-2xl">{icon}</span>
         <h2 className="text-base font-semibold text-gray-900">{displayName}</h2>
-        <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${
-          state === "connected"
-            ? "bg-green-100 text-green-700"
-            : state === "expired"
-            ? "bg-amber-100 text-amber-700"
-            : state === "app_not_configured"
-            ? "bg-gray-100 text-gray-500"
-            : "bg-gray-100 text-gray-500"
-        }`}>
-          {state === "connected" && "Connected"}
-          {state === "expired" && "Token expired"}
-          {state === "not_connected" && "Not connected"}
-          {state === "app_not_configured" && "Not configured"}
+        <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${stateBadgeClass}`}>
+          {stateLabel}
         </span>
       </div>
 
-      <p className="text-sm text-gray-500">{description}</p>
+      {/* State-specific content */}
 
       {state === "app_not_configured" && (
-        <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
-          {displayName} app credentials are not configured. An admin must set{" "}
-          {platform === "pinterest"
-            ? "PINTEREST_CLIENT_ID, PINTEREST_CLIENT_SECRET, PINTEREST_REDIRECT_URI"
-            : "META_APP_ID, META_APP_SECRET, INSTAGRAM_REDIRECT_URI"}{" "}
-          in the server environment.
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            {platform === "pinterest"
+              ? "Pinterest connection is not set up on this server. A site admin needs to configure Pinterest app credentials before users can connect their accounts."
+              : "Instagram connection is not set up on this server. A site admin needs to configure Meta app credentials before users can connect their accounts."}
+          </p>
+          <div className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500 font-mono">
+            {platform === "pinterest"
+              ? "PINTEREST_CLIENT_ID, PINTEREST_CLIENT_SECRET, PINTEREST_REDIRECT_URI"
+              : "META_APP_ID, META_APP_SECRET, INSTAGRAM_REDIRECT_URI"}
+          </div>
+          <p className="text-xs text-gray-400">
+            You can still copy captions and download images to post manually.
+          </p>
         </div>
       )}
 
       {state === "not_connected" && (
-        <button
-          onClick={onConnect}
-          disabled={connecting}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          {connecting ? "Redirecting…" : `Connect ${displayName}`}
-        </button>
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            {platform === "pinterest"
+              ? "Connect your Pinterest account to pin listing photos directly to your boards with an auto-generated caption."
+              : "Connect your Instagram Business or Creator account to generate captions from your listing details. Requires a Business or Creator account linked to a Facebook Page."}
+          </p>
+          {platform === "instagram" && (
+            <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+              <span className="mt-0.5">ℹ️</span>
+              <span>
+                Instagram posting requires a <strong>Business</strong> or <strong>Creator</strong> account
+                connected to a Facebook Page. Personal accounts cannot post via the API.
+              </span>
+            </div>
+          )}
+          <button
+            onClick={onConnect}
+            disabled={connecting}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            {connecting ? "Redirecting to " + displayName + "…" : `Connect ${displayName} account`}
+          </button>
+        </div>
       )}
 
       {state === "connected" && (
         <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            {platform === "pinterest"
+              ? "Your Pinterest account is connected. You can pin listing photos to your boards."
+              : "Your Instagram account is connected. You can generate and copy captions for your posts."}
+          </p>
+          {status?.account_name && (
+            <p className="text-xs text-gray-500">
+              Account: <strong>{status.account_name}</strong>
+            </p>
+          )}
           {status?.connected_at && (
             <p className="text-xs text-gray-400">
               Connected {new Date(status.connected_at).toLocaleDateString()}
-              {status.expires_at && ` · expires ${new Date(status.expires_at).toLocaleDateString()}`}
+              {status.expires_at && ` · token expires ${new Date(status.expires_at).toLocaleDateString()}`}
             </p>
+          )}
+          {platform === "instagram" && (
+            <div className="flex items-start gap-2 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
+              <span className="mt-0.5">ℹ️</span>
+              <span>
+                Direct posting to Instagram requires <strong>Business</strong> or <strong>Creator</strong> account
+                connected to a Facebook Page. If your account is personal, use "Copy caption" instead.
+              </span>
+            </div>
           )}
           <button
             onClick={onDisconnect}
@@ -112,9 +158,20 @@ function PlatformCard({
 
       {state === "expired" && (
         <div className="space-y-3">
-          <p className="text-xs text-amber-700">
-            Access token has expired. Reconnect to continue using {displayName}.
+          <p className="text-sm text-gray-600">
+            {platform === "pinterest"
+              ? "Your Pinterest access token has expired. Reconnect to continue pinning from your listings."
+              : "Your Instagram access token has expired. Reconnect to continue using the integration."}
           </p>
+          {platform === "instagram" && (
+            <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+              <span className="mt-0.5">ℹ️</span>
+              <span>
+                Instagram posting requires a <strong>Business</strong> or <strong>Creator</strong> account
+                connected to a Facebook Page.
+              </span>
+            </div>
+          )}
           <div className="flex gap-3">
             <button
               onClick={onConnect}
@@ -134,10 +191,15 @@ function PlatformCard({
         </div>
       )}
 
-      {platform === "instagram" && state !== "app_not_configured" && (
-        <p className="text-xs text-gray-400 border-t border-gray-100 pt-3">
-          Instagram publishing requires a <strong>Business</strong> or <strong>Creator</strong> account linked to a Facebook Page.
-        </p>
+      {/* Always-available fallback for any state */}
+      {state !== "app_not_configured" && (
+        <div className="border-t border-gray-100 pt-3 flex items-center gap-4">
+          <span className="text-xs text-gray-400">Always available:</span>
+          <span className="text-xs text-gray-500">Copy caption</span>
+          <span className="text-xs text-gray-300">·</span>
+          <span className="text-xs text-gray-500">Download image</span>
+          <span className="text-xs text-gray-400 ml-auto">(post manually)</span>
+        </div>
       )}
     </div>
   );
@@ -150,7 +212,7 @@ function PromoteContent() {
   const [pinterestStatus, setPinterestStatus] = useState<PlatformStatus | null>(null);
   const [instagramStatus, setInstagramStatus] = useState<PlatformStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const [connectingPinterest, setConnectingPinterest] = useState(false);
   const [connectingInstagram, setConnectingInstagram] = useState(false);
@@ -173,14 +235,13 @@ function PromoteContent() {
     loadStatuses();
   }, []);
 
-  // Handle OAuth redirect-back query params
   useEffect(() => {
     const connected = searchParams.get("connected");
     const error = searchParams.get("error");
     if (connected) {
-      setToast(`${connected.charAt(0).toUpperCase() + connected.slice(1)} connected successfully.`);
+      const name = connected.charAt(0).toUpperCase() + connected.slice(1);
+      setToast({ text: `${name} connected successfully.`, type: "success" });
       loadStatuses();
-      // Clear query params without full reload
       window.history.replaceState({}, "", "/promote");
     } else if (error) {
       const messages: Record<string, string> = {
@@ -193,7 +254,7 @@ function PromoteContent() {
         instagram_token_exchange_failed: "Instagram token exchange failed. Check your app credentials.",
         instagram_no_token: "Instagram did not return an access token.",
       };
-      setToast(messages[error] ?? `Connection error: ${error}`);
+      setToast({ text: messages[error] ?? `Connection error: ${error}`, type: "error" });
       window.history.replaceState({}, "", "/promote");
     }
   }, [searchParams]);
@@ -212,13 +273,13 @@ function PromoteContent() {
       const r = await authFetch(`/api/v1/promote/${platform}/connect-url`);
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
-        setToast(err.detail ?? `Failed to get ${platform} connect URL.`);
+        setToast({ text: err.detail ?? `Failed to get ${platform} connect URL.`, type: "error" });
         return;
       }
       const { url } = await r.json();
       window.location.href = url;
     } catch {
-      setToast(`Network error connecting ${platform}.`);
+      setToast({ text: `Network error connecting ${platform}.`, type: "error" });
       setConnecting(false);
     }
   }
@@ -228,10 +289,11 @@ function PromoteContent() {
     setDisconnecting(true);
     try {
       await authFetch(`/api/v1/promote/${platform}/disconnect`, { method: "DELETE" });
-      setToast(`${platform.charAt(0).toUpperCase() + platform.slice(1)} disconnected.`);
+      const name = platform.charAt(0).toUpperCase() + platform.slice(1);
+      setToast({ text: `${name} disconnected.`, type: "success" });
       await loadStatuses();
     } catch {
-      setToast(`Failed to disconnect ${platform}.`);
+      setToast({ text: `Failed to disconnect ${platform}.`, type: "error" });
     } finally {
       setDisconnecting(false);
     }
@@ -242,17 +304,21 @@ function PromoteContent() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Promote</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Connect your social accounts to share listings. Always review before posting.
+          Share your listings on social platforms. Connect your own accounts — we never post without your confirmation.
         </p>
       </div>
 
       <div className="px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-        Social posts are <strong>never auto-published</strong>. You will explicitly review and confirm before anything is shared.
+        Posts are <strong>never auto-published</strong>. You will review and confirm every post before it goes live.
       </div>
 
       {toast && (
-        <div className="px-4 py-3 bg-gray-900 text-white text-sm rounded-lg shadow">
-          {toast}
+        <div
+          className={`px-4 py-3 text-sm rounded-lg shadow ${
+            toast.type === "error" ? "bg-red-700 text-white" : "bg-gray-900 text-white"
+          }`}
+        >
+          {toast.text}
         </div>
       )}
 
@@ -266,7 +332,6 @@ function PromoteContent() {
             platform="pinterest"
             icon="📌"
             displayName="Pinterest"
-            description="Pin your listing photos to Pinterest boards with an auto-generated caption. Connect your own Pinterest account."
             status={pinterestStatus}
             onConnect={() => handleConnect("pinterest")}
             onDisconnect={() => handleDisconnect("pinterest")}
@@ -277,7 +342,6 @@ function PromoteContent() {
             platform="instagram"
             icon="📸"
             displayName="Instagram"
-            description="Generate an Instagram caption from your listing details. Connect your Business or Creator account."
             status={instagramStatus}
             onConnect={() => handleConnect("instagram")}
             onDisconnect={() => handleDisconnect("instagram")}

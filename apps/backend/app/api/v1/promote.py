@@ -38,6 +38,11 @@ class ConnectUrlResponse(BaseModel):
     url: str
 
 
+class ConfigStatus(BaseModel):
+    pinterest_configured: bool
+    instagram_configured: bool
+
+
 # --- Helpers ---
 
 def _is_pinterest_configured() -> bool:
@@ -156,6 +161,19 @@ async def _upsert_connection(
             expires_at=expires_at,
         ))
     await db.commit()
+
+
+# --- Config status ---
+
+@router.get("/config-status", response_model=ConfigStatus)
+async def config_status(
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+):
+    return ConfigStatus(
+        pinterest_configured=_is_pinterest_configured(),
+        instagram_configured=_is_instagram_configured(),
+    )
 
 
 # --- Pinterest ---

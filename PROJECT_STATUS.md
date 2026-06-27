@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 26 follow-up — Video Rendering + Social OAuth — COMPLETE.**
+**Sprint 26 polish — Etsy Video Spec Compliance + Promote Page Clarity — COMPLETE.**
 
 ## Status
 
-`Sprint 26 follow-up complete. Real ffmpeg-based MP4 rendering (check_ffmpeg() → disabled/dependency_missing/working, render_slideshow_mp4() via subprocess arg-list). VideoRender model + migration 0015. video_generator.py: 5 real endpoints (/status, /templates, /render 202+background, /renders/{id}, /renders/{id}/download FileResponse). Pinterest + Instagram OAuth (CSRF state: SHA256 hash stored, state_value sent to OAuth; single-use + expiry; Fernet-encrypted tokens; 4 states per platform). SocialConnection + SocialOAuthState models + migration 0016. promote.py: 8 endpoints (status, connect-url, callback, disconnect × 2 platforms). Frontend: video-generator 3-state UI + polling + download; promote 4-state UI + connect/disconnect flow. ffmpeg added to Dockerfile. 617/617 backend tests pass. TypeScript: 0 errors. Commit: 430eaa6.`
+`Sprint 26 polish complete. video_renderer.py: ASPECT_RATIO_PRESETS {9:16→1080×1920, 1:1→1080×1080, 4:5→1080×1350, 16:9→1920×1080}, check_etsy_ready() returning (bool, list[str]), render_slideshow_mp4() now returns dict {output_path, file_size_bytes, width, height}. VideoRender model: added aspect_ratio, width, height, is_etsy_ready, etsy_issues_json columns. Migration 0017. video_generator.py: duration validation (5–15s → 400), aspect ratio validation (→ 400), is_etsy_ready + etsy_issues in render status response (file_path/stored_filename never exposed), templates endpoint returns aspect_ratios + etsy_specs + renderer_enabled/available, status returns renderer_enabled + renderer_available. promote.py: /config-status endpoint added. Frontend video-generator: format selector (9:16 default), duration input min=5/max=15/helper text, EtsyReadyChecklist component with 5 checks. promote page: 4 state-specific copy blocks per platform (not_configured/not_connected/connected/expired), always-visible Instagram Business/Creator note, fallback copy+download row always visible. 747/747 backend tests (130 new). TypeScript: 0 errors.`
 
 ## Last Updated
 
@@ -49,6 +49,8 @@ None (between sprints)
 - Sprint 23: Production Deployment Readiness Kit ✓ (validate_env.py, smoke_test scripts, docker-compose.prod.example.yml, 6 ops docs, CI validate_env step, 621/621 tests)
 - Sprint 24: Listing Health Score + Profit & Cost Calculator ✓ (health score engine, profit calculator, migration 0014, 9 API endpoints, 2 frontend pages, dashboard widgets, 52 new tests, 673/673 total)
 - Sprint 25: Promote Health & Profit + Media Local Upload ✓ (FAQ disclaimer removed, features/homepage/pricing updated, Shops nav added, cross-links added, LocalUploadPanel in media, 4 new E2E tests, 673/673 backend, 25/25 Playwright)
+- Sprint 26 follow-up: Real ffmpeg rendering + Pinterest/Instagram OAuth ✓
+- Sprint 26 polish: Etsy video spec compliance + promote page clarity ✓ (4 aspect ratios, 5-15s validation, 100MB check, etsy_ready checklist, per-state copy, migration 0017, 747/747 tests)
 
 ## Local Development (Windows)
 
