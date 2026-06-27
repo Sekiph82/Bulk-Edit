@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Sprint 23 — Production Deployment Readiness Kit — COMPLETE.**
+**Sprint 24 — Listing Health Score + Profit & Cost Calculator — COMPLETE.**
 
 ## Status
 
-`Sprint 23 complete. Production deployment readiness kit: validate_env.py (20+ checks, masks secrets, exit 1 on production errors), smoke_test_deployment.ps1 + .sh (13/13 pass), docker-compose.prod.example.yml (reference production compose), 6 new operations docs (MIGRATIONS, BACKUP_AND_ROLLBACK, STAGING_DEPLOYMENT, DNS_SSL, PROVIDER_SETUP, LAUNCH_READINESS_REPORT), CI validate_env step added. 621/621 backend tests. 19/19 routes 200. Security headers confirmed. Seed roles correct.`
+`Sprint 24 complete. Rule-based listing health score engine (0-100, grade, priority, per-category issues). Profit calculator with Decimal arithmetic + Etsy fee profiles. Migration 0014 (cost_profiles, listing_costs). 9 new API endpoints under /listing-health/* and /profit/*. Two new frontend pages (/listing-health, /profit). Dashboard widgets. AppShell nav updated. 52 new tests. 673/673 backend tests. 24 routes build clean.`
 
 ## Last Updated
 
@@ -47,6 +47,7 @@ None (between sprints)
 - Sprint 21: Production Monitoring, Redis Rate Limiting, Sentry, Celery Readiness ✓ (Redis rate limiter, Sentry backend, system-health monitoring fields, MONITORING.md, RUNBOOK.md, WORKERS.md, e2e.yml, 609/609 tests)
 - Sprint 22: First-Run Onboarding, Non-Superuser Seed, Etsy Connection UX ✓ (seed role fix, OnboardingChecklist, dashboard shop/listing count fetch, Etsy trademark note, 621/621 tests)
 - Sprint 23: Production Deployment Readiness Kit ✓ (validate_env.py, smoke_test scripts, docker-compose.prod.example.yml, 6 ops docs, CI validate_env step, 621/621 tests)
+- Sprint 24: Listing Health Score + Profit & Cost Calculator ✓ (health score engine, profit calculator, migration 0014, 9 API endpoints, 2 frontend pages, dashboard widgets, 52 new tests, 673/673 total)
 
 ## Local Development (Windows)
 

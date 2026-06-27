@@ -3,6 +3,30 @@
 ## Last Session
 
 **Date:** 2026-06-27
+**Task:** Sprint 24 — Listing Health Score + Profit & Cost Calculator — COMPLETE
+**Commit:** feat: add listing health score and profit calculator modules (Sprint 24)
+
+**What was built:**
+- `app/services/listing_health.py` — rule-based listing health score engine. Score 0-100, grade (excellent/good/needs_work/critical), priority, per-category issues (title, tags, description, media, pricing). Points deducted per rule violation. Informational cost warning (no penalty) stored separately.
+- `app/services/profit.py` — Decimal-precision profit calculator. Etsy transaction fee (6.5%), payment fee (3% + $0.25), listing fee ($0.20), optional offsite ads (15%). Returns gross_revenue, net_profit, margin_percent, break_even_price, recommended_min_price, roi_percent.
+- `apps/backend/alembic/versions/0014_create_profit_calculator_tables.py` — creates `cost_profiles` + `listing_costs` tables. Migration applied.
+- `app/models/cost_profile.py` + `app/models/listing_cost.py` — SQLAlchemy ORM models with Numeric(10,4) for money.
+- `app/schemas/listing_health.py` + `app/schemas/profit.py` — Pydantic v2 schemas for all endpoints.
+- `app/api/v1/listing_health.py` — 5 endpoints: summary, paginated list (filter by grade/priority/search/sort), detail, AI suggestions (safe no-op when AI_PROVIDER=mock), recalculate.
+- `app/api/v1/profit.py` — 7 endpoints: summary, paginated list, detail, upsert listing costs, list/create/update cost profiles.
+- `apps/frontend/lib/api.ts` — 13 new API helpers + TypeScript interfaces for both modules.
+- `apps/frontend/app/(app)/listing-health/page.tsx` — health score page with summary cards, grade/priority/sort filters, score badges, AI suggestions inline panel (never auto-applied disclaimer).
+- `apps/frontend/app/(app)/profit/page.tsx` — profit page with fee rate warning banner, summary cards, profit/loss/missing-costs status badges, inline cost editor per listing.
+- `apps/frontend/components/ui/AppShell.tsx` — added Listing Health + Profit nav items after Listings with HeartIcon + DollarIcon.
+- `apps/frontend/app/(app)/dashboard/page.tsx` — health + profit summary widgets fetched in parallel.
+- `e2e/listing-health.spec.ts` + `e2e/profit.spec.ts` — 4 Playwright tests (2 auth-redirect + 2 seeded).
+- `tests/test_listing_health.py` + `tests/test_profit.py` — 52 tests total; all pass.
+
+**Tests:** 673/673 backend tests pass (52 new). Build: 24 routes clean. Migration 0014 applied.
+
+## Previous Last Session
+
+**Date:** 2026-06-27
 **Task:** Sprint 23 — Production Deployment Readiness Kit — COMPLETE
 **Commit:** chore: add production deployment readiness kit (Sprint 23)
 

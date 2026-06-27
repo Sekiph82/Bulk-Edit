@@ -583,6 +583,32 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
+## Sprint 24: Listing Health Score + Profit & Cost Calculator
+
+**Status:** `[x] COMPLETE`
+
+- [x] Part A: Baseline verification — 621/621 tests, 21/21 routes build
+- [x] Part B: `app/services/listing_health.py` — rule-based score engine (0-100, grades, priorities, issue categories)
+- [x] Part C: `app/services/profit.py` — Decimal arithmetic profit calculator with Etsy fee profile
+- [x] Part D: Alembic migration 0014 — `cost_profiles` + `listing_costs` tables
+- [x] Part E: `app/models/cost_profile.py` + `app/models/listing_cost.py` — new ORM models
+- [x] Part F: `app/schemas/listing_health.py` + `app/schemas/profit.py` — Pydantic schemas
+- [x] Part G: `app/api/v1/listing_health.py` — 5 endpoints (summary, list, detail, AI suggestions safe no-op, recalculate)
+- [x] Part H: `app/api/v1/profit.py` — 7 endpoints (summary, list, detail, upsert costs, list/create/update cost profiles)
+- [x] Part I: Router registration (`app/api/v1/router.py`)
+- [x] Part J: `tests/test_listing_health.py` — 28+ tests, 52/52 Sprint 24 tests pass
+- [x] Part K: `tests/test_profit.py` — 22+ unit + API tests
+- [x] Part L: `apps/frontend/lib/api.ts` — 13 new API helpers + type interfaces
+- [x] Part M: `apps/frontend/app/(app)/listing-health/page.tsx` — full health score page (summary cards, filters, table, AI suggestions inline)
+- [x] Part N: `apps/frontend/app/(app)/profit/page.tsx` — full profit page (warning banner, summary cards, table, inline cost editor)
+- [x] Part O: `apps/frontend/components/ui/AppShell.tsx` — added Listing Health + Profit nav items with icons
+- [x] Part P: `apps/frontend/app/(app)/dashboard/page.tsx` — health + profit summary widgets
+- [x] Part Q: `e2e/listing-health.spec.ts` + `e2e/profit.spec.ts` — 2+2 Playwright tests
+- [x] Part R: 673/673 backend tests pass (52 new Sprint 24); build 24 routes clean; migration 0014 applied
+- [x] Part S: Safety check + commit + push
+
+---
+
 ## Backlog / Future
 - [ ] Shopify integration
 - [ ] Multi-language support

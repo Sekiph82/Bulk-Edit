@@ -1436,3 +1436,231 @@ export function adminListAuditLog(page = 1, page_size = 25): Promise<AdminPage<A
 export function adminListUsage(page = 1, page_size = 25): Promise<AdminPage<AdminUsageSummary>> {
   return apiFetch(`${ADM}/usage?page=${page}&page_size=${page_size}`);
 }
+
+// ── Listing Health Types ──────────────────────────────────────────────────────
+
+export interface HealthIssue {
+  category: string;
+  severity: "low" | "medium" | "high" | "critical";
+  field: string;
+  message: string;
+  recommended_fix: string;
+  ai_can_help: boolean;
+}
+
+export interface ListingHealthRow {
+  listing_id: string;
+  title: string | null;
+  state: string | null;
+  score: number;
+  grade: "excellent" | "good" | "needs_work" | "critical";
+  priority: "low" | "medium" | "high" | "critical";
+  issue_count: number;
+  top_issues: HealthIssue[];
+  photo_count: number;
+  tag_count: number;
+  has_video: boolean;
+  price: number | null;
+  currency: string | null;
+  last_synced_at: string | null;
+}
+
+export interface ListingHealthDetail extends ListingHealthRow {
+  all_issues: HealthIssue[];
+  suggested_actions: string[];
+}
+
+export interface ListingHealthPage {
+  items: ListingHealthRow[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface ListingHealthSummary {
+  average_score: number;
+  total_listings: number;
+  excellent_count: number;
+  good_count: number;
+  needs_work_count: number;
+  critical_count: number;
+  high_priority_count: number;
+  top_issue_categories: string[];
+  last_calculated_at: string;
+}
+
+export interface AISuggestions {
+  listing_id: string;
+  improved_title?: string | null;
+  suggested_tags?: string[] | null;
+  improved_description?: string | null;
+  explanation?: string | null;
+  confidence?: string | null;
+  ai_available: boolean;
+  message?: string | null;
+}
+
+// ── Listing Health API helpers ────────────────────────────────────────────────
+
+const LH = "/api/v1/listing-health";
+
+export function getListingHealthSummary(): Promise<ListingHealthSummary> {
+  return apiFetch(`${LH}/summary`);
+}
+
+export function getListingHealthListings(params?: {
+  grade?: string; priority?: string; search?: string; sort?: string; page?: number; page_size?: number;
+}): Promise<ListingHealthPage> {
+  const q = new URLSearchParams();
+  if (params?.grade) q.set("grade", params.grade);
+  if (params?.priority) q.set("priority", params.priority);
+  if (params?.search) q.set("search", params.search);
+  if (params?.sort) q.set("sort", params.sort);
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.page_size) q.set("page_size", String(params.page_size));
+  const qs = q.toString();
+  return apiFetch(`${LH}/listings${qs ? "?" + qs : ""}`);
+}
+
+export function getListingHealthDetail(listingId: string): Promise<ListingHealthDetail> {
+  return apiFetch(`${LH}/listings/${listingId}`);
+}
+
+export function getListingHealthAISuggestions(listingId: string): Promise<AISuggestions> {
+  return apiFetch(`${LH}/listings/${listingId}/ai-suggestions`, { method: "POST" });
+}
+
+// ── Profit Types ──────────────────────────────────────────────────────────────
+
+export type ProfitStatus = "profitable" | "low_margin" | "loss" | "missing_costs";
+
+export interface CostProfile {
+  id: string;
+  organization_id: string;
+  name: string;
+  currency: string;
+  transaction_fee_percent: string;
+  payment_fee_percent: string;
+  payment_fixed_fee: string;
+  listing_fee: string;
+  offsite_ads_percent: string;
+  currency_conversion_percent: string;
+  default_shipping_cost: string;
+  default_packaging_cost: string;
+  target_margin_percent: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListingCostUpdate {
+  product_cost: string;
+  shipping_cost: string;
+  packaging_cost: string;
+  ad_cost: string;
+  other_cost: string;
+  include_offsite_ads: boolean;
+  cost_profile_id?: string | null;
+  notes?: string | null;
+}
+
+export interface ProfitListingRow {
+  listing_id: string;
+  title: string | null;
+  price: string | null;
+  currency: string | null;
+  product_cost: string | null;
+  shipping_cost: string | null;
+  total_etsy_fees: string | null;
+  net_profit: string | null;
+  margin_percent: string | null;
+  break_even_price: string | null;
+  recommended_min_price: string | null;
+  status: ProfitStatus;
+  health_score: number | null;
+}
+
+export interface ProfitListingPage {
+  items: ProfitListingRow[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface ProfitSummary {
+  listings_with_costs: number;
+  listings_missing_costs: number;
+  average_margin: string | null;
+  low_margin_count: number;
+  loss_making_count: number;
+  estimated_total_profit: string | null;
+  currency: string;
+}
+
+export interface ProfitCalculation {
+  listing_id: string;
+  title: string | null;
+  price: string | null;
+  currency: string | null;
+  sale_price: string;
+  shipping_charged: string;
+  gross_revenue: string;
+  product_cost: string;
+  shipping_cost: string;
+  packaging_cost: string;
+  ad_cost: string;
+  other_cost: string;
+  etsy_transaction_fee: string;
+  etsy_payment_fee: string;
+  etsy_listing_fee: string;
+  etsy_offsite_ads_fee: string;
+  total_etsy_fees: string;
+  total_costs: string;
+  net_profit: string;
+  margin_percent: string;
+  break_even_price: string;
+  recommended_min_price: string;
+  roi_percent: string;
+  status: ProfitStatus;
+}
+
+// ── Profit API helpers ────────────────────────────────────────────────────────
+
+const PROFIT = "/api/v1/profit";
+
+export function getProfitSummary(): Promise<ProfitSummary> {
+  return apiFetch(`${PROFIT}/summary`);
+}
+
+export function getProfitListings(params?: {
+  page?: number; page_size?: number; loss_only?: boolean; missing_costs?: boolean; search?: string;
+}): Promise<ProfitListingPage> {
+  const q = new URLSearchParams();
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.page_size) q.set("page_size", String(params.page_size));
+  if (params?.loss_only) q.set("loss_only", "true");
+  if (params?.missing_costs) q.set("missing_costs", "true");
+  if (params?.search) q.set("search", params.search);
+  const qs = q.toString();
+  return apiFetch(`${PROFIT}/listings${qs ? "?" + qs : ""}`);
+}
+
+export function getProfitListingDetail(listingId: string): Promise<ProfitCalculation> {
+  return apiFetch(`${PROFIT}/listings/${listingId}`);
+}
+
+export function updateListingCosts(listingId: string, costs: ListingCostUpdate): Promise<{ message: string; listing_id: string }> {
+  return apiFetch(`${PROFIT}/listings/${listingId}/costs`, { method: "PUT", body: JSON.stringify(costs) });
+}
+
+export function getCostProfiles(): Promise<CostProfile[]> {
+  return apiFetch(`${PROFIT}/cost-profiles`);
+}
+
+export function createCostProfile(profile: Omit<CostProfile, "id" | "organization_id" | "created_at" | "updated_at">): Promise<CostProfile> {
+  return apiFetch(`${PROFIT}/cost-profiles`, { method: "POST", body: JSON.stringify(profile) });
+}
+
+export function updateCostProfile(profileId: string, profile: Omit<CostProfile, "id" | "organization_id" | "created_at" | "updated_at">): Promise<CostProfile> {
+  return apiFetch(`${PROFIT}/cost-profiles/${profileId}`, { method: "PUT", body: JSON.stringify(profile) });
+}

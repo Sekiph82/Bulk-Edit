@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import OnboardingChecklist from "@/components/onboarding/OnboardingChecklist";
+import { getListingHealthSummary, getProfitSummary, type ListingHealthSummary, type ProfitSummary } from "@/lib/api";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
 
@@ -15,6 +16,8 @@ const activeFeatures = [
   { title: "AI Optimizer", description: "AI-powered title, description, tag, and alt text suggestions", href: "/ai" },
   { title: "CSV Import / Export", description: "Export listings to CSV, import changes as a draft bulk edit session", href: "/csv" },
   { title: "Dynamic Pricing", description: "Generate rules-based price recommendations and convert to a bulk edit draft", href: "/pricing-rules" },
+  { title: "Listing Health", description: "Score every listing 0–100 for title, tags, description, and photos — prioritise your fixes", href: "/listing-health" },
+  { title: "Profit Calculator", description: "Track product costs, Etsy fees, and margins — find which listings are actually profitable", href: "/profit" },
   { title: "Scheduled Jobs", description: "Schedule safe syncs, draft creation, and pricing previews — nothing publishes without your approval", href: "/scheduled" },
   { title: "Admin Panel", description: "Platform-level user and subscription management (superusers only)", href: "/admin" },
   { title: "Pricing", description: "View plans and feature limits", href: "/pricing" },
@@ -25,6 +28,8 @@ export default function DashboardPage() {
   const [email, setEmail] = useState<string | null>(null);
   const [shopCount, setShopCount] = useState<number | null>(null);
   const [listingCount, setListingCount] = useState<number | null>(null);
+  const [healthSummary, setHealthSummary] = useState<ListingHealthSummary | null>(null);
+  const [profitSummary, setProfitSummary] = useState<ProfitSummary | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
@@ -50,6 +55,9 @@ export default function DashboardPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => { setListingCount(data?.total ?? data?.listings?.length ?? 0); })
       .catch(() => { setListingCount(0); });
+
+    getListingHealthSummary().then(setHealthSummary).catch(() => {});
+    getProfitSummary().then(setProfitSummary).catch(() => {});
   }, []);
 
   const showChecklist = shopCount !== null && listingCount !== null;
@@ -65,6 +73,43 @@ export default function DashboardPage() {
 
       {showChecklist && (
         <OnboardingChecklist shopCount={shopCount!} listingCount={listingCount!} />
+      )}
+
+      {/* Health + Profit widgets */}
+      {(healthSummary || profitSummary) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          {healthSummary && (
+            <Link href="/listing-health" className="bg-white border border-gray-200 rounded-xl p-5 hover:border-indigo-300 transition-colors">
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Listing Health</p>
+              <div className="flex items-end gap-3 mb-3">
+                <span className="text-3xl font-bold text-gray-900">{healthSummary.average_score.toFixed(0)}</span>
+                <span className="text-sm text-gray-500 mb-1">/100 avg score</span>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                <div><p className="font-semibold text-green-600">{healthSummary.excellent_count}</p><p className="text-gray-400">Excellent</p></div>
+                <div><p className="font-semibold text-yellow-600">{healthSummary.good_count}</p><p className="text-gray-400">Good</p></div>
+                <div><p className="font-semibold text-orange-600">{healthSummary.needs_work_count}</p><p className="text-gray-400">Needs Work</p></div>
+                <div><p className="font-semibold text-red-600">{healthSummary.critical_count}</p><p className="text-gray-400">Critical</p></div>
+              </div>
+            </Link>
+          )}
+          {profitSummary && (
+            <Link href="/profit" className="bg-white border border-gray-200 rounded-xl p-5 hover:border-indigo-300 transition-colors">
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Profit Overview</p>
+              <div className="flex items-end gap-3 mb-3">
+                <span className="text-3xl font-bold text-gray-900">
+                  {profitSummary.average_margin != null ? `${parseFloat(profitSummary.average_margin).toFixed(1)}%` : "—"}
+                </span>
+                <span className="text-sm text-gray-500 mb-1">avg margin</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                <div><p className="font-semibold text-gray-700">{profitSummary.listings_with_costs}</p><p className="text-gray-400">With Costs</p></div>
+                <div><p className={`font-semibold ${profitSummary.low_margin_count > 0 ? "text-yellow-600" : "text-gray-700"}`}>{profitSummary.low_margin_count}</p><p className="text-gray-400">Low Margin</p></div>
+                <div><p className={`font-semibold ${profitSummary.loss_making_count > 0 ? "text-red-600" : "text-gray-700"}`}>{profitSummary.loss_making_count}</p><p className="text-gray-400">Loss</p></div>
+              </div>
+            </Link>
+          )}
+        </div>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

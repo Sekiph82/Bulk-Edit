@@ -39,3 +39,5 @@ from app.models.dynamic_pricing_job import DynamicPricingJob
 from app.models.dynamic_pricing_recommendation import DynamicPricingRecommendation
 from app.models.scheduled_job import ScheduledJob
 from app.models.scheduled_job_run import ScheduledJobRun
+from app.models.cost_profile import CostProfile
+from app.models.listing_cost import ListingCost

@@ -4,6 +4,23 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-06-27 (Sprint 24)
+
+### [ARCHITECTURE] Listing health score is dynamic — no snapshot table
+Health scores recalculated on each API request from current listing data. No `listing_health_scores` table. Avoids stale score problem and extra migration complexity.
+
+### [ARCHITECTURE] Cost informational warning excluded from issue_count
+`has_cost_data=False` is informational (no penalty). Adding it to `issues` list caused `test_score_perfect_listing` to fail (expected 0 issues). Moved to separate `informational` field in score result. Issue count is only for actionable items with points_lost > 0.
+
+### [API] AI suggestions endpoint safe no-op when AI not configured
+`POST /listing-health/listings/{id}/ai-suggestions` returns `{ai_available: false, message: "..."}` when `AI_PROVIDER=mock` or API keys not set. Never raises 500. Never auto-applies suggestions to Etsy.
+
+### [TESTING] @pytest.mark.anyio removed from Sprint 24 tests
+Use `asyncio_mode = auto` from pytest.ini instead (matches all other test files in this repo). `@pytest.mark.anyio` causes tests to run under both asyncio and trio backends; trio not installed → 20 errors per file. Simpler to use project convention.
+
+### [TESTING] Auth guard returns HTTP 403, not 401
+FastAPI OAuth2PasswordBearer with `auto_error=True` returns 403 Forbidden when no credentials supplied. Sprint 24 auth-gate tests updated to `assert r.status_code in (401, 403)`.
+
 ## 2026-06-27 (Sprint 23)
 
 ### [DEVOPS] validate_env.py uses ASCII-only output for Windows cp1252 compatibility

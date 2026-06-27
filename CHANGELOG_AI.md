@@ -4,6 +4,21 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-27 Sprint 24 — Listing Health Score + Profit & Cost Calculator
+
+**Skills active:** 06 backend-api, 07 frontend-page, 03 data-model
+
+**What shipped:**
+- `app/services/listing_health.py`: rule-based health score engine. Score 0-100. Five categories: title, tags, description, media, pricing. HealthIssue dataclass with severity/category/field/points_lost. Informational cost warning outside issue list. `_grade()` and `_priority()` helpers.
+- `app/services/profit.py`: Decimal profit calculator. Default Etsy fee profile (6.5% transaction, 3%+$0.25 payment, $0.20 listing, optional 15% offsite ads). Returns break-even price, recommended min price, ROI. `profit_status()` returns profitable/low_margin/loss.
+- Alembic migration 0014: `cost_profiles` table (org-scoped fee profiles, Numeric(6,5) for percentages) + `listing_costs` table (UNIQUE org+listing, FK to cost_profiles SET NULL).
+- 5 listing-health API endpoints + 7 profit API endpoints. All org-isolated via `get_current_org_id`. AI suggestions safe no-op when `AI_PROVIDER=mock`.
+- Frontend: `/listing-health` page (summary cards, grade/priority/search/sort filters, score badges, AI suggestions inline), `/profit` page (fee disclaimer banner, status badges, inline cost editor). Both pages: auth redirect, parallel data fetch, empty state with shop link.
+- AppShell nav: HeartIcon + DollarIcon added. Dashboard: health + profit summary widgets.
+- 52 new backend tests (28 health + 24 profit). All pass. Pre-existing failures unchanged.
+
+**Issues fixed:** Cost informational issue moved outside `issues` list (no points_lost; was incorrectly counted). `@pytest.mark.anyio` removed (use `asyncio_mode=auto` from pytest.ini). Auth guard returns 403 not 401 — tests updated to `in (401, 403)`.
+
 ## 2026-06-27 Sprint 23 — Production Deployment Readiness Kit
 
 **Skills active:** 22 devops, 06 backend-api
