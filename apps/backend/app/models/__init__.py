@@ -41,3 +41,6 @@ from app.models.scheduled_job import ScheduledJob
 from app.models.scheduled_job_run import ScheduledJobRun
 from app.models.cost_profile import CostProfile
 from app.models.listing_cost import ListingCost
+from app.models.video_render import VideoRender
+from app.models.social_connection import SocialConnection
+from app.models.social_oauth_state import SocialOAuthState

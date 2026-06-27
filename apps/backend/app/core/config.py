@@ -76,6 +76,10 @@ class Settings(BaseSettings):
 
     # Video renderer
     VIDEO_RENDERER_ENABLED: bool = False
+    FFMPEG_PATH: str = "ffmpeg"
+    VIDEO_OUTPUT_DIR: str = "/tmp/video_renders"
+    VIDEO_MAX_DURATION_SECONDS: int = 30
+    VIDEO_MAX_IMAGES: int = 20
 
     def is_openai_configured(self) -> bool:
         key = self.OPENAI_API_KEY
