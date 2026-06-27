@@ -549,9 +549,41 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
-## Backlog / Future
+## Sprint 22: First-Run Onboarding, Non-Superuser Seed, Etsy Connection UX
 
-- [ ] Sprint 22: User onboarding flow, empty state polish, first-run wizard, analytics events, advanced feature gates
+**Status:** `[x] COMPLETE`
+
+- [x] Fix `local_seed.py`: FREE seed user `is_superuser=False`, PAID seed user `is_superuser=True`
+- [x] Add 4 new seed role tests (621/621 total)
+- [x] `OnboardingChecklist.tsx` — 4-step progress bar, hides when all complete, dark-mode safe
+- [x] Dashboard fetches shop count + listing count; shows checklist for new users
+- [x] Shops empty state: Etsy® trademark note + OAuth explanation
+- [x] `e2e/onboarding.spec.ts` — 2 always-run + 2 seeded-user E2E tests (Playwright 13/13 pass, 4 skipped)
+- [x] Live Docker seed verified: `test@example.com is_superuser=False`, `test-su@example.com is_superuser=True`
+
+---
+
+## Sprint 23: Production Deployment Readiness Kit
+
+**Status:** `[x] COMPLETE`
+
+- [x] Part A: Baseline verification — 621/621 tests, 19/19 routes 200, Docker 4/4 up, seed roles correct
+- [x] Part B: `apps/backend/scripts/validate_env.py` — production env validation (20+ checks, masks secrets, hard-fail in production, warn in dev/staging)
+- [x] Part C: `scripts/smoke_test_deployment.ps1` + `.sh` — cross-platform smoke tests (13/13 pass against local Docker)
+- [x] Part D: `docker-compose.prod.example.yml` — reference production compose (health checks, restart policies, no secrets)
+- [x] Part E: `docs/operations/MIGRATIONS.md` — Alembic commands, migration table 0001-0013, safety rules
+- [x] Part F: `docs/operations/BACKUP_AND_ROLLBACK.md` — pg_dump, managed platforms, emergency checklist
+- [x] Part G: `docs/operations/STAGING_DEPLOYMENT.md` — staging architecture, env vars, promotion criteria
+- [x] Part H: `docs/operations/DNS_SSL.md` — domain structure, DNS records, HSTS, CORS, common mistakes
+- [x] Part I: `docs/operations/PROVIDER_SETUP.md` — Stripe, Etsy, OpenAI/Anthropic, email, Sentry
+- [x] Part J: `docs/operations/LAUNCH_READINESS_REPORT.md` — fill-in launch template
+- [x] Part K: `.github/workflows/ci.yml` — added `validate_env.py` dev-mode step before tests
+- [x] Part L: Final verification — 621/621 backend tests, 13/13 smoke test, 19/19 routes, security headers, seed roles, no mojibake
+- [x] Part M: Safety check + commit + push
+
+---
+
+## Backlog / Future
 - [ ] Shopify integration
 - [ ] Multi-language support
 - [ ] Mobile app

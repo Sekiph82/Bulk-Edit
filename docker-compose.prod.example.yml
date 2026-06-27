@@ -1,0 +1,152 @@
+# docker-compose.prod.example.yml
+#
+# PRODUCTION REFERENCE for Bulk-Edit.
+#
+# This is a REFERENCE FILE — not used directly by `docker compose up`.
+# Copy and adapt for your production environment.
+#
+# IMPORTANT:
+# - PostgreSQL and Redis are typically managed services in production
+#   (AWS RDS, Railway Postgres, Upstash Redis, etc.). Remove those services
+#   from this file and point DATABASE_URL / REDIS_URL to your managed instances.
+# - Never put real secrets in this file. Use environment variable injection
+#   from your hosting platform (Railway, Render, Fly.io) or a secrets manager.
+# - The local seed file (.local-superusers.env) must NOT be used in production.
+
+version: "3.8"
+
+services:
+
+  # ── Backend API ──────────────────────────────────────────────────────────────
+  backend:
+    image: ghcr.io/sekiph82/bulk-edit-backend:${IMAGE_TAG:-latest}
+    # Or build locally:
+    # build:
+    #   context: ./apps/backend
+    #   dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # --- Required ---
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS}
+      FRONTEND_URL: ${FRONTEND_URL}
+      # --- Stripe ---
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      STRIPE_PRICE_BASIC_MONTHLY: ${STRIPE_PRICE_BASIC_MONTHLY:-}
+      STRIPE_PRICE_PRO_MONTHLY: ${STRIPE_PRICE_PRO_MONTHLY:-}
+      STRIPE_PRICE_BASIC_YEARLY: ${STRIPE_PRICE_BASIC_YEARLY:-}
+      STRIPE_PRICE_PRO_YEARLY: ${STRIPE_PRICE_PRO_YEARLY:-}
+      # --- Etsy ---
+      ETSY_CLIENT_ID: ${ETSY_CLIENT_ID}
+      ETSY_REDIRECT_URI: ${ETSY_REDIRECT_URI}
+      ETSY_SCOPES: ${ETSY_SCOPES:-listings_r listings_w shops_r profile_r}
+      # --- AI ---
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      AI_REQUEST_TIMEOUT_SECONDS: ${AI_REQUEST_TIMEOUT_SECONDS:-30}
+      # --- Rate Limiting ---
+      RATE_LIMIT_ENABLED: "true"
+      RATE_LIMIT_BACKEND: "redis"
+      RATE_LIMIT_REDIS_URL: ${REDIS_URL}
+      RATE_LIMIT_LOGIN_PER_MINUTE: "10"
+      RATE_LIMIT_REGISTER_PER_MINUTE: "5"
+      RATE_LIMIT_CONTACT_PER_HOUR: "5"
+      # --- Sentry ---
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: production
+      SENTRY_TRACES_SAMPLE_RATE: "0.05"
+      # --- App ---
+      ENVIRONMENT: production
+      DEBUG: "false"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # No .local-superusers.env volume mount in production
+
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+  frontend:
+    image: ghcr.io/sekiph82/bulk-edit-frontend:${IMAGE_TAG:-latest}
+    # Or build locally:
+    # build:
+    #   context: ./apps/frontend
+    #   dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ── Celery Worker — uncomment when tasks are wired (Sprint 24+) ──────────────
+  # worker:
+  #   image: ghcr.io/sekiph82/bulk-edit-backend:${IMAGE_TAG:-latest}
+  #   command: celery -A app.worker worker --loglevel=info --concurrency=2
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL}
+  #     REDIS_URL: ${REDIS_URL}
+  #     CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+  #     CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
+  #     JWT_SECRET: ${JWT_SECRET}
+  #     ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+  #   depends_on:
+  #     backend:
+  #       condition: service_healthy
+
+  # ── Celery Beat Scheduler — uncomment with worker ────────────────────────────
+  # beat:
+  #   image: ghcr.io/sekiph82/bulk-edit-backend:${IMAGE_TAG:-latest}
+  #   command: celery -A app.worker beat --loglevel=info
+  #   restart: unless-stopped
+
+  # ── Redis — prefer managed Redis in production ───────────────────────────────
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+  #   command: redis-server --save 60 1 --loglevel warning
+  #   volumes:
+  #     - redis_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
+
+  # ── PostgreSQL — NOT recommended in production compose; use managed DB ────────
+  # postgres:
+  #   image: postgres:16-alpine
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: ${POSTGRES_USER}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  #     POSTGRES_DB: ${POSTGRES_DB}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+# volumes:
+#   redis_data:
+#   postgres_data:

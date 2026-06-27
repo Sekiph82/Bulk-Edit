@@ -4,6 +4,22 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-06-27 (Sprint 23)
+
+### [DEVOPS] validate_env.py uses ASCII-only output for Windows cp1252 compatibility
+Unicode symbols (checkmark, warning, em-dash) are not encodable in Windows cp1252 terminal. Replaced with ASCII PASS/WARN/FAIL labels and regular hyphens. ANSI color codes still used - they render correctly in CI (Linux) and Windows Terminal; older cmd.exe strips them cleanly.
+
+### [DEVOPS] validate_env.py checks ENVIRONMENT var (not APP_ENV) to match config.py
+Backend config.py uses `ENVIRONMENT` as the env var name. validate_env.py reads `ENVIRONMENT` as the default for `--env` to stay consistent with the app's own config. CI workflow sets this explicitly.
+
+### [DEVOPS] Production compose example uses health checks with `service_healthy` depends_on
+Frontend depends_on backend with `condition: service_healthy`. This prevents frontend from starting before backend is ready, matching the local docker-compose.yml pattern.
+
+### [DEVOPS] docker-compose.prod.example.yml is reference-only; not named docker-compose.override.yml
+Naming it `.example.yml` prevents `docker compose up` from accidentally using it without explicit `-f` flag. Teams must consciously copy and adapt it. Keeps the dev workflow (plain `docker compose up`) unchanged.
+
+---
+
 ## 2026-06-27 (Sprint 22)
 
 ### [SEED] FREE seed user is is_superuser=False; PAID seed user is is_superuser=True

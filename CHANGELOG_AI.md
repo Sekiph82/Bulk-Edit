@@ -4,6 +4,25 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-27 Sprint 23 — Production Deployment Readiness Kit
+
+**Skills active:** 22 devops, 06 backend-api
+
+**What shipped:**
+- `apps/backend/scripts/validate_env.py`: standalone env validation script. Checks 20+ variables. Masks secrets. Hard-fails in production mode for missing/placeholder values. Warns in development/staging. CORS wildcard check, weak JWT_SECRET check, Stripe test key in production warning. Exit code 0 on warnings, 1 on errors.
+- `scripts/smoke_test_deployment.ps1` + `.sh`: cross-platform smoke tests for `/health`, `/health/ready`, and 11 frontend routes. Exit code 0 on all pass.
+- `docker-compose.prod.example.yml`: reference production compose config. Health checks, restart policies, commented Celery worker/beat services, no secrets hardcoded. Notes managed DB + Redis preference.
+- `docs/operations/MIGRATIONS.md`: Alembic commands, migration table (0001-0013), safety rules, post-migration smoke test, zero-downtime migration notes.
+- `docs/operations/BACKUP_AND_ROLLBACK.md`: pg_dump, managed platform options, Redis backup considerations, Docker image rollback, emergency checklist.
+- `docs/operations/STAGING_DEPLOYMENT.md`: staging architecture, env var table, step-by-step deploy procedure, promotion criteria checklist.
+- `docs/operations/DNS_SSL.md`: domain structure, DNS records, HSTS notes, CORS config, OAuth/webhook URLs, common mistake table.
+- `docs/operations/PROVIDER_SETUP.md`: Stripe (products, keys, webhook events), Etsy (app creation, scopes, rate limits), OpenAI/Anthropic setup, Sentry integration.
+- `docs/operations/LAUNCH_READINESS_REPORT.md`: fill-in launch template with sections for tests, infra, security, providers, go/no-go, post-launch checks.
+- `.github/workflows/ci.yml`: added `validate_env.py --env development` step before tests. Exits 0 in dev mode (warnings only), catches critical issues early.
+- Verified: 621/621 backend tests pass. 13/13 smoke test checks pass. 19/19 routes 200. Security headers present. Seed roles correct.
+
+---
+
 ## 2026-06-27 Sprint 22 — First-Run Onboarding, Non-Superuser Seed, Etsy Connection UX
 
 **Skills active:** 06 backend-api, 20 testing-qa, frontend-ux

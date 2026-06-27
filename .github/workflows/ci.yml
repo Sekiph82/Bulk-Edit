@@ -64,6 +64,22 @@ jobs:
         working-directory: apps/backend
         run: pip install -r requirements.txt
 
+      - name: Validate environment config (development mode)
+        working-directory: apps/backend
+        run: python scripts/validate_env.py --env development
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/bulk_edit_test
+          REDIS_URL: redis://localhost:6379/0
+          CELERY_BROKER_URL: redis://localhost:6379/0
+          CELERY_RESULT_BACKEND: redis://localhost:6379/0
+          JWT_SECRET: ci-test-jwt-secret-not-real-64chars-padding-here-xxxxxxxxxx
+          ENCRYPTION_KEY: dGVzdC1lbmNyeXB0aW9uLWtleS10ZXN0LWVuY3J5cHRpb24=
+          AI_PROVIDER: mock
+          BACKEND_CORS_ORIGINS: http://localhost:3100
+          FRONTEND_URL: http://localhost:3100
+          RATE_LIMIT_ENABLED: "false"
+          RATE_LIMIT_BACKEND: memory
+
       - name: Run Alembic migrations
         working-directory: apps/backend
         run: alembic upgrade head

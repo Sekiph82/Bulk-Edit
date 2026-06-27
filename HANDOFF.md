@@ -3,6 +3,27 @@
 ## Last Session
 
 **Date:** 2026-06-27
+**Task:** Sprint 23 — Production Deployment Readiness Kit — COMPLETE
+**Commit:** chore: add production deployment readiness kit (Sprint 23)
+
+**What was built:**
+- `apps/backend/scripts/validate_env.py` — standalone env validator. 20+ checks across Database, Redis, Security, CORS, Stripe, Etsy, AI, Rate Limiting, Observability. Masks all secret values. Hard-fails (exit 1) in production mode for missing/placeholder required vars. Warns in development/staging. CORS wildcard check, weak JWT_SECRET detection, Stripe test key in production warning.
+- `scripts/smoke_test_deployment.ps1` — PowerShell smoke test. Checks /health, /health/ready, 11 frontend routes. Exit 0 on all pass. 13/13 passed locally.
+- `scripts/smoke_test_deployment.sh` — Bash equivalent for Linux/Mac/CI.
+- `docker-compose.prod.example.yml` — reference production compose. Health checks, restart policies, commented Celery worker/beat. No secrets hardcoded. Notes: prefer managed DB + Redis. No .local-superusers.env volume.
+- `docs/operations/MIGRATIONS.md` — Alembic commands, migration table (0001-0013), zero-downtime migration notes, post-migration smoke test.
+- `docs/operations/BACKUP_AND_ROLLBACK.md` — pg_dump, managed platform options, Redis considerations, Docker image rollback, emergency checklist.
+- `docs/operations/STAGING_DEPLOYMENT.md` — staging architecture, env var table, step-by-step deploy procedure, promotion criteria.
+- `docs/operations/DNS_SSL.md` — domain structure, DNS records, HSTS, CORS config, OAuth/webhook URLs, common mistake table.
+- `docs/operations/PROVIDER_SETUP.md` — Stripe setup (products/keys/webhook), Etsy app (scopes, PKCE), OpenAI/Anthropic, email options, Sentry.
+- `docs/operations/LAUNCH_READINESS_REPORT.md` — fill-in launch template with test/infra/security/provider/go-no-go sections.
+- `.github/workflows/ci.yml` — added `validate_env.py --env development` step before backend tests. Uses CI env vars, exits 0 (warnings only), so CI doesn't break.
+
+**Tests:** 621/621 backend tests pass. Smoke test 13/13. Routes 19/19. Security headers present frontend + backend.
+
+## Previous Last Session
+
+**Date:** 2026-06-27
 **Task:** Sprint 22 — First-Run Onboarding, Non-Superuser Seed, Etsy Connection UX — COMPLETE
 **Commit:** feat: add first-run onboarding and customer seed flow (Sprint 22)
 
@@ -69,16 +90,16 @@
 
 ## Next Task
 
-**Sprint 23** — CSP nonce via Next.js middleware (full `unsafe-inline` removal), or next user-facing sprint from TASKS.md.
+**Sprint 24** — Options: (1) CSP nonce hardening via Next.js middleware (remove unsafe-inline), (2) Celery task workers (real background jobs), (3) Email delivery integration (contact form + billing notifications), (4) Etsy token auto-refresh. Choose from TASKS.md backlog.
 
 ## Next Prompt
 
 ```
 Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
 
-Current state: Sprint 22 COMPLETE. Seed role fix (test@example.com is_superuser=False, test-su@example.com is_superuser=True). OnboardingChecklist component. Dashboard fetches shop/listing counts. Shops Etsy trademark note. 621/621 tests. 22 routes. 0 errors.
+Current state: Sprint 23 COMPLETE. Production deployment readiness kit shipped: validate_env.py, smoke_test_deployment scripts, docker-compose.prod.example.yml, 6 ops docs (MIGRATIONS, BACKUP_AND_ROLLBACK, STAGING_DEPLOYMENT, DNS_SSL, PROVIDER_SETUP, LAUNCH_READINESS_REPORT), CI validate_env step. 621/621 backend tests. 19/19 routes.
 
-Start Sprint 23 per TASKS.md.
+Start Sprint 24 per TASKS.md backlog.
 ```
 
 ## Next Prompt (legacy Sprint 21 — DONE)
