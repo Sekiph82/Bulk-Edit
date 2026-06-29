@@ -39,6 +39,9 @@ All required variables must be set. See `docs/operations/ENVIRONMENT.md` for ful
 - [ ] `DEBUG=false`
 - [ ] No `.env` files committed to git
 - [ ] `apps/backend/.local-superusers.env` confirmed gitignored
+- [ ] If Video Generator is advertised: `VIDEO_RENDERER_ENABLED=true` and ffmpeg installed in container
+- [ ] If Pinterest integration is active: `PINTEREST_CLIENT_ID`, `PINTEREST_CLIENT_SECRET`, `PINTEREST_REDIRECT_URI` set (production callback URL registered in Pinterest app)
+- [ ] If Instagram integration is active: `META_APP_ID`, `META_APP_SECRET`, `INSTAGRAM_REDIRECT_URI` set (production callback URL registered in Meta app)
 
 ---
 

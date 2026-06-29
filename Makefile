@@ -34,8 +34,9 @@ rollback:
 migration:
 	docker compose exec backend alembic revision --autogenerate -m "$(MSG)"
 
-## Run backend tests
+## Run backend tests (installs dev deps in container first)
 test-backend:
+	docker compose exec backend pip install -q -r requirements-dev.txt
 	docker compose exec backend pytest --tb=short -q
 
 ## Run backend tests locally (requires local Python venv)
