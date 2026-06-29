@@ -2,6 +2,58 @@
 
 ## Last Session
 
+**Date:** 2026-06-29
+**Task:** Code Freeze Cleanup — COMPLETE
+**Commits:** 670f4c9 (fix: hide setup details and prepare integrations), f38a007 (chore: finalize code freeze cleanup)
+
+**What was built:**
+
+### Sprint 27 — Customer UX + Code Freeze (670f4c9)
+- `apps/frontend/app/(app)/video-generator/page.tsx` — removed "Renderer disabled" / VIDEO_RENDERER_ENABLED / apt-get from main page; form + Generate Video button always visible; clicking Generate when disabled/missing-deps opens `VideoUnavailableModal` (friendly copy, superuser admin note only inside modal); always fetches status + templates in parallel; fallback static data if API fails
+- `apps/backend/app/api/v1/promote.py` — `ConfigStatus` no longer returns `pinterest_missing_vars` / `instagram_missing_vars` (env var names leaked); only returns `pinterest_configured` / `instagram_configured` booleans
+- `docker-compose.yml` — adds `VIDEO_RENDERER_ENABLED`, `FFMPEG_PATH`, `VIDEO_OUTPUT_DIR`, `PINTEREST_CLIENT_ID`, `PINTEREST_CLIENT_SECRET`, `PINTEREST_REDIRECT_URI`, `META_APP_ID`, `META_APP_SECRET`, `INSTAGRAM_REDIRECT_URI` passthrough to backend
+- `.env.example` — adds placeholders for all social and video vars with correct local callback URLs
+- `apps/backend/scripts/validate_env.py` — adds Video Renderer and Social Integrations check sections (masked output only)
+- `apps/backend/tests/test_promote.py` — updated config-status assertions; added `test_promote_config_does_not_expose_var_names`
+- `docs/operations/ENVIRONMENT.md` / `docs/operations/PROVIDER_SETUP.md` — added Video Generator, Pinterest, Instagram/Meta sections with setup instructions and callback URL examples
+
+### Code Freeze Cleanup (f38a007)
+- `.github/workflows/ci.yml` — CI now installs `requirements-dev.txt` (was `requirements.txt`); fixes test infrastructure — all 30 test files across 3 async patterns now have correct deps in CI
+- `Makefile` — `test-backend` installs dev deps in container before pytest
+- `docs/operations/LAUNCH_CHECKLIST.md` — added Video Generator, Pinterest, Instagram/Meta checklist items
+
+**Test results (last clean run with full dev deps):**
+- 62/62 focused backend tests pass (27 promote + 35 video)
+- Previous clean run: 797/797 all backend tests (HANDOFF 2026-06-27)
+- TypeScript: 0 errors
+- Frontend lint: 0 errors, warnings only (all pre-existing)
+- Security scan: no secrets in diff
+
+**Docker:** Docker Desktop was offline during this session. All code changes are volume-mounted — apply on next `docker compose up`. Rebuild needed to pick up docker-compose.yml env passthrough changes.
+
+## Next Task
+
+**Status:** Code freeze ready. No blocking code issues.
+
+**Manual setup still required before production:**
+- Real Pinterest app credentials (developers.pinterest.com)
+- Real Meta/Instagram app credentials (developers.facebook.com)
+- Etsy production credentials
+- Stripe live keys
+- Email provider (SMTP)
+- Storage provider (S3/MinIO) if needed
+- `VIDEO_RENDERER_ENABLED=true` if advertising Video Generator
+
+**Next prompt template:**
+```
+Read CLAUDE.md, TASKS.md, SKILLS.md, PROJECT_STATUS.md, HANDOFF.md, DECISIONS.md, LIMIT_PROTOCOL.md.
+
+Current state: Code freeze complete as of 2026-06-29. Last commits: 670f4c9, f38a007 on main.
+CI fixed to install requirements-dev.txt. Video Generator + Promote customer UX clean.
+No env var names in customer UI. All docs updated.
+
+## Previous Session (2026-06-27)
+
 **Date:** 2026-06-27
 **Task:** Social Connect and Product Sharing UX — COMPLETE
 **Commit:** 13421bd fix: complete social connect and product sharing UX
