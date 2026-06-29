@@ -5,7 +5,7 @@
 $envFile = ".env"
 
 if (-not (Test-Path $envFile)) {
-    Write-Host "[WARN] .env not found — skipping placeholder check."
+    Write-Host "[WARN] .env not found -- skipping placeholder check."
     exit 0
 }
 
@@ -27,7 +27,7 @@ if ($null -eq $content) { $content = "" }
 $appended = 0
 foreach ($line in $required) {
     $key = ($line -split "=")[0]
-    $keyPattern = "(?m)^$([regex]::Escape($key))="
+    $keyPattern = "(?m)^" + [regex]::Escape($key) + "="
     if ($content -notmatch $keyPattern) {
         Add-Content -Path $envFile -Value $line -Encoding UTF8
         $appended++
