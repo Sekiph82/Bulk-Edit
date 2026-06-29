@@ -53,21 +53,44 @@ After containers start, scripts poll the backend health endpoint (`http://localh
 
 All scripts force Docker Compose project name to `bulk-edit` via `docker compose -p bulk-edit` to prevent accidentally interfering with other Docker projects. The old ERP project is stopped safely before Bulk-Edit starts.
 
-### One-click Windows setup for a friend
+### Windows one-click setup
 
-No developer tools required. Your friend just needs Windows 10/11 with `winget` (App Installer).
+No developer tools required. Only Docker Desktop is needed — the script installs it automatically if missing.
 
-```
-1. Send or share the file:  setup-and-start.bat  (from this repo root)
-2. Your friend double-clicks it.
-3. The script installs Git and Docker Desktop automatically if missing.
-4. It clones this repository to their Desktop.
-5. It builds and starts all services.
-6. It waits for backend and frontend to be ready.
-7. Their browser opens automatically at http://localhost:3100
-```
+**Steps:**
 
-> **Note:** Docker Desktop may require a Windows restart on first install (WSL2 setup).
+1. Download or clone this repo to any folder on your computer.
+2. Double-click `setup-and-start.bat`.
+3. If Docker Desktop is not installed, the script installs it automatically (may ask for admin/UAC approval — click **Yes**). A Windows restart may be required after Docker installs.
+4. After restart, double-click `setup-and-start.bat` again.
+5. Wait while Docker builds and starts all services (first run: 5–10 minutes).
+6. The browser opens automatically at http://localhost:3100.
+
+**Login accounts (ready immediately, no setup needed):**
+
+| Account | Email | Password |
+|---|---|---|
+| Normal user | test@example.com | Test1234! |
+| Superuser | test-su@example.com | Test1234! |
+
+**What the script does automatically:**
+
+- Installs Docker Desktop via winget if missing (or opens download page if winget unavailable)
+- Starts Docker Desktop if installed but not running
+- Creates `.env` from `.env.example` if missing (existing `.env` is never overwritten)
+- Appends safe placeholder values for video/social integrations (does not overwrite real values)
+- Creates demo seed accounts so login works immediately
+- Builds and starts all services via Docker Compose
+- Waits for backend health, database readiness, and frontend
+- Opens http://localhost:3100 in the browser
+
+**What's not included:**
+
+- No real Etsy, Pinterest, Instagram, Stripe, or email credentials — placeholders only
+- Social integrations (Pinterest, Instagram) and Video Generator require real credentials to be configured in `.env`
+- See `docs/operations/PROVIDER_SETUP.md` for setup guides
+
+> **Note:** Docker Desktop may require a Windows restart on first install (WSL2 setup). After restarting, double-click `setup-and-start.bat` again — it picks up where it left off.
 
 Need a full database reset?
 
