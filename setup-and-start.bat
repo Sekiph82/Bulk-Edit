@@ -1,8 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
 title Bulk-Edit One-Click Local Setup
-
-:: Always run from the folder where this .bat file lives
 cd /d "%~dp0"
 
 echo.
@@ -11,17 +9,17 @@ echo  Bulk-Edit One-Click Local Setup
 echo ============================================================
 echo.
 
-:: ── Verify repo root ────────────────────────────────────────
+:: ── Repo root check ──────────────────────────────────────────
 if not exist "docker-compose.yml" goto BAD_ROOT
-if not exist ".env.example"      goto BAD_ROOT
-if not exist "apps"              goto BAD_ROOT
+if not exist ".env.example"       goto BAD_ROOT
+if not exist "apps"               goto BAD_ROOT
 goto ROOT_OK
 
 :BAD_ROOT
 echo [ERROR] This file must be run from the Bulk-Edit project folder.
 echo.
-echo Make sure setup-and-start.bat is in the repo root (next to
-echo docker-compose.yml) and double-click it there.
+echo Make sure setup-and-start.bat is in the repo root
+echo (next to docker-compose.yml) and double-click it there.
 echo.
 pause
 exit /b 1
@@ -30,7 +28,7 @@ exit /b 1
 echo [OK] Repo root verified.
 echo.
 
-:: ── Step 1: Docker CLI check / install ──────────────────────
+:: ── Step 1: Docker CLI check / install ───────────────────────
 echo [STEP 1/8] Checking Docker...
 docker --version >nul 2>&1
 if not errorlevel 1 goto DOCKER_CLI_OK
@@ -39,28 +37,20 @@ echo [INFO] Docker Desktop not found on PATH.
 winget --version >nul 2>&1
 if errorlevel 1 goto NO_WINGET
 
-echo [INFO] Docker Desktop is not installed. Installing automatically via winget...
-echo        This may take several minutes. You may see a UAC prompt -- click Yes.
+echo [INFO] Installing Docker Desktop via winget (may take several minutes)...
+echo        You may see a UAC prompt -- click Yes.
 echo.
 winget install -e --id Docker.DockerDesktop --accept-package-agreements --accept-source-agreements
 echo.
-
-:: Try to start after install
 if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
     start "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
 )
 if exist "%LocalAppData%\Docker\Docker Desktop.exe" (
     start "" "%LocalAppData%\Docker\Docker Desktop.exe"
 )
-
-:: Check if Docker CLI is now available
-docker --version >nul 2>&1
-if not errorlevel 1 goto DOCKER_CLI_OK
-
 echo.
-echo [WARN] Docker Desktop was installed. A Windows restart may be required
-echo        (WSL2 setup). Please restart Windows if prompted, then
-echo        double-click setup-and-start.bat again.
+echo Docker Desktop was installed or installation was started.
+echo If Windows asks for a restart, restart then double-click setup-and-start.bat again.
 echo.
 pause
 exit /b 0
@@ -81,7 +71,7 @@ exit /b 1
 echo [OK] Docker CLI found.
 echo.
 
-:: ── Step 2: Ensure Docker daemon is running ─────────────────
+:: ── Step 2: Docker daemon check ──────────────────────────────
 echo [STEP 2/8] Checking Docker engine...
 docker info >nul 2>&1
 if not errorlevel 1 goto DOCKER_READY
@@ -92,8 +82,7 @@ if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
 ) else if exist "%LocalAppData%\Docker\Docker Desktop.exe" (
     start "" "%LocalAppData%\Docker\Docker Desktop.exe"
 ) else (
-    echo [WARN] Docker Desktop executable not found at expected paths.
-    echo        Please start Docker Desktop manually from the taskbar.
+    echo [WARN] Docker Desktop executable not found. Start it manually from the taskbar.
 )
 
 echo.
@@ -111,8 +100,9 @@ goto WAIT_DOCKER
 echo.
 echo [ERROR] Docker Desktop did not become ready within 180 seconds.
 echo.
-echo Please wait until Docker Desktop finishes starting (icon in system tray
-echo stops animating), then double-click setup-and-start.bat again.
+echo Please wait until Docker Desktop finishes starting
+echo (icon in system tray stops animating), then double-click
+echo setup-and-start.bat again.
 echo.
 pause
 exit /b 1
@@ -121,7 +111,7 @@ exit /b 1
 echo [OK] Docker engine ready.
 echo.
 
-:: ── Detect compose command ───────────────────────────────────
+:: ── Compose command detection ─────────────────────────────────
 docker compose version >nul 2>&1
 if not errorlevel 1 (
     set "DC=docker compose"
@@ -132,7 +122,7 @@ if not errorlevel 1 (
     set "DC=docker-compose"
     goto COMPOSE_OK
 )
-echo [ERROR] Docker Compose not found. Please update Docker Desktop to a recent version.
+echo [ERROR] Docker Compose not found. Update Docker Desktop to a recent version.
 echo.
 pause
 exit /b 1
@@ -141,7 +131,7 @@ exit /b 1
 echo [OK] Docker Compose ready.
 echo.
 
-:: ── Step 3: Create .env if missing ──────────────────────────
+:: ── Step 3: Create .env if missing ───────────────────────────
 echo [STEP 3/8] Checking environment file...
 if not exist ".env" (
     copy ".env.example" ".env" >nul
@@ -151,14 +141,34 @@ if not exist ".env" (
 )
 echo.
 
-:: ── Step 4: Append missing placeholder variables to .env ────
+:: ── Step 4: Ensure placeholder vars in .env ──────────────────
 echo [STEP 4/8] Ensuring required placeholders in .env...
+if not exist "scripts\windows\ensure-env.ps1" (
+    echo [ERROR] scripts\windows\ensure-env.ps1 not found.
+    pause
+    exit /b 1
+)
 powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\windows\ensure-env.ps1"
+if errorlevel 1 (
+    echo [ERROR] ensure-env.ps1 failed. See output above.
+    pause
+    exit /b 1
+)
 echo.
 
-:: ── Step 5: Create demo seed file if missing ────────────────
+:: ── Step 5: Create demo seed file if missing ─────────────────
 echo [STEP 5/8] Checking demo user seed...
+if not exist "scripts\windows\create-seed.ps1" (
+    echo [ERROR] scripts\windows\create-seed.ps1 not found.
+    pause
+    exit /b 1
+)
 powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\windows\create-seed.ps1"
+if errorlevel 1 (
+    echo [ERROR] create-seed.ps1 failed. See output above.
+    pause
+    exit /b 1
+)
 echo.
 
 :: ── Step 6: Build and start all services ─────────────────────
@@ -167,17 +177,17 @@ echo.
 echo This may take several minutes on first run while Docker builds images.
 echo.
 
-:: Stop old ERP project silently (prevents port conflict if user had it)
-%DC% -p fmcg-erp-system-main down --remove-orphans >nul 2>&1
-
 %DC% -p bulk-edit up -d --build --remove-orphans
-if errorlevel 1 (
+set "COMPOSE_EXIT=!errorlevel!"
+if !COMPOSE_EXIT! neq 0 (
     echo.
-    echo [ERROR] docker compose up failed. See output above.
+    echo [ERROR] docker compose up failed ^(exit code !COMPOSE_EXIT!^).
+    echo See output above for details.
     echo.
     echo Common fixes:
-    echo   - Make sure Docker Desktop is fully started (icon in system tray)
-    echo   - Try double-clicking setup-and-start.bat again
+    echo   - Make sure Docker Desktop is fully started
+    echo   - Check ports 3100 and 8100 are not in use by another app
+    echo   - Run: %DC% -p bulk-edit logs
     echo.
     pause
     exit /b 1
@@ -186,12 +196,12 @@ echo.
 echo [OK] Containers started.
 echo.
 
-:: ── Step 7: Wait for backend health ─────────────────────────
+:: ── Step 7a: Wait for backend health ─────────────────────────
 echo [STEP 7/8] Waiting for services to be ready...
 echo.
 
 set /a B_WAIT=0
-echo [INFO] Waiting for backend...
+echo [INFO] Waiting for backend health endpoint...
 :WAIT_HEALTH
 powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $r = Invoke-WebRequest -Uri 'http://localhost:8100/api/v1/health' -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
 if not errorlevel 1 goto HEALTH_OK
@@ -214,9 +224,9 @@ exit /b 1
 :HEALTH_OK
 echo [OK] Backend healthy.
 
-:: ── Wait for database readiness ──────────────────────────────
+:: ── Step 7b: Wait for backend readiness ──────────────────────
 set /a R_WAIT=0
-echo [INFO] Waiting for database...
+echo [INFO] Waiting for database readiness (migrations)...
 :WAIT_READY
 powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $r = Invoke-WebRequest -Uri 'http://localhost:8100/api/v1/health/ready' -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
 if not errorlevel 1 goto READY_OK
@@ -228,7 +238,7 @@ goto WAIT_READY
 
 :READY_TIMEOUT
 echo.
-echo [ERROR] Database did not become ready within 180 seconds.
+echo [ERROR] Backend readiness check timed out after 180 seconds.
 echo.
 %DC% -p bulk-edit logs --tail=80 backend
 echo.
@@ -238,7 +248,7 @@ exit /b 1
 :READY_OK
 echo [OK] Backend ready (database connected, migrations applied).
 
-:: ── Wait for frontend ────────────────────────────────────────
+:: ── Step 7c: Wait for frontend ────────────────────────────────
 set /a F_WAIT=0
 echo [INFO] Waiting for frontend...
 :WAIT_FRONTEND
@@ -264,7 +274,7 @@ exit /b 1
 echo [OK] Frontend ready.
 echo.
 
-:: ── Step 8: Open browser and show login info ─────────────────
+:: ── Step 8: Open browser and show login info ──────────────────
 echo [STEP 8/8] Opening browser...
 start "" "http://localhost:3100"
 
@@ -285,7 +295,8 @@ echo    Superuser (admin access)
 echo      Email:    test-su@example.com
 echo      Password: Test1234!
 echo.
-echo  Backend health:  http://localhost:8100/api/v1/health
+echo  Backend health:    http://localhost:8100/api/v1/health
+echo  Backend readiness: http://localhost:8100/api/v1/health/ready
 echo.
 echo  To stop services later, run:
 echo    docker compose -p bulk-edit down
@@ -293,3 +304,4 @@ echo.
 echo ============================================================
 echo.
 pause
+exit /b 0

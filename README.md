@@ -51,7 +51,7 @@ Scripts automatically start Docker Desktop if it is closed. Each script polls `d
 
 After containers start, scripts poll the backend health endpoint (`http://localhost:8100/api/v1/health`) and the frontend (`http://localhost:3100`) before opening the browser. The browser only opens once both services are confirmed ready. If either service fails to respond within 180 seconds, the browser does NOT open and the script prints troubleshooting instructions.
 
-All scripts force Docker Compose project name to `bulk-edit` via `docker compose -p bulk-edit` to prevent accidentally interfering with other Docker projects. The old ERP project is stopped safely before Bulk-Edit starts.
+All scripts force Docker Compose project name to `bulk-edit` via `docker compose -p bulk-edit` to prevent accidentally interfering with other Docker projects.
 
 ### Windows one-click setup
 
