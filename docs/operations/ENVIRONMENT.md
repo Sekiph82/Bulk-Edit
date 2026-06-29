@@ -117,6 +117,36 @@ For local Docker development, the `.env` file at the repo root is mounted into a
 | `RATE_LIMIT_REGISTER_PER_MINUTE` | `5` | `5` | Max register attempts per IP per minute. |
 | `RATE_LIMIT_CONTACT_PER_HOUR` | `5` | `5` | Max contact-form submissions per IP per hour. |
 
+### Video Generator
+
+| Variable | Default | Description |
+|---|---|---|
+| `VIDEO_RENDERER_ENABLED` | `false` | Set `true` to enable the Video Generator. ffmpeg must be available. |
+| `FFMPEG_PATH` | `ffmpeg` | Override ffmpeg binary path. Leave empty to use system default. |
+| `VIDEO_OUTPUT_DIR` | `/tmp/video_renders` | Directory where rendered MP4 files are stored inside the container. |
+
+When `VIDEO_RENDERER_ENABLED=false`, the Video Generator page shows all controls normally. Customers see a friendly modal when they click Generate Video. No env var names or developer instructions are shown.
+
+### Pinterest Integration
+
+| Variable | Description |
+|---|---|
+| `PINTEREST_CLIENT_ID` | Pinterest app ID from developers.pinterest.com |
+| `PINTEREST_CLIENT_SECRET` | Pinterest app secret. Never expose in logs or API responses. |
+| `PINTEREST_REDIRECT_URI` | OAuth callback URL. Must match what is registered in your Pinterest app. Local default: `http://localhost:8100/api/v1/promote/pinterest/callback` |
+
+All three must be set for Pinterest Connect to work. If any are missing, `config-status` returns `pinterest_configured: false` and the Connect button opens a friendly unavailable modal.
+
+### Instagram / Meta Integration
+
+| Variable | Description |
+|---|---|
+| `META_APP_ID` | Meta app ID from developers.facebook.com |
+| `META_APP_SECRET` | Meta app secret. Never expose in logs or API responses. |
+| `INSTAGRAM_REDIRECT_URI` | OAuth callback URL. Must match what is registered in your Meta app. Local default: `http://localhost:8100/api/v1/promote/instagram/callback` |
+
+All three must be set for Instagram Connect to work. Instagram publishing requires a Business or Creator account connected to a Facebook Page.
+
 ### Project Isolation
 
 | Variable | Value | Description |

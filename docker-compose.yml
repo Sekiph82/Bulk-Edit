@@ -46,6 +46,17 @@ services:
       FRONTEND_URL: http://localhost:3100
       BACKEND_URL: http://localhost:8100
       BACKEND_CORS_ORIGINS: http://localhost:3100
+      # Video renderer
+      VIDEO_RENDERER_ENABLED: ${VIDEO_RENDERER_ENABLED:-false}
+      FFMPEG_PATH: ${FFMPEG_PATH:-ffmpeg}
+      VIDEO_OUTPUT_DIR: ${VIDEO_OUTPUT_DIR:-/tmp/video_renders}
+      # Social integrations
+      PINTEREST_CLIENT_ID: ${PINTEREST_CLIENT_ID:-}
+      PINTEREST_CLIENT_SECRET: ${PINTEREST_CLIENT_SECRET:-}
+      PINTEREST_REDIRECT_URI: ${PINTEREST_REDIRECT_URI:-http://localhost:8100/api/v1/promote/pinterest/callback}
+      META_APP_ID: ${META_APP_ID:-}
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      INSTAGRAM_REDIRECT_URI: ${INSTAGRAM_REDIRECT_URI:-http://localhost:8100/api/v1/promote/instagram/callback}
     depends_on:
       postgres:
         condition: service_healthy

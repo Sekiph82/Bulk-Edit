@@ -259,6 +259,68 @@ def main() -> None:
     elif sentry_env:
         ok("SENTRY_ENVIRONMENT", f"Set to '{sentry_env}'")
 
+    # ── Video Renderer ────────────────────────────────────────────
+    print("\n[ Video Renderer ]")
+    vr_enabled = _get("VIDEO_RENDERER_ENABLED", "false").lower()
+    if vr_enabled in ("true", "1"):
+        ok("VIDEO_RENDERER_ENABLED", "Enabled")
+        ffmpeg_path = _get("FFMPEG_PATH")
+        if ffmpeg_path:
+            ok("FFMPEG_PATH", "Override set (not validated here — checked at runtime)")
+        else:
+            ok("FFMPEG_PATH", "Not set — using system ffmpeg (default)")
+        vod = _get("VIDEO_OUTPUT_DIR")
+        if vod:
+            ok("VIDEO_OUTPUT_DIR", "Override set")
+        else:
+            ok("VIDEO_OUTPUT_DIR", "Not set — using default /tmp/video_renders")
+    else:
+        if env == "production":
+            warn("VIDEO_RENDERER_ENABLED", "Disabled — Video Generator will show unavailable modal to customers")
+        else:
+            ok("VIDEO_RENDERER_ENABLED", "Disabled (set to true to enable Video Generator)")
+
+    # ── Social Integrations ───────────────────────────────────────
+    print("\n[ Social Integrations ]")
+
+    pinterest_id = _get("PINTEREST_CLIENT_ID")
+    pinterest_secret = _get("PINTEREST_CLIENT_SECRET")
+    pinterest_redirect = _get("PINTEREST_REDIRECT_URI")
+    if pinterest_id and pinterest_secret and pinterest_redirect:
+        ok("PINTEREST_CLIENT_ID", f"Set ({_mask(pinterest_id)})")
+        ok("PINTEREST_CLIENT_SECRET", "Set (masked)")
+        ok("PINTEREST_REDIRECT_URI", f"Set ({pinterest_redirect})")
+    else:
+        missing_p = [k for k, v in [
+            ("PINTEREST_CLIENT_ID", pinterest_id),
+            ("PINTEREST_CLIENT_SECRET", pinterest_secret),
+            ("PINTEREST_REDIRECT_URI", pinterest_redirect),
+        ] if not v]
+        msg = f"Missing {len(missing_p)} var(s) — Pinterest Connect disabled"
+        if env == "production":
+            warn("Pinterest", msg)
+        else:
+            ok("Pinterest", f"Not configured ({msg})")
+
+    meta_id = _get("META_APP_ID")
+    meta_secret = _get("META_APP_SECRET")
+    instagram_redirect = _get("INSTAGRAM_REDIRECT_URI")
+    if meta_id and meta_secret and instagram_redirect:
+        ok("META_APP_ID", f"Set ({_mask(meta_id)})")
+        ok("META_APP_SECRET", "Set (masked)")
+        ok("INSTAGRAM_REDIRECT_URI", f"Set ({instagram_redirect})")
+    else:
+        missing_m = [k for k, v in [
+            ("META_APP_ID", meta_id),
+            ("META_APP_SECRET", meta_secret),
+            ("INSTAGRAM_REDIRECT_URI", instagram_redirect),
+        ] if not v]
+        msg = f"Missing {len(missing_m)} var(s) — Instagram Connect disabled"
+        if env == "production":
+            warn("Instagram/Meta", msg)
+        else:
+            ok("Instagram/Meta", f"Not configured ({msg})")
+
     # ── Summary ───────────────────────────────────────────────────
     print(f"\n{'='*60}")
     print("  Results")

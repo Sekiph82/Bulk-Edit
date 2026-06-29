@@ -176,3 +176,121 @@ Sentry integration in the backend:
 - No-op if `SENTRY_DSN` is empty or missing
 
 Verify after deploy: trigger a test error (hit a non-existent endpoint) and confirm it appears in the Sentry dashboard.
+
+---
+
+## Video Generator (ffmpeg)
+
+### How it works
+
+The Video Generator converts listing photos into short MP4 slideshow videos. It requires ffmpeg on the backend server. Videos are never auto-uploaded to Etsy — the seller downloads and uploads manually.
+
+### Setup
+
+The backend Dockerfile installs ffmpeg automatically (`apt-get install ffmpeg`). To enable the feature:
+
+1. Set `VIDEO_RENDERER_ENABLED=true` in your `.env` (or deployment environment).
+2. Optionally set `FFMPEG_PATH` if ffmpeg is not on the system PATH.
+3. Optionally set `VIDEO_OUTPUT_DIR` to override where MP4 files are stored (default: `/tmp/video_renders`).
+
+```
+VIDEO_RENDERER_ENABLED=true
+FFMPEG_PATH=
+VIDEO_OUTPUT_DIR=
+```
+
+### Customer behavior when disabled
+
+- The Video Generator page is fully visible with all controls.
+- When the customer clicks Generate Video and the renderer is disabled, a friendly modal explains the feature is not yet available.
+- No environment variable names or setup instructions are shown to customers.
+
+### Status check
+
+```bash
+GET /api/v1/video-generator/status
+```
+
+Returns `renderer_enabled` and `renderer_available`. If `renderer_enabled=true` but `renderer_available=false`, ffmpeg is not found in the container — rebuild or install ffmpeg.
+
+---
+
+## Pinterest Integration
+
+### Prerequisites
+
+- A Pinterest developer account at [developers.pinterest.com](https://developers.pinterest.com)
+- An approved Pinterest app (sandbox available for development)
+
+### Setup Checklist
+
+- [ ] Create a Pinterest app at developers.pinterest.com
+- [ ] Set the OAuth redirect URI in your Pinterest app to:
+  - Local: `http://localhost:8100/api/v1/promote/pinterest/callback`
+  - Production: `https://api.bulk-edit.com/api/v1/promote/pinterest/callback`
+- [ ] Copy the App ID → `PINTEREST_CLIENT_ID=...`
+- [ ] Copy the App Secret → `PINTEREST_CLIENT_SECRET=...`
+- [ ] Set `PINTEREST_REDIRECT_URI` to match what you registered above
+- [ ] Add scopes: `boards:read`, `pins:read`, `pins:write`, `user_accounts:read`
+
+```
+PINTEREST_CLIENT_ID=your_app_id
+PINTEREST_CLIENT_SECRET=your_app_secret
+PINTEREST_REDIRECT_URI=http://localhost:8100/api/v1/promote/pinterest/callback
+```
+
+### Customer behavior when not configured
+
+- The Pinterest card on /promote shows "Connect" normally.
+- When the customer clicks Connect and the app is not configured, a friendly modal explains Pinterest integration is not yet available.
+- No environment variable names are shown to customers.
+
+### Status check
+
+```bash
+GET /api/v1/promote/config-status
+```
+
+Returns `pinterest_configured: true` when all three vars are set. Never returns secret values.
+
+---
+
+## Instagram / Meta Integration
+
+### Prerequisites
+
+- A Meta developer account at [developers.facebook.com](https://developers.facebook.com)
+- A Meta app with Instagram Basic Display or Instagram Graph API product
+- Instagram publishing requires a **Business** or **Creator** account connected to a Facebook Page
+
+### Setup Checklist
+
+- [ ] Create a Meta app at developers.facebook.com
+- [ ] Add Instagram Graph API product to your app
+- [ ] Set the OAuth redirect URI in your Meta app to:
+  - Local: `http://localhost:8100/api/v1/promote/instagram/callback`
+  - Production: `https://api.bulk-edit.com/api/v1/promote/instagram/callback`
+- [ ] Copy the App ID → `META_APP_ID=...`
+- [ ] Copy the App Secret → `META_APP_SECRET=...`
+- [ ] Set `INSTAGRAM_REDIRECT_URI` to match above
+- [ ] Request `instagram_basic` and `instagram_content_publish` permissions (requires Meta app review for publish)
+
+```
+META_APP_ID=your_meta_app_id
+META_APP_SECRET=your_meta_app_secret
+INSTAGRAM_REDIRECT_URI=http://localhost:8100/api/v1/promote/instagram/callback
+```
+
+### Customer behavior when not configured
+
+- The Instagram card on /promote shows "Connect" normally.
+- When the customer clicks Connect and the app is not configured, a friendly modal explains Instagram integration is not yet available.
+- No environment variable names are shown to customers.
+
+### Status check
+
+```bash
+GET /api/v1/promote/config-status
+```
+
+Returns `instagram_configured: true` when all three Meta vars are set. Never returns secret values.

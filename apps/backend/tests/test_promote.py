@@ -50,15 +50,20 @@ async def test_promote_config_returns_false_when_unconfigured(client: AsyncClien
     data = resp.json()
     assert data["pinterest_configured"] is False
     assert data["instagram_configured"] is False
-    assert "pinterest_missing_vars" in data
-    assert "instagram_missing_vars" in data
+    assert "pinterest_missing_vars" not in data
+    assert "instagram_missing_vars" not in data
 
 
 @pytest.mark.anyio
-async def test_promote_config_missing_vars_listed(client: AsyncClient):
+async def test_promote_config_does_not_expose_var_names(client: AsyncClient):
+    """config-status must not leak env var names to callers."""
     data = (await client.get("/api/v1/promote/config-status")).json()
-    assert "PINTEREST_CLIENT_ID" in data["pinterest_missing_vars"]
-    assert "META_APP_ID" in data["instagram_missing_vars"]
+    response_str = str(data)
+    assert "PINTEREST_CLIENT_ID" not in response_str
+    assert "PINTEREST_CLIENT_SECRET" not in response_str
+    assert "META_APP_ID" not in response_str
+    assert "META_APP_SECRET" not in response_str
+    assert "INSTAGRAM_REDIRECT_URI" not in response_str
 
 
 # ---------------------------------------------------------------------------

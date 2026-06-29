@@ -49,9 +49,7 @@ class ConnectUrlResponse(BaseModel):
 
 class ConfigStatus(BaseModel):
     pinterest_configured: bool
-    pinterest_missing_vars: list[str]
     instagram_configured: bool
-    instagram_missing_vars: list[str]
 
 
 class PinterestShareRequest(BaseModel):
@@ -355,9 +353,7 @@ async def config_status():
     """Public endpoint — checks if social platform env vars are configured."""
     return ConfigStatus(
         pinterest_configured=_is_pinterest_configured(),
-        pinterest_missing_vars=_pinterest_missing_vars(),
         instagram_configured=_is_instagram_configured(),
-        instagram_missing_vars=_instagram_missing_vars(),
     )
 
 
