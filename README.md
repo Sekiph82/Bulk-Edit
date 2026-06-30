@@ -173,8 +173,11 @@ Services:
 | Health | http://localhost:8100/api/v1/health | Liveness |
 | DB Health | http://localhost:8100/api/v1/health/db | PostgreSQL |
 | Redis Health | http://localhost:8100/api/v1/health/redis | Redis |
-| PostgreSQL | localhost:55432 | Host port 55432 → container 5432 |
-| Redis | localhost:56379 | Host port 56379 → container 6379 |
+| PostgreSQL | internal Docker only | Not exposed to host by default |
+| Redis | internal Docker only | Not exposed to host by default |
+
+> PostgreSQL and Redis run inside Docker and are not exposed to Windows by default.
+> Developers who need direct DB/Redis access can use `docker-compose.dev-ports.yml`.
 
 ### Run Backend Locally (without Docker)
 
@@ -189,10 +192,13 @@ python -m venv .venv
 # Install dependencies
 pip install -r requirements-dev.txt
 
-# Copy env (local dev uses host-mapped ports 55432 / 56379)
+# Copy env
 cp .env.example .env
+# For direct host DB access, also start: docker compose -f docker-compose.yml -f docker-compose.dev-ports.yml up -d
 
-# Run migrations (requires running PostgreSQL on port 55432)
+# Run migrations (postgres must be running via Docker Compose)
+# docker compose -p bulk-edit exec backend alembic upgrade head
+# Or with dev-ports overlay active:
 alembic upgrade head
 
 # Start backend on port 8100

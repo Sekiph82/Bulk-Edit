@@ -108,10 +108,8 @@ if errorlevel 1 (
     echo [INFO] Added COMPOSE_PROJECT_NAME=bulk-edit to .env
 )
 
-:: Stop old containers
+:: Stop old containers and remove volumes
 echo.
-echo [INFO] Checking old ERP Docker project...
-docker compose -p fmcg-erp-system-main down --remove-orphans >nul 2>&1
 echo [INFO] Removing bulk-edit containers and volumes...
 docker compose -p bulk-edit down -v --remove-orphans
 
@@ -123,9 +121,8 @@ echo    Frontend  : http://localhost:3100
 echo    Backend   : http://localhost:8100
 echo    API Docs  : http://localhost:8100/docs
 echo    Health    : http://localhost:8100/api/v1/health
-echo    PostgreSQL: localhost:55432
-echo    Redis     : localhost:56379
 echo.
+echo  PostgreSQL and Redis run inside Docker (not exposed to host).
 echo  Docker Compose project: bulk-edit
 echo ============================================================
 echo.

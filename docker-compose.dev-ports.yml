@@ -1,0 +1,17 @@
+# Developer override: exposes PostgreSQL and Redis on host ports.
+# Only needed if you want direct host access (pgAdmin, TablePlus, Redis Insight, etc.).
+# NOT used by setup-and-start.bat or start-dev.bat.
+#
+# Usage:
+#   docker compose -p bulk-edit -f docker-compose.yml -f docker-compose.dev-ports.yml up -d
+#
+# Requires port 55432 and 56379 to be free on the host.
+# If Windows blocks them (Hyper-V reserved range), change POSTGRES_HOST_PORT/REDIS_HOST_PORT in .env.
+services:
+  postgres:
+    ports:
+      - "${POSTGRES_HOST_PORT:-55432}:5432"
+
+  redis:
+    ports:
+      - "${REDIS_HOST_PORT:-56379}:6379"

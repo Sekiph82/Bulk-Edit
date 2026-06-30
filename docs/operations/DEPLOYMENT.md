@@ -8,8 +8,20 @@ Custom host ports are used to avoid conflicts with other local projects:
 |---|---|---|---|
 | Frontend | 3100 | 3000 | 3100:3000 |
 | Backend | 8100 | 8000 | 8100:8000 |
-| PostgreSQL | 55432 | 5432 | 55432:5432 |
-| Redis | 56379 | 6379 | 56379:6379 |
+| PostgreSQL | internal only | 5432 | not exposed by default |
+| Redis | internal only | 6379 | not exposed by default |
+
+PostgreSQL and Redis communicate with the backend through Docker's internal network only.
+They are not exposed to the Windows host by default, which prevents port-binding conflicts
+with Hyper-V/WSL2 reserved port ranges.
+
+To expose DB/Redis on host ports for direct access (pgAdmin, TablePlus, Redis Insight):
+
+```bash
+docker compose -p bulk-edit -f docker-compose.yml -f docker-compose.dev-ports.yml up -d
+```
+
+See `docker-compose.dev-ports.yml` for configurable `POSTGRES_HOST_PORT` / `REDIS_HOST_PORT`.
 
 ---
 
@@ -52,10 +64,9 @@ Double-click either file in Explorer — no terminal needed. The script:
 4. Checks `docker compose version` (clear error if not)
 5. Copies `.env.example` → `.env` if `.env` is missing
 6. Appends `COMPOSE_PROJECT_NAME=bulk-edit` to `.env` if not present
-7. Safely stops old ERP project: `docker compose -p fmcg-erp-system-main down --remove-orphans` (silenced — does not stop script, no `-v` so ERP volumes preserved)
-8. Runs `docker compose -p bulk-edit down --remove-orphans` (clean: adds `-v`)
-9. Runs `docker compose -p bulk-edit up --build` (foreground, streams logs)
-10. Keeps CMD window open with `pause` after Docker exits
+7. Runs `docker compose -p bulk-edit down --remove-orphans` (clean: adds `-v` for clean reset)
+8. Runs `docker compose -p bulk-edit up --build` (detached, then health-polls before opening browser)
+9. Opens browser at http://localhost:3100 once frontend is ready
 
 All scripts use `docker compose -p bulk-edit` for project isolation. User never needs to open Docker Desktop manually.
 
@@ -91,8 +102,8 @@ Services:
 | Health | http://localhost:8100/api/v1/health |
 | DB Health | http://localhost:8100/api/v1/health/db |
 | Redis Health | http://localhost:8100/api/v1/health/redis |
-| PostgreSQL | localhost:55432 |
-| Redis | localhost:56379 |
+| PostgreSQL | internal Docker (not exposed to host) |
+| Redis | internal Docker (not exposed to host) |
 
 ### Makefile Commands
 
@@ -116,7 +127,7 @@ cd apps/backend
 python -m venv .venv
 .venv\Scripts\activate       # Windows
 pip install -r requirements-dev.txt
-cp .env.example .env         # uses localhost:55432 and localhost:56379
+cp .env.example .env         # postgres/redis accessed via Docker internal network
 alembic upgrade head
 uvicorn app.main:app --reload --port 8100
 ```
