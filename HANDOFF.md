@@ -2,6 +2,33 @@
 
 ## Last Session
 
+**Date:** 2026-06-30
+**Task:** One-click startup reliability fixes — port conflict + demo login seeding — COMPLETE
+**Commits:** e7d5111 (port fix), aa93aee (launcher rewrite), 32c0e49 (seed fix)
+
+### Task 1 — Docker port ACL fix
+- `docker-compose.yml`: postgres + redis changed from `ports:` to `expose:` (no Windows host binding)
+- New `docker-compose.dev-ports.yml` for optional dev host access
+- Root cause: Windows Hyper-V/WSL2 dynamic port reservation blocks port 55432
+
+### Task 2 — Windows one-click launcher rewrite
+- `start-dev.bat`: 3-line thin wrapper (no logic duplication)
+- `setup-and-start.bat`: ASCII-only (U+2500 replaced), Step 5 seed before compose up, Step 7c login verification
+
+### Task 3 — Demo login seed BOM fix
+- Root cause: PowerShell 5.1 `Set-Content -Encoding UTF8` prepends BOM, corrupts first key
+- `create-seed.ps1`: WriteAllLines + UTF8Encoding($false) — no BOM written
+- `local_seed.py`: encoding="utf-8-sig" — strips BOM on read
+- New `scripts/windows/verify-demo-logins.ps1`: POST /api/v1/auth/login for both accounts after readiness
+- 45/45 tests pass
+
+**Test results:** 45/45 batch+seed tests pass (all pre-existing tests pass too)
+**Security:** No secrets staged. .local-superusers.env gitignored.
+
+---
+
+## Previous Last Session
+
 **Date:** 2026-06-29
 **Task:** Code Freeze Cleanup — COMPLETE
 **Commits:** 670f4c9 (fix: hide setup details and prepare integrations), f38a007 (chore: finalize code freeze cleanup)

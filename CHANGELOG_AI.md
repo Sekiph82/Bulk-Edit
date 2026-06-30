@@ -4,6 +4,30 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-06-30 Fix: Port conflict + demo login seeding for one-click startup
+
+**Commits:** e7d5111, aa93aee, 32c0e49
+
+### Task 1 — Windows Docker port conflict (e7d5111)
+- Root cause: Windows Hyper-V/WSL2 dynamic port reservation blocks port 55432
+- `docker-compose.yml`: changed postgres+redis from `ports:` to `expose:` (internal Docker only)
+- New `docker-compose.dev-ports.yml` optional override for dev host access
+- `start-dev-clean.bat`: removed ERP shutdown + removed dead host port lines from URL display
+- `start-dev.bat`: rewritten as 3-line thin wrapper to setup-and-start.bat
+- Runtime verified: `docker compose ps` shows `5432/tcp` not bound — no ACL error
+
+### Task 2 — Rewrite Windows one-click launcher (aa93aee)
+- `setup-and-start.bat`: replaced Unicode box-drawing chars (`──` U+2500) with ASCII `-`; added Step 7c demo login verification; added Step 5 demo seed creation before compose up
+
+### Task 3 — Demo login seeding (32c0e49)
+- Root cause: PowerShell 5.1 `Set-Content -Encoding UTF8` writes UTF-8 BOM (EF BB BF). Python `open(path, encoding="utf-8")` keeps the BOM, making first key `﻿FREE_SUPERUSER_EMAIL` which `_require()` can't find. `seed_on_startup` catches `SeedConfigError` silently → users never created.
+- `create-seed.ps1`: rewrote to use `WriteAllLines` + `UTF8Encoding($false)` — no BOM
+- `local_seed.py`: `open(path, encoding="utf-8-sig")` — strips BOM if present
+- New `scripts/windows/verify-demo-logins.ps1`: POSTs to `/api/v1/auth/login` for both demo accounts after readiness; exits 1 if either fails (bat halts + shows logs)
+- 45/45 tests pass (batch readiness + seed tests)
+
+---
+
 ## 2026-06-27 Social Connect + Product Sharing UX — COMPLETE
 
 **Skills active:** 04 backend-router, 07 frontend-page

@@ -57,6 +57,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Update README.md Windows Quick Start and One-Click Friend Setup sections
 - [x] Update docs/operations/DEPLOYMENT.md Windows startup and one-click sections
 - [x] Commit and push
+- [x] Fix Windows Docker port conflict — postgres/redis use `expose:` not `ports:` (commit e7d5111)
+- [x] Fix demo login seed BOM issue — WriteAllLines no-BOM + utf-8-sig reader + verify-demo-logins.ps1 (commit 32c0e49)
+- [x] Rewrite start-dev.bat as thin wrapper; ASCII-clean setup-and-start.bat (commit aa93aee)
 
 ---
 

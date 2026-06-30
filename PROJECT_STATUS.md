@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-**Sprint 26 polish — Etsy Video Spec Compliance + Promote Page Clarity — COMPLETE.**
+**One-click startup reliability COMPLETE (2026-06-30). Port conflict fixed. Demo login seeding fixed. 45/45 tests pass.**
 
 ## Status
 
@@ -10,7 +10,7 @@
 
 ## Last Updated
 
-2026-06-27
+2026-06-30
 
 ## Active Skills
 

@@ -4,6 +4,19 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-06-30 (One-click startup reliability)
+
+### [DEVOPS] postgres/redis use `expose:` not `ports:` in docker-compose.yml
+Windows Hyper-V/WSL2 dynamic port reservation ranges include common high ports (e.g. 55432). `ports:` causes Docker to bind on the Windows host, which hits ACL restrictions. `expose:` keeps services network-reachable inside Docker only — internal DATABASE_URL/REDIS_URL connectivity unchanged. Optional dev access via `docker-compose.dev-ports.yml` override.
+
+### [DEVOPS] Demo seed file written with WriteAllLines + UTF8Encoding($false) in PowerShell
+PowerShell 5.1 default `-Encoding UTF8` on `Set-Content`/`Out-File` adds a UTF-8 BOM (EF BB BF). Python's `open()` with `encoding="utf-8"` preserves the BOM as part of the first key name, causing `_require("FREE_SUPERUSER_EMAIL")` to silently fail. Both ends hardened: writer uses `WriteAllLines` + explicit no-BOM encoding; reader uses `encoding="utf-8-sig"` which strips BOM if present.
+
+### [DEVOPS] verify-demo-logins.ps1 runs after backend readiness (Step 7c in setup-and-start.bat)
+Verifying demo login via HTTP POST to `/api/v1/auth/login` is the only safe way to confirm the seed ran and the accounts are usable. Halts setup with a clear error + backend logs tail if either account fails. Avoids silent seed failures reaching users with a broken login screen.
+
+---
+
 ## 2026-06-27 (Sprint 25)
 
 ### [ARCHITECTURE] Media local upload is frontend-only (Option A) — no backend upload endpoint
