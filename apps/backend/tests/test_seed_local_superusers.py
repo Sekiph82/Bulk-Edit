@@ -77,6 +77,33 @@ def test_load_seed_config_parses_example_style_env():
         tmp.unlink(missing_ok=True)
 
 
+def test_load_seed_config_handles_utf8_bom():
+    """Must parse correctly even if file has UTF-8 BOM (PowerShell 5.1 Set-Content -Encoding UTF8)."""
+    bom_content = (
+        b"\xef\xbb\xbf"  # UTF-8 BOM written by PowerShell 5.1
+        b"FREE_SUPERUSER_EMAIL=bom@test.com\r\n"
+        b"FREE_SUPERUSER_PASSWORD=BomPass1!\r\n"
+        b"FREE_SUPERUSER_ORG_NAME=Bom Org\r\n"
+        b"PAID_SUPERUSER_EMAIL=bom-paid@test.com\r\n"
+        b"PAID_SUPERUSER_PASSWORD=BomPaid1!\r\n"
+        b"PAID_SUPERUSER_ORG_NAME=Bom Paid Org\r\n"
+        b"PAID_SUPERUSER_PLAN=pro_monthly\r\n"
+    )
+    f = tempfile.NamedTemporaryFile(suffix=".env", delete=False)
+    f.write(bom_content)
+    f.close()
+    tmp = Path(f.name)
+    try:
+        config = load_seed_config(tmp)
+        assert config.get("FREE_SUPERUSER_EMAIL") == "bom@test.com", (
+            f"BOM corrupted first key. Keys found: {list(config.keys())[:3]}"
+        )
+        assert config.get("FREE_SUPERUSER_PASSWORD") == "BomPass1!"
+        assert config.get("PAID_SUPERUSER_EMAIL") == "bom-paid@test.com"
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def test_load_seed_config_skips_blank_and_comment_lines():
     tmp = _make_env_file("# header\n\nKEY=value\n")
     try:

@@ -9,7 +9,7 @@ echo  Bulk-Edit One-Click Local Setup
 echo ============================================================
 echo.
 
-:: ── Repo root check ──────────────────────────────────────────
+:: -- Repo root check ------------------------------------------
 if not exist "docker-compose.yml" goto BAD_ROOT
 if not exist ".env.example"       goto BAD_ROOT
 if not exist "apps"               goto BAD_ROOT
@@ -28,7 +28,7 @@ exit /b 1
 echo [OK] Repo root verified.
 echo.
 
-:: ── Step 1: Docker CLI check / install ───────────────────────
+:: -- Step 1: Docker CLI check / install -----------------------
 echo [STEP 1/8] Checking Docker...
 docker --version >nul 2>&1
 if not errorlevel 1 goto DOCKER_CLI_OK
@@ -71,7 +71,7 @@ exit /b 1
 echo [OK] Docker CLI found.
 echo.
 
-:: ── Step 2: Docker daemon check ──────────────────────────────
+:: -- Step 2: Docker daemon check ------------------------------
 echo [STEP 2/8] Checking Docker engine...
 docker info >nul 2>&1
 if not errorlevel 1 goto DOCKER_READY
@@ -111,7 +111,7 @@ exit /b 1
 echo [OK] Docker engine ready.
 echo.
 
-:: ── Compose command detection ─────────────────────────────────
+:: -- Compose command detection ---------------------------------
 docker compose version >nul 2>&1
 if not errorlevel 1 (
     set "DC=docker compose"
@@ -131,7 +131,7 @@ exit /b 1
 echo [OK] Docker Compose ready.
 echo.
 
-:: ── Step 3: Create .env if missing ───────────────────────────
+:: -- Step 3: Create .env if missing ---------------------------
 echo [STEP 3/8] Checking environment file...
 if not exist ".env" (
     copy ".env.example" ".env" >nul
@@ -141,7 +141,7 @@ if not exist ".env" (
 )
 echo.
 
-:: ── Step 4: Ensure placeholder vars in .env ──────────────────
+:: -- Step 4: Ensure placeholder vars in .env ------------------
 echo [STEP 4/8] Ensuring required placeholders in .env...
 if not exist "scripts\windows\ensure-env.ps1" (
     echo [ERROR] scripts\windows\ensure-env.ps1 not found.
@@ -156,7 +156,7 @@ if errorlevel 1 (
 )
 echo.
 
-:: ── Step 5: Create demo seed file if missing ─────────────────
+:: -- Step 5: Create demo seed file if missing -----------------
 echo [STEP 5/8] Checking demo user seed...
 if not exist "scripts\windows\create-seed.ps1" (
     echo [ERROR] scripts\windows\create-seed.ps1 not found.
@@ -171,7 +171,7 @@ if errorlevel 1 (
 )
 echo.
 
-:: ── Step 6: Build and start all services ─────────────────────
+:: -- Step 6: Build and start all services ---------------------
 echo [STEP 6/8] Starting Bulk-Edit services...
 echo.
 echo This may take several minutes on first run while Docker builds images.
@@ -196,7 +196,7 @@ echo.
 echo [OK] Containers started.
 echo.
 
-:: ── Step 7a: Wait for backend health ─────────────────────────
+:: -- Step 7a: Wait for backend health -------------------------
 echo [STEP 7/8] Waiting for services to be ready...
 echo.
 
@@ -224,7 +224,7 @@ exit /b 1
 :HEALTH_OK
 echo [OK] Backend healthy.
 
-:: ── Step 7b: Wait for backend readiness ──────────────────────
+:: -- Step 7b: Wait for backend readiness ----------------------
 set /a R_WAIT=0
 echo [INFO] Waiting for database readiness (migrations)...
 :WAIT_READY
@@ -248,7 +248,22 @@ exit /b 1
 :READY_OK
 echo [OK] Backend ready (database connected, migrations applied).
 
-:: ── Step 7c: Wait for frontend ────────────────────────────────
+:: -- Step 7c: Verify demo login accounts ----------------------
+echo [INFO] Verifying demo login accounts...
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\windows\verify-demo-logins.ps1"
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Demo login accounts are not available.
+    echo         Check backend logs below for seed errors.
+    echo.
+    %DC% -p bulk-edit logs --tail=60 backend
+    echo.
+    pause
+    exit /b 1
+)
+echo.
+
+:: -- Step 7e: Wait for frontend --------------------------------
 set /a F_WAIT=0
 echo [INFO] Waiting for frontend...
 :WAIT_FRONTEND
@@ -274,7 +289,7 @@ exit /b 1
 echo [OK] Frontend ready.
 echo.
 
-:: ── Step 8: Open browser and show login info ──────────────────
+:: -- Step 8: Open browser and show login info ------------------
 echo [STEP 8/8] Opening browser...
 start "" "http://localhost:3100"
 

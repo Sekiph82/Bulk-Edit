@@ -58,7 +58,7 @@ def load_seed_config(env_path: Path | None = None) -> dict[str, str]:
             "The real .local-superusers.env is gitignored and never committed."
         )
     config: dict[str, str] = {}
-    with open(path, encoding="utf-8") as fh:
+    with open(path, encoding="utf-8-sig") as fh:
         for line in fh:
             line = line.strip()
             if not line or line.startswith("#"):
