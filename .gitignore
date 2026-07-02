@@ -4,6 +4,18 @@
 .env.*.local
 *.env
 
+# Guided-deploy local secrets (NEVER commit — example is the only tracked one)
+deploy-secrets.local.env
+deploy-secrets.*.env
+!deploy-secrets.local.env.example
+
+# Vercel CLI local link/state
+.vercel/
+
+# Guided-deploy generated output (may contain secrets — local only)
+scripts/output/*
+!scripts/output/.gitkeep
+
 # Local superuser seed (never commit real credentials)
 apps/backend/.local-superusers.env
 .local-superusers.env

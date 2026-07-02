@@ -17,6 +17,40 @@ GitHub Actions deploy workflow — see "CI/CD" at the bottom for the rationale.
 
 ---
 
+## 0. Claude Code guided deployment (no manual terminal work)
+
+Prefer this if you want Claude Code to drive the deploy. You only fill one file and press
+Continue/OK — no copying files, no PowerShell, no CLI by hand.
+
+Flow:
+
+1. Claude runs `scripts/prepare-deploy-secrets.ps1`, which creates `deploy-secrets.local.env` from
+   the template and opens it in Notepad.
+2. You fill the blanks, **save**, and press **Continue/OK** in Claude Code.
+3. Claude runs `scripts/deploy-production.ps1`, which:
+   - validates required keys (prints only present/MISSING — never values),
+   - links + deploys the frontend to Vercel (needs `VERCEL_ORG_ID` + `VERCEL_PROJECT_ID`),
+   - sets the two public Vercel env vars,
+   - finds/uses the Render service, requests the `api` custom domain, triggers a Render deploy,
+   - writes `scripts/output/render-env-to-set.local.txt` (local-only, gitignored) for the Render
+     dashboard env vars (the API bulk-replace is avoided so it can't clobber the blueprint-wired
+     `DATABASE_URL` / `REDIS_URL`).
+4. If required keys are missing, the script lists the missing names, re-opens the file, and stops —
+   fill them and press Continue/OK again.
+5. After DNS is live, Claude runs `scripts/smoke-production.ps1`.
+
+Secrets stay in `deploy-secrets.local.env`, which is gitignored and never committed or printed.
+
+First-time dashboard clicks that still cannot be fully scripted:
+
+- Creating the Vercel project once (to obtain `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID`).
+- Creating the Render service once from the `render.yaml` blueprint (to obtain `RENDER_SERVICE_ID`).
+- Adding domains + the apex→www redirect in Vercel; pasting env vars + adding the `api` custom domain
+  in Render.
+- DNS records at your registrar; registering provider callbacks (Etsy/Pinterest/Meta) + Stripe webhook.
+
+---
+
 ## 1. Frontend — Vercel
 
 ### Project settings

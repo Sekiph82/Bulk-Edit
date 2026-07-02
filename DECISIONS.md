@@ -534,3 +534,9 @@ Dockerfile uses COPY . . — without .dockerignore it would bake .env / .local-s
 
 ### [DEPLOY] render.yaml blueprint — no secrets committed
 Repo-root render.yaml provisions Postgres + Redis + Docker web service. Non-secret config inline (URLs, CORS, callback URIs, flags). DATABASE_URL/REDIS_URL auto-wired via fromDatabase/fromService. All real secrets marked sync:false (dashboard-only). healthCheckPath /api/v1/health, autoDeploy main.
+
+### [DEPLOY] Guided deploy: fill-one-file UX, secrets never committed
+Added scripts/prepare-deploy-secrets.ps1 + deploy-production.ps1 + smoke-production.ps1 so Claude Code drives Vercel+Render deploy after the user fills deploy-secrets.local.env (gitignored) and presses Continue. Scripts print only present/MISSING, never secret values. Required-key check fails safe (exit 2, lists missing names, reopens Notepad) before any provider call. .gitignore hardened for deploy-secrets.local.env, .vercel/, scripts/output/*.
+
+### [DEPLOY] Render env vars via local file, not bulk API PUT
+Render's PUT /v1/services/{id}/env-vars replaces ALL env vars — would clobber the blueprint-wired DATABASE_URL/REDIS_URL (values we don't hold). So deploy-production.ps1 does NOT auto-set Render env via API; it writes scripts/output/render-env-to-set.local.txt (gitignored, local-only, secrets) for dashboard paste. Render API is still used for owner validation, custom-domain add, and deploy trigger (non-destructive). Vercel's 2 public env vars ARE set via CLI (safe, non-secret).

@@ -1101,3 +1101,20 @@ Frontend:
 **Deploy model:** provider Git auto-deploy (Vercel + Render watch main). No custom deploy workflow — deferred.
 
 **Results:** config tests 9/9 PASSED (CORS + DB URL) · normalizer verified live · frontend lint clean · frontend build OK (22 routes) · docker compose config OK (local unaffected) · validate_env runs (fails only on absent real secrets) · no secrets in render.yaml · no .env staged.
+
+---
+
+## Guided Vercel + Render deploy automation
+
+**Goal:** Claude Code runs the deploy after the user fills one gitignored secrets file. No manual copy/PowerShell/CLI.
+
+**Files added:**
+- `deploy-secrets.local.env.example` — template (tracked); local `deploy-secrets.local.env` is gitignored
+- `scripts/prepare-deploy-secrets.ps1` — create local file from template + open in Notepad
+- `scripts/deploy-production.ps1` — validate (present/MISSING only), preflight, git-safety, Vercel deploy + env, Render validate/find/domain/deploy, summary
+- `scripts/smoke-production.ps1` — www/apex-redirect/health/ready/CORS PASS-FAIL
+- `scripts/output/.gitkeep` — keep dir; contents gitignored
+- `.gitignore` — deploy-secrets.local.env, .vercel/, scripts/output/*
+- `docs/operations/VERCEL_RENDER_DEPLOY.md` — "Claude Code guided deployment" section
+
+**Verification:** all 3 scripts parse clean (PSParser) · prepare creates local file + opens Notepad · deploy with blank secrets fails safe (exit 2, lists only 4 missing key names, no values) · git check-ignore confirms local secrets/.vercel/output all ignored · no secret file tracked (only .example template).
