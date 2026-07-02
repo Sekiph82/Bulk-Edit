@@ -1078,3 +1078,26 @@ Frontend:
 **Results:** CORS tests 5/5 PASSED · frontend lint clean (pre-existing warnings only) · frontend build OK (22 routes) · validate_env.py runs (fails only on absent real secrets, as expected) · no real secrets committed · no `.env` files staged.
 
 **No code behavior changed** — CORS already supported comma-separated origins; all URLs remain env-driven.
+
+---
+
+## Vercel + Render production deployment prep
+
+**Goal:** Ready repo for Vercel (frontend) + Render (backend) deploy of bulkeditapp.com. Local dev preserved.
+
+**Code changes:**
+- `apps/backend/app/core/config.py` — `_force_asyncpg_driver` validator normalizes DATABASE_URL scheme (postgres:// / postgresql:// → postgresql+asyncpg://) for managed DBs
+- `apps/backend/Dockerfile` — prod CMD → `sh /app/start.sh`; chmod start.sh (was hardcoded port 8000 + --reload)
+- `apps/backend/start.sh` — NEW: alembic upgrade head (retry) + uvicorn on ${PORT:-8000}
+- `apps/backend/.dockerignore` — NEW: keeps .env/.local-superusers.env/caches/tests out of image
+- `render.yaml` — NEW blueprint (Postgres + Redis + Docker web); secrets sync:false, no values
+- `apps/backend/tests/test_config_db_url.py` — NEW (4 tests, scheme normalization)
+
+**Docs:**
+- `docs/operations/VERCEL_RENDER_DEPLOY.md` — NEW: full Vercel + Render walkthrough, env vars, DNS, callbacks, CI/CD rationale
+- `docs/operations/PRODUCTION_SMOKE_TEST.md` — NEW: post-deploy checklist
+- `docs/operations/DNS_SSL.md`, `DEPLOYMENT.md` — cross-link provider guide
+
+**Deploy model:** provider Git auto-deploy (Vercel + Render watch main). No custom deploy workflow — deferred.
+
+**Results:** config tests 9/9 PASSED (CORS + DB URL) · normalizer verified live · frontend lint clean · frontend build OK (22 routes) · docker compose config OK (local unaffected) · validate_env runs (fails only on absent real secrets) · no secrets in render.yaml · no .env staged.

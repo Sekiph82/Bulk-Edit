@@ -1,0 +1,7 @@
+# Force LF for shell scripts so container entrypoints run on Linux (Render).
+# CRLF in a #!/bin/sh script causes "not found" / bad-interpreter errors.
+*.sh text eol=lf
+
+# Alembic/entry scripts and Dockerfiles also want LF.
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf

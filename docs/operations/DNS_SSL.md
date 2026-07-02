@@ -3,6 +3,12 @@
 Production domain: **bulkeditapp.com** (purchased). This guide configures DNS, SSL, CORS, and
 OAuth/webhook callbacks for the production domain model.
 
+> **Chosen hosting: Vercel (frontend) + Render (backend).** For the step-by-step provider setup
+> (project settings, env vars, blueprint, custom domains), see
+> [`VERCEL_RENDER_DEPLOY.md`](VERCEL_RENDER_DEPLOY.md). This file covers the DNS/SSL/CORS layer that
+> applies regardless of provider. With Vercel + Render: add `www` + apex in Vercel (apex set to
+> "Redirect to www"), add `api` in Render — each shows the exact DNS target to enter at your registrar.
+
 ## Domain Model
 
 | Host | Purpose | Behavior |

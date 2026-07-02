@@ -157,6 +157,13 @@ details and `docs/operations/LAUNCH_CHECKLIST.md` for the go-live checklist.
 | Root (apex) | `https://bulkeditapp.com` → redirects to `https://www.bulkeditapp.com` |
 | Backend API | `https://api.bulkeditapp.com` |
 
+### Chosen hosting: Vercel + Render
+
+Production hosting is **Vercel (frontend)** + **Render (backend)**. Full walkthrough —
+project settings, env vars, `render.yaml` blueprint, custom domains, smoke test — in
+[`VERCEL_RENDER_DEPLOY.md`](VERCEL_RENDER_DEPLOY.md) and [`PRODUCTION_SMOKE_TEST.md`](PRODUCTION_SMOKE_TEST.md).
+The stack stays provider-agnostic in code; the section below documents the neutral requirements.
+
 ### Provider (neutral — not chosen in code)
 
 The stack is provider-agnostic; nothing hardcodes a host or provider.

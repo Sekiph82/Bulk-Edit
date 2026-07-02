@@ -1,0 +1,26 @@
+# Keep secrets, local state, and dev-only files out of the production image.
+# The Dockerfile uses `COPY . .`, so anything not excluded here is baked in.
+
+# Secrets / env — NEVER ship these in an image
+.env
+.env.*
+*.env
+.local-superusers.env
+.local-superusers.env.example
+
+# Python caches / virtualenvs
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Tests are not needed at runtime
+tests/
+
+# Local tooling
+.git/
+.gitignore
+*.md

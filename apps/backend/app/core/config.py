@@ -1,5 +1,6 @@
 import json
 from typing import List
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -111,6 +112,25 @@ class Settings(BaseSettings):
         if price_id and "placeholder" not in price_id:
             return price_id
         return None
+
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def _force_asyncpg_driver(cls, v: str) -> str:
+        """Normalize the DB scheme to the async driver.
+
+        Managed Postgres providers (Render, Neon, Supabase, Heroku) hand out
+        connection strings as ``postgres://`` or ``postgresql://``. SQLAlchemy's
+        async engine requires the ``postgresql+asyncpg://`` scheme. Rewrite the
+        scheme so a raw provider URL works unchanged; leave any explicit
+        ``+driver`` (e.g. the local ``postgresql+asyncpg://``) untouched.
+        """
+        if v.startswith("postgresql+"):
+            return v
+        if v.startswith("postgresql://"):
+            return "postgresql+asyncpg://" + v[len("postgresql://"):]
+        if v.startswith("postgres://"):
+            return "postgresql+asyncpg://" + v[len("postgres://"):]
+        return v
 
     def get_cors_origins(self) -> List[str]:
         v = self.BACKEND_CORS_ORIGINS.strip()

@@ -519,3 +519,18 @@ Settings.get_cors_origins() already splits comma-separated values and parses JSO
 
 ### [DOMAIN] OAuth/webhook callbacks resolve on api host (verified from code)
 Etsy: /api/v1/etsy/callback (app/api/v1/etsy.py). Pinterest: /api/v1/promote/pinterest/callback. Instagram: /api/v1/promote/instagram/callback. Stripe webhook: /api/v1/billing/webhook (app/api/v1/billing.py). Fixed stale docs/env that had the wrong Etsy path (was /auth/etsy/callback and /etsy/callback on the www host). Production Etsy redirect is https://api.bulkeditapp.com/api/v1/etsy/callback.
+
+### [DEPLOY] Hosting: Vercel (frontend) + Render (backend)
+Frontend → Vercel (root apps/frontend, npm run build, Node 20). Backend → Render Docker web service (apps/backend/Dockerfile). Postgres + Redis: Render managed (or Upstash). Rely on provider Git auto-deploy from main — no custom GitHub Actions deploy workflow for first launch (fewer moving parts, no tokens in CI, provider handles build/rollback). Documented in docs/operations/VERCEL_RENDER_DEPLOY.md. A token-based deploy.yml deferred until first deploy stable.
+
+### [DEPLOY] Dockerfile prod CMD via start.sh + $PORT
+Dockerfile CMD changed from hardcoded `uvicorn --port 8000 --reload` to `sh /app/start.sh`. start.sh runs `alembic upgrade head` (5x retry for cold managed DB) then `exec uvicorn --host 0.0.0.0 --port ${PORT:-8000}`. Supports Render's injected $PORT; drops dev-only --reload. Local dev unaffected — docker-compose.yml overrides `command:` with its own --reload invocation.
+
+### [DEPLOY] DATABASE_URL scheme normalized in config
+Managed Postgres (Render/Neon/Supabase/Heroku) return postgres:// or postgresql://; async engine needs postgresql+asyncpg://. Added field_validator _force_asyncpg_driver in config.py to rewrite the scheme at load; explicit +driver left untouched. Lets render.yaml auto-wire DATABASE_URL from the managed DB with no manual editing. session.py + alembic/env.py both read settings.DATABASE_URL so one fix covers both.
+
+### [DEPLOY] .dockerignore added — keep secrets out of image
+Dockerfile uses COPY . . — without .dockerignore it would bake .env / .local-superusers.env into the image. Added apps/backend/.dockerignore excluding env/secret files, caches, venvs, tests. Also means seed_on_startup no-ops in prod (no .local-superusers.env present) → no demo users in production.
+
+### [DEPLOY] render.yaml blueprint — no secrets committed
+Repo-root render.yaml provisions Postgres + Redis + Docker web service. Non-secret config inline (URLs, CORS, callback URIs, flags). DATABASE_URL/REDIS_URL auto-wired via fromDatabase/fromService. All real secrets marked sync:false (dashboard-only). healthCheckPath /api/v1/health, autoDeploy main.

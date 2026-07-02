@@ -1,0 +1,129 @@
+# Render Blueprint for the Bulk-Edit backend API.
+# https://render.com/docs/blueprint-spec
+#
+# Provisions: managed Postgres, managed Redis, and the FastAPI web service
+# (Docker). Non-secret config is inline; every secret is `sync: false` — Render
+# prompts for those values in the dashboard and NEVER stores them in this file.
+#
+# DATABASE_URL / REDIS_URL are auto-wired from the managed instances below.
+# The app rewrites the Postgres scheme to postgresql+asyncpg:// at load time
+# (see app/core/config.py::_force_asyncpg_driver), so the raw provider URL works.
+#
+# Frontend is deployed separately on Vercel — it is NOT part of this blueprint.
+
+databases:
+  - name: bulk-edit-db
+    databaseName: bulkedit
+    user: bulkedit
+    plan: free            # free Postgres expires after 90 days — upgrade to `starter`+ for production
+
+services:
+  - type: redis
+    name: bulk-edit-redis
+    plan: free            # adjust plan as needed
+    ipAllowList: []       # internal-only (no public access)
+
+  - type: web
+    name: bulk-edit-api
+    runtime: docker
+    plan: starter
+    region: oregon        # pick the region closest to your users
+    dockerfilePath: apps/backend/Dockerfile
+    dockerContext: apps/backend
+    healthCheckPath: /api/v1/health
+    autoDeploy: true      # deploy on push to main
+    envVars:
+      # ── Non-secret config ──────────────────────────────
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: FRONTEND_URL
+        value: https://www.bulkeditapp.com
+      - key: BACKEND_URL
+        value: https://api.bulkeditapp.com
+      - key: BACKEND_CORS_ORIGINS
+        value: https://www.bulkeditapp.com,https://bulkeditapp.com
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: RATE_LIMIT_BACKEND
+        value: redis
+      # OAuth / webhook callback routes (verified in code — register with each provider)
+      - key: ETSY_REDIRECT_URI
+        value: https://api.bulkeditapp.com/api/v1/etsy/callback
+      - key: PINTEREST_REDIRECT_URI
+        value: https://api.bulkeditapp.com/api/v1/promote/pinterest/callback
+      - key: INSTAGRAM_REDIRECT_URI
+        value: https://api.bulkeditapp.com/api/v1/promote/instagram/callback
+      # Email (non-secret addresses; SMTP creds are secrets below)
+      - key: CONTACT_FROM_EMAIL
+        value: noreply@bulkeditapp.com
+      - key: CONTACT_TO_EMAIL
+        value: support@bulkeditapp.com
+      # Video renderer — keep off until temp-file flow is validated on Render
+      - key: VIDEO_RENDERER_ENABLED
+        value: "false"
+      - key: FFMPEG_PATH
+        value: ffmpeg
+      - key: VIDEO_OUTPUT_DIR
+        value: /tmp/video_renders
+      # AI provider — start with mock, switch to openai/anthropic once keys set
+      - key: AI_PROVIDER
+        value: mock
+
+      # ── Auto-wired from managed instances ──────────────
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bulk-edit-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: bulk-edit-redis
+          property: connectionString
+
+      # ── Secrets (set in the Render dashboard; never committed) ──
+      - key: JWT_SECRET
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_BASIC_MONTHLY
+        sync: false
+      - key: STRIPE_PRICE_PRO_MONTHLY
+        sync: false
+      - key: STRIPE_PRICE_BASIC_YEARLY
+        sync: false
+      - key: STRIPE_PRICE_PRO_YEARLY
+        sync: false
+      - key: ETSY_CLIENT_ID
+        sync: false
+      - key: ETSY_CLIENT_SECRET
+        sync: false
+      - key: PINTEREST_CLIENT_ID
+        sync: false
+      - key: PINTEREST_CLIENT_SECRET
+        sync: false
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
