@@ -1,0 +1,114 @@
+# DigitalOcean App Platform - STAGING BACKEND (api-staging.bulkeditapp.com)
+# Apply:  doctl apps create --spec .do/app.staging-backend.yaml
+# Update: doctl apps update <APP_ID> --spec .do/app.staging-backend.yaml
+#
+# Contains: FastAPI web service (api) + PRE_DEPLOY migration job + managed
+# Postgres + managed Redis/Valkey. Migrations run ONLY in the pre-deploy job so a
+# failed migration aborts the deploy instead of crash-looping the web service.
+#
+# Secrets are NOT stored here. Set them in the DO dashboard (Settings ->
+# App-Level Environment Variables) as encrypted SECRET vars. See the block at the
+# bottom for the required secret keys.
+
+name: bulk-edit-staging-api
+region: nyc
+
+services:
+  - name: api
+    github:
+      repo: Sekiph82/Bulk-Edit
+      branch: staging
+      deploy_on_push: true
+    source_dir: apps/backend
+    dockerfile_path: apps/backend/Dockerfile
+    http_port: 8000
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    # Web serves only. Migrations are the pre-deploy job's responsibility.
+    run_command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    health_check:
+      http_path: /api/v1/health
+      initial_delay_seconds: 20
+      period_seconds: 15
+      failure_threshold: 5
+    envs:
+      - key: ENVIRONMENT
+        value: staging
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: FRONTEND_URL
+        value: https://staging.bulkeditapp.com
+      - key: BACKEND_URL
+        value: https://api-staging.bulkeditapp.com
+      # STRICT CORS: staging frontend only (per architecture decision)
+      - key: BACKEND_CORS_ORIGINS
+        value: https://staging.bulkeditapp.com
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: RATE_LIMIT_BACKEND
+        value: redis
+      # Managed instances (DO injects the connection strings; app normalizes the
+      # postgres:// scheme to postgresql+asyncpg:// at load time).
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${staging-db.DATABASE_URL}
+      - key: REDIS_URL
+        scope: RUN_TIME
+        value: ${staging-redis.DATABASE_URL}
+      # OAuth / webhook callbacks (staging host)
+      - key: ETSY_REDIRECT_URI
+        value: https://api-staging.bulkeditapp.com/api/v1/etsy/callback
+      - key: PINTEREST_REDIRECT_URI
+        value: https://api-staging.bulkeditapp.com/api/v1/promote/pinterest/callback
+      - key: INSTAGRAM_REDIRECT_URI
+        value: https://api-staging.bulkeditapp.com/api/v1/promote/instagram/callback
+      # AI: mock or low-limit key (key itself is a SECRET, set in dashboard)
+      - key: AI_PROVIDER
+        value: mock
+      - key: VIDEO_RENDERER_ENABLED
+        value: "false"
+
+jobs:
+  - name: migrate
+    kind: PRE_DEPLOY
+    github:
+      repo: Sekiph82/Bulk-Edit
+      branch: staging
+    source_dir: apps/backend
+    dockerfile_path: apps/backend/Dockerfile
+    instance_size_slug: basic-xxs
+    run_command: alembic upgrade head
+    envs:
+      - key: ENVIRONMENT
+        value: staging
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${staging-db.DATABASE_URL}
+
+databases:
+  # Staging-only Postgres. Never point at production.
+  - name: staging-db
+    engine: PG
+    version: "16"
+    production: false
+  # Staging-only Redis/Valkey. If DO managed Redis is incompatible with the
+  # client/Celery, replace this block with an Upstash REDIS_URL SECRET (see docs).
+  - name: staging-redis
+    engine: REDIS
+    production: false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED SECRETS - set in DO dashboard as encrypted SECRET env vars (do NOT
+# commit values). Staging must use TEST/DEV credentials only:
+#   JWT_SECRET                 (staging-only random 64+)
+#   ENCRYPTION_KEY             (staging-only Fernet key)
+#   STRIPE_SECRET_KEY          (sk_test_... ONLY - never live)
+#   STRIPE_WEBHOOK_SECRET      (whsec_... from a staging webhook endpoint)
+#   STRIPE_PRICE_* (4)         (test-mode price ids)
+#   ETSY_CLIENT_ID / _SECRET   (dev app if available)
+#   PINTEREST_* / META_*       (optional)
+#   OPENAI_API_KEY / ANTHROPIC_API_KEY  (low-limit key if AI_PROVIDER != mock)
+#   SMTP_* / SENTRY_DSN        (optional)
+# ─────────────────────────────────────────────────────────────────────────────

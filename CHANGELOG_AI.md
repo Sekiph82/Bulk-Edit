@@ -1118,3 +1118,20 @@ Frontend:
 - `docs/operations/VERCEL_RENDER_DEPLOY.md` — "Claude Code guided deployment" section
 
 **Verification:** all 3 scripts parse clean (PSParser) · prepare creates local file + opens Notepad · deploy with blank secrets fails safe (exit 2, lists only 4 missing key names, no values) · git check-ignore confirms local secrets/.vercel/output all ignored · no secret file tracked (only .example template).
+
+---
+
+## Phase 0 + Phase 1 scaffolding (DigitalOcean migration)
+
+**Branch:** feature/phase0-1-scaffold (not pushed). staging branch created.
+
+**Phase 0 (guardrails):** .github/dependabot.yml, .github/workflows/codeql.yml, CHANGELOG.md, docs/operations/GIT_WORKFLOW.md, docs/operations/GITHUB_SETUP_CHECKLIST.md.
+
+**Phase 1 (DO staging scaffold):**
+- .do/app.staging-frontend.yaml, .do/app.staging-backend.yaml (+ pre-deploy migrate job, PG, Redis), .do/app.production-{frontend,backend}.yaml (design only), .do/README.md
+- apps/frontend/middleware.ts (host routing: www->apex 301, app-route bounce to app subdomain, X-Robots-Tag noindex for app/staging; localhost/preview pass-through)
+- apps/frontend/app/robots.ts (per-host: marketing allow, app/staging Disallow /)
+- apps/frontend/components/StagingBanner.tsx + wired into app/layout.tsx (shows when NEXT_PUBLIC_APP_ENV=staging)
+- docs/operations/DIGITALOCEAN_DEPLOY.md, CLOUDFLARE_DNS.md; updated ENVIRONMENT.md + STAGING_DEPLOYMENT.md
+
+**Verification:** frontend lint clean, build OK (robots.txt dynamic, middleware 26.8kB), all .do/*.yaml + dependabot + codeql parse clean, no secrets in any new file. Nothing committed to main; nothing pushed.

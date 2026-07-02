@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import StagingBanner from "@/components/StagingBanner";
 
 export const metadata: Metadata = {
   title: "Bulk-Edit | Etsy Seller Tools",
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="antialiased">
+        <StagingBanner />
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
