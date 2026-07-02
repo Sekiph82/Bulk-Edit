@@ -16,6 +16,30 @@ Production deployment checklist for Bulk-Edit SaaS platform. Complete all items 
 
 ---
 
+## 1.5 Domain / DNS (bulkeditapp.com)
+
+See `docs/operations/DNS_SSL.md` for exact records. Domain model: frontend on `www`, apex redirects
+to `www`, backend on `api`.
+
+- [ ] `www.bulkeditapp.com` points to frontend hosting
+- [ ] `bulkeditapp.com` (apex) redirects to `https://www.bulkeditapp.com`
+- [ ] `api.bulkeditapp.com` points to backend hosting
+- [ ] HTTPS certificate active for `www.bulkeditapp.com` and `api.bulkeditapp.com` (and apex)
+- [ ] `FRONTEND_URL=https://www.bulkeditapp.com`
+- [ ] `BACKEND_URL=https://api.bulkeditapp.com`
+- [ ] `NEXT_PUBLIC_APP_URL=https://www.bulkeditapp.com`
+- [ ] `NEXT_PUBLIC_BACKEND_URL=https://api.bulkeditapp.com`
+- [ ] `BACKEND_CORS_ORIGINS=https://www.bulkeditapp.com,https://bulkeditapp.com`
+- [ ] Etsy callback registered: `https://api.bulkeditapp.com/api/v1/etsy/callback`
+- [ ] Pinterest callback registered: `https://api.bulkeditapp.com/api/v1/promote/pinterest/callback`
+- [ ] Instagram/Meta callback registered: `https://api.bulkeditapp.com/api/v1/promote/instagram/callback`
+- [ ] Stripe webhook registered: `https://api.bulkeditapp.com/api/v1/billing/webhook`
+- [ ] Email sending domain verified if an email provider is used (e.g. `bulkeditapp.com`)
+- [ ] No `localhost` URLs in production env
+- [ ] No real secrets committed to git
+
+---
+
 ## 2. Environment Variables
 
 All required variables must be set. See `docs/operations/ENVIRONMENT.md` for full reference.
@@ -49,7 +73,7 @@ All required variables must be set. See `docs/operations/ENVIRONMENT.md` for ful
 
 - [ ] Live Stripe secret key configured (`sk_live_...`)
 - [ ] Live Stripe publishable key in frontend env
-- [ ] Webhook endpoint registered in Stripe dashboard: `https://yourdomain.com/api/v1/billing/webhook`
+- [ ] Webhook endpoint registered in Stripe dashboard: `https://api.bulkeditapp.com/api/v1/billing/webhook`
 - [ ] `STRIPE_WEBHOOK_SECRET` set from Stripe dashboard (`whsec_...`)
 - [ ] Live products created in Stripe dashboard
 - [ ] Live prices created: basic_monthly, pro_monthly, basic_yearly, pro_yearly
@@ -65,7 +89,7 @@ All required variables must be set. See `docs/operations/ENVIRONMENT.md` for ful
 - [ ] Production Etsy app created in Etsy Developer Portal
 - [ ] `ETSY_CLIENT_ID` set
 - [ ] `ETSY_CLIENT_SECRET` set
-- [ ] `ETSY_REDIRECT_URI` set to production callback URL
+- [ ] `ETSY_REDIRECT_URI=https://api.bulkeditapp.com/api/v1/etsy/callback`
 - [ ] OAuth redirect URI registered in Etsy app settings (exact match)
 - [ ] Test OAuth flow with a real Etsy shop
 - [ ] Listing sync tested (read-only first)
@@ -145,7 +169,7 @@ Before flipping DNS to production:
 - [ ] DB backup taken immediately before go-live
 - [ ] Previous Docker image tagged for rollback
 - [ ] Rollback procedure documented and tested
-- [ ] Support email reachable: `support@bulk-edit.com`
+- [ ] Support email reachable: `support@bulkeditapp.com`
 - [ ] Error monitoring active (Sentry DSN configured or equivalent)
 - [ ] Daily DB backup scheduled (pg_dump cron or managed backups)
 - [ ] At least one full manual smoke test on staging with production-equivalent config

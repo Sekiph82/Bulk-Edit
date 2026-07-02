@@ -54,7 +54,7 @@ Run: `python apps/backend/scripts/validate_env.py --env production`
 
 ### Security Headers
 
-Run: `curl -I https://api.bulk-edit.com/api/v1/health`
+Run: `curl -I https://api.bulkeditapp.com/api/v1/health`
 
 | Header | Present | Value |
 |---|---|---|
@@ -62,7 +62,7 @@ Run: `curl -I https://api.bulk-edit.com/api/v1/health`
 | `X-Frame-Options` | | `DENY` |
 | `Referrer-Policy` | | `strict-origin-when-cross-origin` |
 
-Run: `curl -I https://bulk-edit.com/`
+Run: `curl -I https://www.bulkeditapp.com/`
 
 | Header | Present | Value |
 |---|---|---|

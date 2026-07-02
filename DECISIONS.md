@@ -510,3 +510,12 @@ _check_redis_health() accepts the URL internally and returns only "ok" | "not_co
 
 ### [CELERY] Deferred — inline jobs sufficient for Sprint 21
 No Celery worker container added. Scheduled jobs run inline in HTTP thread. Volume doesn't warrant a separate worker process yet. WORKERS.md documents the future Celery architecture (worker.py template, docker-compose service stub, beat scheduler). worker_status field returns "not_configured".
+
+### [DOMAIN] Production domain model: www frontend, apex redirect, api backend
+Purchased bulkeditapp.com. Model: frontend https://www.bulkeditapp.com; apex https://bulkeditapp.com 301-redirects to www; backend https://api.bulkeditapp.com. Local dev unchanged (localhost:3100 / :8100). All URLs stay env-driven — no production URL hardcoded in code (frontend reads NEXT_PUBLIC_BACKEND_URL in lib/api.ts; backend reads FRONTEND_URL/BACKEND_URL/BACKEND_CORS_ORIGINS). Env examples carry commented production-reference blocks only.
+
+### [DOMAIN] CORS already supports comma-separated origins — no code change
+Settings.get_cors_origins() already splits comma-separated values and parses JSON arrays. Production value BACKEND_CORS_ORIGINS=https://www.bulkeditapp.com,https://bulkeditapp.com works as-is. Added tests/test_config_cors.py to lock this behavior. Apex included in CORS because it is served before the redirect resolves.
+
+### [DOMAIN] OAuth/webhook callbacks resolve on api host (verified from code)
+Etsy: /api/v1/etsy/callback (app/api/v1/etsy.py). Pinterest: /api/v1/promote/pinterest/callback. Instagram: /api/v1/promote/instagram/callback. Stripe webhook: /api/v1/billing/webhook (app/api/v1/billing.py). Fixed stale docs/env that had the wrong Etsy path (was /auth/etsy/callback and /etsy/callback on the www host). Production Etsy redirect is https://api.bulkeditapp.com/api/v1/etsy/callback.

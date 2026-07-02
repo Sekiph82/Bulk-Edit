@@ -144,22 +144,46 @@ npm run dev -- -p 3100
 
 ---
 
-## Production Deployment (Planned — Sprint 18)
+## Production Deployment
 
-Target: Railway, Render, or AWS ECS
+Production domain: **bulkeditapp.com**. See `docs/operations/DNS_SSL.md` for DNS/SSL/callback
+details and `docs/operations/LAUNCH_CHECKLIST.md` for the go-live checklist.
 
-Production checklist:
+### Domain model
+
+| Role | URL |
+|---|---|
+| Frontend | `https://www.bulkeditapp.com` |
+| Root (apex) | `https://bulkeditapp.com` → redirects to `https://www.bulkeditapp.com` |
+| Backend API | `https://api.bulkeditapp.com` |
+
+### Provider (neutral — not chosen in code)
+
+The stack is provider-agnostic; nothing hardcodes a host or provider.
+
+- **Frontend**: any Next.js host — Vercel or similar.
+- **Backend**: Render / Fly.io / Railway / DigitalOcean / AWS (container or app service).
+- **PostgreSQL & Redis**: managed production services (RDS/Neon/Supabase; Upstash/ElastiCache).
+  Local Docker Postgres/Redis are **not** production infrastructure.
+- HTTPS only. Standard ports (80/443) in production — custom `3100`/`8100` are local dev only.
+
+### Production env checklist
+
 - `ENVIRONMENT=production`
 - `DEBUG=false`
-- SSL configured
+- `FRONTEND_URL=https://www.bulkeditapp.com`
+- `BACKEND_URL=https://api.bulkeditapp.com`
+- `NEXT_PUBLIC_APP_URL=https://www.bulkeditapp.com`
+- `NEXT_PUBLIC_BACKEND_URL=https://api.bulkeditapp.com`
+- `BACKEND_CORS_ORIGINS=https://www.bulkeditapp.com,https://bulkeditapp.com`
+- SSL certificates active for `www` and `api`
 - Production PostgreSQL (managed — RDS, Neon, Supabase, etc.)
 - Production Redis (Upstash or ElastiCache)
 - Production S3 (AWS S3 or Cloudflare R2)
-- Stripe live keys configured
+- Stripe live keys + webhook `https://api.bulkeditapp.com/api/v1/billing/webhook`
+- OAuth callbacks registered on `api.bulkeditapp.com` (Etsy/Pinterest/Instagram — see DNS_SSL.md)
 - Sentry DSN configured
-- Rate limiting enabled
-
-Standard ports (80/443) used in production — custom ports are local dev only.
+- Rate limiting enabled (`RATE_LIMIT_ENABLED=true`, `RATE_LIMIT_BACKEND=redis`)
 
 ---
 

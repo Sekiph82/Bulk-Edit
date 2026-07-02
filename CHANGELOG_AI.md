@@ -1050,3 +1050,31 @@ Frontend:
 **Blockers:** None
 
 **Next:** Sprint 22 — User onboarding flow, empty state polish, first-run wizard, analytics events
+
+---
+
+## Production domain configuration — bulkeditapp.com
+
+**Goal:** Ready the repo for the purchased production domain. Frontend www.bulkeditapp.com; apex bulkeditapp.com redirects to www; backend api.bulkeditapp.com. Local dev preserved (localhost:3100 / :8100).
+
+**Files changed:**
+- `.env.example` — fixed Etsy callback path; added PRODUCTION REFERENCE block
+- `apps/backend/.env.example` — production reference comments
+- `apps/frontend/.env.local.example` — production reference comments
+- `docs/operations/ENVIRONMENT.md` — local/prod URL + CORS tables; fixed Etsy row
+- `docs/operations/PROVIDER_SETUP.md` — real domain; fixed Etsy redirect (api host + /api/v1/etsy/callback)
+- `docs/operations/DNS_SSL.md` — rewritten for www/apex/api model + DNS + callbacks
+- `docs/operations/LAUNCH_CHECKLIST.md` — new Domain/DNS section; fixed webhook/Etsy/support URLs
+- `docs/operations/DEPLOYMENT.md` — production domain model + provider-neutral notes
+- `docs/operations/STAGING_DEPLOYMENT.md`, `LAUNCH_READINESS_REPORT.md` — domain refs
+- `apps/backend/tests/test_config_cors.py` — new (5 tests, CORS parsing)
+
+**Verified callback/webhook routes (from code):**
+- Etsy: `https://api.bulkeditapp.com/api/v1/etsy/callback`
+- Pinterest: `https://api.bulkeditapp.com/api/v1/promote/pinterest/callback`
+- Instagram: `https://api.bulkeditapp.com/api/v1/promote/instagram/callback`
+- Stripe webhook: `https://api.bulkeditapp.com/api/v1/billing/webhook`
+
+**Results:** CORS tests 5/5 PASSED · frontend lint clean (pre-existing warnings only) · frontend build OK (22 routes) · validate_env.py runs (fails only on absent real secrets, as expected) · no real secrets committed · no `.env` files staged.
+
+**No code behavior changed** — CORS already supported comma-separated origins; all URLs remain env-driven.

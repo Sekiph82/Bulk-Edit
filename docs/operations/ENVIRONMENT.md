@@ -57,7 +57,7 @@ For local Docker development, the `.env` file at the repo root is mounted into a
 |---|---|---|
 | `ETSY_CLIENT_ID` | `abc123...` | Etsy OAuth2 client ID. Omit in local dev — Etsy endpoints return 503. |
 | `ETSY_CLIENT_SECRET` | `secret...` | Etsy OAuth2 client secret |
-| `ETSY_REDIRECT_URI` | `http://localhost:3100/etsy/callback` | Must match Etsy app configuration exactly |
+| `ETSY_REDIRECT_URI` | Local: `http://localhost:8100/api/v1/etsy/callback` · Prod: `https://api.bulkeditapp.com/api/v1/etsy/callback` | Backend callback route (verified in `app/api/v1/etsy.py`). Must match the Etsy app config exactly. |
 
 ### AI Providers
 
@@ -82,21 +82,25 @@ For local Docker development, the `.env` file at the repo root is mounted into a
 |---|---|---|
 | `SMTP_HOST` | `smtp.gmail.com` | SMTP host for transactional email |
 | `SMTP_PORT` | `587` | SMTP port |
-| `SMTP_USER` | `noreply@bulk-edit.com` | SMTP username |
+| `SMTP_USER` | `noreply@bulkeditapp.com` | SMTP username |
 | `SMTP_PASSWORD` | — | SMTP password |
 
 ### Application URLs
 
-| Variable | Example | Description |
-|---|---|---|
-| `NEXT_PUBLIC_BACKEND_URL` | `http://localhost:8100` | Frontend → backend URL (exposed to browser) |
-| `NEXT_PUBLIC_APP_URL` | `http://localhost:3100` | Canonical app URL (used in emails) |
+| Variable | Local | Production | Description |
+|---|---|---|---|
+| `FRONTEND_URL` | `http://localhost:3100` | `https://www.bulkeditapp.com` | Canonical frontend origin (used for Stripe success/cancel + portal return URLs) |
+| `BACKEND_URL` | `http://localhost:8100` | `https://api.bulkeditapp.com` | Public backend base URL |
+| `NEXT_PUBLIC_BACKEND_URL` | `http://localhost:8100` | `https://api.bulkeditapp.com` | Frontend → backend URL (exposed to browser) |
+| `NEXT_PUBLIC_APP_URL` | `http://localhost:3100` | `https://www.bulkeditapp.com` | Canonical app URL (used in emails) |
+
+The frontend reads `NEXT_PUBLIC_BACKEND_URL` at build/runtime (`apps/frontend/lib/api.ts`) and falls back to `http://localhost:8100` only when unset. Production builds must set it to `https://api.bulkeditapp.com` — no production URL is hardcoded.
 
 ### CORS
 
-| Variable | Example | Description |
-|---|---|---|
-| `BACKEND_CORS_ORIGINS` | `http://localhost:3100` | Comma-separated or JSON list of allowed origins |
+| Variable | Local | Production | Description |
+|---|---|---|---|
+| `BACKEND_CORS_ORIGINS` | `http://localhost:3100` | `https://www.bulkeditapp.com,https://bulkeditapp.com` | Comma-separated or JSON list of allowed origins. Parsed by `Settings.get_cors_origins()`. Wildcard `*` is forbidden in production (`validate_env.py`). |
 
 ### Observability
 
@@ -133,7 +137,7 @@ When `VIDEO_RENDERER_ENABLED=false`, the Video Generator page shows all controls
 |---|---|
 | `PINTEREST_CLIENT_ID` | Pinterest app ID from developers.pinterest.com |
 | `PINTEREST_CLIENT_SECRET` | Pinterest app secret. Never expose in logs or API responses. |
-| `PINTEREST_REDIRECT_URI` | OAuth callback URL. Must match what is registered in your Pinterest app. Local default: `http://localhost:8100/api/v1/promote/pinterest/callback` |
+| `PINTEREST_REDIRECT_URI` | OAuth callback URL. Must match what is registered in your Pinterest app. Local: `http://localhost:8100/api/v1/promote/pinterest/callback` · Prod: `https://api.bulkeditapp.com/api/v1/promote/pinterest/callback` |
 
 All three must be set for Pinterest Connect to work. If any are missing, `config-status` returns `pinterest_configured: false` and the Connect button opens a friendly unavailable modal.
 
@@ -143,7 +147,7 @@ All three must be set for Pinterest Connect to work. If any are missing, `config
 |---|---|
 | `META_APP_ID` | Meta app ID from developers.facebook.com |
 | `META_APP_SECRET` | Meta app secret. Never expose in logs or API responses. |
-| `INSTAGRAM_REDIRECT_URI` | OAuth callback URL. Must match what is registered in your Meta app. Local default: `http://localhost:8100/api/v1/promote/instagram/callback` |
+| `INSTAGRAM_REDIRECT_URI` | OAuth callback URL. Must match what is registered in your Meta app. Local: `http://localhost:8100/api/v1/promote/instagram/callback` · Prod: `https://api.bulkeditapp.com/api/v1/promote/instagram/callback` |
 
 All three must be set for Instagram Connect to work. Instagram publishing requires a Business or Creator account connected to a Facebook Page.
 

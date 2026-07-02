@@ -6,7 +6,7 @@
 
 - A Stripe account (stripe.com)
 - Your domain verified and SSL active
-- Backend deployed and accessible at `https://api.bulk-edit.com`
+- Backend deployed and accessible at `https://api.bulkeditapp.com`
 
 ### Setup Checklist
 
@@ -26,7 +26,7 @@
 **Webhook:**
 
 - [ ] Developers → Webhooks → Add endpoint
-  - URL: `https://api.bulk-edit.com/api/v1/billing/webhook`
+  - URL: `https://api.bulkeditapp.com/api/v1/billing/webhook`
   - Events to send:
     - `checkout.session.completed`
     - `customer.subscription.created`
@@ -38,14 +38,14 @@
 
 **Staging Setup (parallel):**
 
-- [ ] Create separate webhook endpoint for staging at `https://api-staging.bulk-edit.com/api/v1/billing/webhook`
+- [ ] Create separate webhook endpoint for staging at `https://api-staging.bulkeditapp.com/api/v1/billing/webhook`
 - [ ] Use Stripe **Test mode** for staging (key starts with `sk_test_`)
 
 ### Testing Stripe
 
 ```bash
 # Test a checkout session (staging)
-curl -X POST https://api-staging.bulk-edit.com/api/v1/billing/checkout \
+curl -X POST https://api-staging.bulkeditapp.com/api/v1/billing/checkout \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{"plan":"pro_monthly"}'
@@ -76,16 +76,17 @@ Verify webhooks: Stripe Dashboard → Webhooks → your endpoint → Send test e
 - [ ] Go to [etsy.com/developers](https://www.etsy.com/developers) → Create app (for production)
 - [ ] App settings:
   - Name: Bulk-Edit (or your SaaS product name)
-  - Redirect URIs: `https://bulk-edit.com/etsy/callback`
+  - Redirect URIs: `https://api.bulkeditapp.com/api/v1/etsy/callback`
+    (backend callback route, verified in `app/api/v1/etsy.py` — the redirect target is the API host, not the www frontend)
 - [ ] Copy **Keystring** → `ETSY_CLIENT_ID=...`
 - [ ] Note the app's **Shared Secret** if needed (Etsy v3 uses PKCE — client secret may not be required for public clients)
-- [ ] Set `ETSY_REDIRECT_URI=https://bulk-edit.com/etsy/callback`
+- [ ] Set `ETSY_REDIRECT_URI=https://api.bulkeditapp.com/api/v1/etsy/callback`
 - [ ] Set `ETSY_SCOPES=listings_r listings_w shops_r profile_r`
 
 **Staging app (separate):**
 
 - [ ] Create a separate Etsy app for staging
-- [ ] Redirect URI: `https://staging.bulk-edit.com/etsy/callback`
+- [ ] Redirect URI: `https://api-staging.bulkeditapp.com/api/v1/etsy/callback`
 - [ ] Use staging ETSY_CLIENT_ID and ETSY_REDIRECT_URI
 
 ### API Rate Limits
@@ -156,8 +157,8 @@ SMTP_HOST=smtp.resend.com
 SMTP_PORT=587
 SMTP_USER=resend
 SMTP_PASSWORD=re_...
-CONTACT_FROM_EMAIL=noreply@bulk-edit.com
-CONTACT_TO_EMAIL=support@bulk-edit.com
+CONTACT_FROM_EMAIL=noreply@bulkeditapp.com
+CONTACT_TO_EMAIL=support@bulkeditapp.com
 ```
 
 ---
@@ -227,7 +228,7 @@ Returns `renderer_enabled` and `renderer_available`. If `renderer_enabled=true` 
 - [ ] Create a Pinterest app at developers.pinterest.com
 - [ ] Set the OAuth redirect URI in your Pinterest app to:
   - Local: `http://localhost:8100/api/v1/promote/pinterest/callback`
-  - Production: `https://api.bulk-edit.com/api/v1/promote/pinterest/callback`
+  - Production: `https://api.bulkeditapp.com/api/v1/promote/pinterest/callback`
 - [ ] Copy the App ID → `PINTEREST_CLIENT_ID=...`
 - [ ] Copy the App Secret → `PINTEREST_CLIENT_SECRET=...`
 - [ ] Set `PINTEREST_REDIRECT_URI` to match what you registered above
@@ -269,7 +270,7 @@ Returns `pinterest_configured: true` when all three vars are set. Never returns 
 - [ ] Add Instagram Graph API product to your app
 - [ ] Set the OAuth redirect URI in your Meta app to:
   - Local: `http://localhost:8100/api/v1/promote/instagram/callback`
-  - Production: `https://api.bulk-edit.com/api/v1/promote/instagram/callback`
+  - Production: `https://api.bulkeditapp.com/api/v1/promote/instagram/callback`
 - [ ] Copy the App ID → `META_APP_ID=...`
 - [ ] Copy the App Secret → `META_APP_SECRET=...`
 - [ ] Set `INSTAGRAM_REDIRECT_URI` to match above
