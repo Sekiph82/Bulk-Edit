@@ -549,3 +549,6 @@ staging.bulkeditapp.com behind Cloudflare Access. api-staging.bulkeditapp.com st
 
 ### [WORKFLOW] Branch model: feature/* -> staging -> main; no direct main push
 staging + main protected (manual GitHub settings in GITHUB_SETUP_CHECKLIST.md). Dependabot + CodeQL target staging. Phase 0/1 work done on feature/phase0-1-scaffold, PR into staging (not main).
+
+### [DEPLOY] Staging provisioning automated behind a local token file
+provision-staging.ps1 drives DO (doctl) + Cloudflare (API) staging create from deploy-staging.local.env (gitignored). Hard refusals: sk_live_ Stripe, public CI Fernet key, any production host, hand-set DATABASE_URL/REDIS_URL. JWT_SECRET/ENCRYPTION_KEY auto-generated locally, never printed/committed. DO backend SECRET env vars set via dashboard (values in local file) to avoid fragile spec YAML surgery. Cloudflare Access left as guided-manual (account-shape specific). Nothing runs until the token file is filled; production stays design-only.
