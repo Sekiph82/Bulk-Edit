@@ -40,7 +40,7 @@ function isAppPath(pathname: string): boolean {
 
 export function middleware(req: NextRequest) {
   const host = hostname(req);
-  const { pathname, search } = req.nextUrl;
+  const { pathname } = req.nextUrl;
 
   // Dev / preview hosts: do nothing (keeps localhost:3100 + DO/Vercel previews working).
   if (!isProductionDomain(host)) {
