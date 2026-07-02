@@ -1,3 +1,11 @@
+import os
+
+# Deterministic, valid, NON-SECRET Fernet key for tests only. Set before app
+# config/encryption is imported below. `setdefault` means an explicit env var
+# (e.g. CI) still wins, and production never loads conftest, so the real
+# ENCRYPTION_KEY requirement is unaffected.
+os.environ.setdefault("ENCRYPTION_KEY", "uOv7K6PYL6v4G77O0WqJrA5BrM42x3NCAQZUSO2rTio=")
+
 import pytest
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker

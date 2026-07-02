@@ -94,7 +94,26 @@ For local Docker development, the `.env` file at the repo root is mounted into a
 | `NEXT_PUBLIC_BACKEND_URL` | `http://localhost:8100` | `https://api.bulkeditapp.com` | Frontend → backend URL (exposed to browser) |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3100` | `https://www.bulkeditapp.com` | Canonical app URL (used in emails) |
 
-The frontend reads `NEXT_PUBLIC_BACKEND_URL` at build/runtime (`apps/frontend/lib/api.ts`) and falls back to `http://localhost:8100` only when unset. Production builds must set it to `https://api.bulkeditapp.com` — no production URL is hardcoded.
+The frontend reads `NEXT_PUBLIC_BACKEND_URL` at build/runtime (`apps/frontend/lib/api.ts`) and falls back to `http://localhost:8100` only when unset. Production URL is not hardcoded.
+
+### Environment mode + subdomain model (DigitalOcean)
+
+The production domain split (from the DigitalOcean migration — see `DIGITALOCEAN_DEPLOY.md`):
+
+| Host | Serves | `NEXT_PUBLIC_BACKEND_URL` |
+|---|---|---|
+| `bulkeditapp.com` / `www` | Marketing (www 301→apex) | — |
+| `app.bulkeditapp.com` | Private app | `https://api.bulkeditapp.com` |
+| `api.bulkeditapp.com` | Backend API | — |
+| `staging.bulkeditapp.com` | Staging app | `https://api-staging.bulkeditapp.com` |
+| `api-staging.bulkeditapp.com` | Staging API | — |
+
+| Variable | Values | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_APP_ENV` | `staging` \| `production` | Drives the staging banner + host-aware behavior. `staging` shows the "STAGING - NOT PRODUCTION" banner and forces noindex. |
+| `ENVIRONMENT` (backend) | `local` \| `staging` \| `production` | Backend mode; staging must use test/dev credentials only. |
+
+Host routing, `www`→apex redirect, and `X-Robots-Tag: noindex` for app/staging are handled by `apps/frontend/middleware.ts`; per-host `robots.txt` by `apps/frontend/app/robots.ts`.
 
 ### CORS
 

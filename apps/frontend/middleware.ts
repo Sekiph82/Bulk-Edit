@@ -1,0 +1,85 @@
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+// Host-based routing for the bulkeditapp.com domain model.
+//   bulkeditapp.com        -> public marketing/SEO (indexable)
+//   www.bulkeditapp.com    -> 301 redirect to apex
+//   app.bulkeditapp.com    -> private SaaS app (noindex)
+//   staging.bulkeditapp.com-> staging app (noindex, whole host)
+// Local dev (localhost) and preview hosts (*.ondigitalocean.app, *.vercel.app)
+// pass through UNCHANGED so nothing breaks outside production DNS.
+
+const APEX = "bulkeditapp.com";
+const WWW = "www.bulkeditapp.com";
+const APP = "app.bulkeditapp.com";
+const STAGING = "staging.bulkeditapp.com";
+
+// Authenticated product routes (the app/(app) group + auth pages).
+// Requests for these on the apex marketing host are sent to the app subdomain.
+const APP_PREFIXES = [
+  "/dashboard", "/listings", "/bulk-edit", "/bulk-create", "/media", "/ai",
+  "/csv", "/variations", "/pricing-rules", "/profit", "/insights",
+  "/listing-health", "/scheduled", "/promote", "/video-generator", "/shops",
+  "/billing", "/admin", "/login", "/register",
+];
+
+const NOINDEX = "noindex, nofollow";
+
+function hostname(req: NextRequest): string {
+  const h = req.headers.get("host") || "";
+  return h.split(":")[0].toLowerCase();
+}
+
+function isProductionDomain(host: string): boolean {
+  return host === APEX || host === WWW || host === APP || host === STAGING;
+}
+
+function isAppPath(pathname: string): boolean {
+  return APP_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
+export function middleware(req: NextRequest) {
+  const host = hostname(req);
+  const { pathname } = req.nextUrl;
+
+  // Dev / preview hosts: do nothing (keeps localhost:3100 + DO/Vercel previews working).
+  if (!isProductionDomain(host)) {
+    return NextResponse.next();
+  }
+
+  // www -> apex (301), preserve path + query
+  if (host === WWW) {
+    const url = new URL(req.url);
+    url.hostname = APEX;
+    url.protocol = "https:";
+    url.port = "";
+    return NextResponse.redirect(url, 301);
+  }
+
+  // Apex marketing host: bounce app routes to the app subdomain.
+  if (host === APEX && isAppPath(pathname)) {
+    const url = new URL(req.url);
+    url.hostname = APP;
+    url.protocol = "https:";
+    url.port = "";
+    return NextResponse.redirect(url, 307);
+  }
+
+  const res = NextResponse.next();
+
+  // Private + staging hosts must never be indexed.
+  if (host === APP || host === STAGING) {
+    res.headers.set("X-Robots-Tag", NOINDEX);
+  }
+  // Staging: also mark app-env for downstream (banner is driven by build env too).
+  if (host === STAGING) {
+    res.headers.set("X-App-Env", "staging");
+  }
+
+  return res;
+}
+
+export const config = {
+  // Run on everything except static assets and Next internals.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\..*).*)"],
+};

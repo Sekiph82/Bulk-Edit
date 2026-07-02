@@ -1,0 +1,43 @@
+# DigitalOcean App Platform - STAGING FRONTEND (staging.bulkeditapp.com)
+# Apply:  doctl apps create --spec .do/app.staging-frontend.yaml
+#
+# Next.js Node web service (NOT static export) - required for host-based routing
+# middleware, redirects, noindex headers, and the staging banner.
+
+name: bulk-edit-staging-web
+region: nyc
+
+domains:
+  - domain: staging.bulkeditapp.com
+    type: PRIMARY
+
+services:
+  - name: web
+    github:
+      repo: Sekiph82/Bulk-Edit
+      branch: staging
+      deploy_on_push: true
+    source_dir: apps/frontend
+    environment_slug: node-js
+    build_command: npm ci && npm run build
+    run_command: npm start
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /
+      initial_delay_seconds: 30
+      period_seconds: 15
+    envs:
+      # Drives the "STAGING ENVIRONMENT - NOT PRODUCTION" banner + noindex.
+      - key: NEXT_PUBLIC_APP_ENV
+        value: staging
+      - key: NEXT_PUBLIC_BACKEND_URL
+        value: https://api-staging.bulkeditapp.com
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://staging.bulkeditapp.com
+      - key: NODE_ENV
+        value: production
+
+# Protection: Cloudflare Access sits in front of staging.bulkeditapp.com.
+# noindex is still enforced by middleware.ts (X-Robots-Tag) + robots.ts (Disallow: /).

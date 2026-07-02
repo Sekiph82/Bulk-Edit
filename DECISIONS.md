@@ -540,3 +540,12 @@ Added scripts/prepare-deploy-secrets.ps1 + deploy-production.ps1 + smoke-product
 
 ### [DEPLOY] Render env vars via local file, not bulk API PUT
 Render's PUT /v1/services/{id}/env-vars replaces ALL env vars — would clobber the blueprint-wired DATABASE_URL/REDIS_URL (values we don't hold). So deploy-production.ps1 does NOT auto-set Render env via API; it writes scripts/output/render-env-to-set.local.txt (gitignored, local-only, secrets) for dashboard paste. Render API is still used for owner validation, custom-domain add, and deploy trigger (non-destructive). Vercel's 2 public env vars ARE set via CLI (safe, non-secret).
+
+### [DEPLOY] Migrating to DigitalOcean App Platform + Cloudflare (Vercel/Render kept as reference)
+Final hosting: DO App Platform (2 apps/env: Next.js Node web + FastAPI api), managed PG + managed Redis/Valkey (Upstash fallback), Cloudflare DNS/Access/email. Subdomain split: bulkeditapp.com marketing, www 301->apex, app.bulkeditapp.com app, api.bulkeditapp.com API; staging.* + api-staging.*. One Next app serves all frontend hosts via middleware.ts host routing. Migrations run in a PRE_DEPLOY job (alembic upgrade head), not web start. Specs in .do/. Production specs design-only until staging gate passes.
+
+### [SECURITY] Staging protection = Access on frontend + strict CORS on API (option 2)
+staging.bulkeditapp.com behind Cloudflare Access. api-staging.bulkeditapp.com stays reachable for browser XHR, protected by strict CORS (only https://staging.bulkeditapp.com), JWT, noindex, staging-only DB/Redis, Stripe test keys, optional CF WAF. Shared-domain Access cookie approach deferred. Refresh-token httpOnly cookie migration deferred to Phase 2 (documented risk; keep current flow, harden CSP later).
+
+### [WORKFLOW] Branch model: feature/* -> staging -> main; no direct main push
+staging + main protected (manual GitHub settings in GITHUB_SETUP_CHECKLIST.md). Dependabot + CodeQL target staging. Phase 0/1 work done on feature/phase0-1-scaffold, PR into staging (not main).
