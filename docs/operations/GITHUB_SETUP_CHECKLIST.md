@@ -3,6 +3,15 @@
 These are dashboard settings that code cannot set. Do them once. They enforce the
 workflow in `GIT_WORKFLOW.md`.
 
+> **STATUS: COMPLETED 2026-07-02.** Verified from the public rulesets API:
+> - `main` ruleset active — PR required, 1 approval, 5 required checks (Backend Tests,
+>   Frontend Lint & Build, Docker Compose Validate, Analyze python, Analyze js-ts),
+>   no force-push, no deletion.
+> - `staging` ruleset active — same rules.
+> Owner-confirmed (not API-visible): Secret scanning + Push protection enabled,
+> Dependabot alerts + security updates enabled, Actions workflow permissions
+> read-only, Actions cannot create/approve PRs. CI + CodeQL green on staging `faf5dae`.
+
 ## 1. Branches
 
 - [ ] Confirm `staging` branch exists (pushed).
