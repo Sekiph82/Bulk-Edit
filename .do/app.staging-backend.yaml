@@ -93,11 +93,13 @@ databases:
     engine: PG
     version: "16"
     production: false
-  # Staging-only Redis/Valkey. If DO managed Redis is incompatible with the
-  # client/Celery, replace this block with an Upstash REDIS_URL SECRET (see docs).
+  # Staging-only Redis/Valkey. DO no longer offers an inline dev-tier Redis
+  # attached to the app; it must be a pre-existing standalone managed cluster
+  # referenced by cluster_name (created via `doctl databases create`).
   - name: staging-redis
-    engine: REDIS
-    production: false
+    engine: VALKEY
+    production: true
+    cluster_name: staging-redis
 
 # ─────────────────────────────────────────────────────────────────────────────
 # REQUIRED SECRETS - set in DO dashboard as encrypted SECRET env vars (do NOT
