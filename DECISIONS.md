@@ -4,6 +4,22 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-07-03 (DigitalOcean + Cloudflare staging provisioning)
+
+### [DEVOPS] Staging Redis is a standalone DO Valkey cluster, referenced via `cluster_name`, not an inline app-spec database
+DO App Platform removed the ability to attach an inline dev-tier Redis database directly in an app spec (`REDIS must be a production database`, then requires `cluster_name` pointing at a pre-existing cluster). Postgres is unaffected and stays inline/dev-tier. Cluster: `staging-redis`, engine valkey, db-s-1vcpu-1gb, 1 node, nyc1, ~$15/mo.
+
+### [DEVOPS] asyncpg DATABASE_URL normalizer renames `sslmode` to `ssl`, does not collapse to true/false
+asyncpg's `connect()` has no `sslmode` kwarg but its `ssl` kwarg accepts the exact same libpq strings (`disable/allow/prefer/require/verify-ca/verify-full`) directly — confirmed by reading asyncpg 0.30.0 source. Renaming preserves exact semantics; collapsing to `ssl=true`/`ssl=false` would have been wrong (asyncpg's `SSLMode.parse("true")` raises — `"true"` isn't a valid libpq mode name).
+
+### [DEVOPS] Frontend `build_command` is `npm ci --include=dev && npm run build`, not plain `npm ci`
+DO's app spec exports `NODE_ENV=production` as a build-time env var, active for the whole build_command. A plain `npm ci` under `NODE_ENV=production` silently skips `devDependencies` — including `typescript`, which Next.js needs to read `tsconfig.json` for the `@/*` import alias. Without it, `@/` imports fail with "Module not found" while relative imports still work. Applied to both staging (deployed) and production (design-only) frontend specs for consistency.
+
+### [DEVOPS] Both staging custom-domain DNS records (`api-staging`, `staging`) are DNS-only (grey cloud), not proxied
+DO App Platform's domain verification does a literal CNAME lookup before issuing a certificate. Cloudflare's proxy masks CNAMEs as A-records at the edge, so a proxied record makes DO's `verify-cname` step hang indefinitely on `DomainCNAMENotFound`. Switching to DNS-only let verification complete in ~2 min both times. Whether it's safe to switch to proxied *after* verification completes is untested — do not assume yes without checking DO doesn't re-verify and break.
+
+---
+
 ## 2026-06-30 (One-click startup reliability)
 
 ### [DEVOPS] postgres/redis use `expose:` not `ports:` in docker-compose.yml

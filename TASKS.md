@@ -631,6 +631,28 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
+## Sprint 27: DigitalOcean + Cloudflare Staging Provisioning
+
+**Status:** `[~] IN PROGRESS — blocked on Cloudflare Access token scope`
+
+- [x] PR #4: staging provisioning automation scripts + docs
+- [x] Fill `deploy-staging.local.env`, install doctl, fix DO token scope
+- [x] Approve + create staging DO resources (backend app, standalone Valkey cluster, inline Postgres)
+- [x] PR #5: fix backend spec for standalone Valkey `cluster_name` reference
+- [x] PR #6: fix asyncpg `sslmode`→`ssl` DATABASE_URL translation
+- [x] Backend `bulk-edit-staging-api` deployed ACTIVE, healthy, custom domain `api-staging.bulkeditapp.com` live
+- [x] PR #7: tsconfig baseUrl (wrong first guess, harmless, kept)
+- [x] PR #8: fix frontend `build_command` (`npm ci --include=dev`) — real fix for DO buildpack alias resolution
+- [x] Frontend `bulk-edit-staging-web` deployed ACTIVE, healthy, custom domain `staging.bulkeditapp.com` live
+- [x] Cloudflare DNS for both custom domains (DNS-only, required for DO cert verification)
+- [ ] Cloudflare Access on `staging.bulkeditapp.com` only — **BLOCKED**, token needs `Account → Access: Apps and Policies → Edit` scope (see HANDOFF.md)
+- [ ] Decide DNS proxy mode post-verification
+- [ ] `scripts/smoke-staging.ps1`
+- [ ] Investigate/resolve unexplained `sea-lion-app` DO app (needs user approval to delete)
+- [ ] Phase 2 Security Hardening
+
+---
+
 ## Backlog / Future
 - [ ] Shopify integration
 - [ ] Multi-language support

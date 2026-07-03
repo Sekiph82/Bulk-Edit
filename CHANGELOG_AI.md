@@ -4,6 +4,27 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-07-03 Staging fully provisioned end-to-end (DigitalOcean + Cloudflare)
+
+**PRs:** #4 (merged earlier), #5, #6, #7, #8 — all squash-merged into `staging`, none touched `main`.
+
+### Backend live: `bulk-edit-staging-api`
+- Created DO App Platform app from `.do/app.staging-backend.yaml`, region nyc, basic-xxs.
+- **PR #5:** DO no longer allows an inline dev-tier Redis in an app spec (`REDIS must be a production database`, then requires `cluster_name`). Created standalone Valkey cluster `staging-redis` (db-s-1vcpu-1gb, nyc1) via `doctl databases create`, spec now references it via `cluster_name`.
+- Incident: a `doctl databases create --wait` background log printed the cluster's password once when displayed — remediated by delete + recreate (cluster was empty/unused, guaranteed rotation).
+- **PR #6:** DO's managed Postgres URL includes `?sslmode=require`; asyncpg has no `sslmode` kwarg (only `ssl`, which accepts the same libpq strings). Fixed `apps/backend/app/core/config.py` to rename the query key.
+- Custom domain `api-staging.bulkeditapp.com` live via Cloudflare CNAME (DNS-only — DO's domain verification needs a visible CNAME, which a proxied record hides). Health, readiness, DB, Redis all 200. CORS correct.
+
+### Frontend live: `bulk-edit-staging-web`
+- Created DO App Platform app from `.do/app.staging-frontend.yaml`.
+- Build failed on DO only: `Module not found: Can't resolve '@/lib/api'`. Ruled out a code bug (clean container + fresh clone built fine). **PR #7** (wrong first guess): added `tsconfig.json` `baseUrl` — didn't fix it. **PR #8** (real fix): DO sets `NODE_ENV=production` as a build-time env var, so the `npm ci` half of `build_command` skips devDependencies including `typescript`, which Next.js needs for the `@/*` alias. Fixed with `npm ci --include=dev`, mirrored in the production spec (design-only, not deployed).
+- Custom domain `staging.bulkeditapp.com` live via Cloudflare CNAME (DNS-only, same reason). robots.txt, noindex header, staging banner, and API wiring (points at `api-staging`, not prod) all confirmed.
+
+### Blocked, session paused here
+- Cloudflare Access for `staging.bulkeditapp.com` — `CLOUDFLARE_API_TOKEN` lacks the Access scope. See `HANDOFF.md` RESUME HERE for exact next steps.
+
+---
+
 ## 2026-06-30 Fix: Port conflict + demo login seeding for one-click startup
 
 **Commits:** e7d5111, aa93aee, 32c0e49

@@ -1,33 +1,40 @@
 # HANDOFF.md — Session Handoff
 
-## RESUME HERE — 2026-07-02 (DigitalOcean + Cloudflare staging)
+## RESUME HERE — 2026-07-03 (staging fully live, blocked only on Cloudflare Access token scope)
 
-**Where we are:** Guardrails done; staging deploy scaffolding + automation built; **nothing provisioned yet** (blocked on DO/Cloudflare tokens + paid-resource approval). Production untouched, design-only.
+**Where we are:** Staging is fully live end-to-end — backend + frontend + both custom domains, verified working together. Only remaining step is Cloudflare Access on the staging frontend, blocked on a token permission gap. Production untouched, still design-only. **When user says "continue", pick up at "Next action" below.**
 
-**Branches / PRs:**
-- `main` = `11c70da` (protected, unchanged — do NOT touch).
-- `staging` = `dac28bb` (protected; PR required, 0 approvals, 5 checks, no force/delete).
-- **PR #3 MERGED** → staging (docs: STAGING_PROVISIONING.md + guardrail status).
-- **PR #4 OPEN** (`feature/staging-automation` → staging): staging provisioning automation. Not merged. Needs 5 checks green.
-- Current local branch: `feature/staging-automation`.
+**Live staging resources:**
+- Backend: DO app `bulk-edit-staging-api` (ID `826e6dad-9331-4222-822e-50374318b3cb`), ACTIVE, healthy (`/api/v1/health`, `/health/ready`, `/health/db`, `/health/redis` all 200). Custom domain `https://api-staging.bulkeditapp.com` live, DO domain phase ACTIVE, cert issued.
+- Frontend: DO app `bulk-edit-staging-web` (ID `398ee071-c10a-47fe-9c54-74cf7286b77c`), ACTIVE, healthy. Custom domain `https://staging.bulkeditapp.com` live, DO domain phase ACTIVE, cert issued. `robots.txt` disallows all, `X-Robots-Tag: noindex`, staging banner visible, JS bundle correctly points at `api-staging` (no prod API reference).
+- Standalone Valkey cluster `staging-redis` (ID `e08f5f3e-951a-4e59-8dc6-4560ae19743c`), online, nyc1, db-s-1vcpu-1gb, referenced by the backend app via `cluster_name`.
+- Postgres `staging-db`: inline dev-tier database bound to the backend app (not a standalone cluster, won't show in `doctl databases list`).
+- Cloudflare DNS: `api-staging` → `bulk-edit-staging-api-q66zi.ondigitalocean.app`, `staging` → `bulk-edit-staging-web-ttwrd.ondigitalocean.app`. **Both DNS-only (grey cloud)** — required by DO's domain verification (it does a literal CNAME lookup; Cloudflare's proxy masks CNAMEs as A-records, which breaks verification). Untested whether flipping to proxied after verification is safe.
+- CORS confirmed correct on both: `staging.bulkeditapp.com` origin allowed, random origins denied.
 
-**Tooling state:** `gh` installed + authed (user `Sekiph82`, ADMIN). `doctl` NOT installed (winget lacks it → use `scoop install doctl` or GitHub releases). No DO/Cloudflare tokens yet.
+**BLOCKED — next action:** Cloudflare Access for `staging.bulkeditapp.com` only (not `api-staging`). The `CLOUDFLARE_API_TOKEN` in `deploy-staging.local.env` lacks Access permission — confirmed via `GET /accounts/{id}/access/apps` and `.../access/groups`, both return `Authentication error` (code 10000). **User needs to:** Cloudflare dashboard → My Profile → API Tokens → edit (or create new) token → add **Account → Access: Apps and Policies → Edit** scope → update the token value in `deploy-staging.local.env` (gitignored, never pasted in chat). Once done, user will say "continue" and Claude should re-run the same two read-only Access endpoint checks first to confirm the new scope before creating anything.
 
-**Guardrails (done, verified):** main+staging rulesets active; secret scanning + push protection + Dependabot alerts/security updates on; Actions read-only. CI + CodeQL green on staging.
+**Once unblocked, the plan (already scoped/approved by user):**
+1. Create Access application: name "Bulk Edit Staging", domain `staging.bulkeditapp.com`, path `/*`, 24h session.
+2. Create Access policy: name "Allow staging testers", action allow, emails from `CLOUDFLARE_STAGING_ACCESS_ALLOWED_EMAILS` in `deploy-staging.local.env` (report count only, never print the list).
+3. Do NOT protect `api-staging` — it stays public, relies on CORS.
+4. Do NOT change DNS proxy mode unless Access requires it — if it does, STOP and ask first (implications for DO cert/domain status).
+5. Test: unauthenticated request to staging frontend should hit Access login/redirect, not the raw app. Confirm `api-staging` and both DNS records unchanged.
 
-**Exact next steps (in order):**
-1. Merge PR #4 into staging (after checks green) — user action (or `gh pr merge 4 --squash`).
-2. User fills `deploy-staging.local.env` (gitignored): DIGITALOCEAN_ACCESS_TOKEN, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID, CLOUDFLARE_ACCOUNT_ID (+ optional sk_test_/etsy/AI). Run `scripts/prepare-staging-secrets.ps1`.
-3. Install `doctl` (`scoop install doctl`).
-4. **Approve DO cost** (~$10–40/mo staging) before creating paid resources.
-5. Run `scripts/provision-staging.ps1` (I can drive it; pause for price OK before create).
-6. DO dashboard: set backend SECRET env vars (values from local file), attach `api-staging` + `staging` custom domains.
-7. Cloudflare: SSL Full(strict); Access on `staging.bulkeditapp.com` only (api-staging stays public + strict CORS).
-8. Run `scripts/smoke-staging.ps1`. Then → Phase 2 Security Hardening.
+**Two real bugs fixed this session (both merged to staging, useful context if anything regresses):**
+1. DO App Platform no longer allows inline dev-tier Redis in an app spec — needed a standalone Valkey cluster + `cluster_name` reference (PR #5). Also: a `doctl databases create --wait` background log leaked the Redis password once when displayed — remediated by delete+recreate; lesson learned, always pipe DO CLI output through a URI-redaction filter.
+2. DO's managed Postgres URLs include `?sslmode=require`, which crashes asyncpg (`sslmode` isn't a valid kwarg — `ssl` is, and accepts the same values) — fixed in `apps/backend/app/core/config.py` (PR #6).
+3. Frontend build failed on DO only (`Module not found: Can't resolve '@/lib/api'`) — root cause was `NODE_ENV=production` (set as a build-time env var) making `npm ci` skip devDependencies including `typescript`, which Next.js needs to read `tsconfig.json` for the `@/*` alias. Fixed via `build_command: npm ci --include=dev && npm run build` in both `.do/app.staging-frontend.yaml` and `.do/app.production-frontend.yaml` (design-only) — PR #8. (PR #7's `tsconfig.json` `baseUrl` addition was a wrong first guess, harmless, left in place.)
 
-**Key files:** `docs/operations/STAGING_AUTOMATION.md` (run guide), `STAGING_PROVISIONING.md` (manual), `.do/app.staging-*.yaml`, `scripts/{prepare-staging-secrets,provision-staging,smoke-staging}.ps1`.
+**Also noted, not yet acted on:** `sea-lion-app` (DO app ID `47608875-...`, region fra, empty, no services/domains) appeared in the account around when the user authorized DO's GitHub App in the browser — looks like a side effect of that flow, unrelated to Bulk-Edit. Left untouched, needs explicit user approval before deleting.
 
-**Rules still active:** no direct push to main/staging (PR only); production design-only; no sk_live_; fresh private ENCRYPTION_KEY (never the public CI key `uOv7…`); secrets never printed/committed.
+**Rules still active:** no direct push to main/staging (PR only, squash merge); production design-only; no sk_live_; fresh private ENCRYPTION_KEY (never the public CI key `uOv7…`); secrets never printed/committed; `deploy-staging.local.env` stays gitignored/local-only.
+
+Full detail in auto-memory `staging-provisioning-state.md` (kept current throughout this session).
+
+---
+
+## Previous Session — 2026-07-02
 
 ---
 

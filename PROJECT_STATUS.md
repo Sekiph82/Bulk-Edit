@@ -2,15 +2,17 @@
 
 ## Current Phase
 
-**One-click startup reliability COMPLETE (2026-06-30). Port conflict fixed. Demo login seeding fixed. 45/45 tests pass.**
+**Staging fully provisioned end-to-end on DigitalOcean + Cloudflare (2026-07-03). Backend + frontend both ACTIVE and healthy at their custom domains. BLOCKED on Cloudflare Access token scope — see HANDOFF.md RESUME HERE.**
 
 ## Status
 
-`Sprint 26 polish complete. video_renderer.py: ASPECT_RATIO_PRESETS {9:16→1080×1920, 1:1→1080×1080, 4:5→1080×1350, 16:9→1920×1080}, check_etsy_ready() returning (bool, list[str]), render_slideshow_mp4() now returns dict {output_path, file_size_bytes, width, height}. VideoRender model: added aspect_ratio, width, height, is_etsy_ready, etsy_issues_json columns. Migration 0017. video_generator.py: duration validation (5–15s → 400), aspect ratio validation (→ 400), is_etsy_ready + etsy_issues in render status response (file_path/stored_filename never exposed), templates endpoint returns aspect_ratios + etsy_specs + renderer_enabled/available, status returns renderer_enabled + renderer_available. promote.py: /config-status endpoint added. Frontend video-generator: format selector (9:16 default), duration input min=5/max=15/helper text, EtsyReadyChecklist component with 5 checks. promote page: 4 state-specific copy blocks per platform (not_configured/not_connected/connected/expired), always-visible Instagram Business/Creator note, fallback copy+download row always visible. 747/747 backend tests (130 new). TypeScript: 0 errors.`
+`Sprint 26 polish complete. video_renderer.py: ASPECT_RATIO_PRESETS {9:16→1080×1920, 1:1→1080×1080, 4:5→1080×1350, 16:9→1920×1080}, check_etsy_ready() returning (bool, list[str]), render_slideshow_mp4() now returns dict {output_path, file_size_bytes, width, height}. VideoRender model: added aspect_ratio, width, height, is_etsy_ready, etsy_issues_json columns. Migration 0017. video_generator.py: duration validation (5–15s → 400), aspect ratio validation (→ 400), is_etsy_ready + etsy_issues in render status response (file_path/stored_filename never exposed), templates endpoint returns aspect_ratios + etsy_specs + renderer_enabled/available, status returns renderer_enabled + renderer_available. promote.py: /config-status endpoint added. Frontend video-generator: format selector (9:16 default), duration input min=5/max=15/helper text, EtsyReadyChecklist component with 5 checks. promote page: 4 state-specific copy blocks per platform (not_configured/not_connected/connected/expired), always-visible Instagram Business/Creator note, fallback copy+download row always visible. 747/747 backend tests (130 new). TypeScript: 0 errors.
+
+Infra (2026-07-03): bulk-edit-staging-api + bulk-edit-staging-web both ACTIVE on DO App Platform, live at https://api-staging.bulkeditapp.com and https://staging.bulkeditapp.com. Standalone Valkey cluster staging-redis online. Cloudflare DNS-only CNAMEs for both custom domains. Cloudflare Access on the frontend blocked on token scope — resume point in HANDOFF.md.`
 
 ## Last Updated
 
-2026-06-30
+2026-07-03
 
 ## Active Skills
 
