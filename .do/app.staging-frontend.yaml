@@ -19,7 +19,12 @@ services:
       deploy_on_push: true
     source_dir: apps/frontend
     environment_slug: node-js
-    build_command: npm ci && npm run build
+    # --include=dev: NODE_ENV=production (below) is exported for the whole
+    # build step, so a plain `npm ci` here silently skips devDependencies —
+    # including `typescript`, which `next build` needs to read tsconfig.json
+    # for `@/*` path-alias resolution. Without it, `@/` imports fail with
+    # "Module not found" while relative imports still work.
+    build_command: npm ci --include=dev && npm run build
     run_command: npm start
     http_port: 3000
     instance_count: 1
