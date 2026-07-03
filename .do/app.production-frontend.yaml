@@ -25,7 +25,10 @@ services:
       deploy_on_push: true
     source_dir: apps/frontend
     environment_slug: node-js
-    build_command: npm ci && npm run build
+    # --include=dev: see .do/app.staging-frontend.yaml — NODE_ENV=production
+    # (below) makes a plain `npm ci` skip devDependencies (incl. `typescript`,
+    # needed for tsconfig `@/*` alias resolution), breaking the build.
+    build_command: npm ci --include=dev && npm run build
     run_command: npm start
     http_port: 3000
     instance_count: 2
