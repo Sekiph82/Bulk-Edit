@@ -1,7 +1,10 @@
 import json
 from typing import List
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
+
+_VALID_SSLMODES = {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"}
 
 
 class Settings(BaseSettings):
@@ -116,21 +119,54 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
     def _force_asyncpg_driver(cls, v: str) -> str:
-        """Normalize the DB scheme to the async driver.
+        """Normalize the DB scheme to the async driver and translate sslmode.
 
-        Managed Postgres providers (Render, Neon, Supabase, Heroku) hand out
-        connection strings as ``postgres://`` or ``postgresql://``. SQLAlchemy's
-        async engine requires the ``postgresql+asyncpg://`` scheme. Rewrite the
-        scheme so a raw provider URL works unchanged; leave any explicit
-        ``+driver`` (e.g. the local ``postgresql+asyncpg://``) untouched.
+        Managed Postgres providers (Render, Neon, Supabase, Heroku,
+        DigitalOcean) hand out connection strings as ``postgres://`` or
+        ``postgresql://``, often with a libpq-style ``sslmode`` query param.
+        SQLAlchemy's async engine requires the ``postgresql+asyncpg://``
+        scheme, and asyncpg's ``connect()`` has no ``sslmode`` keyword (only
+        ``ssl``) — SQLAlchemy's asyncpg dialect passes URL query params
+        straight through as connect() kwargs, so an untranslated ``sslmode``
+        raises ``TypeError: unexpected keyword argument 'sslmode'``.
         """
         if v.startswith("postgresql+"):
+            rewritten = v
+        elif v.startswith("postgresql://"):
+            rewritten = "postgresql+asyncpg://" + v[len("postgresql://"):]
+        elif v.startswith("postgres://"):
+            rewritten = "postgresql+asyncpg://" + v[len("postgres://"):]
+        else:
             return v
-        if v.startswith("postgresql://"):
-            return "postgresql+asyncpg://" + v[len("postgresql://"):]
-        if v.startswith("postgres://"):
-            return "postgresql+asyncpg://" + v[len("postgres://"):]
-        return v
+        return cls._translate_sslmode(rewritten)
+
+    @staticmethod
+    def _translate_sslmode(url: str) -> str:
+        """Rename the libpq-style ``sslmode`` query param to ``ssl``.
+
+        asyncpg's ``ssl`` keyword accepts the same libpq mode strings
+        (disable/allow/prefer/require/verify-ca/verify-full) directly, so
+        only the key needs renaming — the value passes through unchanged.
+        An ``ssl`` param, if already present, is left alone. An unrecognized
+        ``sslmode`` value is dropped rather than passed through, so asyncpg
+        falls back to its own default instead of raising.
+        """
+        parts = urlsplit(url)
+        if "sslmode" not in parts.query:
+            return url
+        pairs = parse_qsl(parts.query, keep_blank_values=True)
+        has_ssl = any(k == "ssl" for k, _ in pairs)
+        sslmode = None
+        kept = []
+        for k, val in pairs:
+            if k == "sslmode":
+                sslmode = val.lower()
+                continue
+            kept.append((k, val))
+        if not has_ssl and sslmode in _VALID_SSLMODES:
+            kept.append(("ssl", sslmode))
+        new_query = urlencode(kept)
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
 
     def get_cors_origins(self) -> List[str]:
         v = self.BACKEND_CORS_ORIGINS.strip()
