@@ -16,6 +16,16 @@ deploy-secrets.*.env
 scripts/output/*
 !scripts/output/.gitkeep
 
+# Staging provisioning local secrets (NEVER commit; example is the only tracked one)
+deploy-staging.local.env
+*.local.env
+!*.local.env.example
+*secrets*.env
+.doctl/
+.cloudflared/
+cloudflare-token*
+digitalocean-token*
+
 # Local superuser seed (never commit real credentials)
 apps/backend/.local-superusers.env
 .local-superusers.env

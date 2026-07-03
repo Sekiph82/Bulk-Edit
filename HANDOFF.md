@@ -1,5 +1,36 @@
 # HANDOFF.md — Session Handoff
 
+## RESUME HERE — 2026-07-02 (DigitalOcean + Cloudflare staging)
+
+**Where we are:** Guardrails done; staging deploy scaffolding + automation built; **nothing provisioned yet** (blocked on DO/Cloudflare tokens + paid-resource approval). Production untouched, design-only.
+
+**Branches / PRs:**
+- `main` = `11c70da` (protected, unchanged — do NOT touch).
+- `staging` = `dac28bb` (protected; PR required, 0 approvals, 5 checks, no force/delete).
+- **PR #3 MERGED** → staging (docs: STAGING_PROVISIONING.md + guardrail status).
+- **PR #4 OPEN** (`feature/staging-automation` → staging): staging provisioning automation. Not merged. Needs 5 checks green.
+- Current local branch: `feature/staging-automation`.
+
+**Tooling state:** `gh` installed + authed (user `Sekiph82`, ADMIN). `doctl` NOT installed (winget lacks it → use `scoop install doctl` or GitHub releases). No DO/Cloudflare tokens yet.
+
+**Guardrails (done, verified):** main+staging rulesets active; secret scanning + push protection + Dependabot alerts/security updates on; Actions read-only. CI + CodeQL green on staging.
+
+**Exact next steps (in order):**
+1. Merge PR #4 into staging (after checks green) — user action (or `gh pr merge 4 --squash`).
+2. User fills `deploy-staging.local.env` (gitignored): DIGITALOCEAN_ACCESS_TOKEN, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID, CLOUDFLARE_ACCOUNT_ID (+ optional sk_test_/etsy/AI). Run `scripts/prepare-staging-secrets.ps1`.
+3. Install `doctl` (`scoop install doctl`).
+4. **Approve DO cost** (~$10–40/mo staging) before creating paid resources.
+5. Run `scripts/provision-staging.ps1` (I can drive it; pause for price OK before create).
+6. DO dashboard: set backend SECRET env vars (values from local file), attach `api-staging` + `staging` custom domains.
+7. Cloudflare: SSL Full(strict); Access on `staging.bulkeditapp.com` only (api-staging stays public + strict CORS).
+8. Run `scripts/smoke-staging.ps1`. Then → Phase 2 Security Hardening.
+
+**Key files:** `docs/operations/STAGING_AUTOMATION.md` (run guide), `STAGING_PROVISIONING.md` (manual), `.do/app.staging-*.yaml`, `scripts/{prepare-staging-secrets,provision-staging,smoke-staging}.ps1`.
+
+**Rules still active:** no direct push to main/staging (PR only); production design-only; no sk_live_; fresh private ENCRYPTION_KEY (never the public CI key `uOv7…`); secrets never printed/committed.
+
+---
+
 ## Last Session
 
 **Date:** 2026-06-30

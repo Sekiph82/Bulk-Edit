@@ -1135,3 +1135,23 @@ Frontend:
 - docs/operations/DIGITALOCEAN_DEPLOY.md, CLOUDFLARE_DNS.md; updated ENVIRONMENT.md + STAGING_DEPLOYMENT.md
 
 **Verification:** frontend lint clean, build OK (robots.txt dynamic, middleware 26.8kB), all .do/*.yaml + dependabot + codeql parse clean, no secrets in any new file. Nothing committed to main; nothing pushed.
+
+---
+
+## Staging provisioning automation (token-driven)
+
+**Branch:** feature/staging-automation (PR into staging).
+
+**Added:**
+- deploy-staging.local.env.example (template; local deploy-staging.local.env is gitignored)
+- .gitignore: deploy-staging.local.env, *.local.env, *secrets*.env, .doctl/, .cloudflared/, token files
+- scripts/prepare-staging-secrets.ps1 (create+open local env)
+- scripts/provision-staging.ps1 (validate + refuse prod/live values + generate JWT/Fernet locally +
+  doctl app create from .do specs + Cloudflare DNS CNAMEs; secrets never printed)
+- scripts/smoke-staging.ps1 (health/ready/db/redis, CORS allow+reject, robots Disallow, X-Robots noindex,
+  no prod-API, no sk_live_)
+- docs/operations/STAGING_AUTOMATION.md (fill env, tokens/scopes, run order, stop conditions, cost, rollback)
+
+**Verified:** all 3 scripts parse clean; provision safe-fails on blank env (lists missing tokens, no
+provisioning, no secrets printed); local env gitignored + untracked; example trackable; no secrets in diff.
+No provisioning executed. Production untouched.
