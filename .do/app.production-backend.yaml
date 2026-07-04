@@ -58,6 +58,11 @@ services:
         value: https://api.bulkeditapp.com/api/v1/promote/instagram/callback
       - key: AI_PROVIDER
         value: openai # set real provider + key (SECRET) at launch
+      # Product Video Generator: ffmpeg is installed in the Docker image
+      # (see apps/backend/Dockerfile) — real MP4 rendering, download only,
+      # never auto-uploaded to Etsy.
+      - key: VIDEO_RENDERER_ENABLED
+        value: "true"
 
 jobs:
   - name: migrate
