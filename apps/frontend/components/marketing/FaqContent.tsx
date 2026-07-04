@@ -112,7 +112,7 @@ const FAQ_DATA: Array<{ category: string; items: FaqItem[] }> = [
     items: [
       {
         q: "What does the Shop Insights page show?",
-        a: "The Insights page shows date-range analytics for your shop — including views, favourites, and revenue trends. You choose the date range and the data updates immediately. Insights data comes from your connected Etsy shop.",
+        a: "Shop Insights shows real data computed from your connected, synced Etsy shop — total listings, listing status breakdown, how many listings are missing tags or have low photo counts, and your price range. It does not show revenue, views, or favourites, since Etsy does not provide reliable trend data through this app's connection — we'd rather show accurate listing insights than invented analytics.",
       },
       {
         q: "What are AI credits and bulk edit credits?",
@@ -129,20 +129,7 @@ const FAQ_DATA: Array<{ category: string; items: FaqItem[] }> = [
       },
       {
         q: "Does the Video Generator automatically upload videos to Etsy?",
-        a: "No. The Video Generator creates a short product showcase video from your listing photos. You preview and download the video first, then manually decide whether to add it to your Etsy listing. Videos are never auto-uploaded.",
-      },
-    ],
-  },
-  {
-    category: "Bulk Create",
-    items: [
-      {
-        q: "What is Bulk Create and how does it work?",
-        a: "Bulk Create lets you upload a folder of product photos and quickly fill in listing details to create multiple Etsy listings at once. Each upload creates a draft for your review. No listing is published to Etsy without your explicit confirmation — the same preview-and-confirm workflow applies here.",
-      },
-      {
-        q: "Can Bulk Create publish listings to Etsy automatically?",
-        a: "No. Bulk Create creates draft listings for your review. You check each draft, make any edits, and then choose to publish when you are ready. Publishing always requires your explicit action — nothing goes live automatically.",
+        a: "No, and it can't yet — there is no automatic Etsy video upload in Bulk-Edit today. The Video Generator creates a real MP4 product showcase video from your listing photos, which you preview and download. If you want it on your Etsy listing, you upload that downloaded file yourself through Etsy's own listing editor.",
       },
     ],
   },

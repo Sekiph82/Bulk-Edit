@@ -34,8 +34,8 @@ const FEATURES: FeatureItem[] = [
   },
   {
     icon: "🖼️",
-    title: "Photo & Video Editor",
-    desc: "Add, replace, or remove listing photos and videos in bulk. Visualize the result before publishing.",
+    title: "Photo Bulk Editor",
+    desc: "Add, replace, or delete listing photos in bulk. Preview the result before publishing.",
     color: "from-amber-50 to-orange-50 border-amber-200",
   },
   {
@@ -89,7 +89,7 @@ const FEATURES: FeatureItem[] = [
   {
     icon: "📊",
     title: "Shop Insights",
-    desc: "Date-range analytics for your shop — views, favourites, and revenue trends over time.",
+    desc: "See connected Etsy shop data such as listing status, tag and photo coverage, and price range in one place.",
     color: "from-sky-50 to-blue-50 border-sky-200",
   },
   {
@@ -101,14 +101,8 @@ const FEATURES: FeatureItem[] = [
   {
     icon: "🎬",
     title: "Product Video Generator",
-    desc: "Turn listing photos into a short product video. Review the preview before saving — never auto-uploaded to Etsy.",
+    desc: "Turn listing photos into a short product video, ready to preview and download. Etsy video upload is not supported yet — you download and attach it yourself.",
     color: "from-orange-50 to-amber-50 border-orange-200",
-  },
-  {
-    icon: "✨",
-    title: "Bulk Create Listings",
-    desc: "Upload a folder of photos, fill a quick form, and create draft Etsy listings in bulk. You review and publish when ready.",
-    color: "from-lime-50 to-green-50 border-lime-200",
   },
 ];
 
@@ -211,7 +205,7 @@ export default function FeaturesContent() {
           <FadeUp className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-3">Built around your workflow</h2>
             <p className="text-gray-500 max-w-xl mx-auto">
-              Thirteen tools that work together — from first sync to bulk apply, health scoring, profit tracking, and instant revert.
+              Tools that work together — from first sync to bulk apply, health scoring, profit tracking, and instant revert.
             </p>
           </FadeUp>
 

@@ -67,8 +67,12 @@ services:
       # AI: mock or low-limit key (key itself is a SECRET, set in dashboard)
       - key: AI_PROVIDER
         value: mock
+      # Product Video Generator: ffmpeg is installed in the Docker image
+      # (see apps/backend/Dockerfile) — enabling here turns on real MP4
+      # rendering. Generated videos are downloadable, never auto-uploaded
+      # to Etsy (no such write path exists in this codebase).
       - key: VIDEO_RENDERER_ENABLED
-        value: "false"
+        value: "true"
 
 jobs:
   - name: migrate

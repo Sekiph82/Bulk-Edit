@@ -7,6 +7,22 @@ tracked plan for each.
 
 ---
 
+## -1. Bulk Create Listings — backend is a complete stub
+
+A follow-up claim audit (`feature/video-creation-shop-insights-and-claim-fixes`)
+found `apps/backend/app/api/v1/bulk_create.py` always returns
+`status: "not_configured"` from both `/status` and `/drafts` regardless of
+input — there is no real draft-creation logic behind it at all. It has been
+**removed from all public marketing copy** (homepage, `/features`, `/faq`)
+per product decision — not shown as "coming soon" either, just not
+mentioned publicly until it's real. The internal `/bulk-create` app page
+already honestly shows a "not configured" state to logged-in users, so no
+change was needed there. Building the real feature (actual draft
+persistence + Etsy listing creation via the existing preview/confirm
+pattern used elsewhere) is unscoped future work.
+
+---
+
 ## 0. Favicon / Open Graph image assets
 
 **Attempted and reverted in this PR:** a code-generated favicon (`app/icon.tsx`)
