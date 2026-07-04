@@ -31,6 +31,9 @@ apps/backend/.local-superusers.env
 .local-superusers.env
 *.local-superusers.env
 
+# Staging admin/test user temporary passwords (never commit real credentials)
+*.local.txt
+
 # Python
 __pycache__/
 *.py[cod]
