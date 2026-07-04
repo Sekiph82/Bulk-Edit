@@ -37,12 +37,17 @@ _backend_root = Path(__file__).parent.parent
 if str(_backend_root) not in sys.path:
     sys.path.insert(0, str(_backend_root))
 
-import app.models  # noqa: F401 — register all SQLAlchemy models before use
+import importlib
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.security import hash_password  # noqa: E402
 from app.models.user import User  # noqa: E402
+
+# Registers all SQLAlchemy models (side effect of the import) before any
+# query runs. Loaded via importlib rather than a bare `import app.models` so
+# static analysis doesn't flag it as an unused name binding.
+importlib.import_module("app.models")
 
 _ALLOWED_ENVIRONMENTS = {"local", "staging", "production"}
 
