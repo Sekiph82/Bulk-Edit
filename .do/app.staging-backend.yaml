@@ -13,6 +13,16 @@
 name: bulk-edit-staging-api
 region: nyc
 
+# NOTE: this domain was originally attached out-of-band via the DO dashboard
+# during initial provisioning and was NOT captured here. An `doctl apps
+# update --spec` on 2026-07-04 replaced the live spec with this file's
+# contents (which had no domains: section), which silently dropped the
+# custom-domain association and broke api-staging.bulkeditapp.com routing.
+# It is captured here now so this can never happen again.
+domains:
+  - domain: api-staging.bulkeditapp.com
+    type: PRIMARY
+
 services:
   - name: api
     github:
