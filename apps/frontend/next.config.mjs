@@ -10,7 +10,8 @@ const IS_PROD = process.env.NODE_ENV === "production";
 // - Anti-flash script sha256 (for future nonce CSP reference):
 //   sha256-tRVAlVKnDSmcZQ61d+9zNAPSQWWgJxOlnrg/ZOZsLFM=
 // - Full CSP hardening (removing 'unsafe-inline') requires Next.js middleware nonce injection.
-//   See docs/operations/LAUNCH_CHECKLIST.md — planned for post-launch Sprint 22.
+//   See docs/operations/LAUNCH_CHECKLIST.md and docs/operations/PRODUCTION_LAUNCH_FOLLOWUPS.md #7
+//   — tracked as its own pre/post-launch hardening PR, not attempted as a drive-by change.
 // - 'unsafe-eval' removed for production; only included in dev where Next.js HMR needs it.
 const scriptSrc = IS_PROD
   ? `'self' 'unsafe-inline' https://js.stripe.com`
