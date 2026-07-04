@@ -29,6 +29,15 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+_MAX_LOG_VALUE_LEN = 200
+
+
+def _safe_log_value(value: str) -> str:
+    """Strip CR/LF from user-controlled values before logging them, so a
+    crafted subject/email can't forge extra log lines (log injection).
+    """
+    return value.replace("\r", "").replace("\n", "")[:_MAX_LOG_VALUE_LEN]
+
 
 @dataclass
 class EmailResult:
@@ -42,11 +51,15 @@ def send_email(to_email: str, subject: str, body_text: str, reply_to: str | None
     Never logs SMTP_PASSWORD, message body, or the full recipient address
     (only its domain, for basic diagnostics without leaking PII).
     """
+    safe_subject = _safe_log_value(subject)
+
     if not settings.is_email_configured():
-        logger.info("Email not sent (provider disabled/unconfigured): subject=%r", subject)
+        logger.info("Email not sent (provider disabled/unconfigured): subject=%r", safe_subject)
         return EmailResult(sent=False, reason="disabled")
 
-    recipient_domain = to_email.rsplit("@", 1)[-1] if "@" in to_email else "unknown"
+    recipient_domain = _safe_log_value(
+        to_email.rsplit("@", 1)[-1] if "@" in to_email else "unknown"
+    )
 
     try:
         msg = EmailMessage()
@@ -64,10 +77,10 @@ def send_email(to_email: str, subject: str, body_text: str, reply_to: str | None
                 server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
             server.send_message(msg)
 
-        logger.info("Email sent: recipient_domain=%s subject=%r", recipient_domain, subject)
+        logger.info("Email sent: recipient_domain=%s subject=%r", recipient_domain, safe_subject)
         return EmailResult(sent=True, reason="sent")
     except Exception:
-        logger.exception("Email send failed: recipient_domain=%s subject=%r", recipient_domain, subject)
+        logger.exception("Email send failed: recipient_domain=%s subject=%r", recipient_domain, safe_subject)
         return EmailResult(sent=False, reason="error")
 
 
