@@ -141,3 +141,10 @@ async def contact_rate_limit(request: Request) -> None:
     ip = request.client.host if request.client else "unknown"
     key = _safe_key("contact", ip)
     await check_rate_limit(key, settings.RATE_LIMIT_CONTACT_PER_HOUR, 3600)
+
+
+async def forgot_password_rate_limit(request: Request) -> None:
+    from app.core.config import settings
+    ip = request.client.host if request.client else "unknown"
+    key = _safe_key("forgot-password", ip)
+    await check_rate_limit(key, settings.RATE_LIMIT_FORGOT_PASSWORD_PER_HOUR, 3600)
