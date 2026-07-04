@@ -13,96 +13,105 @@ const FEATURES: FeatureItem[] = [
     title: "Bulk Listing Editor",
     desc: "Update titles, tags, prices, descriptions, and more across hundreds of listings in one operation.",
     color: "from-indigo-50 to-blue-50 border-indigo-200",
+    href: "/features/bulk-listing-editor",
   },
   {
     icon: "🔍",
     title: "Safe Preview Engine",
     desc: "Every change is previewed before anything touches Etsy. See exactly what will change — listing by listing.",
     color: "from-violet-50 to-purple-50 border-violet-200",
+    href: "/features/safe-preview-engine",
   },
   {
     icon: "🛡️",
     title: "Backup Snapshots",
     desc: "Automatic pre-write snapshots capture the full state of each listing before any change is applied.",
     color: "from-emerald-50 to-teal-50 border-emerald-200",
+    href: "/features/backup-snapshots",
   },
   {
     icon: "↩️",
     title: "Magic Revert",
     desc: "Made a mistake? Restore any listing to its exact pre-edit state with one click. No data lost.",
     color: "from-rose-50 to-pink-50 border-rose-200",
+    href: "/features/magic-revert",
   },
   {
     icon: "🖼️",
     title: "Photo Bulk Editor",
     desc: "Add, replace, or delete listing photos in bulk. Preview the result before publishing.",
     color: "from-amber-50 to-orange-50 border-amber-200",
+    href: "/features/photo-bulk-editing",
   },
   {
     icon: "🔀",
     title: "Variation Editor",
     desc: "Bulk-adjust prices, quantities, and SKUs across variation listings. Preview per-variation diffs.",
     color: "from-cyan-50 to-sky-50 border-cyan-200",
+    href: "/features/variation-editor",
   },
   {
     icon: "🤖",
     title: "AI Listing Optimizer",
     desc: "Generate AI-powered title, description, tag, and alt text suggestions. Review every suggestion before accepting.",
     color: "from-indigo-50 to-violet-50 border-indigo-200",
+    href: "/features/ai-listing-optimization",
   },
   {
     icon: "📊",
     title: "CSV Import / Export",
     desc: "Export your listings to CSV for external editing. Import changes back as a draft bulk edit session.",
     color: "from-green-50 to-emerald-50 border-green-200",
+    href: "/features/etsy-csv-import-export",
   },
   {
     icon: "💰",
     title: "Dynamic Pricing",
     desc: "Build rule-based price recommendations. Review and approve per-listing before any price changes.",
     color: "from-yellow-50 to-amber-50 border-yellow-200",
+    href: "/features/dynamic-pricing",
   },
   {
     icon: "⏰",
     title: "Scheduled Jobs",
     desc: "Schedule safe syncs and draft creations. Jobs never auto-publish to Etsy — your approval is always required.",
     color: "from-blue-50 to-indigo-50 border-blue-200",
-  },
-  {
-    icon: "🏢",
-    title: "Admin Visibility",
-    desc: "Platform operators get a secure admin panel with paginated views of all entities. No secrets exposed.",
-    color: "from-slate-50 to-gray-50 border-slate-200",
+    href: "/features/scheduled-jobs",
   },
   {
     icon: "🩺",
     title: "Listing Health Score",
     desc: "Score every listing 0–100. Detect missing tags, weak titles, thin descriptions, and low photo counts before they cost you sales.",
     color: "from-green-50 to-teal-50 border-green-200",
+    href: "/features/listing-health-score",
   },
   {
     icon: "📈",
     title: "Profit & Cost Calculator",
     desc: "Track product cost, POD base cost, Etsy fees, shipping, and ad costs to estimate net profit and margin per listing.",
     color: "from-violet-50 to-indigo-50 border-violet-200",
+    href: "/features/profit-calculator",
   },
   {
     icon: "📊",
     title: "Shop Insights",
     desc: "See connected Etsy shop data such as listing status, tag and photo coverage, and price range in one place.",
     color: "from-sky-50 to-blue-50 border-sky-200",
+    href: "/features/shop-insights",
   },
   {
     icon: "📣",
     title: "Social Promote",
     desc: "Generate Pinterest and Instagram captions from your listings. Copy, download, or share when ready — never auto-posted.",
     color: "from-pink-50 to-rose-50 border-pink-200",
+    href: "/features/social-promote",
   },
   {
     icon: "🎬",
     title: "Product Video Generator",
     desc: "Turn listing photos into a short product video, ready to preview and download. Etsy video upload is not supported yet — you download and attach it yourself.",
     color: "from-orange-50 to-amber-50 border-orange-200",
+    href: "/features/product-video-generator",
   },
 ];
 
@@ -227,7 +236,7 @@ export default function FeaturesContent() {
                       href={f.href}
                       className="mt-3 text-xs font-medium text-indigo-600 hover:underline"
                     >
-                      Open →
+                      Learn more →
                     </Link>
                   )}
                 </motion.div>
