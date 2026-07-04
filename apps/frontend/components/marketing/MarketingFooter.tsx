@@ -13,15 +13,21 @@ const FOOTER_LINKS = {
   Account: [
     { href: "/login", label: "Sign In" },
     { href: "/register", label: "Get Started" },
-    { href: "/dashboard", label: "Dashboard" },
+  ],
+  Legal: [
+    { href: "/privacy", label: "Privacy" },
+    { href: "/terms", label: "Terms" },
   ],
 };
+
+// Dashboard/Admin are intentionally never linked here — they are private,
+// authenticated-only app routes, not public marketing pages.
 
 export default function MarketingFooter() {
   return (
     <footer className="border-t border-gray-200 bg-white">
       <div className="max-w-7xl mx-auto px-6 sm:px-8 py-14">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-10">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-8 mb-10">
           {/* Brand column */}
           <div className="col-span-2 sm:col-span-1">
             <Link
