@@ -141,7 +141,14 @@ async def reset_password(token: str, new_password: str, db: AsyncSession) -> Non
         raise AuthError("Invalid or expired reset token", 400)
     if reset_token.used_at is not None:
         raise AuthError("Invalid or expired reset token", 400)
-    if reset_token.expires_at < datetime.now(timezone.utc):
+
+    # SQLite (used in tests) returns DateTime(timezone=True) columns as
+    # naive datetimes — normalize before comparing, same fix already used
+    # in app/api/v1/promote.py for the same class of bug.
+    expires_at = reset_token.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
         raise AuthError("Invalid or expired reset token", 400)
 
     user_result = await db.execute(select(User).where(User.id == reset_token.user_id))
