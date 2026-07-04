@@ -21,6 +21,7 @@ from app.api.v1.promote import router as promote_router
 from app.api.v1.video_generator import router as video_generator_router
 from app.api.v1.bulk_create import router as bulk_create_router
 from app.api.v1.usage import router as usage_router
+from app.api.v1.contact import router as contact_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(health_router)
@@ -45,3 +46,4 @@ api_router.include_router(promote_router)
 api_router.include_router(video_generator_router)
 api_router.include_router(bulk_create_router)
 api_router.include_router(usage_router)
+api_router.include_router(contact_router)

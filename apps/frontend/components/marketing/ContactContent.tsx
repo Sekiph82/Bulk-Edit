@@ -41,7 +41,9 @@ const CONTACT_CARDS = [
   },
 ];
 
-type FormState = "idle" | "sending" | "sent";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8100";
+
+type FormState = "idle" | "sending" | "sent" | "error";
 
 function FadeUp({
   children,
@@ -70,15 +72,39 @@ export default function ContactContent() {
   const reduced = useReducedMotion();
   const [formState, setFormState] = useState<FormState>("idle");
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
+  const [resultMessage, setResultMessage] = useState("");
+  const [delivered, setDelivered] = useState(false);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormState("sending");
-    setTimeout(() => setFormState("sent"), 800);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/v1/contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setResultMessage(
+          Array.isArray(data.detail)
+            ? data.detail.map((d: { msg: string }) => d.msg).join(" ")
+            : data.detail || "Something went wrong. Please try again or email us directly."
+        );
+        setFormState("error");
+        return;
+      }
+      setDelivered(Boolean(data.delivered));
+      setResultMessage(data.message || "Thanks for reaching out!");
+      setFormState("sent");
+    } catch {
+      setResultMessage("Network error. Please try again or email us directly.");
+      setFormState("error");
+    }
   }
 
   return (
@@ -133,13 +159,13 @@ export default function ContactContent() {
         </div>
       </section>
 
-      {/* Demo form */}
+      {/* Contact form */}
       <section id="demo-form" className="py-16 px-6 sm:px-8 be-section-accent">
         <div className="max-w-2xl mx-auto">
           <FadeUp className="text-center mb-10">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Send us a message</h2>
             <p className="text-gray-500 text-sm">
-              Demo form — ready for email integration. Or write directly to{" "}
+              Or write directly to{" "}
               <a href="mailto:support@bulk-edit.com" className="text-indigo-600 hover:underline">
                 support@bulk-edit.com
               </a>
@@ -149,21 +175,31 @@ export default function ContactContent() {
 
           {formState === "sent" ? (
             <FadeUp>
-              <div className="bg-white border border-green-200 rounded-2xl p-10 text-center shadow-sm">
-                <div className="text-4xl mb-4">✅</div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Thanks for reaching out!</h3>
-                <p className="text-gray-500 text-sm mb-6">
-                  This demo form is ready for email integration. In production it will deliver your message to{" "}
-                  <a href="mailto:support@bulk-edit.com" className="text-indigo-600 hover:underline">
-                    support@bulk-edit.com
-                  </a>
-                  .
-                </p>
+              <div className={`bg-white border rounded-2xl p-10 text-center shadow-sm ${delivered ? "border-green-200" : "border-amber-200"}`}>
+                <div className="text-4xl mb-4">{delivered ? "✅" : "ℹ️"}</div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  {delivered ? "Thanks for reaching out!" : "Message not delivered"}
+                </h3>
+                <p className="text-gray-500 text-sm mb-6">{resultMessage}</p>
                 <button
                   onClick={() => { setFormState("idle"); setForm({ name: "", email: "", subject: "", message: "" }); }}
                   className="be-btn-secondary px-6 py-2 text-sm"
                 >
                   Send another message
+                </button>
+              </div>
+            </FadeUp>
+          ) : formState === "error" ? (
+            <FadeUp>
+              <div className="bg-white border border-red-200 rounded-2xl p-10 text-center shadow-sm">
+                <div className="text-4xl mb-4">⚠️</div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Something went wrong</h3>
+                <p className="text-gray-500 text-sm mb-6">{resultMessage}</p>
+                <button
+                  onClick={() => setFormState("idle")}
+                  className="be-btn-secondary px-6 py-2 text-sm"
+                >
+                  Try again
                 </button>
               </div>
             </FadeUp>

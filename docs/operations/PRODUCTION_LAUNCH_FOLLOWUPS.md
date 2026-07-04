@@ -54,46 +54,42 @@ worse than a missing favicon, both files were removed and `layout.tsx`'s
 
 ---
 
-## 1. Password reset / transactional email (pre-public-launch blocker)
+## 1. Password reset / transactional email — IMPLEMENTED (`feature/email-password-reset-contact-form`)
 
-**Current state:** no forgot-password flow, no SMTP/email-sending capability
-anywhere in the backend. `app.services.auth` only has register/login/refresh/logout.
+**Built:**
+- `app/services/email.py` — generic SMTP-compatible `send_email()`
+  abstraction; `EMAIL_PROVIDER=disabled` by default, never crashes when
+  unconfigured, never logs `SMTP_PASSWORD` or message contents.
+- `password_reset_tokens` table (migration `0019`) — token_hash only, raw
+  token never stored, single-use, 60-minute expiry (configurable).
+- `POST /api/v1/auth/forgot-password` — generic response regardless of
+  whether the email exists (no user enumeration, tested).
+- `POST /api/v1/auth/reset-password` — validates hash/expiry/unused,
+  updates password, revokes all existing refresh tokens (forces re-login
+  everywhere after a reset).
+- Frontend: `/forgot-password`, `/reset-password` (noindex, not in
+  sitemap), "Forgot password?" link on `/login`.
+- Rate limited (`RATE_LIMIT_FORGOT_PASSWORD_PER_HOUR`), reusing the
+  existing rate-limit module.
 
-**Scope to build:**
-- Provider choice: Resend, Postmark, or SES (matches existing `SMTP_*` env
-  var naming already referenced in `.do/app.production-backend.yaml` comments).
-- Email service abstraction: `app/services/email.py` — a thin `send_email()`
-  wrapper so the provider can be swapped without touching call sites.
-- New table: `password_reset_tokens` (user_id, token_hash, expires_at, used_at) —
-  same pattern as the existing `social_oauth_states` state-hash table.
-- `POST /api/v1/auth/forgot-password` — issues a token, emails a reset link,
-  always returns 200 regardless of whether the email exists (no user enumeration).
-- `POST /api/v1/auth/reset-password` — validates token + expiry, sets new
-  password hash, invalidates the token.
-- Frontend: `/forgot-password` and `/reset-password` pages.
-- Audit log entry on both request and completion.
-- Rate limiting on both endpoints (reuse `app/core/rate_limit.py` pattern).
-
-**Risk if deferred:** real users who forget their password have no
-self-service recovery — support burden, or account lockout. Treat as a
-**pre-public-launch blocker**, not a nice-to-have.
+**Launch checklist item still remaining:** this is fully wired but
+`EMAIL_PROVIDER=disabled` until real SMTP secrets are set on staging/
+production. See `docs/operations/EMAIL_SETUP.md` for the provider setup
+steps — no code changes needed, just env vars + a provider account.
 
 ---
 
-## 2. Email/waitlist capture
+## 2. Contact form — IMPLEMENTED (`feature/email-password-reset-contact-form`)
 
-**Current state:** the `/contact-us` demo form is 100% client-side —
-`setTimeout(() => setFormState("sent"), 800)` in `ContactContent.tsx`. It
-does not submit anywhere. No backend contact/waitlist endpoint exists.
+**Built:** `POST /api/v1/contact` (public, rate-limited, validated) sends a
+real notification to `SUPPORT_EMAIL` via the same email service, with
+`Reply-To` set to the submitter. Frontend `ContactContent.tsx` now calls
+the real endpoint instead of a fake `setTimeout`, and shows an honest
+"email delivery isn't configured yet" message (with a `mailto:` fallback
+already on the page) when `EMAIL_PROVIDER=disabled` — never a fake success.
 
-**Scope to build:** requires the email service abstraction from item 1 (or a
-lightweight `contact_submissions` table if you want unconfirmed-email capture
-without an email service yet). Do not wire the existing form to "success" UI
-without an endpoint behind it — that would create the exact "collect emails
-into nowhere" problem this task explicitly rules out.
-
-**Recommendation:** build this alongside item 1, since both need transactional
-email or at least a persisted-submission table.
+**Launch checklist item still remaining:** same as item 1 — works today in
+"not configured" mode; needs real SMTP secrets to actually deliver.
 
 ---
 

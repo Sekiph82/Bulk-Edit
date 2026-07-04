@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_LOGIN_PER_MINUTE: int = 10
     RATE_LIMIT_REGISTER_PER_MINUTE: int = 5
     RATE_LIMIT_CONTACT_PER_HOUR: int = 5
+    RATE_LIMIT_FORGOT_PASSWORD_PER_HOUR: int = 5
 
     # Sentry error monitoring (optional)
     SENTRY_DSN: str = ""  # leave empty to disable
@@ -84,6 +85,28 @@ class Settings(BaseSettings):
     VIDEO_OUTPUT_DIR: str = "/tmp/video_renders"
     VIDEO_MAX_DURATION_SECONDS: int = 30
     VIDEO_MAX_IMAGES: int = 20
+
+    # Email delivery (password reset, contact form). "disabled" is the safe
+    # default — no email is ever sent, callers get a clear not-configured
+    # result instead of a crash. "smtp" enables generic SMTP delivery.
+    EMAIL_PROVIDER: str = "disabled"  # "disabled" | "smtp"
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "noreply@bulkeditapp.com"
+    SMTP_FROM_NAME: str = "Bulk-Edit"
+    SMTP_USE_TLS: bool = True
+    SUPPORT_EMAIL: str = "support@bulk-edit.com"
+    APP_PUBLIC_URL: str = "http://localhost:3100"
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 60
+
+    def is_email_configured(self) -> bool:
+        return (
+            self.EMAIL_PROVIDER == "smtp"
+            and bool(self.SMTP_HOST)
+            and bool(self.SMTP_FROM_EMAIL)
+        )
 
     def is_openai_configured(self) -> bool:
         key = self.OPENAI_API_KEY
