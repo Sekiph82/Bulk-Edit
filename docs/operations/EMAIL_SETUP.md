@@ -17,7 +17,7 @@ both degrade gracefully instead of crashing.
 | `SMTP_FROM_EMAIL` | `noreply@bulkeditapp.com` | Must be a domain you control/verified with your provider |
 | `SMTP_FROM_NAME` | `Bulk-Edit` | Display name on outgoing mail |
 | `SMTP_USE_TLS` | `true` | STARTTLS on connect |
-| `SUPPORT_EMAIL` | `support@bulk-edit.com` | Contact form notifications go here |
+| `SUPPORT_EMAIL` | `support@bulk-edit.com` | Contact form notifications go here. Accepts a single address or a comma-separated list (e.g. `a@example.com,b@example.com`) — every valid, non-empty entry receives the notification. Password-reset email is unaffected and always goes to exactly one address (the account owner) regardless of this setting. |
 | `APP_PUBLIC_URL` | `http://localhost:3100` | Used to build the password-reset link (`{APP_PUBLIC_URL}/reset-password?token=...`) — set to `https://staging.bulkeditapp.com` on staging, `https://app.bulkeditapp.com` on production |
 
 ## Provider options (all generic-SMTP compatible)

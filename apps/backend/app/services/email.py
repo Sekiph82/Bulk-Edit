@@ -39,33 +39,55 @@ def _safe_log_value(value: str) -> str:
     return value.replace("\r", "").replace("\n", "")[:_MAX_LOG_VALUE_LEN]
 
 
+def _parse_recipient_list(raw: str) -> list[str]:
+    """Split a comma-separated recipient string (e.g. SUPPORT_EMAIL) into
+    trimmed, non-empty, minimally-valid addresses. Silently drops empty
+    entries (from stray commas/whitespace) and entries with no "@" —
+    never raises on a malformed config value.
+    """
+    return [addr.strip() for addr in raw.split(",") if addr.strip() and "@" in addr.strip()]
+
+
 @dataclass
 class EmailResult:
     sent: bool
     reason: str  # "sent" | "disabled" | "error"
 
 
-def send_email(to_email: str, subject: str, body_text: str, reply_to: str | None = None) -> EmailResult:
-    """Send a plain-text email. Never raises — callers always get a result.
+def send_email(
+    to_email: str | list[str], subject: str, body_text: str, reply_to: str | None = None
+) -> EmailResult:
+    """Send a plain-text email to one recipient or a list of recipients.
+    Never raises — callers always get a result.
 
-    Never logs SMTP_PASSWORD, message body, or the full recipient address
-    (only its domain, for basic diagnostics without leaking PII).
+    Never logs SMTP_PASSWORD, message body, or full recipient addresses.
+    For a single recipient, only its domain is logged (existing behavior,
+    kept unchanged for password-reset emails). For multiple recipients,
+    only the count is logged — never a domain list, which would let a log
+    reader reconstruct exactly who received a given notification.
     """
     safe_subject = _safe_log_value(subject)
+    recipients = [to_email] if isinstance(to_email, str) else to_email
 
     if not settings.is_email_configured():
         logger.info("Email not sent (provider disabled/unconfigured): subject=%r", safe_subject)
         return EmailResult(sent=False, reason="disabled")
 
-    recipient_domain = _safe_log_value(
-        to_email.rsplit("@", 1)[-1] if "@" in to_email else "unknown"
-    )
+    if not recipients:
+        logger.info("Email not sent (no valid recipients): subject=%r", safe_subject)
+        return EmailResult(sent=False, reason="error")
+
+    if len(recipients) == 1:
+        single = recipients[0]
+        recipient_log = _safe_log_value(single.rsplit("@", 1)[-1] if "@" in single else "unknown")
+    else:
+        recipient_log = f"{len(recipients)} recipients"
 
     try:
         msg = EmailMessage()
         msg["Subject"] = subject
         msg["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
-        msg["To"] = to_email
+        msg["To"] = ", ".join(recipients)
         if reply_to:
             msg["Reply-To"] = reply_to
         msg.set_content(body_text)
@@ -77,10 +99,10 @@ def send_email(to_email: str, subject: str, body_text: str, reply_to: str | None
                 server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
             server.send_message(msg)
 
-        logger.info("Email sent: recipient_domain=%s subject=%r", recipient_domain, safe_subject)
+        logger.info("Email sent: recipient=%s subject=%r", recipient_log, safe_subject)
         return EmailResult(sent=True, reason="sent")
     except Exception:
-        logger.exception("Email send failed: recipient_domain=%s subject=%r", recipient_domain, safe_subject)
+        logger.exception("Email send failed: recipient=%s subject=%r", recipient_log, safe_subject)
         return EmailResult(sent=False, reason="error")
 
 
@@ -97,6 +119,13 @@ def send_password_reset_email(to_email: str, reset_url: str) -> EmailResult:
 
 
 def send_contact_notification_email(name: str, from_email: str, subject: str, message: str) -> EmailResult:
-    """Notify SUPPORT_EMAIL of a new contact form submission."""
+    """Notify SUPPORT_EMAIL of a new contact form submission.
+
+    SUPPORT_EMAIL may be a single address or a comma-separated list — every
+    valid, non-empty entry receives the notification. This is intentionally
+    separate from send_password_reset_email(), which always takes a single
+    address and must never fan out to multiple recipients.
+    """
+    recipients = _parse_recipient_list(settings.SUPPORT_EMAIL)
     body = f"New contact form submission\n\nFrom: {name} <{from_email}>\n\n{message}"
-    return send_email(settings.SUPPORT_EMAIL, f"[Contact] {subject}", body, reply_to=from_email)
+    return send_email(recipients, f"[Contact] {subject}", body, reply_to=from_email)
