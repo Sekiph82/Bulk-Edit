@@ -647,17 +647,20 @@ async def test_apply_writes_audit_logs(client, db_session):
 
 # ── video unsupported → result skipped ────────────────────────────────────────
 
-async def test_apply_replace_video_is_skipped(client, db_session):
+async def test_apply_reorder_images_is_skipped(client, db_session):
+    """reorder_images remains an intentional stub — investigated and rejected
+    due to a real data-loss window on live listings that Etsy's API gives no
+    way to eliminate. This must stay skipped, never silently faked."""
     token = await _register_and_login(client, {
-        "email": "mvideo@example.com", "password": "password123",
-        "full_name": "Video", "organization_name": "Video Org",
+        "email": "mreorder@example.com", "password": "password123",
+        "full_name": "Reorder", "organization_name": "Reorder Org",
     })
     org_id = await _get_org_id(db_session)
-    listing, _ = await _setup_listing_with_token(db_session, org_id, "160001")
+    listing, _ = await _setup_listing_with_token(db_session, org_id, "160099")
 
     r = await client.post(JOBS_URL, json={
         "listing_ids": [listing.id],
-        "operation_type": "replace_video",
+        "operation_type": "reorder_images",
         "payload": {},
     }, headers={"Authorization": f"Bearer {token}"})
     job_id = r.json()["id"]
@@ -669,16 +672,236 @@ async def test_apply_replace_video_is_skipped(client, db_session):
     data = r2.json()
     assert data["skipped_count"] == 1
     assert data["success_count"] == 0
-    assert data["failure_count"] == 0
 
     r3 = await client.get(f"{JOBS_URL}/{job_id}/results", headers={"Authorization": f"Bearer {token}"})
     results = r3.json()["items"]
     assert len(results) == 1
     assert results[0]["status"] == "skipped"
-    assert "not supported" in results[0]["error_message"].lower()
+    assert "no endpoint to change an existing image" in results[0]["error_message"].lower()
 
 
-async def test_apply_delete_video_is_skipped(client, db_session):
+async def _make_video_render(db_session, org_id: str, status: str = "completed", is_etsy_ready: bool | None = True, file_path: str = "/tmp/fake-render.mp4"):
+    from app.models.video_render import VideoRender
+    render = VideoRender(
+        organization_id=org_id,
+        template_id="slideshow",
+        status=status,
+        image_count=3,
+        aspect_ratio="9:16",
+        duration_seconds=10.0,
+        file_size_bytes=1024,
+        width=1080,
+        height=1920,
+        is_etsy_ready=is_etsy_ready,
+        file_path=file_path,
+    )
+    db_session.add(render)
+    await db_session.commit()
+    await db_session.refresh(render)
+    return render
+
+
+async def test_create_replace_video_job_succeeds(client, db_session):
+    token = await _register_and_login(client, {
+        "email": "mvideocreate@example.com", "password": "password123",
+        "full_name": "VideoCreate", "organization_name": "VideoCreate Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, _ = await _setup_listing_with_token(db_session, org_id, "160010")
+    render = await _make_video_render(db_session, org_id)
+
+    r = await client.post(JOBS_URL, json={
+        "listing_ids": [listing.id],
+        "operation_type": "replace_video",
+        "payload": {"video_render_id": render.id},
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201
+    assert r.json()["operation_type"] == "replace_video"
+
+
+async def test_apply_replace_video_requires_video_render_id(client, db_session):
+    token = await _register_and_login(client, {
+        "email": "mvideonoid@example.com", "password": "password123",
+        "full_name": "VideoNoId", "organization_name": "VideoNoId Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, _ = await _setup_listing_with_token(db_session, org_id, "160011")
+
+    r = await client.post(JOBS_URL, json={
+        "listing_ids": [listing.id],
+        "operation_type": "replace_video",
+        "payload": {},
+    }, headers={"Authorization": f"Bearer {token}"})
+    job_id = r.json()["id"]
+
+    with patch("app.services.bulk_edit_media.settings", _etsy_settings_mock()):
+        r2 = await client.post(f"{JOBS_URL}/{job_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    assert r2.json()["failure_count"] == 1
+    r3 = await client.get(f"{JOBS_URL}/{job_id}/results", headers={"Authorization": f"Bearer {token}"})
+    assert "video_render_id" in r3.json()["items"][0]["error_message"]
+
+
+async def test_apply_replace_video_rejects_non_etsy_ready_render(client, db_session):
+    token = await _register_and_login(client, {
+        "email": "mvideobad@example.com", "password": "password123",
+        "full_name": "VideoBad", "organization_name": "VideoBad Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, _ = await _setup_listing_with_token(db_session, org_id, "160012")
+    render = await _make_video_render(db_session, org_id, is_etsy_ready=False)
+
+    r = await client.post(JOBS_URL, json={
+        "listing_ids": [listing.id],
+        "operation_type": "replace_video",
+        "payload": {"video_render_id": render.id},
+    }, headers={"Authorization": f"Bearer {token}"})
+    job_id = r.json()["id"]
+
+    with patch("app.services.bulk_edit_media.settings", _etsy_settings_mock()):
+        r2 = await client.post(f"{JOBS_URL}/{job_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    assert r2.json()["failure_count"] == 1
+
+
+async def test_apply_replace_video_rejects_cross_org_render(client, db_session):
+    token = await _register_and_login(client, {
+        "email": "mvideocross@example.com", "password": "password123",
+        "full_name": "VideoCross", "organization_name": "VideoCross Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, _ = await _setup_listing_with_token(db_session, org_id, "160013")
+    other_render = await _make_video_render(db_session, "some-other-org-id")
+
+    r = await client.post(JOBS_URL, json={
+        "listing_ids": [listing.id],
+        "operation_type": "replace_video",
+        "payload": {"video_render_id": other_render.id},
+    }, headers={"Authorization": f"Bearer {token}"})
+    job_id = r.json()["id"]
+
+    with patch("app.services.bulk_edit_media.settings", _etsy_settings_mock()):
+        r2 = await client.post(f"{JOBS_URL}/{job_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    assert r2.json()["failure_count"] == 1
+
+
+async def test_apply_replace_video_success_uploads_and_stores_local_row(client, db_session):
+    from app.models.listing_video import ListingVideo
+
+    token = await _register_and_login(client, {
+        "email": "mvideosuccess@example.com", "password": "password123",
+        "full_name": "VideoSuccess", "organization_name": "VideoSuccess Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, _ = await _setup_listing_with_token(db_session, org_id, "160014")
+    render = await _make_video_render(db_session, org_id)
+
+    r = await client.post(JOBS_URL, json={
+        "listing_ids": [listing.id],
+        "operation_type": "replace_video",
+        "payload": {"video_render_id": render.id},
+    }, headers={"Authorization": f"Bearer {token}"})
+    job_id = r.json()["id"]
+
+    fake_etsy_video = {"video_id": "VID001", "video_url": "https://etsy.example/v.mp4", "thumbnail_url": "https://etsy.example/t.jpg"}
+
+    with patch("app.services.bulk_edit_media.settings", _etsy_settings_mock()), \
+         patch("app.services.bulk_edit_media.upload_etsy_listing_video", new_callable=AsyncMock) as mock_upload:
+        mock_upload.return_value = fake_etsy_video
+        r2 = await client.post(f"{JOBS_URL}/{job_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    assert r2.json()["success_count"] == 1
+    assert mock_upload.called
+    _, kwargs = mock_upload.call_args
+    assert kwargs["video_file_path"] == render.file_path
+
+    videos_q = await db_session.execute(select(ListingVideo).where(ListingVideo.listing_id == listing.id))
+    stored = videos_q.scalar_one()
+    assert stored.etsy_video_id == "VID001"
+
+
+async def test_apply_replace_video_deletes_existing_video_first(client, db_session):
+    from app.models.listing_video import ListingVideo
+
+    token = await _register_and_login(client, {
+        "email": "mvideoreplace@example.com", "password": "password123",
+        "full_name": "VideoReplace", "organization_name": "VideoReplace Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, _ = await _setup_listing_with_token(db_session, org_id, "160015")
+    render = await _make_video_render(db_session, org_id)
+
+    db_session.add(ListingVideo(listing_id=listing.id, etsy_video_id="OLDVID", rank=1))
+    await db_session.commit()
+
+    r = await client.post(JOBS_URL, json={
+        "listing_ids": [listing.id],
+        "operation_type": "replace_video",
+        "payload": {"video_render_id": render.id},
+    }, headers={"Authorization": f"Bearer {token}"})
+    job_id = r.json()["id"]
+
+    with patch("app.services.bulk_edit_media.settings", _etsy_settings_mock()), \
+         patch("app.services.bulk_edit_media.delete_etsy_listing_video", new_callable=AsyncMock) as mock_delete, \
+         patch("app.services.bulk_edit_media.upload_etsy_listing_video", new_callable=AsyncMock) as mock_upload:
+        mock_upload.return_value = {"video_id": "NEWVID"}
+        r2 = await client.post(f"{JOBS_URL}/{job_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    assert r2.json()["success_count"] == 1
+    assert mock_delete.called
+    assert mock_delete.call_args.kwargs["video_id"] == "OLDVID"
+
+
+async def test_apply_replace_video_endpoint_not_implemented_surfaces_clearly(client, db_session):
+    from app.services.etsy_media_write import EtsyMediaWriteError
+
+    token = await _register_and_login(client, {
+        "email": "mvideo404@example.com", "password": "password123",
+        "full_name": "Video404", "organization_name": "Video404 Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, _ = await _setup_listing_with_token(db_session, org_id, "160016")
+    render = await _make_video_render(db_session, org_id)
+
+    r = await client.post(JOBS_URL, json={
+        "listing_ids": [listing.id],
+        "operation_type": "replace_video",
+        "payload": {"video_render_id": render.id},
+    }, headers={"Authorization": f"Bearer {token}"})
+    job_id = r.json()["id"]
+
+    with patch("app.services.bulk_edit_media.settings", _etsy_settings_mock()), \
+         patch(
+             "app.services.bulk_edit_media.upload_etsy_listing_video",
+             new_callable=AsyncMock,
+             side_effect=EtsyMediaWriteError("Etsy video upload failed: HTTP 404", status_code=404, not_implemented=True),
+         ):
+        r2 = await client.post(f"{JOBS_URL}/{job_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    assert r2.json()["failure_count"] == 1
+    r3 = await client.get(f"{JOBS_URL}/{job_id}/results", headers={"Authorization": f"Bearer {token}"})
+    assert "HTTP 404" in r3.json()["items"][0]["error_message"]
+
+
+async def test_create_delete_video_job_succeeds(client, db_session):
+    token = await _register_and_login(client, {
+        "email": "mdvideocreate@example.com", "password": "password123",
+        "full_name": "DelVideoCreate", "organization_name": "DelVideoCreate Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, _ = await _setup_listing_with_token(db_session, org_id, "160020")
+
+    r = await client.post(JOBS_URL, json={
+        "listing_ids": [listing.id],
+        "operation_type": "delete_video",
+        "payload": {},
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201
+    assert r.json()["operation_type"] == "delete_video"
+
+
+async def test_apply_delete_video_no_video_is_failure(client, db_session):
     token = await _register_and_login(client, {
         "email": "mdvideo@example.com", "password": "password123",
         "full_name": "DelVideo", "organization_name": "DelVideo Org",
@@ -696,8 +919,38 @@ async def test_apply_delete_video_is_skipped(client, db_session):
     with patch("app.services.bulk_edit_media.settings", _etsy_settings_mock()):
         r2 = await client.post(f"{JOBS_URL}/{job_id}/apply", headers={"Authorization": f"Bearer {token}"})
 
-    assert r2.status_code == 200
-    assert r2.json()["skipped_count"] == 1
+    assert r2.json()["failure_count"] == 1
+
+
+async def test_apply_delete_video_success(client, db_session):
+    from app.models.listing_video import ListingVideo
+
+    token = await _register_and_login(client, {
+        "email": "mdvideosuccess@example.com", "password": "password123",
+        "full_name": "DelVideoSuccess", "organization_name": "DelVideoSuccess Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, _ = await _setup_listing_with_token(db_session, org_id, "160021")
+
+    db_session.add(ListingVideo(listing_id=listing.id, etsy_video_id="VIDTOKILL", rank=1))
+    await db_session.commit()
+
+    r = await client.post(JOBS_URL, json={
+        "listing_ids": [listing.id],
+        "operation_type": "delete_video",
+        "payload": {},
+    }, headers={"Authorization": f"Bearer {token}"})
+    job_id = r.json()["id"]
+
+    with patch("app.services.bulk_edit_media.settings", _etsy_settings_mock()), \
+         patch("app.services.bulk_edit_media.delete_etsy_listing_video", new_callable=AsyncMock) as mock_delete:
+        r2 = await client.post(f"{JOBS_URL}/{job_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    assert r2.json()["success_count"] == 1
+    assert mock_delete.called
+
+    videos_q = await db_session.execute(select(ListingVideo).where(ListingVideo.listing_id == listing.id))
+    assert videos_q.scalar_one_or_none() is None
 
 
 # ── apply: cannot apply non-pending job ───────────────────────────────────────

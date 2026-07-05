@@ -535,6 +535,28 @@ export interface MediaBackupSnapshot {
   updated_at: string;
 }
 
+export interface VideoRenderSummary {
+  id: string;
+  status: string;
+  template_id: string;
+  image_count: number;
+  aspect_ratio: string | null;
+  duration_seconds: number | null;
+  width: number | null;
+  height: number | null;
+  file_size_bytes: number | null;
+  is_etsy_ready: boolean | null;
+  etsy_issues: string[] | null;
+  error_message: string | null;
+  download_url: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export function listVideoRenders(etsyReadyOnly = false): Promise<VideoRenderSummary[]> {
+  return apiFetch(`/api/v1/video-generator/renders?etsy_ready_only=${etsyReadyOnly}`);
+}
+
 // ---- Media API helpers ----
 
 export function createMediaJob(

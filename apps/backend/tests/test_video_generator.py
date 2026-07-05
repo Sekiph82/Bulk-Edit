@@ -289,3 +289,79 @@ async def test_render_status_isolated_across_orgs(client: AsyncClient, monkeypat
         headers={"Authorization": f"Bearer {token_b}"},
     )
     assert resp.status_code == 404
+
+
+# --- List renders endpoint ---
+
+@pytest.mark.anyio
+async def test_list_renders_requires_auth(client: AsyncClient):
+    resp = await client.get("/api/v1/video-generator/renders")
+    assert resp.status_code in (401, 403)
+
+
+@pytest.mark.anyio
+async def test_list_renders_empty_for_new_org(client: AsyncClient):
+    token = await _register_and_login(client, "vid_list_empty@test.com", "VidListEmpty")
+    resp = await client.get(
+        "/api/v1/video-generator/renders",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+@pytest.mark.anyio
+async def test_list_renders_only_returns_completed_and_own_org(client: AsyncClient, db_session):
+    from app.models.video_render import VideoRender
+
+    token = await _register_and_login(client, "vid_list_a@test.com", "VidListOrgA")
+    token_b = await _register_and_login(client, "vid_list_b@test.com", "VidListOrgB")
+
+    from sqlalchemy import select
+    from app.models.organization_member import OrganizationMember
+    org_a = (await db_session.execute(
+        select(OrganizationMember).order_by(OrganizationMember.created_at.asc()).limit(1)
+    )).scalar_one().organization_id
+
+    db_session.add(VideoRender(organization_id=org_a, template_id="clean_zoom", status="completed", is_etsy_ready=True, file_path="/tmp/a.mp4"))
+    db_session.add(VideoRender(organization_id=org_a, template_id="clean_zoom", status="pending"))
+    await db_session.commit()
+
+    resp_a = await client.get(
+        "/api/v1/video-generator/renders",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp_a.status_code == 200
+    assert len(resp_a.json()) == 1
+    assert resp_a.json()[0]["status"] == "completed"
+
+    resp_b = await client.get(
+        "/api/v1/video-generator/renders",
+        headers={"Authorization": f"Bearer {token_b}"},
+    )
+    assert resp_b.status_code == 200
+    assert resp_b.json() == []
+
+
+@pytest.mark.anyio
+async def test_list_renders_etsy_ready_only_filter(client: AsyncClient, db_session):
+    from app.models.video_render import VideoRender
+    from sqlalchemy import select
+    from app.models.organization_member import OrganizationMember
+
+    token = await _register_and_login(client, "vid_list_filter@test.com", "VidListFilter")
+    org_id = (await db_session.execute(
+        select(OrganizationMember).order_by(OrganizationMember.created_at.asc()).limit(1)
+    )).scalar_one().organization_id
+
+    db_session.add(VideoRender(organization_id=org_id, template_id="clean_zoom", status="completed", is_etsy_ready=True, file_path="/tmp/ready.mp4"))
+    db_session.add(VideoRender(organization_id=org_id, template_id="clean_zoom", status="completed", is_etsy_ready=False, file_path="/tmp/notready.mp4"))
+    await db_session.commit()
+
+    resp = await client.get(
+        "/api/v1/video-generator/renders?etsy_ready_only=true",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["is_etsy_ready"] is True
