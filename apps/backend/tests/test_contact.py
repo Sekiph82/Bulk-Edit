@@ -62,3 +62,22 @@ async def test_contact_no_auth_required(client):
     r = await client.post(CONTACT_URL, json=VALID_PAYLOAD)
     assert r.status_code != 401
     assert r.status_code != 403
+
+
+@pytest.mark.anyio
+async def test_contact_persists_submission_even_when_email_disabled(client, db_session):
+    """A submission must be recorded for the owner console even when
+    delivery didn't happen — otherwise a real inquiry silently vanishes."""
+    from sqlalchemy import select
+    from app.models.contact_submission import ContactSubmission
+
+    r = await client.post(CONTACT_URL, json=VALID_PAYLOAD)
+    assert r.status_code == 200
+
+    result = await db_session.execute(
+        select(ContactSubmission).where(ContactSubmission.email == VALID_PAYLOAD["email"])
+    )
+    row = result.scalar_one()
+    assert row.name == VALID_PAYLOAD["name"]
+    assert row.subject == VALID_PAYLOAD["subject"]
+    assert row.email_delivered is False

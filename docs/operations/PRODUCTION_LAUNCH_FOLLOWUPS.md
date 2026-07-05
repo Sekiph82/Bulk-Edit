@@ -202,3 +202,35 @@ theme script in `layout.tsx` and the JSON-LD scripts added in this PR).
 This removes `unsafe-inline` from `script-src` entirely. Budget this as its
 own PR with full page-by-page verification — do not attempt as a drive-by
 change alongside other work.
+
+---
+
+## 8. Owner console: email send-history persistence
+
+**Current state:** the Owner Console's Emails page (`/owner/emails`) correctly
+states that no send history is persisted. `app/services/email.py` only logs
+each attempt (provider, recipient domain/count, sent/error) — it never writes
+a database row.
+
+**Follow-up (not done now — deliberately out of scope for the owner-console
+rebuild PR):** add an `email_events` table (event type: `password_reset` |
+`contact_notification`, sent/error, safe error summary, timestamp — no raw
+recipient address stored, matching the log-safety rules already enforced in
+`_safe_log_value()`), thread a DB session into `send_email()`, and write a row
+per attempt. Then wire `/owner/emails` to read real history instead of the
+static explanation it shows today. Contact form submissions already persist
+via `contact_submissions` (added in the same PR) as the smaller, immediately
+valuable half of this — email history is the deferred remainder.
+
+## 9. Owner console: feature flags are read-only
+
+**Current state:** `/owner/feature-flags` mirrors real env-driven config
+(`VIDEO_RENDERER_ENABLED`, `RATE_LIMIT_ENABLED`, `EMAIL_CONFIGURED`,
+`AI_PROVIDER_LIVE`) via `GET /api/v1/admin/feature-flags`. There is no
+functional toggle — flipping a flag still requires updating the platform env
+var and redeploying.
+
+**Follow-up:** if runtime-togglable flags become worth building, add a real
+flag store (DB-backed or a config service) with an audit-logged write path,
+superuser-gated. Do not add a toggle UI to the existing read-only page until
+that backend exists.

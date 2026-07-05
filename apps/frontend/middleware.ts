@@ -6,6 +6,9 @@ import type { NextRequest } from "next/server";
 //   www.bulkeditapp.com    -> 301 redirect to apex
 //   app.bulkeditapp.com    -> private SaaS app (noindex)
 //   staging.bulkeditapp.com-> staging app (noindex, whole host)
+//   owner.bulkeditapp.com  -> internal owner console (noindex, superuser-only,
+//                             rewritten to the /owner/* route tree so the URL
+//                             bar stays on the owner host)
 // Local dev (localhost) and preview hosts (*.ondigitalocean.app, *.vercel.app)
 // pass through UNCHANGED so nothing breaks outside production DNS.
 
@@ -13,6 +16,7 @@ const APEX = "bulkeditapp.com";
 const WWW = "www.bulkeditapp.com";
 const APP = "app.bulkeditapp.com";
 const STAGING = "staging.bulkeditapp.com";
+const OWNER = "owner.bulkeditapp.com";
 
 // Authenticated product routes (the app/(app) group + auth pages).
 // Requests for these on the apex marketing host are sent to the app subdomain.
@@ -20,7 +24,7 @@ const APP_PREFIXES = [
   "/dashboard", "/listings", "/bulk-edit", "/bulk-create", "/media", "/ai",
   "/csv", "/variations", "/pricing-rules", "/profit", "/insights",
   "/listing-health", "/scheduled", "/promote", "/video-generator", "/shops",
-  "/billing", "/admin", "/login", "/register",
+  "/billing", "/admin", "/owner", "/login", "/register",
 ];
 
 const NOINDEX = "noindex, nofollow";
@@ -31,7 +35,7 @@ function hostname(req: NextRequest): string {
 }
 
 function isProductionDomain(host: string): boolean {
-  return host === APEX || host === WWW || host === APP || host === STAGING;
+  return host === APEX || host === WWW || host === APP || host === STAGING || host === OWNER;
 }
 
 function isAppPath(pathname: string): boolean {
@@ -63,6 +67,19 @@ export function middleware(req: NextRequest) {
     url.protocol = "https:";
     url.port = "";
     return NextResponse.redirect(url, 307);
+  }
+
+  // Owner console host: rewrite every request to the internal /owner/* route
+  // tree, so owner.bulkeditapp.com/users serves app/owner/users/page.tsx
+  // while the URL bar stays on the owner host. Superuser gating happens in
+  // the owner pages themselves (client-side — this app has no server-visible
+  // session, so middleware cannot enforce auth here).
+  if (host === OWNER) {
+    const url = req.nextUrl.clone();
+    url.pathname = pathname === "/" ? "/owner" : `/owner${pathname}`;
+    const res = NextResponse.rewrite(url);
+    res.headers.set("X-Robots-Tag", NOINDEX);
+    return res;
   }
 
   const res = NextResponse.next();

@@ -27,6 +27,8 @@ from app.schemas.admin import (
     AdminStripeSummary,
     AdminProductUsage,
     AdminSystemHealth,
+    AdminContactSubmissionSummary,
+    AdminFeatureFlags,
 )
 import app.services.admin as svc
 
@@ -373,3 +375,26 @@ async def admin_audit_log(
         page_size=result["page_size"],
         total=result["total"],
     )
+
+
+@router.get("/contact-submissions", response_model=AdminPage[AdminContactSubmissionSummary])
+async def admin_list_contact_submissions(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    _su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await svc.list_contact_submissions(db, page=page, page_size=page_size)
+    return AdminPage[AdminContactSubmissionSummary](
+        items=[AdminContactSubmissionSummary.model_validate(c) for c in result["items"]],
+        page=result["page"],
+        page_size=result["page_size"],
+        total=result["total"],
+    )
+
+
+@router.get("/feature-flags", response_model=AdminFeatureFlags)
+async def admin_feature_flags(
+    _su=Depends(require_superuser),
+):
+    return AdminFeatureFlags(**svc.get_feature_flags())

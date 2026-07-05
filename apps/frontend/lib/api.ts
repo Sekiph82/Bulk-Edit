@@ -1404,6 +1404,12 @@ export interface AdminProductUsage {
 
 export interface AdminSystemHealth {
   database_status: string;
+  redis_status: string;
+  rate_limit_backend: string;
+  rate_limit_enabled: boolean;
+  sentry_configured: boolean;
+  worker_status: string;
+  csp_mode: string;
   total_users: number;
   total_organizations: number;
   total_audit_events: number;
@@ -1435,6 +1441,38 @@ export function adminListAuditLog(page = 1, page_size = 25): Promise<AdminPage<A
 
 export function adminListUsage(page = 1, page_size = 25): Promise<AdminPage<AdminUsageSummary>> {
   return apiFetch(`${ADM}/usage?page=${page}&page_size=${page_size}`);
+}
+
+// ── Contact Submissions ────────────────────────────────────────────────────────
+
+export interface AdminContactSubmission {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  email_delivered: boolean;
+  created_at: string;
+}
+
+export function adminListContactSubmissions(page = 1, page_size = 25): Promise<AdminPage<AdminContactSubmission>> {
+  return apiFetch(`${ADM}/contact-submissions?page=${page}&page_size=${page_size}`);
+}
+
+// ── Feature Flags (read-only) ─────────────────────────────────────────────────
+
+export interface AdminFeatureFlag {
+  key: string;
+  enabled: boolean;
+  source: string;
+}
+
+export interface AdminFeatureFlags {
+  flags: AdminFeatureFlag[];
+}
+
+export function adminGetFeatureFlags(): Promise<AdminFeatureFlags> {
+  return apiFetch(`${ADM}/feature-flags`);
 }
 
 // ── Listing Health Types ──────────────────────────────────────────────────────
