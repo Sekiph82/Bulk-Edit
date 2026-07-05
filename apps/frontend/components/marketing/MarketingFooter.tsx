@@ -34,7 +34,7 @@ export default function MarketingFooter() {
               href="/"
               className="text-lg font-extrabold text-gray-900 hover:text-indigo-600 transition-colors"
             >
-              Bulk-Edit
+              Bulk Edit App
             </Link>
             <p className="mt-3 text-sm text-gray-500 leading-relaxed max-w-xs">
               Bulk editing for Etsy sellers. Preview every change. Apply safely. Revert when needed.
@@ -65,7 +65,7 @@ export default function MarketingFooter() {
 
         {/* Legal */}
         <div className="border-t border-gray-100 pt-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-gray-400">© 2026 Bulk-Edit LLC. All rights reserved.</p>
+          <p className="text-xs text-gray-400">© 2026 Bulk Edit App LLC. All rights reserved.</p>
           <p className="text-xs text-gray-400 text-center sm:text-right max-w-md">
             The term &ldquo;Etsy&rdquo; is a trademark of Etsy, Inc. This application uses the Etsy
             API but is not endorsed or certified by Etsy, Inc.

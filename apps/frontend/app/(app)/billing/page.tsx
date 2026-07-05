@@ -101,7 +101,7 @@ function BillingContent() {
       <div className="max-w-2xl mx-auto">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <Link href="/" className="text-xl font-extrabold text-indigo-600">Bulk-Edit</Link>
+            <Link href="/" className="text-xl font-extrabold text-indigo-600">Bulk Edit App</Link>
             <h1 className="text-2xl font-bold text-gray-900 mt-1">Billing</h1>
           </div>
           <Link href="/dashboard" className="text-sm text-indigo-600 hover:underline">← Dashboard</Link>

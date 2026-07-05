@@ -13,16 +13,16 @@ const FAQ_DATA: Array<{ category: string; items: FaqItem[] }> = [
     category: "General",
     items: [
       {
-        q: "What is Bulk-Edit?",
-        a: "Bulk-Edit is a SaaS tool for Etsy sellers that lets you update, optimize, and manage listings in bulk — safely. You can edit titles, tags, prices, descriptions, photos, and more across your entire shop, with a preview-first workflow that protects you from accidental changes.",
+        q: "What is Bulk Edit App?",
+        a: "Bulk Edit App is a SaaS tool for Etsy sellers that lets you update, optimize, and manage listings in bulk — safely. You can edit titles, tags, prices, descriptions, photos, and more across your entire shop, with a preview-first workflow that protects you from accidental changes.",
       },
       {
-        q: "Who is Bulk-Edit for?",
-        a: "Bulk-Edit is designed for Etsy sellers who manage more than a handful of listings and want to save time on repetitive updates. It's useful for small-shop owners and high-volume sellers alike.",
+        q: "Who is Bulk Edit App for?",
+        a: "Bulk Edit App is designed for Etsy sellers who manage more than a handful of listings and want to save time on repetitive updates. It's useful for small-shop owners and high-volume sellers alike.",
       },
       {
-        q: "Is Bulk-Edit officially affiliated with Etsy?",
-        a: "No. Bulk-Edit is an independent third-party tool that connects to Etsy through the official Etsy API. The term \"Etsy\" is a trademark of Etsy, Inc. This application uses the Etsy API but is not endorsed or certified by Etsy, Inc.",
+        q: "Is Bulk Edit App officially affiliated with Etsy?",
+        a: "No. Bulk Edit App is an independent third-party tool that connects to Etsy through the official Etsy API. The term \"Etsy\" is a trademark of Etsy, Inc. This application uses the Etsy API but is not endorsed or certified by Etsy, Inc.",
       },
     ],
   },
@@ -31,15 +31,15 @@ const FAQ_DATA: Array<{ category: string; items: FaqItem[] }> = [
     items: [
       {
         q: "How does the Etsy connection work?",
-        a: "Bulk-Edit uses Etsy's OAuth2 PKCE flow — the same secure login standard used by major apps. You log into Etsy directly on Etsy's own website, grant limited permission, and Bulk-Edit receives a time-limited access token. We never see your Etsy password.",
+        a: "Bulk Edit App uses Etsy's OAuth2 PKCE flow — the same secure login standard used by major apps. You log into Etsy directly on Etsy's own website, grant limited permission, and Bulk Edit App receives a time-limited access token. We never see your Etsy password.",
       },
       {
-        q: "Does Bulk-Edit store my Etsy credentials?",
+        q: "Does Bulk Edit App store my Etsy credentials?",
         a: "No. We never receive or store your Etsy username or password. Only an OAuth access token (time-limited, revocable) is stored, and it is used only to perform actions you explicitly initiate.",
       },
       {
         q: "Can I disconnect my shop?",
-        a: "Yes. You can revoke access at any time from within Bulk-Edit or directly from your Etsy account under Apps & Permissions. Disconnecting removes all access immediately.",
+        a: "Yes. You can revoke access at any time from within Bulk Edit App or directly from your Etsy account under Apps & Permissions. Disconnecting removes all access immediately.",
       },
     ],
   },
@@ -47,16 +47,16 @@ const FAQ_DATA: Array<{ category: string; items: FaqItem[] }> = [
     category: "Safety",
     items: [
       {
-        q: "Will Bulk-Edit change my listings automatically?",
+        q: "Will Bulk Edit App change my listings automatically?",
         a: "No — never. Every write to Etsy requires your explicit confirmation. The workflow is: Select → Build edits → Preview → Confirm → Apply. Nothing is written to Etsy without you clicking through the confirmation step.",
       },
       {
         q: "Can I preview changes before applying?",
-        a: "Yes. Previewing is mandatory, not optional. Before any bulk edit is applied, Bulk-Edit generates a full diff of every affected listing — showing you exactly what will change, field by field. You review the preview and then decide whether to apply.",
+        a: "Yes. Previewing is mandatory, not optional. Before any bulk edit is applied, Bulk Edit App generates a full diff of every affected listing — showing you exactly what will change, field by field. You review the preview and then decide whether to apply.",
       },
       {
         q: "Can I undo changes after applying?",
-        a: "Yes. Bulk-Edit automatically creates a backup snapshot of every listing before writing to Etsy. If you want to undo, use the Magic Revert feature to restore any listing to its exact pre-edit state.",
+        a: "Yes. Bulk Edit App automatically creates a backup snapshot of every listing before writing to Etsy. If you want to undo, use the Magic Revert feature to restore any listing to its exact pre-edit state.",
       },
       {
         q: "Do scheduled jobs publish changes to Etsy automatically?",
@@ -69,7 +69,7 @@ const FAQ_DATA: Array<{ category: string; items: FaqItem[] }> = [
     items: [
       {
         q: "Is there a free plan?",
-        a: "Yes. Bulk-Edit offers a free plan with enough features to get started — including basic listing sync and a limited number of bulk edits per month. No credit card required to start.",
+        a: "Yes. Bulk Edit App offers a free plan with enough features to get started — including basic listing sync and a limited number of bulk edits per month. No credit card required to start.",
       },
       {
         q: "What features require a paid plan?",
@@ -77,7 +77,7 @@ const FAQ_DATA: Array<{ category: string; items: FaqItem[] }> = [
       },
       {
         q: "Can I cancel my subscription?",
-        a: "Yes, at any time. You can cancel from the billing page inside your Bulk-Edit account. Your subscription remains active until the end of the current billing period.",
+        a: "Yes, at any time. You can cancel from the billing page inside your Bulk Edit App account. Your subscription remains active until the end of the current billing period.",
       },
     ],
   },
@@ -99,7 +99,7 @@ const FAQ_DATA: Array<{ category: string; items: FaqItem[] }> = [
     items: [
       {
         q: "Can I import and export listings via CSV?",
-        a: "Yes. You can export your listings to a CSV file, make changes in any spreadsheet tool, and import the file back into Bulk-Edit. The import creates a draft bulk edit session — which you still review and confirm before any Etsy writes occur.",
+        a: "Yes. You can export your listings to a CSV file, make changes in any spreadsheet tool, and import the file back into Bulk Edit App. The import creates a draft bulk edit session — which you still review and confirm before any Etsy writes occur.",
       },
       {
         q: "Does Dynamic Pricing automatically change my Etsy prices?",
@@ -116,7 +116,7 @@ const FAQ_DATA: Array<{ category: string; items: FaqItem[] }> = [
       },
       {
         q: "What are AI credits and bulk edit credits?",
-        a: "AI credits are consumed each time Bulk-Edit calls an AI model to generate suggestions (titles, tags, descriptions). Bulk edit credits are consumed when you apply a bulk edit session to Etsy. Your plan includes a monthly allowance of each. You can see your current usage in the dashboard.",
+        a: "AI credits are consumed each time Bulk Edit App calls an AI model to generate suggestions (titles, tags, descriptions). Bulk edit credits are consumed when you apply a bulk edit session to Etsy. Your plan includes a monthly allowance of each. You can see your current usage in the dashboard.",
       },
     ],
   },
@@ -129,7 +129,7 @@ const FAQ_DATA: Array<{ category: string; items: FaqItem[] }> = [
       },
       {
         q: "Does the Video Generator automatically upload videos to Etsy?",
-        a: "No, and it can't yet — there is no automatic Etsy video upload in Bulk-Edit today. The Video Generator creates a real MP4 product showcase video from your listing photos, which you preview and download. If you want it on your Etsy listing, you upload that downloaded file yourself through Etsy's own listing editor.",
+        a: "No, and it can't yet — there is no automatic Etsy video upload in Bulk Edit App today. The Video Generator creates a real MP4 product showcase video from your listing photos, which you preview and download. If you want it on your Etsy listing, you upload that downloaded file yourself through Etsy's own listing editor.",
       },
     ],
   },
@@ -211,7 +211,7 @@ export default function FaqContent() {
             Frequently asked questions
           </h1>
           <p className="text-lg text-gray-500">
-            Everything you need to know about Bulk-Edit. Can&apos;t find your answer?{" "}
+            Everything you need to know about Bulk Edit App. Can&apos;t find your answer?{" "}
             <Link href="/contact-us" className="text-indigo-600 hover:underline font-medium">
               Contact us.
             </Link>

@@ -7,8 +7,8 @@ import MarketingFooter from "@/components/marketing/MarketingFooter";
 // and makes no certification, compliance, or legal-guarantee claims.
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Bulk-Edit",
-  description: "The terms governing use of the Bulk-Edit service.",
+  title: "Terms of Service — Bulk Edit App",
+  description: "The terms governing use of the Bulk Edit App service.",
   alternates: { canonical: "https://bulkeditapp.com/terms" },
   robots: { index: true, follow: true },
 };
@@ -29,7 +29,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-gray-900 mb-2">1. Acceptance of terms</h2>
               <p>
-                By creating an account or using Bulk-Edit, you agree to these Terms of Service.
+                By creating an account or using Bulk Edit App, you agree to these Terms of Service.
                 If you do not agree, do not use the service.
               </p>
             </section>
@@ -37,8 +37,8 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-gray-900 mb-2">2. The service</h2>
               <p>
-                Bulk-Edit is a third-party tool that connects to your Etsy shop via the official
-                Etsy API to help you bulk-edit listings, preview changes, and revert them. Bulk-Edit
+                Bulk Edit App is a third-party tool that connects to your Etsy shop via the official
+                Etsy API to help you bulk-edit listings, preview changes, and revert them. Bulk Edit App
                 is not affiliated with, endorsed by, or certified by Etsy, Inc. &ldquo;Etsy&rdquo;
                 is a trademark of Etsy, Inc.
               </p>
@@ -48,7 +48,7 @@ export default function TermsPage() {
               <h2 className="text-xl font-bold text-gray-900 mb-2">3. Your responsibilities</h2>
               <p>
                 You are responsible for the accuracy of the listing content you choose to bulk
-                edit and for reviewing every preview before confirming an apply. Bulk-Edit shows
+                edit and for reviewing every preview before confirming an apply. Bulk Edit App shows
                 you a full diff before any write to Etsy, but the decision to apply is always
                 yours.
               </p>
@@ -67,7 +67,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-gray-900 mb-2">5. No warranty</h2>
               <p>
-                Bulk-Edit is provided &ldquo;as is&rdquo; without warranties of any kind, express
+                Bulk Edit App is provided &ldquo;as is&rdquo; without warranties of any kind, express
                 or implied. We do not guarantee uninterrupted or error-free operation, or that
                 use of the service will increase sales or shop performance.
               </p>
@@ -76,7 +76,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-gray-900 mb-2">6. Limitation of liability</h2>
               <p>
-                To the maximum extent permitted by law, Bulk-Edit and its operators are not
+                To the maximum extent permitted by law, Bulk Edit App and its operators are not
                 liable for indirect, incidental, or consequential damages arising from use of the
                 service, including changes made to your Etsy shop that you confirmed and applied.
               </p>
@@ -85,7 +85,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-gray-900 mb-2">7. Termination</h2>
               <p>
-                You may stop using Bulk-Edit and disconnect your Etsy shop at any time. We may
+                You may stop using Bulk Edit App and disconnect your Etsy shop at any time. We may
                 suspend or terminate accounts that violate these terms or misuse the service.
               </p>
             </section>

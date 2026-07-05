@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import ResetPasswordContent from "@/components/auth/ResetPasswordContent";
 
 export const metadata: Metadata = {
-  title: "Reset Password — Bulk-Edit",
+  title: "Reset Password — Bulk Edit App",
   robots: { index: false, follow: false },
 };
 

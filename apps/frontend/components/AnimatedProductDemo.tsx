@@ -63,7 +63,7 @@ export default function AnimatedProductDemo() {
             <div className="w-3 h-3 rounded-full bg-green-400" />
           </div>
           <span className="text-xs text-gray-500 font-medium flex-1 text-center">
-            Bulk-Edit Workspace
+            Bulk Edit App Workspace
           </span>
           <AnimatePresence>
             {phase >= 1 && (

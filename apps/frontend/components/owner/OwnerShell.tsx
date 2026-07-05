@@ -112,7 +112,7 @@ export default function OwnerShell({ children }: { children: React.ReactNode }) 
     <div className="flex h-screen overflow-hidden bg-gray-50">
       <aside className="w-60 flex flex-col bg-white border-r border-gray-200 flex-shrink-0">
         <div className="h-14 flex items-center px-4 border-b border-gray-200">
-          <span className="text-sm font-semibold text-gray-800">Bulk‑Edit Owner</span>
+          <span className="text-sm font-semibold text-gray-800">Bulk Edit App Owner</span>
         </div>
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
           {NAV.map((item) => {

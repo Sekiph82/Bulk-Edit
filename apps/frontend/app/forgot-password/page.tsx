@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import ForgotPasswordContent from "@/components/auth/ForgotPasswordContent";
 
 export const metadata: Metadata = {
-  title: "Forgot Password — Bulk-Edit",
+  title: "Forgot Password — Bulk Edit App",
   robots: { index: false, follow: false },
 };
 

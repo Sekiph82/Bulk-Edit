@@ -162,7 +162,7 @@ function SocialConnectModal({
           {!isConfigured ? (
             <>
               <p className="text-sm text-gray-700">
-                {displayName} connection is not available yet. Once Bulk-Edit enables {displayName} integration, you will be able to connect your {displayName} account here.
+                {displayName} connection is not available yet. Once Bulk Edit App enables {displayName} integration, you will be able to connect your {displayName} account here.
               </p>
               {platform === "instagram" && (
                 <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
