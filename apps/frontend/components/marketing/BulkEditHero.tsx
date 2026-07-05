@@ -399,10 +399,10 @@ export default function BulkEditHero() {
     if (role === "center") {
       return {
         ...base,
-        left: "50%",
-        bottom: isMobile ? "30%" : "10%",
-        height: isMobile ? "38%" : "56%",
-        transform: `translateX(-50%) scale(${isMobile ? 1.1 : 1.28})`,
+        left: isMobile ? "50%" : "70%",
+        bottom: isMobile ? "30%" : "8%",
+        height: isMobile ? "38%" : "44%",
+        transform: `translateX(-50%) scale(${isMobile ? 1.1 : 1.05})`,
         filter: "blur(0px)",
         opacity: 1,
         zIndex: 20,
