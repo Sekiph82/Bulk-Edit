@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import shutil
 import tempfile
 import uuid
@@ -42,6 +43,12 @@ from app.services.video_renderer import (
 # they're rejected rather than silently accepted and failing later at Etsy.
 ALLOWED_UPLOAD_VIDEO_CONTENT_TYPES = {"video/mp4"}
 ALLOWED_UPLOAD_VIDEO_EXTENSIONS = {".mp4"}
+
+# org_id is always our own DB-generated UUID, but it's request-derived from
+# CodeQL's point of view — reject anything that isn't a plain UUID-shaped
+# string before it's used to build a filesystem path, closing off path
+# traversal regardless of how org_id is ever produced upstream.
+_SAFE_ORG_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 router = APIRouter(prefix="/video-generator", tags=["video-generator"])
 
@@ -346,6 +353,9 @@ async def upload_video_file(
     state, message = check_ffprobe()
     if state != "working":
         raise HTTPException(status_code=503, detail=f"Video upload validation unavailable: {message}")
+
+    if not _SAFE_ORG_ID_RE.match(org_id):
+        raise HTTPException(status_code=400, detail="Invalid organization id.")
 
     org_dir = os.path.join(settings.VIDEO_OUTPUT_DIR, org_id, "uploads")
     os.makedirs(org_dir, exist_ok=True)

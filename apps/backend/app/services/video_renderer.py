@@ -178,7 +178,7 @@ def probe_video_file(file_path: str, ffprobe_path: str | None = None) -> dict:
         "-print_format", "json",
         "-show_format",
         "-show_streams",
-        file_path,
+        "-i", file_path,
     ]
     try:
         proc_result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
