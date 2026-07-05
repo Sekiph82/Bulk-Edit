@@ -72,21 +72,30 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url, 307);
   }
 
-  // Owner console host: rewrite every request to the internal /owner/* route
-  // tree, so owner.bulkeditapp.com/users serves app/owner/users/page.tsx
-  // while the URL bar stays on the owner host. Superuser gating happens in
-  // the owner pages themselves (client-side — this app has no server-visible
-  // session, so middleware cannot enforce auth here).
+  // Owner console host: clean public paths (owner.bulkeditapp.com/users) map
+  // to the internal /owner/* route tree (app/owner/users/page.tsx) so the
+  // URL bar stays clean. Superuser gating happens in the owner pages
+  // themselves (client-side — this app has no server-visible session, so
+  // middleware cannot enforce auth here).
   //
   // Auth pages are the one exception: there is no /owner/login route (the
   // owner console has no login form of its own — it reuses the same
   // localStorage-token login as the rest of the app), so those paths pass
   // through untouched instead of being rewritten into a 404.
+  //
+  // /owner and /owner/* are redirected (not rewritten) to their clean
+  // equivalent — without this, a stray link to /owner/users on this host
+  // would get the rewrite applied a second time and 404 as /owner/owner/users.
   if (host === OWNER) {
     if (AUTH_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
       const res = NextResponse.next();
       res.headers.set("X-Robots-Tag", NOINDEX);
       return res;
+    }
+    if (pathname === "/owner" || pathname.startsWith("/owner/")) {
+      const url = req.nextUrl.clone();
+      url.pathname = pathname === "/owner" ? "/" : pathname.slice("/owner".length);
+      return NextResponse.redirect(url, 307);
     }
     const url = req.nextUrl.clone();
     url.pathname = pathname === "/" ? "/owner" : `/owner${pathname}`;
