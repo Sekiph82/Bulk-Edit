@@ -449,7 +449,7 @@ export default function BulkEditHero() {
       className="relative w-full overflow-hidden text-white"
       style={{ backgroundColor: item.bg, transition: reducedMotion ? "none" : "background-color 650ms cubic-bezier(0.4,0,0.2,1)" }}
     >
-      <div className="relative h-screen min-h-[720px] w-full overflow-hidden">
+      <div className="relative min-h-[900px] w-full overflow-hidden">
         <GrainOverlay />
 
         <div className="absolute left-4 top-6 z-[60] sm:left-8">
@@ -461,7 +461,7 @@ export default function BulkEditHero() {
         <div
           aria-hidden="true"
           className={`pointer-events-none absolute inset-x-0 top-[16%] z-[2] flex select-none items-center justify-center whitespace-nowrap uppercase leading-none text-white ${anton.className}`}
-          style={{ fontSize: "clamp(72px, 20vw, 300px)", letterSpacing: "-0.02em", opacity: 0.92 }}
+          style={{ fontSize: "clamp(60px, 16vw, 220px)", letterSpacing: "-0.02em", opacity: 0.14 }}
         >
           {item.ghost}
         </div>
@@ -480,7 +480,7 @@ export default function BulkEditHero() {
             {item.label}
           </div>
 
-          <h1 className="max-w-2xl text-4xl font-black leading-[0.96] tracking-tight sm:text-6xl lg:text-7xl">
+          <h1 className="max-w-2xl text-4xl font-black leading-[1.02] tracking-tight sm:text-5xl lg:text-6xl">
             {item.headline}
           </h1>
 
