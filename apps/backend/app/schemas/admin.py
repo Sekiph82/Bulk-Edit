@@ -314,6 +314,35 @@ class AdminProductUsage(BaseModel):
     total_shops: int
 
 
+# ── Contact Submissions ────────────────────────────────────────────────────────
+
+class AdminContactSubmissionSummary(BaseModel):
+    id: str
+    name: str
+    email: str
+    subject: str
+    message: str
+    email_delivered: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── Feature Flags (read-only) ─────────────────────────────────────────────────
+# Reflects real env-driven config. No functional toggle exists yet — this is
+# display-only until a real admin-controlled flag store is built.
+
+class AdminFeatureFlag(BaseModel):
+    key: str
+    enabled: bool
+    source: str  # "env" — always env for now, no DB-backed override exists
+
+
+class AdminFeatureFlags(BaseModel):
+    flags: list[AdminFeatureFlag]
+
+
 class AdminSystemHealth(BaseModel):
     database_status: str
     redis_status: str          # "ok" | "not_configured" | "error"

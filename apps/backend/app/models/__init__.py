@@ -45,3 +45,4 @@ from app.models.video_render import VideoRender
 from app.models.social_connection import SocialConnection
 from app.models.social_oauth_state import SocialOAuthState
 from app.models.password_reset_token import PasswordResetToken
+from app.models.contact_submission import ContactSubmission

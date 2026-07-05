@@ -1,10 +1,13 @@
 """Public contact form endpoint — no auth required, rate limited."""
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, EmailStr, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.rate_limit import contact_rate_limit
+from app.db.session import get_db
 from app.services.email import send_contact_notification_email
+from app.models.contact_submission import ContactSubmission
 
 router = APIRouter(prefix="/contact", tags=["contact"])
 
@@ -59,10 +62,24 @@ class ContactResponse(BaseModel):
 async def submit_contact_form(
     data: ContactRequest,
     _rl: None = Depends(contact_rate_limit),
+    db: AsyncSession = Depends(get_db),
 ):
     # Message contents are intentionally never logged — only send_email()'s
     # own safe logging (recipient domain + subject) touches this data.
     result = send_contact_notification_email(data.name, data.email, data.subject, data.message)
+
+    # Persisted regardless of delivery outcome, so the owner console can see
+    # submissions even when SUPPORT_EMAIL delivery is failing (e.g. an
+    # unverified sending domain) — otherwise a real inquiry silently vanishes.
+    submission = ContactSubmission(
+        name=data.name,
+        email=data.email,
+        subject=data.subject,
+        message=data.message,
+        email_delivered=result.sent,
+    )
+    db.add(submission)
+    await db.commit()
 
     if result.sent:
         return ContactResponse(

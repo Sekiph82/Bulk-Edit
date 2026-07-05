@@ -41,7 +41,7 @@ const NAV_BASE = [
   },
 ];
 
-const ADMIN_NAV_ITEM = { href: "/admin", label: "Admin", icon: <ShieldIcon /> };
+const ADMIN_NAV_ITEM = { href: "/owner", label: "Owner Console", icon: <ShieldIcon /> };
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
 
@@ -171,7 +171,7 @@ export default function AppShell({ children }: AppShellProps) {
                       <Link
                         href={item.href}
                         onClick={() => setSidebarOpen(false)}
-                        data-testid={item.href === "/admin" ? "admin-nav-link" : undefined}
+                        data-testid={item.href === "/owner" ? "admin-nav-link" : undefined}
                         className={`
                           flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium
                           transition-all duration-150

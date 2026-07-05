@@ -18,6 +18,7 @@ from app.models.scheduled_job_run import ScheduledJobRun
 from app.models.audit_log import AuditLog
 from app.models.listing import Listing
 from app.models.billing_event import BillingEvent
+from app.models.contact_submission import ContactSubmission
 
 _MAX_PAGE = 100
 
@@ -149,6 +150,22 @@ async def list_scheduled_job_runs(db: AsyncSession, page: int = 1, page_size: in
 
 async def list_events(db: AsyncSession, page: int = 1, page_size: int = 25) -> dict:
     return await _paginate(db, AuditLog, page, page_size)
+
+
+async def list_contact_submissions(db: AsyncSession, page: int = 1, page_size: int = 25) -> dict:
+    return await _paginate(db, ContactSubmission, page, page_size)
+
+
+def get_feature_flags() -> dict:
+    from app.core.config import settings
+
+    flags = [
+        {"key": "VIDEO_RENDERER_ENABLED", "enabled": bool(settings.VIDEO_RENDERER_ENABLED), "source": "env"},
+        {"key": "RATE_LIMIT_ENABLED", "enabled": bool(settings.RATE_LIMIT_ENABLED), "source": "env"},
+        {"key": "EMAIL_CONFIGURED", "enabled": settings.is_email_configured(), "source": "env"},
+        {"key": "AI_PROVIDER_LIVE", "enabled": settings.AI_PROVIDER != "mock", "source": "env"},
+    ]
+    return {"flags": flags}
 
 
 async def disable_user(db: AsyncSession, user_id: str, acting_user_id: str) -> User:

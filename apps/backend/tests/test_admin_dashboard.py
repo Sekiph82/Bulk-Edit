@@ -262,3 +262,51 @@ async def test_me_no_password_hash_in_response(client, db_session):
     assert r.status_code == 200
     assert "password_hash" not in r.text
     assert "password" not in r.json()["user"]
+
+
+# ── contact-submissions ───────────────────────────────────────────────────────
+
+async def test_contact_submissions_requires_superuser(client, db_session):
+    user = await _make_user(db_session, is_superuser=False)
+    await _make_org(db_session, user)
+    await db_session.commit()
+    token = await _login(client, user.email)
+    r = await client.get("/api/v1/admin/contact-submissions", headers=_auth(token))
+    assert r.status_code == 403
+
+
+async def test_contact_submissions_superuser_ok(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await _make_org(db_session, su)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/contact-submissions", headers=_auth(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert "items" in data and "total" in data
+
+
+# ── feature-flags ─────────────────────────────────────────────────────────────
+
+async def test_feature_flags_requires_superuser(client, db_session):
+    user = await _make_user(db_session, is_superuser=False)
+    await _make_org(db_session, user)
+    await db_session.commit()
+    token = await _login(client, user.email)
+    r = await client.get("/api/v1/admin/feature-flags", headers=_auth(token))
+    assert r.status_code == 403
+
+
+async def test_feature_flags_superuser_ok(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await _make_org(db_session, su)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/feature-flags", headers=_auth(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert "flags" in data
+    keys = {f["key"] for f in data["flags"]}
+    assert "VIDEO_RENDERER_ENABLED" in keys
+    for f in data["flags"]:
+        assert f["source"] == "env"
