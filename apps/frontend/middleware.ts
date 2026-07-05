@@ -29,6 +29,9 @@ const APP_PREFIXES = [
 
 const NOINDEX = "noindex, nofollow";
 
+// Auth pages the owner host must pass through instead of rewriting into /owner/*.
+const AUTH_PREFIXES = ["/login", "/register", "/forgot-password", "/reset-password"];
+
 function hostname(req: NextRequest): string {
   const h = req.headers.get("host") || "";
   return h.split(":")[0].toLowerCase();
@@ -74,7 +77,17 @@ export function middleware(req: NextRequest) {
   // while the URL bar stays on the owner host. Superuser gating happens in
   // the owner pages themselves (client-side — this app has no server-visible
   // session, so middleware cannot enforce auth here).
+  //
+  // Auth pages are the one exception: there is no /owner/login route (the
+  // owner console has no login form of its own — it reuses the same
+  // localStorage-token login as the rest of the app), so those paths pass
+  // through untouched instead of being rewritten into a 404.
   if (host === OWNER) {
+    if (AUTH_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+      const res = NextResponse.next();
+      res.headers.set("X-Robots-Tag", NOINDEX);
+      return res;
+    }
     const url = req.nextUrl.clone();
     url.pathname = pathname === "/" ? "/owner" : `/owner${pathname}`;
     const res = NextResponse.rewrite(url);
