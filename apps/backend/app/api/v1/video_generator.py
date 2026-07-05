@@ -357,7 +357,13 @@ async def upload_video_file(
     if not _SAFE_ORG_ID_RE.match(org_id):
         raise HTTPException(status_code=400, detail="Invalid organization id.")
 
-    org_dir = os.path.join(settings.VIDEO_OUTPUT_DIR, org_id, "uploads")
+    base_dir = os.path.realpath(settings.VIDEO_OUTPUT_DIR)
+    org_dir = os.path.realpath(os.path.join(base_dir, org_id, "uploads"))
+    if org_dir != base_dir and not org_dir.startswith(base_dir + os.sep):
+        # org_id passed the charset check but somehow still escaped the
+        # video output directory — refuse rather than write outside it.
+        raise HTTPException(status_code=400, detail="Invalid organization id.")
+
     os.makedirs(org_dir, exist_ok=True)
     render_id = str(uuid.uuid4())
     output_path = os.path.join(org_dir, f"{render_id}.mp4")
