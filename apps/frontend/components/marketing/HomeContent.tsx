@@ -1,19 +1,27 @@
 "use client";
 
 import Link from "next/link";
+import { motion, useReducedMotion } from "motion/react";
+import AnimatedProductDemo from "@/components/AnimatedProductDemo";
 import MarketingNav from "@/components/marketing/MarketingNav";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import FadeUp from "@/components/marketing/FadeUp";
-import BulkEditHero from "@/components/marketing/BulkEditHero";
 import SellerPainGrid from "@/components/marketing/SellerPainGrid";
 import SafeEditingEngine from "@/components/marketing/SafeEditingEngine";
-import AllToolsControlRoom from "@/components/marketing/AllToolsControlRoom";
+import FeatureShowcase from "@/components/marketing/FeatureShowcase";
 import SafetyPreviewPanel from "@/components/marketing/SafetyPreviewPanel";
 import EtsySeoSection from "@/components/marketing/EtsySeoSection";
 import VideoInsightsSection from "@/components/marketing/VideoInsightsSection";
 import ExplainerBlocks from "@/components/marketing/ExplainerBlocks";
 import ConversionCTA from "@/components/marketing/ConversionCTA";
 import SEOFAQ, { type FaqItem } from "@/components/marketing/SEOFAQ";
+
+const TRUST_ITEMS = [
+  "Preview every change",
+  "Backup snapshots",
+  "Magic Revert",
+  "Built for Etsy sellers",
+];
 
 // Capability stats, not invented usage/customer numbers — every figure here
 // maps directly to a real, shipped feature (see /features for the full list).
@@ -70,11 +78,71 @@ const FAQ_ITEMS: FaqItem[] = [
 ];
 
 export default function HomeContent() {
+  const reduced = useReducedMotion();
+
   return (
     <main className="min-h-screen bg-gray-50">
       <MarketingNav />
 
-      <BulkEditHero />
+      {/* Hero */}
+      <section className="be-hero-bg">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 pt-14 pb-24">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            <div className="space-y-8 max-w-xl">
+              <div className="space-y-4">
+                <FadeUp>
+                  <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900 leading-tight">
+                    Bulk edit Etsy listings{" "}
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                      faster, safer, and smarter.
+                    </span>
+                  </h1>
+                </FadeUp>
+                <FadeUp delay={0.08}>
+                  <p className="text-lg text-gray-500 leading-relaxed">
+                    Titles, tags, prices, photos, variations, CSV, AI optimization — update it all
+                    across your whole Etsy shop with one safe engine: preview every change, apply
+                    with confidence, revert instantly if something looks wrong.
+                  </p>
+                </FadeUp>
+              </div>
+
+              <FadeUp delay={0.14}>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Link href="/register" className="be-btn-primary px-8 py-3 text-base">
+                    Start editing your Etsy listings
+                  </Link>
+                  <Link href="/features" className="be-btn-secondary px-8 py-3 text-base">
+                    Explore features
+                  </Link>
+                </div>
+              </FadeUp>
+
+              <FadeUp delay={0.2}>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  {TRUST_ITEMS.map((item) => (
+                    <div key={item} className="flex items-center gap-2 text-sm text-gray-600">
+                      <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </FadeUp>
+            </div>
+
+            <motion.div
+              className="w-full lg:max-w-lg lg:justify-self-end"
+              initial={reduced ? false : { opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+            >
+              <AnimatedProductDemo />
+            </motion.div>
+          </div>
+        </div>
+      </section>
 
       {/* Stat strip — capability stats only, no invented usage numbers */}
       <section className="border-t border-gray-200 bg-white">
@@ -107,7 +175,7 @@ export default function HomeContent() {
       />
 
       {/* Feature clusters */}
-      <AllToolsControlRoom />
+      <FeatureShowcase />
 
       {/* Trust and safety */}
       <SafetyPreviewPanel />
