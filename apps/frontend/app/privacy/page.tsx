@@ -7,8 +7,8 @@ import MarketingFooter from "@/components/marketing/MarketingFooter";
 // and makes no certification, compliance, or legal-guarantee claims.
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Bulk-Edit",
-  description: "How Bulk-Edit collects, uses, and protects your data.",
+  title: "Privacy Policy — Bulk Edit App",
+  description: "How Bulk Edit App collects, uses, and protects your data.",
   alternates: { canonical: "https://bulkeditapp.com/privacy" },
   robots: { index: true, follow: true },
 };
@@ -27,9 +27,9 @@ export default function PrivacyPage() {
 
           <div className="space-y-8 text-gray-700 leading-relaxed">
             <section>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">1. What Bulk-Edit is</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">1. What Bulk Edit App is</h2>
               <p>
-                Bulk-Edit (&ldquo;we&rdquo;, &ldquo;us&rdquo;) is a software-as-a-service tool that
+                Bulk Edit App (&ldquo;we&rdquo;, &ldquo;us&rdquo;) is a software-as-a-service tool that
                 helps Etsy sellers manage and bulk-edit their Etsy shop listings. This policy
                 explains what data we collect, why, and how it is handled.
               </p>
@@ -46,12 +46,12 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-bold text-gray-900 mb-2">3. Etsy API connection</h2>
               <p>
-                When you connect your Etsy shop, Bulk-Edit uses Etsy&rsquo;s official OAuth2
+                When you connect your Etsy shop, Bulk Edit App uses Etsy&rsquo;s official OAuth2
                 authorization flow. We never receive or store your Etsy username or password —
                 only a time-limited, revocable access token used to read and, with your
                 confirmation, write listing data on your behalf. You can disconnect your shop at
                 any time, which removes our access immediately. &ldquo;Etsy&rdquo; is a trademark
-                of Etsy, Inc.; Bulk-Edit is an independent tool and is not endorsed or certified
+                of Etsy, Inc.; Bulk Edit App is an independent tool and is not endorsed or certified
                 by Etsy, Inc.
               </p>
             </section>
@@ -59,7 +59,7 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-bold text-gray-900 mb-2">4. Billing</h2>
               <p>
-                Subscription billing is processed by Stripe. Bulk-Edit does not store your full
+                Subscription billing is processed by Stripe. Bulk Edit App does not store your full
                 card number — Stripe handles payment data directly under its own security and
                 privacy standards.
               </p>

@@ -148,7 +148,7 @@ export default function AppShell({ children }: AppShellProps) {
                   ? "text-slate-100 group-hover:text-white sidebar-text-glow"
                   : "text-gray-800 group-hover:text-indigo-600 transition-colors"}`}
             >
-              Bulk‑Edit
+              Bulk Edit App
             </span>
           </Link>
         </div>

@@ -21,7 +21,7 @@ export default function MarketingNav() {
           href="/"
           className="text-xl font-extrabold tracking-tight text-gray-900 hover:text-indigo-600 transition-colors"
         >
-          Bulk-Edit
+          Bulk Edit App
         </Link>
 
         <div className="hidden sm:flex items-center gap-0.5">

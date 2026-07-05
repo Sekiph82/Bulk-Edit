@@ -1,32 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { motion, useReducedMotion } from "motion/react";
 import MarketingNav from "@/components/marketing/MarketingNav";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
+import FadeUp from "@/components/marketing/FadeUp";
+import FeaturePageHero from "@/components/marketing/FeaturePageHero";
+import RelatedFeatureLinks from "@/components/marketing/RelatedFeatureLinks";
+import ConversionCTA from "@/components/marketing/ConversionCTA";
+import SEOFAQ, { type FaqItem } from "@/components/marketing/SEOFAQ";
 import { FEATURE_PAGES, type FeaturePage } from "@/lib/featurePages";
 
-function FadeUp({
-  children,
-  delay = 0,
-  className = "",
-}: {
-  children: React.ReactNode;
-  delay?: number;
-  className?: string;
-}) {
-  const reduced = useReducedMotion();
-  return (
-    <motion.div
-      className={className}
-      initial={reduced ? false : { opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.45, delay, ease: [0.25, 0.1, 0.25, 1] }}
-    >
-      {children}
-    </motion.div>
-  );
+// Generates 2-3 truthful, page-specific FAQ entries from data already
+// verified against shipped behavior (intro/boundaries/safetyNote) — avoids
+// hand-authoring 16 separate FAQ lists while keeping every answer accurate.
+function buildFaq(feature: FeaturePage): FaqItem[] {
+  const items: FaqItem[] = [
+    {
+      q: `Can I preview ${feature.h1.toLowerCase()} changes before they're applied?`,
+      a: `Yes. ${feature.intro}`,
+    },
+  ];
+  if (feature.boundaries) {
+    for (const b of feature.boundaries) {
+      items.push({ q: "What does this not do?", a: b });
+    }
+  }
+  if (feature.safetyNote) {
+    items.push({ q: "How does this stay safe?", a: feature.safetyNote });
+  }
+  items.push({
+    q: `Who is ${feature.h1} best for?`,
+    a: feature.bestFor,
+  });
+  return items;
 }
 
 export default function FeaturePageContent({ feature }: { feature: FeaturePage }) {
@@ -34,8 +40,27 @@ export default function FeaturePageContent({ feature }: { feature: FeaturePage }
     .map((slug) => FEATURE_PAGES.find((f) => f.slug === slug))
     .filter((f): f is FeaturePage => Boolean(f));
 
+  const softwareApplicationJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: `${feature.h1} — Bulk Edit App`,
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    description: feature.metaDescription,
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+      description: "Free plan available",
+    },
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationJsonLd) }}
+      />
       <MarketingNav />
 
       {/* Breadcrumb */}
@@ -47,29 +72,7 @@ export default function FeaturePageContent({ feature }: { feature: FeaturePage }
         <span className="text-gray-600">{feature.h1}</span>
       </div>
 
-      {/* Hero */}
-      <section className="be-hero-bg pt-8 pb-16 px-6 sm:px-8">
-        <div className="max-w-4xl mx-auto">
-          <FadeUp>
-            <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-5">
-              {feature.h1}
-            </h1>
-          </FadeUp>
-          <FadeUp delay={0.08}>
-            <p className="text-lg text-gray-500 leading-relaxed max-w-2xl mb-8">{feature.intro}</p>
-          </FadeUp>
-          <FadeUp delay={0.14}>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Link href="/register" className="be-btn-primary px-8 py-3 text-base">
-                Get Started Free
-              </Link>
-              <Link href="/pricing" className="be-btn-secondary px-8 py-3 text-base">
-                See pricing
-              </Link>
-            </div>
-          </FadeUp>
-        </div>
-      </section>
+      <FeaturePageHero h1={feature.h1} intro={feature.intro} bestFor={feature.bestFor} />
 
       {/* How it works */}
       <section className="py-16 px-6 sm:px-8 bg-white">
@@ -92,9 +95,32 @@ export default function FeaturePageContent({ feature }: { feature: FeaturePage }
         </div>
       </section>
 
+      {/* Benefits */}
+      <section className="py-16 px-6 sm:px-8 be-section-accent">
+        <div className="max-w-4xl mx-auto">
+          <FadeUp>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Why it helps</h2>
+          </FadeUp>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {feature.benefits.map((b, i) => (
+              <FadeUp key={b} delay={i * 0.05}>
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 w-5 h-5 rounded-full bg-green-100 border border-green-200 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </span>
+                  <span className="text-sm text-gray-700 leading-relaxed">{b}</span>
+                </div>
+              </FadeUp>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Boundaries / accurate claims */}
       {feature.boundaries && feature.boundaries.length > 0 && (
-        <section className="py-12 px-6 sm:px-8 be-section-accent">
+        <section className="py-12 px-6 sm:px-8 bg-white border-t border-gray-100">
           <div className="max-w-4xl mx-auto">
             <FadeUp>
               <h2 className="text-lg font-bold text-gray-900 mb-4">Good to know</h2>
@@ -124,50 +150,18 @@ export default function FeaturePageContent({ feature }: { feature: FeaturePage }
         </section>
       )}
 
-      {/* Related features */}
-      {relatedPages.length > 0 && (
-        <section className="py-16 px-6 sm:px-8 bg-white border-t border-gray-100">
-          <div className="max-w-4xl mx-auto">
-            <FadeUp>
-              <h2 className="text-lg font-bold text-gray-900 mb-6">Related features</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {relatedPages.map((rp) => (
-                  <Link
-                    key={rp.slug}
-                    href={`/features/${rp.slug}`}
-                    className="be-card p-5 block hover:no-underline"
-                  >
-                    <h3 className="font-semibold text-gray-900 text-sm mb-1">{rp.h1}</h3>
-                    <p className="text-xs text-gray-500">{rp.intro}</p>
-                  </Link>
-                ))}
-              </div>
-            </FadeUp>
-          </div>
-        </section>
-      )}
+      <RelatedFeatureLinks pages={relatedPages} />
 
-      {/* CTA */}
-      <section className="py-16 px-6 sm:px-8 be-hero-bg">
-        <FadeUp>
-          <div className="max-w-2xl mx-auto text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              See all features
-            </h2>
-            <p className="text-gray-500 mb-8">
-              {feature.h1} is one part of the full Bulk-Edit toolkit.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link href="/features" className="be-btn-primary px-8 py-3 text-base">
-                View all features
-              </Link>
-              <Link href="/register" className="be-btn-secondary px-8 py-3 text-base">
-                Start for free
-              </Link>
-            </div>
-          </div>
-        </FadeUp>
-      </section>
+      <SEOFAQ items={buildFaq(feature)} title={`${feature.h1} — frequently asked questions`} columns={1} />
+
+      <ConversionCTA
+        title="See all Etsy seller tools"
+        subtitle={`${feature.h1} is one part of the full Bulk Edit App toolkit.`}
+        primaryLabel="Try Bulk Edit App"
+        secondaryLabel="View all features"
+        secondaryHref="/features"
+        variant="hero"
+      />
 
       <MarketingFooter />
     </div>

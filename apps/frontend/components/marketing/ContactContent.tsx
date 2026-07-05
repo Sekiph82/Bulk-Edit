@@ -27,8 +27,8 @@ const CONTACT_CARDS = [
     icon: "🐛",
     title: "Report a Bug",
     desc: "Found something broken? Open a GitHub issue and we'll track it down.",
-    action: "github.com/Sekiph82/Bulk-Edit",
-    href: "https://github.com/Sekiph82/Bulk-Edit/issues",
+    action: "github.com/Sekiph82/Bulk Edit App",
+    href: "https://github.com/Sekiph82/Bulk Edit App/issues",
     cta: "Open issue",
   },
   {

@@ -6,13 +6,13 @@ import StagingBanner from "@/components/StagingBanner";
 export const metadata: Metadata = {
   metadataBase: new URL("https://bulkeditapp.com"),
   title: {
-    default: "Bulk-Edit | Etsy Bulk Edit Tool",
+    default: "Bulk Edit App | Etsy Bulk Edit Tool",
     template: "%s",
   },
   description:
     "Bulk edit your Etsy listings at scale with AI-powered optimization tools.",
   openGraph: {
-    siteName: "Bulk-Edit",
+    siteName: "Bulk Edit App",
     type: "website",
     locale: "en_US",
   },

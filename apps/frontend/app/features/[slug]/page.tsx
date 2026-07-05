@@ -24,8 +24,13 @@ export async function generateMetadata({
       title: feature.metaTitle,
       description: feature.metaDescription,
       url,
-      siteName: "Bulk-Edit",
+      siteName: "Bulk Edit App",
       type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: feature.metaTitle,
+      description: feature.metaDescription,
     },
   };
 }

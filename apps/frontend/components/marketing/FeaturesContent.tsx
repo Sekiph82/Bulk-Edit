@@ -117,7 +117,7 @@ const FEATURES: FeatureItem[] = [
 
 const WORKFLOW = [
   { step: "1", label: "Connect Etsy Shop", desc: "OAuth2 PKCE connection in under a minute." },
-  { step: "2", label: "Sync Listings", desc: "Pull all your listings into Bulk-Edit securely." },
+  { step: "2", label: "Sync Listings", desc: "Pull all your listings into Bulk Edit App securely." },
   { step: "3", label: "Build Your Edits", desc: "Select listings and define bulk changes." },
   { step: "4", label: "Preview Changes", desc: "Review a full diff before anything is written." },
   { step: "5", label: "Apply Safely", desc: "Confirm once. Snapshots auto-created. Etsy updated." },
@@ -184,7 +184,7 @@ export default function FeaturesContent() {
 
             <FadeUp delay={0.14}>
               <p className="text-lg text-gray-500 leading-relaxed max-w-2xl mx-auto mb-8">
-                Bulk-Edit gives you a complete toolkit for managing Etsy listings at scale — with
+                Bulk Edit App gives you a complete toolkit for managing Etsy listings at scale — with
                 safety gates, backups, and previews built into every workflow.
               </p>
             </FadeUp>
@@ -286,7 +286,7 @@ export default function FeaturesContent() {
                 </h2>
                 <p className="text-gray-500 leading-relaxed">
                   Every path to Etsy is gated by preview, confirmation, and snapshot backup. You decide
-                  what gets applied — Bulk-Edit just makes it faster and safer.
+                  what gets applied — Bulk Edit App just makes it faster and safer.
                 </p>
               </div>
             </FadeUp>
@@ -321,7 +321,7 @@ export default function FeaturesContent() {
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link href="/register" className="be-btn-primary px-8 py-3 text-base">
-                Try Bulk-Edit free
+                Try Bulk Edit App free
               </Link>
               <Link href="/pricing" className="be-btn-secondary px-8 py-3 text-base">
                 See plans
@@ -352,7 +352,7 @@ function AnimatedListingVisual({ reduced }: { reduced: boolean }) {
         <div className="w-2.5 h-2.5 rounded-full bg-white/30" />
         <div className="w-2.5 h-2.5 rounded-full bg-white/30" />
         <div className="w-2.5 h-2.5 rounded-full bg-white/30" />
-        <span className="ml-2 text-xs text-white/80 font-medium">Bulk Edit — Preview</span>
+        <span className="ml-2 text-xs text-white/80 font-medium">Bulk Edit App — Preview</span>
       </div>
 
       {/* Listing rows */}
