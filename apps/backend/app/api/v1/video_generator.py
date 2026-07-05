@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -26,11 +26,22 @@ from app.services.video_renderer import (
     ETSY_MAX_DURATION,
     ETSY_MIN_RESOLUTION,
     check_ffmpeg,
+    check_ffprobe,
     check_etsy_ready,
+    classify_aspect_ratio,
+    probe_video_file,
     render_slideshow_mp4,
+    ProbeError,
     RendererNotAvailableError,
     RenderError,
 )
+
+# Only MP4 is accepted for direct upload — it's the one format Etsy's own
+# upload endpoint and our validation pipeline (ffprobe + check_etsy_ready)
+# actually verify. MOV/WEBM would need a transcode step we don't have, so
+# they're rejected rather than silently accepted and failing later at Etsy.
+ALLOWED_UPLOAD_VIDEO_CONTENT_TYPES = {"video/mp4"}
+ALLOWED_UPLOAD_VIDEO_EXTENSIONS = {".mp4"}
 
 router = APIRouter(prefix="/video-generator", tags=["video-generator"])
 
@@ -98,6 +109,7 @@ class RenderStatusResponse(BaseModel):
     id: str
     status: str
     template_id: str
+    source: str = "generated"
     image_count: int
     aspect_ratio: Optional[str] = None
     duration_seconds: Optional[float] = None
@@ -295,6 +307,7 @@ async def list_renders(
             id=r.id,
             status=r.status,
             template_id=r.template_id,
+            source=r.source,
             image_count=r.image_count,
             aspect_ratio=r.aspect_ratio,
             duration_seconds=r.duration_seconds,
@@ -310,6 +323,113 @@ async def list_renders(
         )
         for r in renders
     ]
+
+
+@router.post("/uploads", response_model=RenderStatusResponse, status_code=201)
+async def upload_video_file(
+    file: UploadFile = File(...),
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Upload a local MP4 file so it can be selected by Add Video / Replace Video
+    on the private /media page. The file is validated and stored server-side
+    immediately — this endpoint never contacts Etsy; nothing is sent to Etsy
+    until a media job that references this video is applied.
+    """
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if content_type not in ALLOWED_UPLOAD_VIDEO_CONTENT_TYPES or ext not in ALLOWED_UPLOAD_VIDEO_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Only MP4 video files are supported for upload.")
+
+    state, message = check_ffprobe()
+    if state != "working":
+        raise HTTPException(status_code=503, detail=f"Video upload validation unavailable: {message}")
+
+    org_dir = os.path.join(settings.VIDEO_OUTPUT_DIR, org_id, "uploads")
+    os.makedirs(org_dir, exist_ok=True)
+    render_id = str(uuid.uuid4())
+    output_path = os.path.join(org_dir, f"{render_id}.mp4")
+
+    file_size_bytes = 0
+    chunk_size = 1024 * 1024
+    try:
+        with open(output_path, "wb") as out:
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                file_size_bytes += len(chunk)
+                if file_size_bytes > ETSY_MAX_FILE_SIZE_BYTES:
+                    mb = ETSY_MAX_FILE_SIZE_BYTES // (1024 * 1024)
+                    raise HTTPException(status_code=413, detail=f"Video file too large. Max {mb} MB.")
+                out.write(chunk)
+    except HTTPException:
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        raise
+    finally:
+        await file.close()
+
+    try:
+        probe = probe_video_file(output_path)
+    except ProbeError as exc:
+        os.remove(output_path)
+        raise HTTPException(status_code=400, detail=f"Could not read video file: {exc}")
+
+    width = probe["width"]
+    height = probe["height"]
+    duration_seconds = probe["duration_seconds"]
+    aspect_ratio = classify_aspect_ratio(width, height)
+
+    is_etsy_ready, issues = check_etsy_ready(
+        file_size_bytes=file_size_bytes,
+        duration_seconds=duration_seconds,
+        aspect_ratio=aspect_ratio or "unsupported",
+        width=width,
+        height=height,
+    )
+
+    render = VideoRender(
+        id=render_id,
+        organization_id=org_id,
+        template_id="uploaded",
+        source="uploaded",
+        status="completed",
+        image_count=0,
+        aspect_ratio=aspect_ratio,
+        duration_seconds=duration_seconds,
+        file_size_bytes=file_size_bytes,
+        width=width,
+        height=height,
+        is_etsy_ready=is_etsy_ready,
+        etsy_issues_json=json.dumps(issues),
+        file_path=output_path,
+        completed_at=datetime.now(timezone.utc),
+    )
+    db.add(render)
+    await db.commit()
+    await db.refresh(render)
+
+    return RenderStatusResponse(
+        id=render.id,
+        status=render.status,
+        template_id=render.template_id,
+        source=render.source,
+        image_count=render.image_count,
+        aspect_ratio=render.aspect_ratio,
+        duration_seconds=render.duration_seconds,
+        width=render.width,
+        height=render.height,
+        file_size_bytes=render.file_size_bytes,
+        is_etsy_ready=render.is_etsy_ready,
+        etsy_issues=render.get_etsy_issues(),
+        error_message=render.error_message,
+        download_url=f"/api/v1/video-generator/renders/{render.id}/download",
+        created_at=render.created_at.isoformat(),
+        completed_at=render.completed_at.isoformat() if render.completed_at else None,
+    )
 
 
 @router.get("/renders/{render_id}", response_model=RenderStatusResponse)
@@ -339,6 +459,7 @@ async def get_render_status(
         id=render.id,
         status=render.status,
         template_id=render.template_id,
+        source=render.source,
         image_count=render.image_count,
         aspect_ratio=render.aspect_ratio,
         duration_seconds=render.duration_seconds,

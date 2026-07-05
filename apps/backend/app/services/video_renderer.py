@@ -1,5 +1,6 @@
 """ffmpeg-based video rendering service."""
 import asyncio
+import json
 import os
 import shutil
 import subprocess
@@ -141,6 +142,89 @@ async def render_slideshow_mp4(
                 os.unlink(concat_path)
             except OSError:
                 pass
+
+
+def check_ffprobe(ffprobe_path: str | None = None) -> tuple[str, str]:
+    """Returns (state, message). state: 'disabled' | 'dependency_missing' | 'working'.
+    Uploaded videos are validated with ffprobe rather than re-encoded, so this
+    is gated the same way as check_ffmpeg but checks the probe binary."""
+    if not settings.VIDEO_RENDERER_ENABLED:
+        return "disabled", "Video validation is disabled. Set VIDEO_RENDERER_ENABLED=true to enable."
+
+    path = ffprobe_path or settings.FFPROBE_PATH or "ffprobe"
+    if not shutil.which(path):
+        return (
+            "dependency_missing",
+            f"ffprobe not found at '{path}'. Install ffmpeg (which includes ffprobe) and restart the server.",
+        )
+
+    return "working", "Video validation is ready."
+
+
+class ProbeError(Exception):
+    pass
+
+
+def probe_video_file(file_path: str, ffprobe_path: str | None = None) -> dict:
+    """
+    Run ffprobe on a local video file and return its real duration/resolution.
+    Returns dict: {duration_seconds, width, height}.
+    Raises ProbeError if ffprobe fails or the file has no video stream.
+    """
+    _ffprobe = ffprobe_path or settings.FFPROBE_PATH or "ffprobe"
+    cmd = [
+        _ffprobe,
+        "-v", "error",
+        "-print_format", "json",
+        "-show_format",
+        "-show_streams",
+        file_path,
+    ]
+    try:
+        proc_result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ProbeError(f"ffprobe failed to run: {exc}") from exc
+
+    if proc_result.returncode != 0:
+        raise ProbeError(f"ffprobe exited with error (code {proc_result.returncode}).")
+
+    try:
+        info = json.loads(proc_result.stdout)
+    except (ValueError, TypeError) as exc:
+        raise ProbeError("ffprobe returned invalid output.") from exc
+
+    video_stream = next(
+        (s for s in info.get("streams", []) if s.get("codec_type") == "video"), None
+    )
+    if not video_stream:
+        raise ProbeError("No video stream found in file.")
+
+    width = video_stream.get("width")
+    height = video_stream.get("height")
+    if not width or not height:
+        raise ProbeError("Could not determine video resolution.")
+
+    duration_raw = video_stream.get("duration") or info.get("format", {}).get("duration")
+    try:
+        duration_seconds = float(duration_raw)
+    except (TypeError, ValueError):
+        raise ProbeError("Could not determine video duration.")
+
+    return {"duration_seconds": duration_seconds, "width": int(width), "height": int(height)}
+
+
+def classify_aspect_ratio(width: int, height: int, tolerance: float = 0.02) -> str | None:
+    """Match (width, height) to the nearest supported Etsy aspect ratio preset,
+    within a small tolerance. Returns None if no preset matches closely enough —
+    callers should treat that as an unsupported aspect ratio."""
+    if height == 0:
+        return None
+    ratio = width / height
+    for label, (w, h) in ASPECT_RATIO_PRESETS.items():
+        preset_ratio = w / h
+        if abs(ratio - preset_ratio) / preset_ratio <= tolerance:
+            return label
+    return None
 
 
 def check_etsy_ready(

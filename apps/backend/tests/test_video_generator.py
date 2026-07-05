@@ -365,3 +365,106 @@ async def test_list_renders_etsy_ready_only_filter(client: AsyncClient, db_sessi
     assert resp.status_code == 200
     assert len(resp.json()) == 1
     assert resp.json()[0]["is_etsy_ready"] is True
+
+
+# --- Upload endpoint ---
+
+@pytest.mark.anyio
+async def test_upload_video_requires_auth(client: AsyncClient):
+    resp = await client.post(
+        "/api/v1/video-generator/uploads",
+        files={"file": ("clip.mp4", b"fake mp4 bytes", "video/mp4")},
+    )
+    assert resp.status_code in (401, 403)
+
+
+@pytest.mark.anyio
+async def test_upload_video_rejects_unsupported_file_type(client: AsyncClient):
+    token = await _register_and_login(client, "vid_upload_bad@test.com", "VidUploadBad")
+    resp = await client.post(
+        "/api/v1/video-generator/uploads",
+        files={"file": ("clip.mov", b"fake mov bytes", "video/quicktime")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
+    assert "MP4" in resp.json()["detail"]
+
+
+@pytest.mark.anyio
+async def test_upload_video_unavailable_when_ffprobe_missing(client: AsyncClient, monkeypatch):
+    monkeypatch.setattr(
+        "app.api.v1.video_generator.check_ffprobe",
+        lambda path=None: ("dependency_missing", "ffprobe not found."),
+    )
+    token = await _register_and_login(client, "vid_upload_noffprobe@test.com", "VidUploadNoFfprobe")
+    resp = await client.post(
+        "/api/v1/video-generator/uploads",
+        files={"file": ("clip.mp4", b"fake mp4 bytes", "video/mp4")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 503
+
+
+@pytest.mark.anyio
+async def test_upload_video_rejects_oversized_file(client: AsyncClient, monkeypatch):
+    monkeypatch.setattr("app.api.v1.video_generator.check_ffprobe", lambda path=None: ("working", "ok"))
+    monkeypatch.setattr("app.api.v1.video_generator.ETSY_MAX_FILE_SIZE_BYTES", 10)
+
+    token = await _register_and_login(client, "vid_upload_big@test.com", "VidUploadBig")
+    resp = await client.post(
+        "/api/v1/video-generator/uploads",
+        files={"file": ("clip.mp4", b"x" * 1000, "video/mp4")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 413
+
+
+@pytest.mark.anyio
+async def test_upload_video_succeeds_and_is_selectable(client: AsyncClient, monkeypatch):
+    monkeypatch.setattr("app.api.v1.video_generator.check_ffprobe", lambda path=None: ("working", "ok"))
+    monkeypatch.setattr(
+        "app.api.v1.video_generator.probe_video_file",
+        lambda path, ffprobe_path=None: {"duration_seconds": 8.0, "width": 1080, "height": 1920},
+    )
+
+    token = await _register_and_login(client, "vid_upload_ok@test.com", "VidUploadOk")
+    resp = await client.post(
+        "/api/v1/video-generator/uploads",
+        files={"file": ("clip.mp4", b"fake mp4 bytes", "video/mp4")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["source"] == "uploaded"
+    assert data["status"] == "completed"
+    assert data["aspect_ratio"] == "9:16"
+    assert data["is_etsy_ready"] is True
+
+    # Appears in the renders list used by Add Video / Replace Video selectors
+    listed = await client.get(
+        "/api/v1/video-generator/renders?etsy_ready_only=true",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert listed.status_code == 200
+    ids = [r["id"] for r in listed.json()]
+    assert data["id"] in ids
+
+
+@pytest.mark.anyio
+async def test_upload_video_rejects_unprobeable_file(client: AsyncClient, monkeypatch):
+    from app.services.video_renderer import ProbeError
+
+    monkeypatch.setattr("app.api.v1.video_generator.check_ffprobe", lambda path=None: ("working", "ok"))
+
+    def _raise(path, ffprobe_path=None):
+        raise ProbeError("No video stream found in file.")
+
+    monkeypatch.setattr("app.api.v1.video_generator.probe_video_file", _raise)
+
+    token = await _register_and_login(client, "vid_upload_unprobeable@test.com", "VidUploadUnprobeable")
+    resp = await client.post(
+        "/api/v1/video-generator/uploads",
+        files={"file": ("clip.mp4", b"not really a video", "video/mp4")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
