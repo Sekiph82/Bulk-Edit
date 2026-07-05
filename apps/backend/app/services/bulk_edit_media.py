@@ -1,13 +1,17 @@
 """
-Bulk Edit Media Service — Sprint 11.
+Bulk Edit Media Service.
 
 Orchestrates safe media writes to Etsy listings:
   - add_image: download from URL, upload to Etsy, update local ListingImage rows
   - replace_image: delete existing at rank, upload new, update local rows
   - delete_image: delete from Etsy by rank or image_id, remove local row
-  - reorder_images: STUB — not implemented (no atomic Etsy reorder endpoint)
-  - replace_video: STUB — direct file upload required (Sprint 11 deferred)
-  - delete_video: STUB — endpoint behavior unconfirmed (Sprint 11 deferred)
+  - replace_video: upload a completed, Etsy-ready VideoRender (local MP4 file)
+    to Etsy, replacing any existing listing video; updates local ListingVideo rows
+  - delete_video: delete the listing's video from Etsy, remove local row
+  - reorder_images: STUB — investigated, not implemented. See the entry in
+    _STUB_REASONS below for the full evidence — Etsy has no atomic reorder
+    endpoint, and the only workaround (delete-then-reupload) has a real,
+    uneliminable data-loss window on a LIVE customer-facing listing.
 
 Safety contract:
   1. listing_ids must belong to organization
@@ -34,13 +38,17 @@ from app.models.bulk_edit_media_result import BulkEditMediaResult
 from app.models.etsy_shop import EtsyShop
 from app.models.listing import Listing
 from app.models.listing_image import ListingImage
+from app.models.listing_video import ListingVideo
 from app.models.listing_media_backup_snapshot import ListingMediaBackupSnapshot
+from app.models.video_render import VideoRender
 from app.services.etsy_sync import get_valid_etsy_access_token, upsert_listing_images
 from app.services.etsy_media_write import (
     fetch_etsy_listing_images,
     fetch_etsy_listing_videos,
     upload_etsy_listing_image,
     delete_etsy_listing_image,
+    upload_etsy_listing_video,
+    delete_etsy_listing_video,
     EtsyMediaWriteError,
 )
 
@@ -56,20 +64,19 @@ VALID_OPERATION_TYPES = {
 }
 
 # Operations implemented with real Etsy writes
-IMPLEMENTED_OPERATIONS = {"add_image", "replace_image", "delete_image"}
+IMPLEMENTED_OPERATIONS = {"add_image", "replace_image", "delete_image", "replace_video", "delete_video"}
 
 # Stubs with clear reason
 _STUB_REASONS = {
     "reorder_images": (
-        "Image reorder not supported in Sprint 11: Etsy API has no atomic reorder endpoint. "
-        "Reorder would require delete-all + re-upload, which is too destructive for MVP."
-    ),
-    "replace_video": (
-        "Video upload not supported in Sprint 11: Etsy requires direct file upload. "
-        "URL-based video upload is not available. File upload storage (S3) deferred."
-    ),
-    "delete_video": (
-        "Video delete not supported in Sprint 11: endpoint behavior unconfirmed. Deferred."
+        "Image reorder is not implemented: investigated against Etsy's API and confirmed there is "
+        "no endpoint to change an existing image's rank without re-uploading it (only GET/POST-create/"
+        "DELETE exist for listing images). The only possible workaround — delete then re-upload in the "
+        "new order — has a real window where a live, customer-facing listing can show fewer or zero "
+        "photos if the process fails partway (network error, timeout, restart). Magic Revert can repair "
+        "this after the fact but the risk during the operation itself cannot be eliminated with Etsy's "
+        "current API, so this was not implemented rather than accepting that risk silently. Revisit only "
+        "with either sandbox/disposable-shop testing first, or an explicit opt-in beta with a clear warning."
     ),
 }
 
@@ -562,6 +569,108 @@ async def _apply_one_operation(
         after_images = [_image_to_dict(img) for img in updated_q.scalars().all()]
         return after_images, {"deleted_image_id": etsy_image_id}
 
+    elif operation_type == "replace_video":
+        video_render_id = payload.get("video_render_id")
+        if not video_render_id:
+            raise EtsyMediaWriteError("replace_video requires 'video_render_id' in payload.", status_code=400)
+
+        render_q = await db.execute(
+            select(VideoRender).where(
+                VideoRender.id == video_render_id,
+                VideoRender.organization_id == listing.organization_id,
+            )
+        )
+        render = render_q.scalar_one_or_none()
+        if not render:
+            raise EtsyMediaWriteError(
+                "Video render not found or does not belong to your organization.", status_code=404
+            )
+        if render.status != "completed" or not render.file_path:
+            raise EtsyMediaWriteError(
+                f"Video render is not completed (status={render.status}).", status_code=400
+            )
+        if render.is_etsy_ready is False:
+            issues = render.get_etsy_issues()
+            raise EtsyMediaWriteError(
+                f"Video render does not meet Etsy's video specs: {'; '.join(issues) or 'unknown issue'}",
+                status_code=400,
+            )
+
+        # Etsy listings support one video — replace any existing one first.
+        existing_q = await db.execute(select(ListingVideo).where(ListingVideo.listing_id == listing.id))
+        existing_video = existing_q.scalar_one_or_none()
+        if existing_video and existing_video.etsy_video_id:
+            await delete_etsy_listing_video(
+                access_token=access_token,
+                shop_etsy_id=shop_etsy_id,
+                listing_etsy_id=listing_etsy_id,
+                video_id=existing_video.etsy_video_id,
+            )
+            await db.delete(existing_video)
+            await db.flush()
+
+        etsy_response = await upload_etsy_listing_video(
+            access_token=access_token,
+            shop_etsy_id=shop_etsy_id,
+            listing_etsy_id=listing_etsy_id,
+            video_file_path=render.file_path,
+        )
+
+        new_video = ListingVideo(
+            listing_id=listing.id,
+            etsy_video_id=str(etsy_response.get("video_id") or etsy_response.get("listing_video_id") or ""),
+            video_url=etsy_response.get("video_url"),
+            thumbnail_url=etsy_response.get("thumbnail_url"),
+            rank=1,
+            raw_data=etsy_response,
+        )
+        db.add(new_video)
+        await db.flush()
+
+        updated_q = await db.execute(select(ListingVideo).where(ListingVideo.listing_id == listing.id))
+        after_videos = [_video_to_dict(v) for v in updated_q.scalars().all()]
+        return after_videos, etsy_response
+
+    elif operation_type == "delete_video":
+        video_id = payload.get("video_id")
+
+        target_video: ListingVideo | None = None
+        if video_id:
+            q = await db.execute(
+                select(ListingVideo).where(
+                    ListingVideo.listing_id == listing.id,
+                    ListingVideo.etsy_video_id == str(video_id),
+                )
+            )
+            target_video = q.scalar_one_or_none()
+        else:
+            # Etsy listings support one video — no id given means "the" video.
+            q = await db.execute(select(ListingVideo).where(ListingVideo.listing_id == listing.id))
+            target_video = q.scalar_one_or_none()
+
+        if not target_video:
+            raise EtsyMediaWriteError(
+                f"No video found for this listing (video_id={video_id}).", status_code=404
+            )
+
+        etsy_video_id = target_video.etsy_video_id
+        if not etsy_video_id:
+            raise EtsyMediaWriteError(
+                "Target video has no etsy_video_id — cannot delete from Etsy.", status_code=400
+            )
+
+        await delete_etsy_listing_video(
+            access_token=access_token,
+            shop_etsy_id=shop_etsy_id,
+            listing_etsy_id=listing_etsy_id,
+            video_id=etsy_video_id,
+        )
+
+        await db.delete(target_video)
+        await db.flush()
+
+        return [], {"deleted_video_id": etsy_video_id}
+
     raise EtsyMediaWriteError(f"Unknown operation: {operation_type}", status_code=400)
 
 
@@ -580,6 +689,9 @@ async def _create_media_backup_snapshot(
     )
     images_snapshot = [_image_to_dict(img) for img in images_q.scalars().all()]
 
+    videos_q = await db.execute(select(ListingVideo).where(ListingVideo.listing_id == listing.id))
+    videos_snapshot = [_video_to_dict(v) for v in videos_q.scalars().all()]
+
     snap = ListingMediaBackupSnapshot(
         organization_id=organization_id,
         media_job_id=media_job_id,
@@ -589,7 +701,7 @@ async def _create_media_backup_snapshot(
         etsy_listing_id=listing.etsy_listing_id,
         snapshot_type="pre_media_write",
         images_snapshot=images_snapshot,
-        videos_snapshot=None,
+        videos_snapshot=videos_snapshot or None,
         raw_snapshot=None,
         created_by_user_id=user_id,
     )
@@ -606,6 +718,16 @@ def _image_to_dict(img: "ListingImage") -> dict[str, Any]:
         "url_fullxfull": img.url_fullxfull,
         "url_570xN": img.url_570xN,
         "alt_text": img.alt_text,
+    }
+
+
+def _video_to_dict(video: "ListingVideo") -> dict[str, Any]:
+    return {
+        "id": video.id,
+        "etsy_video_id": video.etsy_video_id,
+        "video_url": video.video_url,
+        "thumbnail_url": video.thumbnail_url,
+        "rank": video.rank,
     }
 
 

@@ -10,10 +10,12 @@ import {
   applyMediaJob,
   getMediaResults,
   getMediaBackups,
+  listVideoRenders,
   ApiError,
   type ListingListItem,
   type MediaJob,
   type MediaResult,
+  type VideoRenderSummary,
 } from "@/lib/api";
 
 // ── Local upload types & constants ──────────────────────────────────────────
@@ -209,7 +211,13 @@ const OPERATION_OPTIONS = [
   { value: "add_image", label: "Add Image", implemented: true },
   { value: "replace_image", label: "Replace Image (at rank)", implemented: true },
   { value: "delete_image", label: "Delete Image", implemented: true },
-  { value: "reorder_images", label: "Reorder Images", implemented: true },
+  {
+    value: "reorder_images",
+    label: "Reorder Images (not available)",
+    implemented: false,
+    reason:
+      "Etsy has no endpoint to change an existing image's rank without re-uploading it. The only workaround (delete then re-upload) has a real window where your live listing could show fewer or missing photos if it fails partway — so this isn't offered rather than risking that silently.",
+  },
   { value: "replace_video", label: "Replace Video", implemented: true },
   { value: "delete_video", label: "Delete Video", implemented: true },
 ];
@@ -242,6 +250,8 @@ export default function MediaPage() {
   const [targetRank, setTargetRank] = useState<number | "">("");
   const [imageId, setImageId] = useState("");
   const [altText, setAltText] = useState("");
+  const [videoRenders, setVideoRenders] = useState<VideoRenderSummary[]>([]);
+  const [selectedVideoRenderId, setSelectedVideoRenderId] = useState("");
   const [jobs, setJobs] = useState<MediaJob[]>([]);
   const [results, setResults] = useState<MediaResult[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -255,12 +265,14 @@ export default function MediaPage() {
 
   const load = useCallback(async () => {
     try {
-      const [pg, jobList] = await Promise.all([
+      const [pg, jobList, renders] = await Promise.all([
         getListings({ per_page: 200 }),
         listMediaJobs(),
+        listVideoRenders(true).catch(() => []),
       ]);
       setListings(pg.items);
       setJobs(jobList);
+      setVideoRenders(renders);
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) { router.push("/login"); return; }
       setError("Failed to load listings.");
@@ -294,6 +306,8 @@ export default function MediaPage() {
     } else if (operationType === "delete_image") {
       if (imageId) p.image_id = imageId;
       else if (targetRank !== "") p.target_rank = Number(targetRank);
+    } else if (operationType === "replace_video") {
+      p.video_render_id = selectedVideoRenderId;
     }
     return p;
   };
@@ -306,6 +320,9 @@ export default function MediaPage() {
     if (!op?.implemented) { setError("This operation is not yet available."); return; }
     if ((operationType === "add_image" || operationType === "replace_image") && !imageUrl) {
       setError("Image URL is required."); return;
+    }
+    if (operationType === "replace_video" && !selectedVideoRenderId) {
+      setError("Choose a completed, Etsy-ready video render first."); return;
     }
     setLoading(true);
     try {
@@ -370,7 +387,7 @@ export default function MediaPage() {
     <main className="max-w-6xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Photo & Video Bulk Editor</h1>
         <p className="text-sm text-gray-500 mb-6">
-          Safely add, replace, or delete images across multiple listings. Backups are created before every write.
+          Safely add, replace, or delete images across multiple listings, or attach a generated video. Backups are created before every write.
         </p>
 
         {/* Local image upload (frontend-only preview) */}
@@ -486,6 +503,48 @@ export default function MediaPage() {
                   value={altText}
                   onChange={e => setAltText(e.target.value)}
                 />
+              </>
+            )}
+
+            {operationType === "reorder_images" && (
+              <div className="rounded-lg bg-gray-50 border border-gray-200 p-3 mb-3">
+                <p className="text-xs text-gray-600">
+                  {OPERATION_OPTIONS.find((o) => o.value === "reorder_images")?.reason}
+                </p>
+              </div>
+            )}
+
+            {(operationType === "replace_video" || operationType === "delete_video") && (
+              <div className="rounded-lg bg-purple-50 border border-purple-200 p-3 mb-3">
+                <p className="text-xs text-purple-800 font-medium">New — not yet exercised against your live shop</p>
+                <p className="text-xs text-purple-700 mt-0.5">
+                  Uses the same Etsy video endpoint a working third-party tool relies on. Your first
+                  use here is the real end-to-end confirmation for your shop — if Etsy rejects it,
+                  you&apos;ll see a clear error rather than a silent failure.
+                </p>
+              </div>
+            )}
+
+            {operationType === "replace_video" && (
+              <>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Video Render *</label>
+                <select
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  value={selectedVideoRenderId}
+                  onChange={e => setSelectedVideoRenderId(e.target.value)}
+                >
+                  <option value="">Select a completed, Etsy-ready render…</option>
+                  {videoRenders.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.template_id} · {r.aspect_ratio} · {r.duration_seconds?.toFixed(0)}s · {new Date(r.created_at).toLocaleDateString()}
+                    </option>
+                  ))}
+                </select>
+                {videoRenders.length === 0 && (
+                  <p className="text-xs text-gray-400 mb-3">
+                    No Etsy-ready renders yet — generate one on the Video Generator page first.
+                  </p>
+                )}
               </>
             )}
 

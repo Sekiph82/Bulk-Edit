@@ -270,6 +270,48 @@ async def create_render(
     )
 
 
+@router.get("/renders", response_model=list[RenderStatusResponse])
+async def list_renders(
+    etsy_ready_only: bool = False,
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List this org's video renders, newest first — used to pick a render
+    to upload to a listing (see bulk-edit/media replace_video)."""
+    query = select(VideoRender).where(
+        VideoRender.organization_id == org_id,
+        VideoRender.status == "completed",
+    )
+    if etsy_ready_only:
+        query = query.where(VideoRender.is_etsy_ready.is_(True))
+    query = query.order_by(VideoRender.created_at.desc()).limit(50)
+
+    result = await db.execute(query)
+    renders = result.scalars().all()
+
+    return [
+        RenderStatusResponse(
+            id=r.id,
+            status=r.status,
+            template_id=r.template_id,
+            image_count=r.image_count,
+            aspect_ratio=r.aspect_ratio,
+            duration_seconds=r.duration_seconds,
+            width=r.width,
+            height=r.height,
+            file_size_bytes=r.file_size_bytes,
+            is_etsy_ready=r.is_etsy_ready,
+            etsy_issues=r.get_etsy_issues() if r.is_etsy_ready is not None else None,
+            error_message=r.error_message,
+            download_url=f"/api/v1/video-generator/renders/{r.id}/download",
+            created_at=r.created_at.isoformat(),
+            completed_at=r.completed_at.isoformat() if r.completed_at else None,
+        )
+        for r in renders
+    ]
+
+
 @router.get("/renders/{render_id}", response_model=RenderStatusResponse)
 async def get_render_status(
     render_id: str,
