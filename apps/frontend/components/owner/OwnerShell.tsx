@@ -6,18 +6,25 @@ import { usePathname, useRouter } from "next/navigation";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
 
-const NAV = [
-  { href: "/owner", label: "Dashboard" },
-  { href: "/owner/users", label: "Users" },
-  { href: "/owner/organizations", label: "Organizations" },
-  { href: "/owner/shops", label: "Shops" },
-  { href: "/owner/jobs", label: "Jobs" },
-  { href: "/owner/contact-submissions", label: "Contact Submissions" },
-  { href: "/owner/emails", label: "Emails" },
-  { href: "/owner/audit-logs", label: "Audit Logs" },
-  { href: "/owner/system-health", label: "System Health" },
-  { href: "/owner/feature-flags", label: "Feature Flags" },
-  { href: "/owner/content", label: "Content" },
+// path is the suffix after /owner (e.g. "" for the dashboard, "/users" for
+// users). On owner.bulkeditapp.com the middleware already maps clean paths
+// (owner.bulkeditapp.com/users) to the internal /owner/* tree, so nav links
+// there must be the clean form — reusing /owner/users on that host would hit
+// the rewrite a second time and 404 as /owner/owner/users. On any other host
+// (e.g. staging.bulkeditapp.com testing /owner directly) the real path is
+// /owner/users, so links there must keep the prefix.
+const NAV_ITEMS = [
+  { path: "", label: "Dashboard" },
+  { path: "/users", label: "Users" },
+  { path: "/organizations", label: "Organizations" },
+  { path: "/shops", label: "Shops" },
+  { path: "/jobs", label: "Jobs" },
+  { path: "/contact-submissions", label: "Contact Submissions" },
+  { path: "/emails", label: "Emails" },
+  { path: "/audit-logs", label: "Audit Logs" },
+  { path: "/system-health", label: "System Health" },
+  { path: "/feature-flags", label: "Feature Flags" },
+  { path: "/content", label: "Content" },
 ];
 
 type GateState = "checking" | "denied" | "allowed";
@@ -90,6 +97,17 @@ export default function OwnerShell({ children }: { children: React.ReactNode }) 
     router.push("/login");
   }
 
+  // usePathname() always reflects the internal /owner/* route (that's what
+  // Next actually matched), regardless of which host served the request —
+  // so "active" comparison always uses the /owner-prefixed form, while the
+  // href shown/clicked differs by host.
+  const isOwnerHost = typeof window !== "undefined" && window.location.hostname === "owner.bulkeditapp.com";
+  const NAV = NAV_ITEMS.map((item) => {
+    const internalPath = `/owner${item.path}`;
+    const href = isOwnerHost ? (item.path === "" ? "/" : item.path) : internalPath;
+    return { href, internalPath, label: item.label };
+  });
+
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
       <aside className="w-60 flex flex-col bg-white border-r border-gray-200 flex-shrink-0">
@@ -98,10 +116,10 @@ export default function OwnerShell({ children }: { children: React.ReactNode }) 
         </div>
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
           {NAV.map((item) => {
-            const active = pathname === item.href;
+            const active = pathname === item.internalPath;
             return (
               <Link
-                key={item.href}
+                key={item.internalPath}
                 href={item.href}
                 className={`block px-2.5 py-2 rounded-lg text-sm font-medium transition-colors ${
                   active
