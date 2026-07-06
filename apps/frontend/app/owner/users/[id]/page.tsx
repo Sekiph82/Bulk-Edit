@@ -7,6 +7,7 @@ import {
   adminGetUserDetail,
   adminDisableUser,
   adminEnableUser,
+  adminSendPasswordReset,
   type AdminUserDetail,
   ApiError,
 } from "@/lib/api";
@@ -21,6 +22,9 @@ export default function OwnerUserDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -34,6 +38,20 @@ export default function OwnerUserDetailPage() {
   useEffect(() => { load(); }, [load]);
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 3000); };
+
+  async function confirmPasswordReset() {
+    setResetBusy(true);
+    setResetError(null);
+    try {
+      const result = await adminSendPasswordReset(userId);
+      flash(result.message);
+      setShowResetConfirm(false);
+    } catch (e) {
+      setResetError(e instanceof ApiError ? e.message : "Failed to send password reset email.");
+    } finally {
+      setResetBusy(false);
+    }
+  }
 
   return (
     <main className="max-w-5xl mx-auto px-6 py-8">
@@ -61,7 +79,7 @@ export default function OwnerUserDetailPage() {
                 <div className="flex justify-between"><dt className="text-gray-400">Verified</dt><dd>{user.is_verified ? "Yes" : "No"}</dd></div>
                 <div className="flex justify-between"><dt className="text-gray-400">Created</dt><dd className="text-gray-600">{fmt(user.created_at)}</dd></div>
               </dl>
-              <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-2">
                 {user.is_active ? (
                   <button
                     type="button"
@@ -79,7 +97,40 @@ export default function OwnerUserDetailPage() {
                     Enable user
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setShowResetConfirm(true)}
+                  className="text-xs font-medium text-indigo-600 border border-indigo-200 rounded-lg px-3 py-1.5 hover:bg-indigo-50"
+                >
+                  Send password reset email
+                </button>
               </div>
+
+              {showResetConfirm && (
+                <div className="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <p className="text-xs text-gray-600 mb-2">
+                    Send a password reset email to <strong>{user.email}</strong>? No reset link or token will be shown here.
+                  </p>
+                  {resetError && <p className="text-xs text-red-600 mb-2">{resetError}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={confirmPasswordReset}
+                      disabled={resetBusy}
+                      className="text-xs font-medium text-white bg-indigo-600 rounded-lg px-3 py-1.5 hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {resetBusy ? "Sending…" : "Confirm send"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowResetConfirm(false); setResetError(null); }}
+                      className="text-xs font-medium text-gray-500 px-3 py-1.5 hover:bg-gray-100 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </Card>
 
             <Card>

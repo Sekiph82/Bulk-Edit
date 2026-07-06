@@ -162,6 +162,29 @@ class AdminOrgRiskSummary(BaseModel):
     billing_issue: bool
 
 
+class AdminCompGrantOut(BaseModel):
+    id: str
+    organization_id: str
+    comp_plan: str
+    reason: str
+    granted_by_user_id: str | None
+    starts_at: datetime
+    ends_at: datetime | None
+    revoked_at: datetime | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AdminEffectiveAccess(BaseModel):
+    subscription_plan: str | None
+    subscription_status: str | None
+    stripe_managed: bool  # True if an active Stripe subscription exists — direct plan edits are blocked
+    comp: AdminCompGrantOut | None
+    effective_plan: str  # comp.comp_plan if an active comp grant exists, else subscription_plan
+
+
 class AdminOrganizationDetail(AdminOrganizationListItem):
     subscription: AdminSubscriptionSummary | None
     shop_count: int
@@ -171,6 +194,7 @@ class AdminOrganizationDetail(AdminOrganizationListItem):
     usage: AdminOrgUsageSummary
     recent_events: list[AdminAuditEventSummary] = []
     risk: AdminOrgRiskSummary
+    effective_access: AdminEffectiveAccess
 
 
 # ── Subscriptions ─────────────────────────────────────────────────────────────
@@ -437,3 +461,106 @@ class AdminTrendSeries(BaseModel):
 class AdminTrendsOut(BaseModel):
     days: int
     series: AdminTrendSeries
+
+
+# ── Plan change / comp access ─────────────────────────────────────────────────
+
+class AdminPlanChangeRequest(BaseModel):
+    plan: str
+    reason: str
+
+
+class AdminCompGrantRequest(BaseModel):
+    comp_plan: str
+    reason: str
+    ends_at: datetime | None = None
+
+
+# ── Manual Etsy sync ───────────────────────────────────────────────────────────
+
+class AdminSyncTriggerRequest(BaseModel):
+    shop_id: str | None = None
+    reason: str | None = None
+
+
+class AdminSyncTriggerResult(BaseModel):
+    status: str
+    job_id: str
+    message: str
+
+
+# ── Password reset ─────────────────────────────────────────────────────────────
+
+class AdminPasswordResetResult(BaseModel):
+    message: str
+
+
+# ── Payments ──────────────────────────────────────────────────────────────────
+# Derived from stored Stripe webhook events (billing_events) — there is no
+# separate "payment" domain model. Only safe, already-public-to-owner fields
+# are surfaced; raw event payloads are never returned as-is.
+
+class AdminPaymentItem(BaseModel):
+    id: str  # billing_event id
+    organization_id: str | None
+    organization_name: str | None
+    owner_email: str | None
+    plan: str | None
+    subscription_status: str | None
+    event_type: str
+    status: str  # derived: succeeded | failed | recorded
+    amount: float | None  # dollars, converted from Stripe's integer cents
+    currency: str | None
+    stripe_customer_id: str | None
+    refundable_ref: str | None  # masked charge/payment_intent id, if one could be safely extracted
+    created_at: datetime
+
+
+class AdminRefundRequest(BaseModel):
+    reason: str
+    amount: float | None = None  # dollars; partial refund if set, full refund if omitted
+
+
+class AdminRefundResult(BaseModel):
+    ok: bool
+    message: str
+
+
+# ── Alerts ────────────────────────────────────────────────────────────────────
+
+class AdminAlertRuleOut(BaseModel):
+    id: str
+    name: str
+    event_type: str
+    enabled: bool
+    threshold_count: int
+    window_minutes: int
+    channel_email_enabled: bool
+    channel_email_to: str | None
+    channel_slack_enabled: bool
+    slack_webhook_configured: bool  # never the raw URL
+    last_triggered_at: datetime | None
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AdminAlertRuleUpdate(BaseModel):
+    enabled: bool | None = None
+    threshold_count: int | None = None
+    window_minutes: int | None = None
+    channel_email_enabled: bool | None = None
+    channel_email_to: str | None = None
+    channel_slack_enabled: bool | None = None
+    slack_webhook_url: str | None = None  # write-only; omit to leave unchanged, "" to clear
+
+
+class AdminAlertTestResult(BaseModel):
+    ok: bool
+    message: str
+
+
+class AdminAlertCheckResult(BaseModel):
+    checked: int
+    triggered: list[str]

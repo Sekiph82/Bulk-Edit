@@ -30,6 +30,20 @@ from app.schemas.admin import (
     AdminContactSubmissionSummary,
     AdminFeatureFlags,
     AdminTrendsOut,
+    AdminPlanChangeRequest,
+    AdminCompGrantRequest,
+    AdminCompGrantOut,
+    AdminEffectiveAccess,
+    AdminSyncTriggerRequest,
+    AdminSyncTriggerResult,
+    AdminPasswordResetResult,
+    AdminPaymentItem,
+    AdminRefundRequest,
+    AdminRefundResult,
+    AdminAlertRuleOut,
+    AdminAlertRuleUpdate,
+    AdminAlertTestResult,
+    AdminAlertCheckResult,
 )
 import app.services.admin as svc
 
@@ -418,3 +432,144 @@ async def admin_feature_flags(
     _su=Depends(require_superuser),
 ):
     return AdminFeatureFlags(**svc.get_feature_flags())
+
+
+# ── Plan change / comp access ─────────────────────────────────────────────────
+
+@router.get("/organizations/{org_id}/effective-access", response_model=AdminEffectiveAccess)
+async def admin_get_effective_access(
+    org_id: str,
+    _su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    return await svc.get_effective_access(db, org_id)
+
+
+@router.post("/organizations/{org_id}/plan", response_model=AdminActionResult)
+async def admin_change_plan(
+    org_id: str,
+    body: AdminPlanChangeRequest,
+    su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    sub = await svc.change_plan(db, org_id, body.plan, body.reason, actor_user_id=su.id)
+    return AdminActionResult(ok=True, message=f"Plan changed to '{sub.plan}'.")
+
+
+@router.post("/organizations/{org_id}/comp", response_model=AdminCompGrantOut)
+async def admin_grant_comp(
+    org_id: str,
+    body: AdminCompGrantRequest,
+    su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    grant = await svc.grant_comp_access(db, org_id, body.comp_plan, body.reason, body.ends_at, actor_user_id=su.id)
+    return AdminCompGrantOut.model_validate(grant)
+
+
+@router.delete("/organizations/{org_id}/comp", response_model=AdminCompGrantOut)
+async def admin_revoke_comp(
+    org_id: str,
+    su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    grant = await svc.revoke_comp_access(db, org_id, actor_user_id=su.id)
+    return AdminCompGrantOut.model_validate(grant)
+
+
+# ── Manual Etsy sync ───────────────────────────────────────────────────────────
+
+@router.post("/organizations/{org_id}/sync", response_model=AdminSyncTriggerResult)
+async def admin_trigger_sync(
+    org_id: str,
+    body: AdminSyncTriggerRequest,
+    su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    return await svc.trigger_manual_sync(db, org_id, body.shop_id, body.reason, actor_user_id=su.id)
+
+
+# ── Password reset ─────────────────────────────────────────────────────────────
+
+@router.post("/users/{user_id}/send-password-reset", response_model=AdminPasswordResetResult)
+async def admin_send_password_reset(
+    user_id: str,
+    su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    message = await svc.send_owner_password_reset(db, user_id, actor_user_id=su.id)
+    return AdminPasswordResetResult(message=message)
+
+
+# ── Payments ──────────────────────────────────────────────────────────────────
+
+@router.get("/payments", response_model=AdminPage[AdminPaymentItem])
+async def admin_list_payments(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    q: str | None = Query(None),
+    organization_id: str | None = Query(None),
+    plan: str | None = Query(None),
+    subscription_status: str | None = Query(None),
+    created_from: str | None = Query(None, description="YYYY-MM-DD"),
+    created_to: str | None = Query(None, description="YYYY-MM-DD"),
+    _su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await svc.list_payments(
+        db, page=page, page_size=page_size, q=q, organization_id=organization_id,
+        plan=plan, subscription_status=subscription_status,
+        created_from=created_from, created_to=created_to,
+    )
+    return AdminPage[AdminPaymentItem](
+        items=result["items"], page=result["page"], page_size=result["page_size"], total=result["total"],
+    )
+
+
+@router.post("/payments/{payment_id}/refund", response_model=AdminRefundResult)
+async def admin_refund_payment(
+    payment_id: str,
+    body: AdminRefundRequest,
+    su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await svc.refund_payment(db, payment_id, body.reason, body.amount, actor_user_id=su.id)
+    return AdminRefundResult(**result)
+
+
+# ── Alerts ────────────────────────────────────────────────────────────────────
+
+@router.get("/alerts", response_model=list[AdminAlertRuleOut])
+async def admin_list_alerts(
+    _su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    return await svc.list_alert_rules(db)
+
+
+@router.put("/alerts/{rule_id}", response_model=AdminAlertRuleOut)
+async def admin_update_alert(
+    rule_id: str,
+    body: AdminAlertRuleUpdate,
+    su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    return await svc.update_alert_rule(db, rule_id, body.model_dump(exclude_unset=True), actor_user_id=su.id)
+
+
+@router.post("/alerts/{rule_id}/test", response_model=AdminAlertTestResult)
+async def admin_test_alert(
+    rule_id: str,
+    su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await svc.test_alert(db, rule_id, actor_user_id=su.id)
+    return AdminAlertTestResult(**result)
+
+
+@router.post("/alerts/run-check", response_model=AdminAlertCheckResult)
+async def admin_run_alert_check(
+    su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    return await svc.run_alert_check(db, actor_user_id=su.id)

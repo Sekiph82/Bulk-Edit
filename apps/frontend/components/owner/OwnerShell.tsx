@@ -17,6 +17,8 @@ const NAV_ITEMS = [
   { path: "", label: "Dashboard" },
   { path: "/users", label: "Users" },
   { path: "/organizations", label: "Organizations" },
+  { path: "/payments", label: "Payments" },
+  { path: "/alerts", label: "Alerts" },
   { path: "/shops", label: "Shops" },
   { path: "/jobs", label: "Jobs" },
   { path: "/contact-submissions", label: "Contact Submissions" },

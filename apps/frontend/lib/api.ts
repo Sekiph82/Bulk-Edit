@@ -1351,6 +1351,7 @@ export interface AdminOrganizationDetail extends AdminOrganization {
   usage: AdminOrgUsageSummary;
   recent_events: AdminAuditEvent[];
   risk: AdminOrgRiskSummary;
+  effective_access: AdminEffectiveAccess;
 }
 
 export interface AdminSubscription {
@@ -1466,6 +1467,160 @@ export function adminListOrganizations(
 
 export function adminGetOrganizationDetail(orgId: string): Promise<AdminOrganizationDetail> {
   return apiFetch(`${ADM}/organizations/${orgId}`);
+}
+
+// ── Plan change / comp access / effective access ──────────────────────────────
+
+export interface AdminCompGrantOut {
+  id: string;
+  organization_id: string;
+  comp_plan: string;
+  reason: string;
+  granted_by_user_id: string | null;
+  starts_at: string;
+  ends_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
+export interface AdminEffectiveAccess {
+  subscription_plan: string | null;
+  subscription_status: string | null;
+  stripe_managed: boolean;
+  comp: AdminCompGrantOut | null;
+  effective_plan: string;
+}
+
+export function adminGetEffectiveAccess(orgId: string): Promise<AdminEffectiveAccess> {
+  return apiFetch(`${ADM}/organizations/${orgId}/effective-access`);
+}
+
+export function adminChangePlan(orgId: string, plan: string, reason: string): Promise<AdminActionResult> {
+  return apiFetch(`${ADM}/organizations/${orgId}/plan`, {
+    method: "POST",
+    body: JSON.stringify({ plan, reason }),
+  });
+}
+
+export function adminGrantComp(orgId: string, comp_plan: string, reason: string, ends_at?: string | null): Promise<AdminCompGrantOut> {
+  return apiFetch(`${ADM}/organizations/${orgId}/comp`, {
+    method: "POST",
+    body: JSON.stringify({ comp_plan, reason, ends_at: ends_at ?? null }),
+  });
+}
+
+export function adminRevokeComp(orgId: string): Promise<AdminCompGrantOut> {
+  return apiFetch(`${ADM}/organizations/${orgId}/comp`, { method: "DELETE" });
+}
+
+// ── Manual Etsy sync ───────────────────────────────────────────────────────────
+
+export interface AdminSyncTriggerResult {
+  status: string;
+  job_id: string;
+  message: string;
+}
+
+export function adminTriggerSync(orgId: string, shop_id?: string | null, reason?: string | null): Promise<AdminSyncTriggerResult> {
+  return apiFetch(`${ADM}/organizations/${orgId}/sync`, {
+    method: "POST",
+    body: JSON.stringify({ shop_id: shop_id ?? null, reason: reason ?? null }),
+  });
+}
+
+// ── Password reset ─────────────────────────────────────────────────────────────
+
+export function adminSendPasswordReset(userId: string): Promise<{ message: string }> {
+  return apiFetch(`${ADM}/users/${userId}/send-password-reset`, { method: "POST" });
+}
+
+// ── Payments ──────────────────────────────────────────────────────────────────
+
+export interface AdminPaymentItem {
+  id: string;
+  organization_id: string | null;
+  organization_name: string | null;
+  owner_email: string | null;
+  plan: string | null;
+  subscription_status: string | null;
+  event_type: string;
+  status: string;
+  amount: number | null;
+  currency: string | null;
+  stripe_customer_id: string | null;
+  refundable_ref: string | null;
+  created_at: string;
+}
+
+export interface AdminPaymentFilters {
+  q?: string;
+  organization_id?: string;
+  plan?: string;
+  subscription_status?: string;
+  created_from?: string;
+  created_to?: string;
+}
+
+export function adminListPayments(
+  page = 1,
+  page_size = 25,
+  filters: AdminPaymentFilters = {},
+): Promise<AdminPage<AdminPaymentItem>> {
+  const qs = toQueryString({ page, page_size, ...filters });
+  return apiFetch(`${ADM}/payments?${qs}`);
+}
+
+export function adminRefundPayment(paymentId: string, reason: string, amount?: number | null): Promise<AdminActionResult> {
+  return apiFetch(`${ADM}/payments/${paymentId}/refund`, {
+    method: "POST",
+    body: JSON.stringify({ reason, amount: amount ?? null }),
+  });
+}
+
+// ── Alerts ────────────────────────────────────────────────────────────────────
+
+export interface AdminAlertRuleOut {
+  id: string;
+  name: string;
+  event_type: string;
+  enabled: boolean;
+  threshold_count: number;
+  window_minutes: number;
+  channel_email_enabled: boolean;
+  channel_email_to: string | null;
+  channel_slack_enabled: boolean;
+  slack_webhook_configured: boolean;
+  last_triggered_at: string | null;
+  updated_at: string;
+}
+
+export interface AdminAlertRuleUpdate {
+  enabled?: boolean;
+  threshold_count?: number;
+  window_minutes?: number;
+  channel_email_enabled?: boolean;
+  channel_email_to?: string | null;
+  channel_slack_enabled?: boolean;
+  slack_webhook_url?: string;
+}
+
+export function adminListAlerts(): Promise<AdminAlertRuleOut[]> {
+  return apiFetch(`${ADM}/alerts`);
+}
+
+export function adminUpdateAlert(ruleId: string, update: AdminAlertRuleUpdate): Promise<AdminAlertRuleOut> {
+  return apiFetch(`${ADM}/alerts/${ruleId}`, {
+    method: "PUT",
+    body: JSON.stringify(update),
+  });
+}
+
+export function adminTestAlert(ruleId: string): Promise<AdminActionResult> {
+  return apiFetch(`${ADM}/alerts/${ruleId}/test`, { method: "POST" });
+}
+
+export function adminRunAlertCheck(): Promise<{ checked: number; triggered: string[] }> {
+  return apiFetch(`${ADM}/alerts/run-check`, { method: "POST" });
 }
 
 export function adminListSubscriptions(page = 1, page_size = 25): Promise<AdminPage<AdminSubscription>> {

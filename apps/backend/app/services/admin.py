@@ -1,8 +1,13 @@
 from __future__ import annotations
+import logging
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, or_
 from fastapi import HTTPException, status
+
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 from app.models.user import User
 from app.models.organization import Organization
@@ -23,6 +28,11 @@ from app.models.listing import Listing
 from app.models.billing_event import BillingEvent
 from app.models.contact_submission import ContactSubmission
 from app.models.video_render import VideoRender
+from app.models.comp_access_grant import CompAccessGrant
+from app.models.owner_alert_rule import OwnerAlertRule
+from app.models.owner_action_log import OwnerActionLog
+from app.models.password_reset_token import PasswordResetToken
+from app.services.billing import ensure_subscription_exists
 
 from app.schemas.admin import (
     AdminUserListItem,
@@ -40,9 +50,25 @@ from app.schemas.admin import (
     AdminTrendPoint,
     AdminTrendSeries,
     AdminTrendsOut,
+    AdminCompGrantOut,
+    AdminEffectiveAccess,
+    AdminSyncTriggerResult,
+    AdminPaymentItem,
+    AdminAlertRuleOut,
+    AdminAlertCheckResult,
 )
 
 _MAX_PAGE = 100
+
+# Alert rules seeded on first access if missing — keeps the 5 supported
+# event types deterministic without needing a data migration.
+_DEFAULT_ALERT_RULES: list[dict] = [
+    {"event_type": "payment_failure", "name": "Payment failures", "threshold_count": 3, "window_minutes": 60},
+    {"event_type": "sync_failure_spike", "name": "Sync failure spike", "threshold_count": 5, "window_minutes": 60},
+    {"event_type": "bulk_edit_failures", "name": "Failed bulk edit jobs", "threshold_count": 5, "window_minutes": 60},
+    {"event_type": "system_health", "name": "API/system health issue", "threshold_count": 1, "window_minutes": 15},
+    {"event_type": "ai_failures", "name": "AI job failures", "threshold_count": 5, "window_minutes": 60},
+]
 
 
 async def _paginate(db: AsyncSession, model, page: int, page_size: int, filters: list | None = None) -> dict:
@@ -488,6 +514,7 @@ async def get_organization_detail(db: AsyncSession, org_id: str) -> AdminOrganiz
             etsy_disconnected=shop_count > 0 and not any_connected,
             billing_issue=billing_issue,
         ),
+        effective_access=await get_effective_access(db, org_id),
     )
 
 
@@ -783,3 +810,556 @@ async def get_admin_trends(db: AsyncSession, days: int = 30) -> AdminTrendsOut:
             media_jobs=build_series(media_counts),
         ),
     )
+
+
+# ── Owner action audit logging ────────────────────────────────────────────────
+# Every owner action below writes one of these. Never include tokens,
+# password reset tokens, Slack webhook URLs, card data, or Stripe secret
+# values in `message` or `extra_data`.
+
+async def _write_owner_audit_log(
+    db: AsyncSession,
+    actor_user_id: str,
+    action_type: str,
+    message: str,
+    organization_id: str | None = None,
+    target_user_id: str | None = None,
+) -> None:
+    log = OwnerActionLog(
+        actor_user_id=actor_user_id,
+        organization_id=organization_id,
+        target_user_id=target_user_id,
+        action_type=action_type,
+        message=message,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(log)
+    await db.flush()
+
+
+# ── Plan change / comp access ─────────────────────────────────────────────────
+
+_ACTIVE_SUBSCRIPTION_STATUSES = {"active", "trialing"}
+
+
+async def get_effective_access(db: AsyncSession, org_id: str) -> AdminEffectiveAccess:
+    sub = (await db.execute(select(Subscription).where(Subscription.organization_id == org_id))).scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+    comp = (await db.execute(
+        select(CompAccessGrant).where(
+            CompAccessGrant.organization_id == org_id,
+            CompAccessGrant.revoked_at.is_(None),
+        ).order_by(desc(CompAccessGrant.created_at))
+    )).scalars().first()
+
+    active_comp = None
+    if comp:
+        ends_at = comp.ends_at
+        if ends_at and ends_at.tzinfo is None:
+            ends_at = ends_at.replace(tzinfo=timezone.utc)
+        if not ends_at or ends_at > now:
+            active_comp = comp
+
+    stripe_managed = bool(sub and sub.stripe_subscription_id and sub.status in _ACTIVE_SUBSCRIPTION_STATUSES)
+    effective_plan = active_comp.comp_plan if active_comp else (sub.plan if sub else "free")
+
+    return AdminEffectiveAccess(
+        subscription_plan=sub.plan if sub else None,
+        subscription_status=sub.status if sub else None,
+        stripe_managed=stripe_managed,
+        comp=AdminCompGrantOut.model_validate(active_comp) if active_comp else None,
+        effective_plan=effective_plan,
+    )
+
+
+async def change_plan(db: AsyncSession, org_id: str, plan: str, reason: str, actor_user_id: str) -> Subscription:
+    from app.core.plans import ALL_PLANS
+
+    if plan not in ALL_PLANS:
+        raise HTTPException(status_code=400, detail=f"Unknown plan '{plan}'. Must be one of: {', '.join(sorted(ALL_PLANS))}.")
+
+    sub = await ensure_subscription_exists(org_id, db)
+    if sub.stripe_subscription_id and sub.status in _ACTIVE_SUBSCRIPTION_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This organization has an active Stripe-managed subscription. Change the plan via the "
+                "Stripe dashboard or the customer billing portal — editing it directly here would desync "
+                "billing from what Stripe actually charges."
+            ),
+        )
+
+    old_plan = sub.plan
+    sub.plan = plan
+    db.add(sub)
+    await _write_owner_audit_log(
+        db, actor_user_id, "owner_plan_change",
+        f"Plan changed from '{old_plan}' to '{plan}'. Reason: {reason}",
+        organization_id=org_id,
+    )
+    await db.commit()
+    await db.refresh(sub)
+    return sub
+
+
+async def grant_comp_access(
+    db: AsyncSession, org_id: str, comp_plan: str, reason: str, ends_at: datetime | None, actor_user_id: str
+) -> CompAccessGrant:
+    from app.core.plans import ALL_PLANS
+
+    org = (await db.execute(select(Organization).where(Organization.id == org_id))).scalar_one_or_none()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    if comp_plan not in ALL_PLANS:
+        raise HTTPException(status_code=400, detail=f"Unknown plan '{comp_plan}'. Must be one of: {', '.join(sorted(ALL_PLANS))}.")
+
+    grant = CompAccessGrant(
+        organization_id=org_id,
+        comp_plan=comp_plan,
+        reason=reason,
+        granted_by_user_id=actor_user_id,
+        starts_at=datetime.now(timezone.utc),
+        ends_at=ends_at,
+    )
+    db.add(grant)
+    await db.flush()
+    await _write_owner_audit_log(
+        db, actor_user_id, "owner_comp_grant",
+        f"Comp access granted: plan={comp_plan}. Reason: {reason}",
+        organization_id=org_id,
+    )
+    await db.commit()
+    await db.refresh(grant)
+    return grant
+
+
+async def revoke_comp_access(db: AsyncSession, org_id: str, actor_user_id: str) -> CompAccessGrant:
+    grant = (await db.execute(
+        select(CompAccessGrant).where(
+            CompAccessGrant.organization_id == org_id,
+            CompAccessGrant.revoked_at.is_(None),
+        ).order_by(desc(CompAccessGrant.created_at))
+    )).scalars().first()
+    if not grant:
+        raise HTTPException(status_code=404, detail="No active comp access grant for this organization.")
+
+    grant.revoked_at = datetime.now(timezone.utc)
+    grant.revoked_by_user_id = actor_user_id
+    db.add(grant)
+    await _write_owner_audit_log(
+        db, actor_user_id, "owner_comp_revoke",
+        f"Comp access revoked (was plan={grant.comp_plan}).",
+        organization_id=org_id,
+    )
+    await db.commit()
+    await db.refresh(grant)
+    return grant
+
+
+# ── Manual Etsy sync ───────────────────────────────────────────────────────────
+
+async def trigger_manual_sync(
+    db: AsyncSession, org_id: str, shop_id: str | None, reason: str | None, actor_user_id: str
+) -> AdminSyncTriggerResult:
+    """Runs synchronously in-request — this codebase has no background job
+    queue yet (see sync_shop_listings docstring). Not queued; the request
+    blocks until the sync finishes or fails."""
+    from app.services.etsy_sync import sync_shop_listings, SyncError
+
+    if shop_id:
+        shop = (await db.execute(
+            select(EtsyShop).where(EtsyShop.id == shop_id, EtsyShop.organization_id == org_id)
+        )).scalar_one_or_none()
+        if not shop:
+            raise HTTPException(status_code=404, detail="Shop not found or does not belong to this organization.")
+    else:
+        shop = (await db.execute(
+            select(EtsyShop).where(EtsyShop.organization_id == org_id, EtsyShop.is_connected.is_(True))
+            .order_by(desc(EtsyShop.created_at))
+        )).scalar_one_or_none()
+        if not shop:
+            raise HTTPException(status_code=400, detail="No connected Etsy shop found for this organization.")
+
+    await _write_owner_audit_log(
+        db, actor_user_id, "owner_manual_sync_requested",
+        f"Manual sync requested for shop {shop.shop_name}. Reason: {reason or 'not given'}",
+        organization_id=org_id,
+    )
+    await db.commit()
+
+    try:
+        job = await sync_shop_listings(db, org_id, shop.id)
+    except SyncError as exc:
+        await _write_owner_audit_log(
+            db, actor_user_id, "owner_manual_sync_failed",
+            f"Manual sync failed for shop {shop.shop_name}: {exc.message}",
+            organization_id=org_id,
+        )
+        await db.commit()
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
+
+    await _write_owner_audit_log(
+        db, actor_user_id, "owner_manual_sync_completed",
+        f"Manual sync finished for shop {shop.shop_name}: status={job.status}",
+        organization_id=org_id,
+    )
+    await db.commit()
+
+    return AdminSyncTriggerResult(status=job.status, job_id=job.id, message=f"Sync {job.status}.")
+
+
+# ── Password reset ─────────────────────────────────────────────────────────────
+
+async def send_owner_password_reset(db: AsyncSession, user_id: str, actor_user_id: str) -> str:
+    from app.services.auth import request_password_reset
+
+    user = await _get_user_row(db, user_id)
+    await request_password_reset(user.email, db)
+
+    await _write_owner_audit_log(
+        db, actor_user_id, "owner_password_reset_requested",
+        f"Owner requested a password reset email for user {user.email}.",
+        target_user_id=user.id,
+    )
+    await db.commit()
+
+    return "Password reset email sent if the account can receive email."
+
+
+# ── Payments ──────────────────────────────────────────────────────────────────
+
+def _extract_payment_refs(event_type: str, payload: dict) -> dict:
+    """Best-effort, conservative extraction from a raw Stripe webhook payload.
+    Only reads well-known top-level keys shared by invoice/checkout-session/
+    payment-intent-shaped objects; returns None for anything not confidently
+    present rather than guessing. Never touches card data — Stripe never puts
+    full card numbers in webhook payloads."""
+    obj = (payload or {}).get("data", {}).get("object", {}) if payload else {}
+    if not isinstance(obj, dict):
+        return {}
+
+    charge_id = obj.get("charge") if isinstance(obj.get("charge"), str) else None
+    payment_intent_id = obj.get("payment_intent") if isinstance(obj.get("payment_intent"), str) else None
+    amount_raw = obj.get("amount_due") or obj.get("amount_total") or obj.get("amount_paid") or obj.get("amount")
+    amount = round(amount_raw / 100, 2) if isinstance(amount_raw, (int, float)) else None
+    currency = obj.get("currency") if isinstance(obj.get("currency"), str) else None
+
+    refundable_ref = payment_intent_id or charge_id
+    return {"refundable_ref": refundable_ref, "amount": amount, "currency": currency}
+
+
+def _derive_payment_status(event_type: str) -> str:
+    if "failed" in event_type:
+        return "failed"
+    if "completed" in event_type or "succeeded" in event_type or "paid" in event_type:
+        return "succeeded"
+    return "recorded"
+
+
+def _mask_stripe_id(value: str | None) -> str | None:
+    if not value or len(value) <= 8:
+        return value
+    return f"{value[:6]}…{value[-4:]}"
+
+
+async def list_payments(
+    db: AsyncSession,
+    page: int = 1,
+    page_size: int = 25,
+    q: str | None = None,
+    organization_id: str | None = None,
+    plan: str | None = None,
+    subscription_status: str | None = None,
+    created_from: str | None = None,
+    created_to: str | None = None,
+) -> dict:
+    filters = []
+    if organization_id:
+        filters.append(BillingEvent.organization_id == organization_id)
+    from_dt = _parse_date_bound(created_from)
+    to_dt = _parse_date_bound(created_to, end_of_day=True)
+    if from_dt:
+        filters.append(BillingEvent.created_at >= from_dt)
+    if to_dt:
+        filters.append(BillingEvent.created_at <= to_dt)
+
+    if q or plan or subscription_status:
+        org_ids_q = select(Organization.id)
+        if q:
+            like = f"%{q}%"
+            owner_ids_q = select(User.id).where(User.email.ilike(like))
+            org_ids_q = org_ids_q.where(or_(Organization.name.ilike(like), Organization.id == q, Organization.owner_id.in_(owner_ids_q)))
+        if plan or subscription_status:
+            sub_filter = []
+            if plan:
+                sub_filter.append(Subscription.plan == plan)
+            if subscription_status:
+                sub_filter.append(Subscription.status == subscription_status)
+            org_ids_q = org_ids_q.where(Organization.id.in_(select(Subscription.organization_id).where(*sub_filter)))
+        filters.append(BillingEvent.organization_id.in_(org_ids_q))
+
+    result = await _paginate(db, BillingEvent, page, page_size, filters=filters)
+    events: list[BillingEvent] = result["items"]
+
+    org_ids = list({e.organization_id for e in events if e.organization_id})
+    orgs_by_id: dict[str, Organization] = {}
+    owners_by_org: dict[str, User] = {}
+    subs_by_org: dict[str, Subscription] = {}
+    if org_ids:
+        orgs = (await db.execute(select(Organization).where(Organization.id.in_(org_ids)))).scalars().all()
+        orgs_by_id = {o.id: o for o in orgs}
+        owner_ids = list({o.owner_id for o in orgs})
+        owners = (await db.execute(select(User).where(User.id.in_(owner_ids)))).scalars().all()
+        owners_by_id = {u.id: u for u in owners}
+        owners_by_org = {o.id: owners_by_id.get(o.owner_id) for o in orgs}
+        subs = (await db.execute(select(Subscription).where(Subscription.organization_id.in_(org_ids)))).scalars().all()
+        subs_by_org = {s.organization_id: s for s in subs}
+
+    items = []
+    for e in events:
+        org = orgs_by_id.get(e.organization_id) if e.organization_id else None
+        owner = owners_by_org.get(e.organization_id) if e.organization_id else None
+        sub = subs_by_org.get(e.organization_id) if e.organization_id else None
+        refs = _extract_payment_refs(e.event_type, e.payload)
+        items.append(AdminPaymentItem(
+            id=e.id,
+            organization_id=e.organization_id,
+            organization_name=org.name if org else None,
+            owner_email=owner.email if owner else None,
+            plan=sub.plan if sub else None,
+            subscription_status=sub.status if sub else None,
+            event_type=e.event_type,
+            status=_derive_payment_status(e.event_type),
+            amount=refs.get("amount"),
+            currency=refs.get("currency"),
+            stripe_customer_id=_mask_stripe_id(sub.stripe_customer_id if sub else None),
+            refundable_ref=_mask_stripe_id(refs.get("refundable_ref")),
+            created_at=e.created_at,
+        ))
+
+    result["items"] = items
+    return result
+
+
+async def refund_payment(db: AsyncSession, billing_event_id: str, reason: str, amount: float | None, actor_user_id: str) -> dict:
+    event = (await db.execute(select(BillingEvent).where(BillingEvent.id == billing_event_id))).scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=404, detail="Payment record not found.")
+
+    refs = _extract_payment_refs(event.event_type, event.payload)
+    ref = refs.get("refundable_ref")
+    org_id = event.organization_id
+
+    if not ref:
+        raise HTTPException(
+            status_code=400,
+            detail="No refundable charge or payment intent reference was found on this record. Refund it directly in the Stripe dashboard.",
+        )
+    if not settings.is_stripe_configured():
+        raise HTTPException(status_code=503, detail="Stripe is not configured in this environment.")
+
+    import stripe
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    kwargs: dict = {"reason": "requested_by_customer"}
+    if ref.startswith("pi_"):
+        kwargs["payment_intent"] = ref
+    else:
+        kwargs["charge"] = ref
+    if amount is not None:
+        kwargs["amount"] = int(round(amount * 100))
+
+    try:
+        refund = stripe.Refund.create(**kwargs)
+        ok = True
+        message = f"Refund created (status={refund.get('status', 'unknown')})."
+    except Exception as exc:
+        ok = False
+        message = f"Stripe refund failed: {exc}"
+
+    await _write_owner_audit_log(
+        db, actor_user_id,
+        "owner_refund_success" if ok else "owner_refund_failed",
+        f"Refund attempt on {_mask_stripe_id(ref)}: {message}. Reason: {reason}",
+        organization_id=org_id,
+    )
+    await db.commit()
+
+    if not ok:
+        raise HTTPException(status_code=502, detail=message)
+    return {"ok": True, "message": message}
+
+
+# ── Alerts ────────────────────────────────────────────────────────────────────
+
+async def _ensure_default_alert_rules(db: AsyncSession) -> None:
+    existing = (await db.execute(select(OwnerAlertRule.event_type))).scalars().all()
+    existing_set = set(existing)
+    created = False
+    for defaults in _DEFAULT_ALERT_RULES:
+        if defaults["event_type"] not in existing_set:
+            db.add(OwnerAlertRule(**defaults))
+            created = True
+    if created:
+        await db.commit()
+
+
+async def list_alert_rules(db: AsyncSession) -> list[AdminAlertRuleOut]:
+    await _ensure_default_alert_rules(db)
+    rules = (await db.execute(select(OwnerAlertRule).order_by(OwnerAlertRule.name))).scalars().all()
+    return [
+        AdminAlertRuleOut(
+            id=r.id, name=r.name, event_type=r.event_type, enabled=r.enabled,
+            threshold_count=r.threshold_count, window_minutes=r.window_minutes,
+            channel_email_enabled=r.channel_email_enabled, channel_email_to=r.channel_email_to,
+            channel_slack_enabled=r.channel_slack_enabled,
+            slack_webhook_configured=bool(r.encrypted_slack_webhook),
+            last_triggered_at=r.last_triggered_at, updated_at=r.updated_at,
+        )
+        for r in rules
+    ]
+
+
+async def update_alert_rule(db: AsyncSession, rule_id: str, update: dict, actor_user_id: str) -> AdminAlertRuleOut:
+    from app.core.encryption import encrypt_token
+
+    rule = (await db.execute(select(OwnerAlertRule).where(OwnerAlertRule.id == rule_id))).scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Alert rule not found.")
+
+    changed_fields = []
+    for field in ("enabled", "threshold_count", "window_minutes", "channel_email_enabled", "channel_email_to", "channel_slack_enabled"):
+        if update.get(field) is not None:
+            setattr(rule, field, update[field])
+            changed_fields.append(field)
+
+    slack_url = update.get("slack_webhook_url")
+    if slack_url is not None:
+        rule.encrypted_slack_webhook = encrypt_token(slack_url) if slack_url else None
+        changed_fields.append("slack_webhook")
+
+    rule.updated_by_user_id = actor_user_id
+    db.add(rule)
+    await db.flush()
+
+    await _write_owner_audit_log(
+        db, actor_user_id, "owner_alert_rule_updated",
+        f"Alert rule '{rule.name}' updated: {', '.join(changed_fields) or 'no changes'}.",
+    )
+    await db.commit()
+    await db.refresh(rule)
+
+    return AdminAlertRuleOut(
+        id=rule.id, name=rule.name, event_type=rule.event_type, enabled=rule.enabled,
+        threshold_count=rule.threshold_count, window_minutes=rule.window_minutes,
+        channel_email_enabled=rule.channel_email_enabled, channel_email_to=rule.channel_email_to,
+        channel_slack_enabled=rule.channel_slack_enabled,
+        slack_webhook_configured=bool(rule.encrypted_slack_webhook),
+        last_triggered_at=rule.last_triggered_at, updated_at=rule.updated_at,
+    )
+
+
+def _send_slack_message(webhook_url: str, text: str) -> bool:
+    import httpx
+    try:
+        resp = httpx.post(webhook_url, json={"text": text}, timeout=10.0)
+        return resp.status_code < 300
+    except Exception:
+        logger.warning("Slack alert send failed (webhook unreachable or invalid)")
+        return False
+
+
+async def test_alert(db: AsyncSession, rule_id: str, actor_user_id: str) -> dict:
+    from app.core.encryption import decrypt_token
+    from app.services.email import send_email
+
+    rule = (await db.execute(select(OwnerAlertRule).where(OwnerAlertRule.id == rule_id))).scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Alert rule not found.")
+
+    sent_any = False
+    results = []
+    if rule.channel_email_enabled:
+        to = rule.channel_email_to or settings.SUPPORT_EMAIL
+        result = send_email(to, f"[Test] Bulk Edit App alert: {rule.name}", f"This is a test of the '{rule.name}' alert rule. No action needed.")
+        sent_any = sent_any or result.sent
+        results.append(f"email: {result.reason}")
+    if rule.channel_slack_enabled and rule.encrypted_slack_webhook:
+        ok = _send_slack_message(decrypt_token(rule.encrypted_slack_webhook), f"Test alert: {rule.name} — no action needed.")
+        sent_any = sent_any or ok
+        results.append(f"slack: {'sent' if ok else 'failed'}")
+    if not results:
+        results.append("no channels enabled")
+
+    await _write_owner_audit_log(
+        db, actor_user_id, "owner_alert_test_sent",
+        f"Test alert sent for rule '{rule.name}': {', '.join(results)}.",
+    )
+    await db.commit()
+
+    return {"ok": sent_any, "message": f"Test alert result — {', '.join(results)}."}
+
+
+_ALERT_EVENT_COUNTERS = {
+    "payment_failure": (BillingEvent, BillingEvent.event_type == "invoice.payment_failed", BillingEvent.created_at),
+    "sync_failure_spike": (SyncJob, SyncJob.status == "failed", SyncJob.created_at),
+    "bulk_edit_failures": (BulkEditSession, BulkEditSession.status == "failed", BulkEditSession.created_at),
+    "ai_failures": (AISession, AISession.status == "failed", AISession.created_at),
+}
+
+
+async def run_alert_check(db: AsyncSession, actor_user_id: str) -> AdminAlertCheckResult:
+    """On-demand alert evaluation — there is no background scheduler in this
+    codebase yet, so this only runs when an owner clicks "Run alert check
+    now". See OwnerAlertRule model docstring."""
+    from app.core.encryption import decrypt_token
+    from app.services.email import send_email
+
+    await _ensure_default_alert_rules(db)
+    rules = (await db.execute(select(OwnerAlertRule).where(OwnerAlertRule.enabled.is_(True)))).scalars().all()
+
+    now = datetime.now(timezone.utc)
+    triggered: list[str] = []
+
+    for rule in rules:
+        if rule.event_type == "system_health":
+            health = await get_system_health(db)
+            count = health["recent_failed_scheduled_runs"] + health["recent_failed_ai_sessions"]
+            if health["redis_status"] == "error":
+                count += 1
+        else:
+            counter = _ALERT_EVENT_COUNTERS.get(rule.event_type)
+            if not counter:
+                continue
+            model, cond, date_col = counter
+            since = now - timedelta(minutes=rule.window_minutes)
+            count = (await db.execute(
+                select(func.count()).select_from(model).where(cond, date_col >= since)
+            )).scalar_one()
+
+        if count < rule.threshold_count:
+            continue
+
+        last = rule.last_triggered_at
+        if last and last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        if last and (now - last) < timedelta(minutes=rule.window_minutes):
+            continue  # dedupe — already alerted within this window
+
+        message = f"{rule.name}: {count} events in the last {rule.window_minutes} minutes (threshold {rule.threshold_count})."
+        if rule.channel_email_enabled:
+            send_email(rule.channel_email_to or settings.SUPPORT_EMAIL, f"[Alert] {rule.name}", message)
+        if rule.channel_slack_enabled and rule.encrypted_slack_webhook:
+            _send_slack_message(decrypt_token(rule.encrypted_slack_webhook), message)
+
+        rule.last_triggered_at = now
+        db.add(rule)
+        triggered.append(rule.event_type)
+
+    await _write_owner_audit_log(
+        db, actor_user_id, "owner_alert_check_run",
+        f"Alert check run: {len(rules)} enabled rule(s), {len(triggered)} triggered ({', '.join(triggered) or 'none'}).",
+    )
+    await db.commit()
+
+    return AdminAlertCheckResult(checked=len(rules), triggered=triggered)
