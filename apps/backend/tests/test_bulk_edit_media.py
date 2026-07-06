@@ -645,12 +645,13 @@ async def test_apply_writes_audit_logs(client, db_session):
     assert "bulk_edit_media_job_finished" in event_types
 
 
-# ── video unsupported → result skipped ────────────────────────────────────────
+# ── reorder_images removed entirely — not a valid operation type ──────────────
 
-async def test_apply_reorder_images_is_skipped(client, db_session):
-    """reorder_images remains an intentional stub — investigated and rejected
-    due to a real data-loss window on live listings that Etsy's API gives no
-    way to eliminate. This must stay skipped, never silently faked."""
+async def test_create_reorder_images_job_rejected_as_invalid_operation(client, db_session):
+    """reorder_images was never implemented (Etsy has no atomic reorder
+    endpoint, and delete-then-reupload has a real data-loss window on live
+    listings) and has been removed as an option entirely — creating a job
+    with it must fail validation, not silently accept and skip it."""
     token = await _register_and_login(client, {
         "email": "mreorder@example.com", "password": "password123",
         "full_name": "Reorder", "organization_name": "Reorder Org",
@@ -663,21 +664,7 @@ async def test_apply_reorder_images_is_skipped(client, db_session):
         "operation_type": "reorder_images",
         "payload": {},
     }, headers={"Authorization": f"Bearer {token}"})
-    job_id = r.json()["id"]
-
-    with patch("app.services.bulk_edit_media.settings", _etsy_settings_mock()):
-        r2 = await client.post(f"{JOBS_URL}/{job_id}/apply", headers={"Authorization": f"Bearer {token}"})
-
-    assert r2.status_code == 200
-    data = r2.json()
-    assert data["skipped_count"] == 1
-    assert data["success_count"] == 0
-
-    r3 = await client.get(f"{JOBS_URL}/{job_id}/results", headers={"Authorization": f"Bearer {token}"})
-    results = r3.json()["items"]
-    assert len(results) == 1
-    assert results[0]["status"] == "skipped"
-    assert "no endpoint to change an existing image" in results[0]["error_message"].lower()
+    assert r.status_code == 422
 
 
 async def _make_video_render(db_session, org_id: str, status: str = "completed", is_etsy_ready: bool | None = True, file_path: str = "/tmp/fake-render.mp4", source: str = "generated"):

@@ -291,13 +291,6 @@ const OPERATION_OPTIONS = [
   { value: "add_video", label: "Add Video", implemented: true },
   { value: "replace_video", label: "Replace Video", implemented: true },
   { value: "delete_video", label: "Delete Video", implemented: true },
-  {
-    value: "reorder_images",
-    label: "Reorder Images (not available)",
-    implemented: false,
-    reason:
-      "Etsy has no endpoint to change an existing image's rank without re-uploading it. The only workaround (delete then re-upload) has a real window where your live listing could show fewer or missing photos if it fails partway — so this isn't offered rather than risking that silently.",
-  },
 ];
 
 function StatusBadge({ status }: { status: string }) {
@@ -598,14 +591,6 @@ export default function MediaPage() {
                   onChange={e => setAltText(e.target.value)}
                 />
               </>
-            )}
-
-            {operationType === "reorder_images" && (
-              <div className="rounded-lg bg-gray-50 border border-gray-200 p-3 mb-3">
-                <p className="text-xs text-gray-600">
-                  {OPERATION_OPTIONS.find((o) => o.value === "reorder_images")?.reason}
-                </p>
-              </div>
             )}
 
             {(operationType === "add_video" || operationType === "replace_video" || operationType === "delete_video") && (
