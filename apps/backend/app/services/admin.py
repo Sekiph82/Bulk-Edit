@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, or_, and_
+from sqlalchemy import select, func, desc, or_
 from fastapi import HTTPException, status
 
 from app.models.user import User
