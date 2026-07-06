@@ -10,6 +10,10 @@ import SellerPainGrid from "@/components/marketing/SellerPainGrid";
 import SafeEditingEngine from "@/components/marketing/SafeEditingEngine";
 import FeatureShowcase from "@/components/marketing/FeatureShowcase";
 import SafetyPreviewPanel from "@/components/marketing/SafetyPreviewPanel";
+import ProductScreenshotsSection from "@/components/marketing/ProductScreenshotsSection";
+import DemoVideoSection from "@/components/marketing/DemoVideoSection";
+import FoundingAccessSection from "@/components/marketing/FoundingAccessSection";
+import ComparisonSection from "@/components/marketing/ComparisonSection";
 import EtsySeoSection from "@/components/marketing/EtsySeoSection";
 import VideoInsightsSection from "@/components/marketing/VideoInsightsSection";
 import ExplainerBlocks from "@/components/marketing/ExplainerBlocks";
@@ -159,6 +163,9 @@ export default function HomeContent() {
         </div>
       </section>
 
+      {/* Product workflow preview — mock UI, sample data only */}
+      <ProductScreenshotsSection />
+
       {/* Problem */}
       <SellerPainGrid />
 
@@ -177,6 +184,15 @@ export default function HomeContent() {
 
       {/* Feature clusters */}
       <FeatureShowcase />
+
+      {/* 60-second demo — real video if present, honest placeholder otherwise */}
+      <DemoVideoSection />
+
+      {/* Fake-free trust building — no testimonials, ratings, or invented counts */}
+      <FoundingAccessSection />
+
+      {/* Careful, non-attack competitor positioning */}
+      <ComparisonSection />
 
       {/* Trust and safety */}
       <SafetyPreviewPanel />
