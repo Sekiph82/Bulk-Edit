@@ -12,10 +12,11 @@ Orchestrates safe media writes to Etsy listings:
   - replace_video: upload a completed, Etsy-ready VideoRender (local MP4 file)
     to Etsy, replacing any existing listing video; updates local ListingVideo rows
   - delete_video: delete the listing's video from Etsy, remove local row
-  - reorder_images: STUB — investigated, not implemented. See the entry in
-    _STUB_REASONS below for the full evidence — Etsy has no atomic reorder
-    endpoint, and the only workaround (delete-then-reupload) has a real,
-    uneliminable data-loss window on a LIVE customer-facing listing.
+
+Image reorder is intentionally not offered: Etsy has no atomic reorder
+endpoint, and the only workaround (delete-then-reupload) has a real,
+uneliminable data-loss window on a LIVE customer-facing listing. See
+apps/backend/app/services/etsy_media_write.py for the full investigation.
 
 Safety contract:
   1. listing_ids must belong to organization
@@ -62,29 +63,9 @@ VALID_OPERATION_TYPES = {
     "add_image",
     "replace_image",
     "delete_image",
-    "reorder_images",
     "add_video",
     "replace_video",
     "delete_video",
-}
-
-# Operations implemented with real Etsy writes
-IMPLEMENTED_OPERATIONS = {
-    "add_image", "replace_image", "delete_image", "add_video", "replace_video", "delete_video",
-}
-
-# Stubs with clear reason
-_STUB_REASONS = {
-    "reorder_images": (
-        "Image reorder is not implemented: investigated against Etsy's API and confirmed there is "
-        "no endpoint to change an existing image's rank without re-uploading it (only GET/POST-create/"
-        "DELETE exist for listing images). The only possible workaround — delete then re-upload in the "
-        "new order — has a real window where a live, customer-facing listing can show fewer or zero "
-        "photos if the process fails partway (network error, timeout, restart). Magic Revert can repair "
-        "this after the fact but the risk during the operation itself cannot be eliminated with Etsy's "
-        "current API, so this was not implemented rather than accepting that risk silently. Revisit only "
-        "with either sandbox/disposable-shop testing first, or an explicit opt-in beta with a clear warning."
-    ),
 }
 
 
@@ -299,25 +280,6 @@ async def apply_media_job(
                 operation_type=operation_type,
                 status="skipped",
                 error_message="Shop not found.",
-                attempted_at=now,
-                completed_at=now,
-            )
-            db.add(mr)
-            await db.flush()
-            continue
-
-        # Handle stub operations
-        if operation_type not in IMPLEMENTED_OPERATIONS:
-            skipped_count += 1
-            mr = BulkEditMediaResult(
-                organization_id=organization_id,
-                media_job_id=media_job_id,
-                bulk_edit_session_id=job.bulk_edit_session_id,
-                listing_id=listing.id,
-                etsy_listing_id=listing.etsy_listing_id,
-                operation_type=operation_type,
-                status="skipped",
-                error_message=_STUB_REASONS.get(operation_type, "Operation not implemented."),
                 attempted_at=now,
                 completed_at=now,
             )

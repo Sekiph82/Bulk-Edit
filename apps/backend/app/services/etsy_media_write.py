@@ -54,9 +54,9 @@ Reorder — investigated and NOT implemented:
   (network error, timeout, process restart). Magic Revert can repair this
   after the fact, but the risk during the operation itself cannot be
   eliminated with Etsy's current API, which fails the "no risk of data loss"
-  bar. Left as a stub; see reorder_images entry in bulk_edit_media.py for
-  the full evidence and a safe path to revisit (e.g. testing against a
-  disposable/sandbox shop first, or an explicit opt-in beta with warnings).
+  bar. Not offered as an operation; revisit only with a safe path such as
+  testing against a disposable/sandbox shop first, or an explicit opt-in
+  beta with warnings.
 
 Safety contract: callers must backup media before calling any write function.
 """
