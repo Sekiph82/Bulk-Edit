@@ -24,6 +24,14 @@ const OWNER = "owner.bulkeditapp.com";
 const OWNER_STAGING = "owner-staging.bulkeditapp.com";
 const OWNER_HOSTS = new Set([OWNER, OWNER_STAGING]);
 
+// Private beta gate: when true, every app-path request (login, register,
+// dashboard, billing, media, etc. — anything in APP_PREFIXES) is redirected
+// to /private-beta instead of reaching the real (unconfigured-integrations)
+// SaaS app. Off by default; only set NEXT_PUBLIC_PRIVATE_BETA_MODE=true on
+// the production frontend app while Etsy/Stripe/email secrets are pending.
+const PRIVATE_BETA_MODE = process.env.NEXT_PUBLIC_PRIVATE_BETA_MODE === "true";
+const PRIVATE_BETA_PATH = "/private-beta";
+
 // Authenticated product routes (the app/(app) group + auth pages).
 // Requests for these on the apex marketing host are sent to the app subdomain.
 const APP_PREFIXES = [
@@ -69,12 +77,27 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
-  // Apex marketing host: bounce app routes to the app subdomain.
+  // Apex marketing host: bounce app routes to the app subdomain — or, during
+  // private beta, straight to the beta gate page on the same host, so a
+  // visitor never even reaches app.bulkeditapp.com.
   if (host === APEX && isAppPath(pathname)) {
     const url = new URL(req.url);
+    if (PRIVATE_BETA_MODE) {
+      url.pathname = PRIVATE_BETA_PATH;
+      return NextResponse.redirect(url, 307);
+    }
     url.hostname = APP;
     url.protocol = "https:";
     url.port = "";
+    return NextResponse.redirect(url, 307);
+  }
+
+  // App host directly requested during private beta (e.g. a stale bookmark
+  // or someone typing the URL): redirect everything except the gate page
+  // itself to /private-beta, before any real app page ever renders.
+  if (PRIVATE_BETA_MODE && host === APP && pathname !== PRIVATE_BETA_PATH) {
+    const url = req.nextUrl.clone();
+    url.pathname = PRIVATE_BETA_PATH;
     return NextResponse.redirect(url, 307);
   }
 
