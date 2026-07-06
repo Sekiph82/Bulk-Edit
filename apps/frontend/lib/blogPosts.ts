@@ -36,6 +36,8 @@ export type BlogPost = {
   disclaimer?: string; // additional, post-specific disclaimer beyond the standard Etsy-independence line
   ctaTitle: string;
   ctaBody: string;
+  secondaryCtaLabel?: string; // defaults to "View pricing" / "/pricing" when omitted
+  secondaryCtaHref?: string;
   related: string[]; // slugs
 };
 
@@ -270,6 +272,8 @@ export const BLOG_POSTS: BlogPost[] = [
     ctaTitle: "Clean up tags safely, listing by listing or in bulk",
     ctaBody:
       "Bulk Edit App lets you review every tag suggestion and preview the exact change before it's applied to Etsy.",
+    secondaryCtaLabel: "Try the tag cleanup checklist",
+    secondaryCtaHref: "/tools/etsy-tag-cleanup-checklist",
     related: ["etsy-seo-title-tag-optimization-checklist", "how-to-bulk-edit-etsy-listings-2026-guide"],
   },
   {
@@ -376,6 +380,8 @@ export const BLOG_POSTS: BlogPost[] = [
       "Bulk Edit App is independent and is not endorsed by Etsy, Vela, eRank, or any third-party brand. Vela and eRank are trademarks of their respective owners. Feature availability varies by tool and plan and changes over time — always verify current features directly on each provider's website.",
     ctaTitle: "See how Bulk Edit App's preview-first workflow fits your shop",
     ctaBody: "Free plan available. No credit card required to start.",
+    secondaryCtaLabel: "Bulk Edit App vs Vela",
+    secondaryCtaHref: "/compare/bulk-edit-app-vs-vela",
     related: ["how-to-bulk-edit-etsy-listings-2026-guide", "preview-before-bulk-editing-etsy-listings"],
   },
   {
@@ -565,7 +571,9 @@ export const BLOG_POSTS: BlogPost[] = [
     ],
     ctaTitle: "Review profit before your next price update",
     ctaBody:
-      "A dedicated Etsy fee and profit calculator is planned as a future Bulk Edit App tool. Today, use the profit and cost calculator in the app to check margin per listing before a bulk price change.",
+      "Use the free Etsy Fee Calculator to check margin per listing before a bulk price change, then use Bulk Edit App's profit and cost calculator for ongoing tracking inside the app.",
+    secondaryCtaLabel: "Try the Etsy Fee Calculator",
+    secondaryCtaHref: "/tools/etsy-fee-calculator",
     related: ["etsy-shop-cleanup-before-holidays", "preview-before-bulk-editing-etsy-listings"],
   },
   {

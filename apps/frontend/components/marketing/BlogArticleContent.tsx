@@ -168,8 +168,8 @@ export default function BlogArticleContent({ post }: { post: BlogPost }) {
         title={post.ctaTitle}
         subtitle={post.ctaBody}
         primaryLabel="Try Bulk Edit App"
-        secondaryLabel="View pricing"
-        secondaryHref="/pricing"
+        secondaryLabel={post.secondaryCtaLabel ?? "View pricing"}
+        secondaryHref={post.secondaryCtaHref ?? "/pricing"}
       />
 
       {related.length > 0 && (
