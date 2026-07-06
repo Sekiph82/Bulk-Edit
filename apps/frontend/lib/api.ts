@@ -1279,6 +1279,29 @@ export interface AdminUser {
   is_superuser: boolean;
   created_at: string;
   updated_at: string;
+  organization_id: string | null;
+  organization_name: string | null;
+  plan: string | null;
+}
+
+export interface AdminUserOrgMembership {
+  organization_id: string;
+  organization_name: string;
+  role: string;
+}
+
+export interface AdminUserUsageSummary {
+  bulk_edit_sessions_count: number;
+  ai_sessions_count: number;
+  csv_jobs_count: number;
+  dynamic_pricing_jobs_count: number;
+  media_jobs_count: number;
+}
+
+export interface AdminUserDetail extends AdminUser {
+  organizations: AdminUserOrgMembership[];
+  usage: AdminUserUsageSummary;
+  recent_events: AdminAuditEvent[];
 }
 
 export interface AdminOrganization {
@@ -1287,12 +1310,47 @@ export interface AdminOrganization {
   owner_id: string;
   created_at: string;
   updated_at: string;
+  owner_email: string | null;
+  plan: string | null;
+  subscription_status: string | null;
+  etsy_connected: boolean;
+  users_count: number;
+}
+
+export interface AdminOrgMemberItem {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  role: string;
+}
+
+export interface AdminOrgUsageSummary {
+  bulk_edit_sessions_count: number;
+  ai_sessions_count: number;
+  csv_jobs_count: number;
+  dynamic_pricing_jobs_count: number;
+  sync_jobs_count: number;
+  media_jobs_count: number;
+  video_renders_count: number;
+}
+
+export interface AdminOrgRiskSummary {
+  failed_bulk_edit_count: number;
+  failed_ai_count: number;
+  failed_scheduled_runs_count: number;
+  etsy_disconnected: boolean;
+  billing_issue: boolean;
 }
 
 export interface AdminOrganizationDetail extends AdminOrganization {
   subscription: AdminSubscription | null;
   shop_count: number;
   listing_count: number;
+  members: AdminOrgMemberItem[];
+  shops: AdminShop[];
+  usage: AdminOrgUsageSummary;
+  recent_events: AdminAuditEvent[];
+  risk: AdminOrgRiskSummary;
 }
 
 export interface AdminSubscription {
@@ -1357,12 +1415,57 @@ export function adminGetOverview(): Promise<AdminOverview> {
   return apiFetch(`${ADM}/overview`);
 }
 
-export function adminListUsers(page = 1, page_size = 25): Promise<AdminPage<AdminUser>> {
-  return apiFetch(`${ADM}/users?page=${page}&page_size=${page_size}`);
+export interface AdminUserFilters {
+  q?: string;
+  status?: "active" | "disabled" | "all";
+  role?: "superuser" | "user" | "all";
+  organization_id?: string;
+  plan?: string;
+  created_from?: string;
+  created_to?: string;
 }
 
-export function adminListOrganizations(page = 1, page_size = 25): Promise<AdminPage<AdminOrganization>> {
-  return apiFetch(`${ADM}/organizations?page=${page}&page_size=${page_size}`);
+export interface AdminOrganizationFilters {
+  q?: string;
+  plan?: string;
+  subscription_status?: string;
+  etsy_connected?: boolean;
+  created_from?: string;
+  created_to?: string;
+}
+
+function toQueryString(params: Record<string, unknown>): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+  }
+  return qs.toString();
+}
+
+export function adminListUsers(
+  page = 1,
+  page_size = 25,
+  filters: AdminUserFilters = {},
+): Promise<AdminPage<AdminUser>> {
+  const qs = toQueryString({ page, page_size, ...filters });
+  return apiFetch(`${ADM}/users?${qs}`);
+}
+
+export function adminGetUserDetail(userId: string): Promise<AdminUserDetail> {
+  return apiFetch(`${ADM}/users/${userId}`);
+}
+
+export function adminListOrganizations(
+  page = 1,
+  page_size = 25,
+  filters: AdminOrganizationFilters = {},
+): Promise<AdminPage<AdminOrganization>> {
+  const qs = toQueryString({ page, page_size, ...filters });
+  return apiFetch(`${ADM}/organizations?${qs}`);
+}
+
+export function adminGetOrganizationDetail(orgId: string): Promise<AdminOrganizationDetail> {
+  return apiFetch(`${ADM}/organizations/${orgId}`);
 }
 
 export function adminListSubscriptions(page = 1, page_size = 25): Promise<AdminPage<AdminSubscription>> {
@@ -1475,6 +1578,29 @@ export function adminGetProductUsage(): Promise<AdminProductUsage> {
 
 export function adminGetSystemHealth(): Promise<AdminSystemHealth> {
   return apiFetch(`${ADM}/system-health`);
+}
+
+// ── Admin Trends ───────────────────────────────────────────────────────────────
+
+export interface AdminTrendPoint {
+  date: string;
+  count: number;
+}
+
+export interface AdminTrendSeries {
+  users: AdminTrendPoint[];
+  organizations: AdminTrendPoint[];
+  bulk_edit_jobs: AdminTrendPoint[];
+  media_jobs: AdminTrendPoint[];
+}
+
+export interface AdminTrendsOut {
+  days: number;
+  series: AdminTrendSeries;
+}
+
+export function adminGetTrends(days = 30): Promise<AdminTrendsOut> {
+  return apiFetch(`${ADM}/metrics/trends?days=${days}`);
 }
 
 export function adminListAuditLog(page = 1, page_size = 25): Promise<AdminPage<AdminAuditEvent>> {

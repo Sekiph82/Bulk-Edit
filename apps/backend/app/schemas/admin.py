@@ -26,6 +26,41 @@ class AdminOverviewOut(BaseModel):
     total_csv_jobs: int
 
 
+# ── Audit Events ──────────────────────────────────────────────────────────────
+# Defined early so User/Organization detail schemas below can embed it.
+
+class AdminAuditEventSummary(BaseModel):
+    id: str
+    organization_id: str
+    user_id: str | None
+    event_type: str
+    entity_type: str | None
+    entity_id: str | None
+    message: str | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── Shops ─────────────────────────────────────────────────────────────────────
+# SECURITY: no Etsy access_token or refresh_token in response
+# Defined early so Organization detail schema below can embed it.
+
+class AdminShopSummary(BaseModel):
+    id: str
+    organization_id: str
+    etsy_shop_id: str
+    shop_name: str
+    is_connected: bool
+    last_synced_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ── Users ────────────────────────────────────────────────────────────────────
 # SECURITY: password_hash never included
 
@@ -38,13 +73,34 @@ class AdminUserListItem(BaseModel):
     is_superuser: bool
     created_at: datetime
     updated_at: datetime
+    # Primary organization (first membership) — display convenience only,
+    # a user could technically belong to more than one organization.
+    organization_id: str | None = None
+    organization_name: str | None = None
+    plan: str | None = None
 
     class Config:
         from_attributes = True
 
 
+class AdminUserOrgMembership(BaseModel):
+    organization_id: str
+    organization_name: str
+    role: str
+
+
+class AdminUserUsageSummary(BaseModel):
+    bulk_edit_sessions_count: int
+    ai_sessions_count: int
+    csv_jobs_count: int
+    dynamic_pricing_jobs_count: int
+    media_jobs_count: int
+
+
 class AdminUserDetail(AdminUserListItem):
-    pass
+    organizations: list[AdminUserOrgMembership] = []
+    usage: AdminUserUsageSummary
+    recent_events: list[AdminAuditEventSummary] = []
 
 
 # ── Organizations ─────────────────────────────────────────────────────────────
@@ -55,6 +111,11 @@ class AdminOrganizationListItem(BaseModel):
     owner_id: str
     created_at: datetime
     updated_at: datetime
+    owner_email: str | None = None
+    plan: str | None = None
+    subscription_status: str | None = None
+    etsy_connected: bool = False
+    users_count: int = 0
 
     class Config:
         from_attributes = True
@@ -76,10 +137,40 @@ class AdminSubscriptionSummary(BaseModel):
         from_attributes = True
 
 
+class AdminOrgMemberItem(BaseModel):
+    user_id: str
+    email: str
+    full_name: str | None
+    role: str
+
+
+class AdminOrgUsageSummary(BaseModel):
+    bulk_edit_sessions_count: int
+    ai_sessions_count: int
+    csv_jobs_count: int
+    dynamic_pricing_jobs_count: int
+    sync_jobs_count: int
+    media_jobs_count: int
+    video_renders_count: int
+
+
+class AdminOrgRiskSummary(BaseModel):
+    failed_bulk_edit_count: int
+    failed_ai_count: int
+    failed_scheduled_runs_count: int
+    etsy_disconnected: bool
+    billing_issue: bool
+
+
 class AdminOrganizationDetail(AdminOrganizationListItem):
     subscription: AdminSubscriptionSummary | None
     shop_count: int
     listing_count: int
+    members: list[AdminOrgMemberItem] = []
+    shops: list[AdminShopSummary] = []
+    usage: AdminOrgUsageSummary
+    recent_events: list[AdminAuditEventSummary] = []
+    risk: AdminOrgRiskSummary
 
 
 # ── Subscriptions ─────────────────────────────────────────────────────────────
@@ -106,21 +197,6 @@ class AdminUsageSummary(BaseModel):
         from_attributes = True
 
 
-# ── Shops ─────────────────────────────────────────────────────────────────────
-# SECURITY: no Etsy access_token or refresh_token in response
-
-class AdminShopSummary(BaseModel):
-    id: str
-    organization_id: str
-    etsy_shop_id: str
-    shop_name: str
-    is_connected: bool
-    last_synced_at: datetime | None
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ── Sync Jobs ─────────────────────────────────────────────────────────────────
@@ -257,22 +333,6 @@ class AdminScheduledJobRunSummary(BaseModel):
         from_attributes = True
 
 
-# ── Audit Events ──────────────────────────────────────────────────────────────
-
-class AdminAuditEventSummary(BaseModel):
-    id: str
-    organization_id: str
-    user_id: str | None
-    event_type: str
-    entity_type: str | None
-    entity_id: str | None
-    message: str | None
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
 # ── Safe action response ──────────────────────────────────────────────────────
 
 class AdminActionResult(BaseModel):
@@ -356,3 +416,24 @@ class AdminSystemHealth(BaseModel):
     total_audit_events: int
     recent_failed_scheduled_runs: int
     recent_failed_ai_sessions: int
+
+
+# ── Trends ────────────────────────────────────────────────────────────────────
+# Real daily counts from the database only — zero-filled for days with no
+# activity. Never estimated or extrapolated.
+
+class AdminTrendPoint(BaseModel):
+    date: str  # YYYY-MM-DD
+    count: int
+
+
+class AdminTrendSeries(BaseModel):
+    users: list[AdminTrendPoint]
+    organizations: list[AdminTrendPoint]
+    bulk_edit_jobs: list[AdminTrendPoint]
+    media_jobs: list[AdminTrendPoint]
+
+
+class AdminTrendsOut(BaseModel):
+    days: int
+    series: AdminTrendSeries

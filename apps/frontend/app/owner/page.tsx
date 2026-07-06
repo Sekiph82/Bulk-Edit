@@ -4,18 +4,23 @@ import { useEffect, useState } from "react";
 import {
   adminGetOverview,
   adminGetBillingSummary,
+  adminGetTrends,
   type AdminOverview,
   type AdminBillingSummary,
+  type AdminTrendsOut,
 } from "@/lib/api";
-import { PageHeader, StatCard, currency } from "@/components/owner/OwnerUI";
+import { PageHeader, StatCard, currency, TrendBarChart } from "@/components/owner/OwnerUI";
 
 export default function OwnerDashboardPage() {
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [billing, setBilling] = useState<AdminBillingSummary | null>(null);
+  const [trends, setTrends] = useState<AdminTrendsOut | null>(null);
+  const [trendsError, setTrendsError] = useState(false);
 
   useEffect(() => {
     adminGetOverview().then(setOverview).catch(() => {});
     adminGetBillingSummary().then(setBilling).catch(() => {});
+    adminGetTrends(30).then(setTrends).catch(() => setTrendsError(true));
   }, []);
 
   return (
@@ -41,7 +46,7 @@ export default function OwnerDashboardPage() {
       </div>
 
       {billing && (
-        <div>
+        <div className="mb-6">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Revenue Snapshot</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard label="Projected MRR" value={currency(billing.estimated_monthly_revenue)} sub="Expected — not guaranteed cash" />
@@ -54,6 +59,22 @@ export default function OwnerDashboardPage() {
           </div>
         </div>
       )}
+
+      <div>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Last 30 Days</h2>
+        {trendsError ? (
+          <p className="text-sm text-gray-400">Trends unavailable right now.</p>
+        ) : !trends ? (
+          <p className="text-sm text-gray-400">Loading trends…</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <TrendBarChart points={trends.series.users} label="New Users" />
+            <TrendBarChart points={trends.series.organizations} label="New Organizations" />
+            <TrendBarChart points={trends.series.bulk_edit_jobs} label="Bulk Edit Sessions" />
+            <TrendBarChart points={trends.series.media_jobs} label="Media Jobs" />
+          </div>
+        )}
+      </div>
     </main>
   );
 }
