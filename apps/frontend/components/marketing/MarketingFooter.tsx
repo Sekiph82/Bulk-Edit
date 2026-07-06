@@ -4,14 +4,14 @@ const FOOTER_LINKS = {
   Product: [
     { href: "/features", label: "Features" },
     { href: "/pricing", label: "Pricing" },
-    { href: "/faq", label: "FAQ" },
-    { href: "/blog", label: "Blog" },
     { href: "/tools", label: "Free Tools" },
     { href: "/compare", label: "Compare" },
   ],
   Support: [
     { href: "/contact-us", label: "Contact Us" },
     { href: "/faq", label: "Help Center" },
+    { href: "/faq", label: "FAQ" },
+    { href: "/blog", label: "Blog" },
   ],
   Account: [
     { href: "/login", label: "Sign In" },
@@ -52,7 +52,7 @@ export default function MarketingFooter() {
               </h4>
               <ul className="space-y-2">
                 {links.map(({ href, label }) => (
-                  <li key={href}>
+                  <li key={label}>
                     <Link
                       href={href}
                       className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
