@@ -10,7 +10,7 @@ import FadeUp from "./FadeUp";
 // sound — playback (if the file exists) only starts when the visitor clicks
 // the native controls.
 const DEMO_VIDEO_SRC = "/demo/bulk-edit-app-demo.mp4";
-const DEMO_VIDEO_POSTER = "/demo/bulk-edit-app-demo-poster.jpg";
+const DEMO_VIDEO_POSTER = "/demo/bulk-edit-app-demo-poster.png";
 
 const STEPS = [
   { n: 1, label: "Select listings" },
