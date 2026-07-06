@@ -1,8 +1,8 @@
 """Video Generator — real ffmpeg-based MP4 generation compliant with Etsy video specs."""
 
+import hashlib
 import json
 import os
-import re
 import shutil
 import tempfile
 import uuid
@@ -43,12 +43,6 @@ from app.services.video_renderer import (
 # they're rejected rather than silently accepted and failing later at Etsy.
 ALLOWED_UPLOAD_VIDEO_CONTENT_TYPES = {"video/mp4"}
 ALLOWED_UPLOAD_VIDEO_EXTENSIONS = {".mp4"}
-
-# org_id is always our own DB-generated UUID, but it's request-derived from
-# CodeQL's point of view — reject anything that isn't a plain UUID-shaped
-# string before it's used to build a filesystem path, closing off path
-# traversal regardless of how org_id is ever produced upstream.
-_SAFE_ORG_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 router = APIRouter(prefix="/video-generator", tags=["video-generator"])
 
@@ -354,16 +348,13 @@ async def upload_video_file(
     if state != "working":
         raise HTTPException(status_code=503, detail=f"Video upload validation unavailable: {message}")
 
-    if not _SAFE_ORG_ID_RE.match(org_id):
-        raise HTTPException(status_code=400, detail="Invalid organization id.")
-
-    base_dir = os.path.realpath(settings.VIDEO_OUTPUT_DIR)
-    org_dir = os.path.realpath(os.path.join(base_dir, org_id, "uploads"))
-    if org_dir != base_dir and not org_dir.startswith(base_dir + os.sep):
-        # org_id passed the charset check but somehow still escaped the
-        # video output directory — refuse rather than write outside it.
-        raise HTTPException(status_code=400, detail="Invalid organization id.")
-
+    # Never build a filesystem path directly out of org_id: hash it into a
+    # fixed-length hex string first. This is the standard fix for path
+    # injection on an identifier that's otherwise trusted (our own DB UUID)
+    # but still counts as request-derived — a hex digest can't contain "/"
+    # or "..", so there is no path to sanitize around.
+    org_dir_name = hashlib.sha256(org_id.encode("utf-8")).hexdigest()
+    org_dir = os.path.join(settings.VIDEO_OUTPUT_DIR, org_dir_name, "uploads")
     os.makedirs(org_dir, exist_ok=True)
     render_id = str(uuid.uuid4())
     output_path = os.path.join(org_dir, f"{render_id}.mp4")
