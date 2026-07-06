@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // Host-based routing for the bulkeditapp.com domain model.
-//   bulkeditapp.com        -> public marketing/SEO (indexable)
-//   www.bulkeditapp.com    -> 301 redirect to apex
-//   app.bulkeditapp.com    -> private SaaS app (noindex)
-//   staging.bulkeditapp.com-> staging app (noindex, whole host)
-//   owner.bulkeditapp.com  -> internal owner console (noindex, superuser-only,
-//                             rewritten to the /owner/* route tree so the URL
-//                             bar stays on the owner host)
+//   bulkeditapp.com          -> public marketing/SEO (indexable)
+//   www.bulkeditapp.com      -> 301 redirect to apex
+//   app.bulkeditapp.com      -> private SaaS app (noindex)
+//   staging.bulkeditapp.com  -> staging app (noindex, whole host)
+//   owner.bulkeditapp.com,
+//   owner-staging.bulkeditapp.com
+//                            -> internal owner console (noindex, superuser-only,
+//                               rewritten to the /owner/* route tree so the URL
+//                               bar stays on the owner host). Same rewrite logic
+//                               for both hosts — one is production, one staging,
+//                               each behind its own Cloudflare Access app.
 // Local dev (localhost) and preview hosts (*.ondigitalocean.app, *.vercel.app)
 // pass through UNCHANGED so nothing breaks outside production DNS.
 
@@ -17,6 +21,8 @@ const WWW = "www.bulkeditapp.com";
 const APP = "app.bulkeditapp.com";
 const STAGING = "staging.bulkeditapp.com";
 const OWNER = "owner.bulkeditapp.com";
+const OWNER_STAGING = "owner-staging.bulkeditapp.com";
+const OWNER_HOSTS = new Set([OWNER, OWNER_STAGING]);
 
 // Authenticated product routes (the app/(app) group + auth pages).
 // Requests for these on the apex marketing host are sent to the app subdomain.
@@ -38,7 +44,7 @@ function hostname(req: NextRequest): string {
 }
 
 function isProductionDomain(host: string): boolean {
-  return host === APEX || host === WWW || host === APP || host === STAGING || host === OWNER;
+  return host === APEX || host === WWW || host === APP || host === STAGING || OWNER_HOSTS.has(host);
 }
 
 function isAppPath(pathname: string): boolean {
@@ -86,7 +92,7 @@ export function middleware(req: NextRequest) {
   // /owner and /owner/* are redirected (not rewritten) to their clean
   // equivalent — without this, a stray link to /owner/users on this host
   // would get the rewrite applied a second time and 404 as /owner/owner/users.
-  if (host === OWNER) {
+  if (OWNER_HOSTS.has(host)) {
     if (AUTH_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
       const res = NextResponse.next();
       res.headers.set("X-Robots-Tag", NOINDEX);
