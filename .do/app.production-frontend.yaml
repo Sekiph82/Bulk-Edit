@@ -1,10 +1,15 @@
 # DigitalOcean App Platform - PRODUCTION FRONTEND
-# DESIGN ONLY - DO NOT PROVISION until staging is validated. Deploys from `main`.
+# Deploys from `main`. Provisioned in limited "Marketing + API Health +
+# Private Beta" mode — see NEXT_PUBLIC_PRIVATE_BETA_MODE below and
+# apps/frontend/middleware.ts. owner.bulkeditapp.com is NOT added as a
+# domain here yet — it still points at the staging frontend app; do not
+# add it until explicitly approved.
 #
 # ONE Next.js app serves all three production hostnames; middleware.ts host-routes:
 #   bulkeditapp.com      -> marketing (indexable)
 #   www.bulkeditapp.com  -> 301 to apex (middleware)
-#   app.bulkeditapp.com  -> private app (noindex)
+#   app.bulkeditapp.com  -> private app (noindex) — private-beta gated until
+#                           Etsy/Stripe secrets are ready (see below)
 
 name: bulk-edit-prod-web
 region: nyc
@@ -46,3 +51,9 @@ services:
         value: https://app.bulkeditapp.com
       - key: NODE_ENV
         value: production
+      # Private beta gate (apps/frontend/middleware.ts): redirects every
+      # login/register/dashboard/billing/media/etc. request to /private-beta
+      # instead of the real app, while Etsy/Stripe/email secrets are pending.
+      # Flip to "false" (or remove) once full SaaS activation is approved.
+      - key: NEXT_PUBLIC_PRIVATE_BETA_MODE
+        value: "true"
