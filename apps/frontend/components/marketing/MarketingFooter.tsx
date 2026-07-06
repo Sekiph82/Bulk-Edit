@@ -6,6 +6,8 @@ const FOOTER_LINKS = {
     { href: "/pricing", label: "Pricing" },
     { href: "/faq", label: "FAQ" },
     { href: "/blog", label: "Blog" },
+    { href: "/tools", label: "Free Tools" },
+    { href: "/compare", label: "Compare" },
   ],
   Support: [
     { href: "/contact-us", label: "Contact Us" },

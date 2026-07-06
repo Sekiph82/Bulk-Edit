@@ -41,8 +41,6 @@ const NAV_BASE = [
   },
 ];
 
-const ADMIN_NAV_ITEM = { href: "/owner", label: "Owner Console", icon: <ShieldIcon /> };
-
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
 
 interface AppShellProps { children: React.ReactNode; }
@@ -54,7 +52,6 @@ export default function AppShell({ children }: AppShellProps) {
   const isDark = resolved === "dark";
 
   const [email, setEmail] = useState<string | null>(null);
-  const [isSuperuser, setIsSuperuser] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -66,21 +63,11 @@ export default function AppShell({ children }: AppShellProps) {
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
         if (d?.user?.email) setEmail(d.user.email);
-        if (d?.user?.is_superuser === true) setIsSuperuser(true);
       })
       .catch(() => {});
   }, []);
 
-  const NAV = NAV_BASE.map((group) =>
-    group.section === "System"
-      ? {
-          ...group,
-          items: isSuperuser
-            ? [...group.items, ADMIN_NAV_ITEM]
-            : group.items,
-        }
-      : group
-  );
+  const NAV = NAV_BASE;
 
   async function handleLogout() {
     const rt = localStorage.getItem("refresh_token");
@@ -276,7 +263,6 @@ function TableIcon()    { return <svg viewBox="0 0 20 20" fill="currentColor" cl
 function ChartIcon()    { return <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>; }
 function ClockIcon()    { return <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>; }
 function CardIcon()     { return <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" /></svg>; }
-function ShieldIcon()   { return <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>; }
 function LogoutIcon()   { return <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" /></svg>; }
 function HamburgerIcon(){ return <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" /></svg>; }
 function HeartIcon()    { return <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>; }
