@@ -5,6 +5,10 @@ Orchestrates safe media writes to Etsy listings:
   - add_image: download from URL, upload to Etsy, update local ListingImage rows
   - replace_image: delete existing at rank, upload new, update local rows
   - delete_image: delete from Etsy by rank or image_id, remove local row
+  - add_video: upload a completed, Etsy-ready VideoRender (local MP4 file —
+    either a Product Video Generator render or a directly uploaded file) to
+    a listing's video slot. Etsy listings support exactly one video, so this
+    fails clearly if the listing already has one — use replace_video instead.
   - replace_video: upload a completed, Etsy-ready VideoRender (local MP4 file)
     to Etsy, replacing any existing listing video; updates local ListingVideo rows
   - delete_video: delete the listing's video from Etsy, remove local row
@@ -59,12 +63,15 @@ VALID_OPERATION_TYPES = {
     "replace_image",
     "delete_image",
     "reorder_images",
+    "add_video",
     "replace_video",
     "delete_video",
 }
 
 # Operations implemented with real Etsy writes
-IMPLEMENTED_OPERATIONS = {"add_image", "replace_image", "delete_image", "replace_video", "delete_video"}
+IMPLEMENTED_OPERATIONS = {
+    "add_image", "replace_image", "delete_image", "add_video", "replace_video", "delete_video",
+}
 
 # Stubs with clear reason
 _STUB_REASONS = {
@@ -423,6 +430,37 @@ async def apply_media_job(
     return job
 
 
+async def _load_video_render_or_raise(
+    db: AsyncSession,
+    video_render_id: str,
+    organization_id: str,
+) -> VideoRender:
+    """Shared lookup/validation for add_video and replace_video: the render
+    must belong to the org, be a completed local file, and pass Etsy's specs."""
+    render_q = await db.execute(
+        select(VideoRender).where(
+            VideoRender.id == video_render_id,
+            VideoRender.organization_id == organization_id,
+        )
+    )
+    render = render_q.scalar_one_or_none()
+    if not render:
+        raise EtsyMediaWriteError(
+            "Video not found or does not belong to your organization.", status_code=404
+        )
+    if render.status != "completed" or not render.file_path:
+        raise EtsyMediaWriteError(
+            f"Video is not completed (status={render.status}).", status_code=400
+        )
+    if render.is_etsy_ready is False:
+        issues = render.get_etsy_issues()
+        raise EtsyMediaWriteError(
+            f"Video does not meet Etsy's video specs: {'; '.join(issues) or 'unknown issue'}",
+            status_code=400,
+        )
+    return render
+
+
 async def _apply_one_operation(
     operation_type: str,
     access_token: str,
@@ -569,32 +607,52 @@ async def _apply_one_operation(
         after_images = [_image_to_dict(img) for img in updated_q.scalars().all()]
         return after_images, {"deleted_image_id": etsy_image_id}
 
+    elif operation_type == "add_video":
+        video_render_id = payload.get("video_render_id") or payload.get("uploaded_video_id")
+        if not video_render_id:
+            raise EtsyMediaWriteError(
+                "add_video requires 'video_render_id' or 'uploaded_video_id' in payload.", status_code=400
+            )
+
+        render = await _load_video_render_or_raise(db, video_render_id, listing.organization_id)
+
+        # Etsy listings support exactly one video — add_video must not silently
+        # replace it. Fail clearly and point the user at replace_video instead.
+        existing_q = await db.execute(select(ListingVideo).where(ListingVideo.listing_id == listing.id))
+        existing_video = existing_q.scalar_one_or_none()
+        if existing_video:
+            raise EtsyMediaWriteError(
+                "This listing already has a video. Use Replace Video instead.", status_code=400
+            )
+
+        etsy_response = await upload_etsy_listing_video(
+            access_token=access_token,
+            shop_etsy_id=shop_etsy_id,
+            listing_etsy_id=listing_etsy_id,
+            video_file_path=render.file_path,
+        )
+
+        new_video = ListingVideo(
+            listing_id=listing.id,
+            etsy_video_id=str(etsy_response.get("video_id") or etsy_response.get("listing_video_id") or ""),
+            video_url=etsy_response.get("video_url"),
+            thumbnail_url=etsy_response.get("thumbnail_url"),
+            rank=1,
+            raw_data=etsy_response,
+        )
+        db.add(new_video)
+        await db.flush()
+
+        updated_q = await db.execute(select(ListingVideo).where(ListingVideo.listing_id == listing.id))
+        after_videos = [_video_to_dict(v) for v in updated_q.scalars().all()]
+        return after_videos, etsy_response
+
     elif operation_type == "replace_video":
         video_render_id = payload.get("video_render_id")
         if not video_render_id:
             raise EtsyMediaWriteError("replace_video requires 'video_render_id' in payload.", status_code=400)
 
-        render_q = await db.execute(
-            select(VideoRender).where(
-                VideoRender.id == video_render_id,
-                VideoRender.organization_id == listing.organization_id,
-            )
-        )
-        render = render_q.scalar_one_or_none()
-        if not render:
-            raise EtsyMediaWriteError(
-                "Video render not found or does not belong to your organization.", status_code=404
-            )
-        if render.status != "completed" or not render.file_path:
-            raise EtsyMediaWriteError(
-                f"Video render is not completed (status={render.status}).", status_code=400
-            )
-        if render.is_etsy_ready is False:
-            issues = render.get_etsy_issues()
-            raise EtsyMediaWriteError(
-                f"Video render does not meet Etsy's video specs: {'; '.join(issues) or 'unknown issue'}",
-                status_code=400,
-            )
+        render = await _load_video_render_or_raise(db, video_render_id, listing.organization_id)
 
         # Etsy listings support one video — replace any existing one first.
         existing_q = await db.execute(select(ListingVideo).where(ListingVideo.listing_id == listing.id))

@@ -11,6 +11,7 @@ VALID_OPERATION_TYPES = {
     "replace_image",
     "delete_image",
     "reorder_images",
+    "add_video",
     "replace_video",
     "delete_video",
 }
