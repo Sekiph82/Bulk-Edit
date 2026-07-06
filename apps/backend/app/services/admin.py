@@ -31,7 +31,6 @@ from app.models.video_render import VideoRender
 from app.models.comp_access_grant import CompAccessGrant
 from app.models.owner_alert_rule import OwnerAlertRule
 from app.models.owner_action_log import OwnerActionLog
-from app.models.password_reset_token import PasswordResetToken
 from app.services.billing import ensure_subscription_exists
 
 from app.schemas.admin import (
