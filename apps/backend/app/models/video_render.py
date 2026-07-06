@@ -11,6 +11,8 @@ class VideoRender(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     template_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    # source: "generated" (Product Video Generator slideshow) | "uploaded" (user's own MP4 file)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="generated", server_default="generated")
     # status: pending | rendering | completed | failed
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending", index=True)
     image_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

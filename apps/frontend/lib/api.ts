@@ -539,6 +539,7 @@ export interface VideoRenderSummary {
   id: string;
   status: string;
   template_id: string;
+  source: string; // "generated" (Product Video Generator) | "uploaded" (own MP4 file)
   image_count: number;
   aspect_ratio: string | null;
   duration_seconds: number | null;
@@ -555,6 +556,25 @@ export interface VideoRenderSummary {
 
 export function listVideoRenders(etsyReadyOnly = false): Promise<VideoRenderSummary[]> {
   return apiFetch(`/api/v1/video-generator/renders?etsy_ready_only=${etsyReadyOnly}`);
+}
+
+// Uploads a local MP4 file for use by Add Video / Replace Video. The file is
+// validated and stored server-side immediately — nothing is sent to Etsy
+// until a media job that references it is applied.
+export async function uploadVideoFile(file: File): Promise<VideoRenderSummary> {
+  const token = getAccessToken();
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${BACKEND_URL}/api/v1/video-generator/uploads`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.detail ?? res.statusText);
+  }
+  return res.json();
 }
 
 // ---- Media API helpers ----
