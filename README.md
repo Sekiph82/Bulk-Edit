@@ -66,12 +66,18 @@ No developer tools required. Only Docker Desktop is needed — the script instal
 5. Wait while Docker builds and starts all services (first run: 5–10 minutes).
 6. The browser opens automatically at http://localhost:3100.
 
-**Login accounts (ready immediately, no setup needed):**
+**Local demo accounts:**
 
-| Account | Email | Password |
-|---|---|---|
-| Normal user | test@example.com | Test1234! |
-| Superuser | test-su@example.com | Test1234! |
+Local demo users can be seeded for development only. Credentials are generated or
+configured locally and are never documented in the public README. See
+`apps/backend/.local-superusers.env.example` and the local seed scripts
+(`apps/backend/app/services/local_seed.py`, `apps/backend/scripts/seed_local_superusers.py`)
+for setup — copy the example file to a gitignored `.local-superusers.env` and set your own
+local credentials there.
+
+Demo accounts are seeded only in local Docker development. They are never seeded in
+staging or production, and secrets/passwords must always be configured through
+gitignored local env files, never committed or documented in this README.
 
 **What the script does automatically:**
 

@@ -11,6 +11,8 @@ Security contract verified:
 import uuid
 import pytest
 from httpx import AsyncClient
+from unittest.mock import AsyncMock, patch
+from sqlalchemy import select
 
 from app.models.organization import Organization
 from app.models.organization_member import OrganizationMember
@@ -19,6 +21,7 @@ from app.models.user import User
 from app.models.etsy_shop import EtsyShop
 from app.models.scheduled_job import ScheduledJob
 from app.models.audit_log import AuditLog
+from app.models.owner_action_log import OwnerActionLog
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -600,3 +603,691 @@ async def test_admin_organization_detail_with_shop(client, db_session):
     assert r.status_code == 200
     data = r.json()
     assert data["shop_count"] == 1
+
+
+# ── 21. Users list search/filter ──────────────────────────────────────────────
+
+async def test_admin_list_users_search_by_email(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    target = await _make_user(db_session, email="findme-unique@example.com")
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/users?q=findme-unique", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {u["id"] for u in r.json()["items"]}
+    assert target.id in ids
+
+
+async def test_admin_list_users_filter_status_disabled(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    disabled = await _make_user(db_session, is_active=False)
+    active = await _make_user(db_session, is_active=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/users?status=disabled", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {u["id"] for u in r.json()["items"]}
+    assert disabled.id in ids
+    assert active.id not in ids
+
+
+async def test_admin_list_users_filter_role_superuser(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    other_su = await _make_user(db_session, is_superuser=True)
+    regular = await _make_user(db_session, is_superuser=False)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/users?role=superuser", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {u["id"] for u in r.json()["items"]}
+    assert other_su.id in ids
+    assert regular.id not in ids
+
+
+async def test_admin_list_users_filter_organization_id(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    member = await _make_user(db_session)
+    org = await _make_org(db_session, member)
+    outsider = await _make_user(db_session)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get(f"/api/v1/admin/users?organization_id={org.id}", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {u["id"] for u in r.json()["items"]}
+    assert member.id in ids
+    assert outsider.id not in ids
+
+
+async def test_admin_list_users_filter_plan(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    pro_user = await _make_user(db_session)
+    await _make_org(db_session, pro_user, plan="pro_monthly")
+    free_user = await _make_user(db_session)
+    await _make_org(db_session, free_user, plan="free")
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/users?plan=pro_monthly", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {u["id"] for u in r.json()["items"]}
+    assert pro_user.id in ids
+    assert free_user.id not in ids
+
+
+async def test_admin_list_users_includes_primary_org_and_plan(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session)
+    org = await _make_org(db_session, owner, plan="basic_monthly")
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/users", headers=_auth(token))
+    assert r.status_code == 200
+    item = next(u for u in r.json()["items"] if u["id"] == owner.id)
+    assert item["organization_id"] == org.id
+    assert item["organization_name"] == org.name
+    assert item["plan"] == "basic_monthly"
+
+
+# ── 22. Organizations list search/filter ──────────────────────────────────────
+
+async def test_admin_list_organizations_search_by_name(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session)
+    org = Organization(id=_id(), name="Unique Findable Org", owner_id=owner.id)
+    db_session.add(org)
+    await db_session.flush()
+    db_session.add(OrganizationMember(id=_id(), organization_id=org.id, user_id=owner.id, role="owner"))
+    db_session.add(Subscription(id=_id(), organization_id=org.id, plan="free", status="free"))
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/organizations?q=Unique Findable", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {o["id"] for o in r.json()["items"]}
+    assert org.id in ids
+
+
+async def test_admin_list_organizations_filter_plan(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    pro_owner = await _make_user(db_session)
+    pro_org = await _make_org(db_session, pro_owner, plan="pro_monthly")
+    free_owner = await _make_user(db_session)
+    free_org = await _make_org(db_session, free_owner, plan="free")
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/organizations?plan=pro_monthly", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {o["id"] for o in r.json()["items"]}
+    assert pro_org.id in ids
+    assert free_org.id not in ids
+
+
+async def test_admin_list_organizations_filter_etsy_connected(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    connected_owner = await _make_user(db_session)
+    connected_org = await _make_org(db_session, connected_owner)
+    await _make_shop(db_session, connected_org)
+    disconnected_owner = await _make_user(db_session)
+    disconnected_org = await _make_org(db_session, disconnected_owner)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/organizations?etsy_connected=true", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {o["id"] for o in r.json()["items"]}
+    assert connected_org.id in ids
+    assert disconnected_org.id not in ids
+
+
+async def test_admin_list_organizations_includes_enrichment_fields(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session, email="org-owner@example.com")
+    org = await _make_org(db_session, owner, plan="pro_monthly")
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/organizations", headers=_auth(token))
+    assert r.status_code == 200
+    item = next(o for o in r.json()["items"] if o["id"] == org.id)
+    assert item["owner_email"] == "org-owner@example.com"
+    assert item["plan"] == "pro_monthly"
+    assert item["subscription_status"] == "active"
+    assert item["etsy_connected"] is False
+    assert item["users_count"] == 1
+
+
+# ── 23. User detail enrichment ────────────────────────────────────────────────
+
+async def test_admin_user_detail_includes_organizations_and_usage(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session)
+    org = await _make_org(db_session, owner, plan="basic_monthly")
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get(f"/api/v1/admin/users/{owner.id}", headers=_auth(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["organizations"][0]["organization_id"] == org.id
+    assert data["organizations"][0]["role"] == "owner"
+    assert data["plan"] == "basic_monthly"
+    assert "usage" in data
+    assert data["usage"]["bulk_edit_sessions_count"] == 0
+    assert "recent_events" in data
+    assert "password_hash" not in data
+
+
+# ── 24. Organization detail enrichment ────────────────────────────────────────
+
+async def test_admin_organization_detail_includes_members_usage_risk(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session, email="member-owner@example.com")
+    org = await _make_org(db_session, owner)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get(f"/api/v1/admin/organizations/{org.id}", headers=_auth(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["members"][0]["email"] == "member-owner@example.com"
+    assert data["members"][0]["role"] == "owner"
+    assert "usage" in data
+    assert data["usage"]["media_jobs_count"] == 0
+    assert "risk" in data
+    assert data["risk"]["etsy_disconnected"] is False  # no shops at all yet
+    assert data["risk"]["billing_issue"] is False
+    assert "recent_events" in data
+
+
+async def test_admin_organization_detail_no_etsy_tokens_in_shops(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    org = await _make_org(db_session, su)
+    await _make_shop(db_session, org)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get(f"/api/v1/admin/organizations/{org.id}", headers=_auth(token))
+    assert r.status_code == 200
+    for shop in r.json()["shops"]:
+        assert "access_token" not in shop
+        assert "refresh_token" not in shop
+
+
+async def test_admin_organization_detail_etsy_disconnected_risk_flag(client, db_session):
+    from app.models.etsy_shop import EtsyShop
+
+    su = await _make_user(db_session, is_superuser=True)
+    org = await _make_org(db_session, su)
+    shop = EtsyShop(id=_id(), organization_id=org.id, etsy_shop_id=f"shop-{_id()[:8]}", shop_name="Disconnected Shop", is_connected=False)
+    db_session.add(shop)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get(f"/api/v1/admin/organizations/{org.id}", headers=_auth(token))
+    assert r.status_code == 200
+    assert r.json()["risk"]["etsy_disconnected"] is True
+
+
+# ── 25. Trends endpoint ────────────────────────────────────────────────────────
+
+async def test_admin_trends_forbidden_for_regular_user(client, db_session):
+    user = await _make_user(db_session, is_superuser=False)
+    await db_session.commit()
+    token = await _login(client, user.email)
+    r = await client.get("/api/v1/admin/metrics/trends", headers=_auth(token))
+    assert r.status_code == 403
+
+
+async def test_admin_trends_default_30_days(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/metrics/trends", headers=_auth(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["days"] == 30
+    assert len(data["series"]["users"]) == 30
+    assert len(data["series"]["organizations"]) == 30
+    assert len(data["series"]["bulk_edit_jobs"]) == 30
+    assert len(data["series"]["media_jobs"]) == 30
+
+
+async def test_admin_trends_zero_filled_no_fake_data(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/metrics/trends?days=7", headers=_auth(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["days"] == 7
+    for point in data["series"]["bulk_edit_jobs"]:
+        assert point["count"] == 0  # no bulk edit sessions created in this test
+    for point in data["series"]["users"] + data["series"]["organizations"]:
+        assert "date" in point and "count" in point
+
+
+async def test_admin_trends_counts_todays_new_user(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+
+    from datetime import datetime, timezone
+    today_key = datetime.now(timezone.utc).date().isoformat()
+
+    r = await client.get("/api/v1/admin/metrics/trends?days=1", headers=_auth(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["series"]["users"][0]["date"] == today_key
+    assert data["series"]["users"][0]["count"] >= 1  # su was just created today
+
+
+async def test_admin_trends_days_capped(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/metrics/trends?days=999", headers=_auth(token))
+    assert r.status_code == 422  # FastAPI rejects >365 via Query(le=365)
+
+
+# ── 26. Plan change ────────────────────────────────────────────────────────────
+
+async def test_admin_change_plan_forbidden_for_regular_user(client, db_session):
+    user = await _make_user(db_session, is_superuser=False)
+    org = await _make_org(db_session, user)
+    await db_session.commit()
+    token = await _login(client, user.email)
+    r = await client.post(f"/api/v1/admin/organizations/{org.id}/plan", json={"plan": "pro_monthly", "reason": "x"}, headers=_auth(token))
+    assert r.status_code == 403
+
+
+async def test_admin_change_plan_success_when_not_stripe_managed(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session)
+    org = await _make_org(db_session, owner, plan="free")
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.post(
+        f"/api/v1/admin/organizations/{org.id}/plan",
+        json={"plan": "pro_monthly", "reason": "Manual owner adjustment"},
+        headers=_auth(token),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["ok"] is True
+
+    events = (await db_session.execute(
+        select(OwnerActionLog).where(OwnerActionLog.action_type == "owner_plan_change")
+    )).scalars().all()
+    assert len(events) == 1
+    assert "Manual owner adjustment" in events[0].message
+
+
+async def test_admin_change_plan_rejects_unknown_plan(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    org = await _make_org(db_session, su)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.post(f"/api/v1/admin/organizations/{org.id}/plan", json={"plan": "nonexistent_plan", "reason": "x"}, headers=_auth(token))
+    assert r.status_code == 400
+
+
+async def test_admin_change_plan_blocked_when_stripe_managed(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session)
+    org = await _make_org(db_session, owner, plan="pro_monthly")
+    await db_session.commit()
+
+    sub = (await db_session.execute(select(Subscription).where(Subscription.organization_id == org.id))).scalar_one()
+    sub.stripe_subscription_id = "sub_fake123"
+    sub.status = "active"
+    await db_session.commit()
+
+    token = await _login(client, su.email)
+    r = await client.post(f"/api/v1/admin/organizations/{org.id}/plan", json={"plan": "free", "reason": "x"}, headers=_auth(token))
+    assert r.status_code == 400
+    assert "Stripe" in r.json()["detail"]
+
+
+# ── 27. Comp access ────────────────────────────────────────────────────────────
+
+async def test_admin_grant_comp_forbidden_for_regular_user(client, db_session):
+    user = await _make_user(db_session, is_superuser=False)
+    org = await _make_org(db_session, user)
+    await db_session.commit()
+    token = await _login(client, user.email)
+    r = await client.post(f"/api/v1/admin/organizations/{org.id}/comp", json={"comp_plan": "pro_monthly", "reason": "x"}, headers=_auth(token))
+    assert r.status_code == 403
+
+
+async def test_admin_grant_and_revoke_comp_access(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session)
+    org = await _make_org(db_session, owner, plan="free")
+    await db_session.commit()
+    token = await _login(client, su.email)
+
+    r = await client.post(
+        f"/api/v1/admin/organizations/{org.id}/comp",
+        json={"comp_plan": "pro_monthly", "reason": "Founding access"},
+        headers=_auth(token),
+    )
+    assert r.status_code == 200, r.text
+    grant = r.json()
+    assert grant["comp_plan"] == "pro_monthly"
+    assert grant["revoked_at"] is None
+
+    r2 = await client.get(f"/api/v1/admin/organizations/{org.id}/effective-access", headers=_auth(token))
+    assert r2.status_code == 200
+    access = r2.json()
+    assert access["effective_plan"] == "pro_monthly"
+    assert access["subscription_plan"] == "free"
+    assert access["comp"]["comp_plan"] == "pro_monthly"
+
+    grant_events = (await db_session.execute(select(OwnerActionLog).where(OwnerActionLog.action_type == "owner_comp_grant"))).scalars().all()
+    assert len(grant_events) == 1
+
+    r3 = await client.delete(f"/api/v1/admin/organizations/{org.id}/comp", headers=_auth(token))
+    assert r3.status_code == 200
+    assert r3.json()["revoked_at"] is not None
+
+    r4 = await client.get(f"/api/v1/admin/organizations/{org.id}/effective-access", headers=_auth(token))
+    assert r4.json()["effective_plan"] == "free"
+    assert r4.json()["comp"] is None
+
+    revoke_events = (await db_session.execute(select(OwnerActionLog).where(OwnerActionLog.action_type == "owner_comp_revoke"))).scalars().all()
+    assert len(revoke_events) == 1
+
+
+async def test_admin_revoke_comp_no_active_grant_404(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    org = await _make_org(db_session, su)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.delete(f"/api/v1/admin/organizations/{org.id}/comp", headers=_auth(token))
+    assert r.status_code == 404
+
+
+# ── 28. Manual Etsy sync ───────────────────────────────────────────────────────
+
+async def test_admin_trigger_sync_forbidden_for_regular_user(client, db_session):
+    user = await _make_user(db_session, is_superuser=False)
+    org = await _make_org(db_session, user)
+    await db_session.commit()
+    token = await _login(client, user.email)
+    r = await client.post(f"/api/v1/admin/organizations/{org.id}/sync", json={}, headers=_auth(token))
+    assert r.status_code == 403
+
+
+async def test_admin_trigger_sync_no_connected_shop(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    org = await _make_org(db_session, su)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.post(f"/api/v1/admin/organizations/{org.id}/sync", json={"reason": "test"}, headers=_auth(token))
+    assert r.status_code == 400
+
+
+async def test_admin_trigger_sync_success_no_oauth_token_exposed(client, db_session):
+    from app.models.sync_job import SyncJob
+
+    su = await _make_user(db_session, is_superuser=True)
+    org = await _make_org(db_session, su)
+    shop = await _make_shop(db_session, org)
+    await db_session.commit()
+    token = await _login(client, su.email)
+
+    fake_job = SyncJob(
+        id=_id(), organization_id=org.id, etsy_shop_id=shop.id,
+        job_type="manual_listing_sync", status="completed", total_items=3, processed_items=3,
+    )
+
+    with patch("app.services.etsy_sync.sync_shop_listings", new_callable=AsyncMock) as mock_sync:
+        mock_sync.return_value = fake_job
+        r = await client.post(f"/api/v1/admin/organizations/{org.id}/sync", json={"reason": "owner check"}, headers=_auth(token))
+
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["status"] == "completed"
+    assert data["job_id"] == fake_job.id
+    assert "access_token" not in str(data)
+    assert "refresh_token" not in str(data)
+
+    requested = (await db_session.execute(select(OwnerActionLog).where(OwnerActionLog.action_type == "owner_manual_sync_requested"))).scalars().all()
+    completed = (await db_session.execute(select(OwnerActionLog).where(OwnerActionLog.action_type == "owner_manual_sync_completed"))).scalars().all()
+    assert len(requested) == 1
+    assert len(completed) == 1
+
+
+# ── 29. Password reset ─────────────────────────────────────────────────────────
+
+async def test_admin_send_password_reset_forbidden_for_regular_user(client, db_session):
+    user = await _make_user(db_session, is_superuser=False)
+    target = await _make_user(db_session)
+    await db_session.commit()
+    token = await _login(client, user.email)
+    r = await client.post(f"/api/v1/admin/users/{target.id}/send-password-reset", headers=_auth(token))
+    assert r.status_code == 403
+
+
+async def test_admin_send_password_reset_does_not_return_token(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session)
+    await _make_org(db_session, owner)
+    await db_session.commit()
+    token = await _login(client, su.email)
+
+    r = await client.post(f"/api/v1/admin/users/{owner.id}/send-password-reset", headers=_auth(token))
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert list(data.keys()) == ["message"]
+    assert "token" not in data["message"].lower()
+
+    events = (await db_session.execute(select(OwnerActionLog).where(OwnerActionLog.action_type == "owner_password_reset_requested"))).scalars().all()
+    assert len(events) == 1
+    assert "token" not in events[0].message.lower()
+
+
+async def test_admin_send_password_reset_user_not_found(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.post(f"/api/v1/admin/users/{_id()}/send-password-reset", headers=_auth(token))
+    assert r.status_code == 404
+
+
+# ── 30. Payments ───────────────────────────────────────────────────────────────
+
+async def _make_billing_event(db, org_id: str | None, event_type: str, payload: dict) -> "BillingEvent":
+    from app.models.billing_event import BillingEvent
+    from datetime import datetime, timezone
+    event = BillingEvent(
+        id=_id(), organization_id=org_id, stripe_event_id=f"evt_{_id()[:12]}",
+        event_type=event_type, payload=payload, created_at=datetime.now(timezone.utc),
+    )
+    db.add(event)
+    await db.flush()
+    return event
+
+
+async def test_admin_list_payments_forbidden_for_regular_user(client, db_session):
+    user = await _make_user(db_session, is_superuser=False)
+    await db_session.commit()
+    token = await _login(client, user.email)
+    r = await client.get("/api/v1/admin/payments", headers=_auth(token))
+    assert r.status_code == 403
+
+
+async def test_admin_list_payments_no_card_data_and_masked_ids(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session)
+    org = await _make_org(db_session, owner, plan="pro_monthly")
+    sub = (await db_session.execute(select(Subscription).where(Subscription.organization_id == org.id))).scalar_one()
+    sub.stripe_customer_id = "cus_1234567890abcdef"
+    await db_session.commit()
+
+    await _make_billing_event(db_session, org.id, "invoice.payment_failed", {
+        "data": {"object": {"id": "in_123", "payment_intent": "pi_1234567890abcdef", "amount_due": 2900, "currency": "usd"}}
+    })
+    await db_session.commit()
+
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/payments", headers=_auth(token))
+    assert r.status_code == 200
+    item = next(i for i in r.json()["items"] if i["organization_id"] == org.id)
+    assert item["status"] == "failed"
+    assert item["amount"] == 29.0
+    assert item["currency"] == "usd"
+    assert item["stripe_customer_id"] != "cus_1234567890abcdef"  # masked
+    assert item["refundable_ref"] is not None
+    assert "pi_1234567890abcdef" not in item["refundable_ref"]  # masked, not raw
+
+
+async def test_admin_refund_no_reference_returns_400(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    org = await _make_org(db_session, su)
+    await db_session.commit()
+    event = await _make_billing_event(db_session, org.id, "customer.subscription.updated", {"data": {"object": {"id": "sub_123"}}})
+    await db_session.commit()
+
+    token = await _login(client, su.email)
+    r = await client.post(f"/api/v1/admin/payments/{event.id}/refund", json={"reason": "test"}, headers=_auth(token))
+    assert r.status_code == 400
+
+
+async def test_admin_refund_stripe_not_configured_returns_503(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    org = await _make_org(db_session, su)
+    await db_session.commit()
+    event = await _make_billing_event(db_session, org.id, "invoice.payment_failed", {
+        "data": {"object": {"id": "in_1", "payment_intent": "pi_abc123456789", "amount_due": 1900, "currency": "usd"}}
+    })
+    await db_session.commit()
+
+    token = await _login(client, su.email)
+    r = await client.post(f"/api/v1/admin/payments/{event.id}/refund", json={"reason": "test"}, headers=_auth(token))
+    assert r.status_code == 503  # STRIPE_SECRET_KEY is a placeholder in test env
+
+
+async def test_admin_refund_success_mocked_stripe(client, db_session, monkeypatch):
+    su = await _make_user(db_session, is_superuser=True)
+    org = await _make_org(db_session, su)
+    await db_session.commit()
+    event = await _make_billing_event(db_session, org.id, "invoice.payment_failed", {
+        "data": {"object": {"id": "in_1", "payment_intent": "pi_abc123456789", "amount_due": 1900, "currency": "usd"}}
+    })
+    await db_session.commit()
+
+    import app.services.admin as admin_svc
+    monkeypatch.setattr(admin_svc.settings, "STRIPE_SECRET_KEY", "sk_test_fake123")
+
+    token = await _login(client, su.email)
+    with patch("stripe.Refund.create") as mock_refund:
+        mock_refund.return_value = {"status": "succeeded"}
+        r = await client.post(f"/api/v1/admin/payments/{event.id}/refund", json={"reason": "customer request"}, headers=_auth(token))
+
+    assert r.status_code == 200, r.text
+    assert r.json()["ok"] is True
+
+    events = (await db_session.execute(select(OwnerActionLog).where(OwnerActionLog.action_type == "owner_refund_success"))).scalars().all()
+    assert len(events) == 1
+    assert "customer request" in events[0].message
+
+
+async def test_admin_refund_failure_audit_logged(client, db_session, monkeypatch):
+    su = await _make_user(db_session, is_superuser=True)
+    org = await _make_org(db_session, su)
+    await db_session.commit()
+    event = await _make_billing_event(db_session, org.id, "invoice.payment_failed", {
+        "data": {"object": {"id": "in_1", "payment_intent": "pi_abc123456789", "amount_due": 1900, "currency": "usd"}}
+    })
+    await db_session.commit()
+
+    import app.services.admin as admin_svc
+    monkeypatch.setattr(admin_svc.settings, "STRIPE_SECRET_KEY", "sk_test_fake123")
+
+    token = await _login(client, su.email)
+    with patch("stripe.Refund.create", side_effect=Exception("card_declined")):
+        r = await client.post(f"/api/v1/admin/payments/{event.id}/refund", json={"reason": "test"}, headers=_auth(token))
+
+    assert r.status_code == 502
+    events = (await db_session.execute(select(OwnerActionLog).where(OwnerActionLog.action_type == "owner_refund_failed"))).scalars().all()
+    assert len(events) == 1
+
+
+# ── 31. Alerts ─────────────────────────────────────────────────────────────────
+
+async def test_admin_list_alerts_forbidden_for_regular_user(client, db_session):
+    user = await _make_user(db_session, is_superuser=False)
+    await db_session.commit()
+    token = await _login(client, user.email)
+    r = await client.get("/api/v1/admin/alerts", headers=_auth(token))
+    assert r.status_code == 403
+
+
+async def test_admin_list_alerts_seeds_defaults(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/alerts", headers=_auth(token))
+    assert r.status_code == 200
+    rules = r.json()
+    event_types = {rule["event_type"] for rule in rules}
+    assert event_types == {"payment_failure", "sync_failure_spike", "bulk_edit_failures", "system_health", "ai_failures"}
+    for rule in rules:
+        assert rule["enabled"] is False
+        assert "slack_webhook_url" not in rule
+        assert rule["slack_webhook_configured"] is False
+
+
+async def test_admin_update_alert_rule_and_slack_webhook_never_returned(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+
+    rules = (await client.get("/api/v1/admin/alerts", headers=_auth(token))).json()
+    rule_id = rules[0]["id"]
+
+    r = await client.put(
+        f"/api/v1/admin/alerts/{rule_id}",
+        json={"enabled": True, "threshold_count": 10, "window_minutes": 30, "slack_webhook_url": "https://hooks.slack.com/services/fake/webhook/url"},
+        headers=_auth(token),
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["enabled"] is True
+    assert data["threshold_count"] == 10
+    assert "slack_webhook_url" not in data
+    assert "https://hooks.slack.com" not in str(data)
+    assert data["slack_webhook_configured"] is True
+
+    events = (await db_session.execute(select(OwnerActionLog).where(OwnerActionLog.action_type == "owner_alert_rule_updated"))).scalars().all()
+    assert len(events) == 1
+    assert "hooks.slack.com" not in events[0].message
+
+
+async def test_admin_update_alert_rule_not_found(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.put(f"/api/v1/admin/alerts/{_id()}", json={"enabled": True}, headers=_auth(token))
+    assert r.status_code == 404
+
+
+async def test_admin_test_alert_email_channel(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    rules = (await client.get("/api/v1/admin/alerts", headers=_auth(token))).json()
+    rule_id = rules[0]["id"]
+
+    r = await client.post(f"/api/v1/admin/alerts/{rule_id}/test", headers=_auth(token))
+    assert r.status_code == 200
+    assert "email" in r.json()["message"]
+
+
+async def test_admin_run_alert_check_no_data_no_triggers(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.post("/api/v1/admin/alerts/run-check", headers=_auth(token))
+    assert r.status_code == 200
+    assert r.json()["triggered"] == []
+
+
+async def test_admin_run_alert_check_forbidden_for_regular_user(client, db_session):
+    user = await _make_user(db_session, is_superuser=False)
+    await db_session.commit()
+    token = await _login(client, user.email)
+    r = await client.post("/api/v1/admin/alerts/run-check", headers=_auth(token))
+    assert r.status_code == 403

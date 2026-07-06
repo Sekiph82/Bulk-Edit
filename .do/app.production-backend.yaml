@@ -1,0 +1,95 @@
+# DigitalOcean App Platform - PRODUCTION BACKEND (api.bulkeditapp.com)
+# DESIGN ONLY - DO NOT PROVISION until staging is validated (see answer 5 /
+# DIGITALOCEAN_DEPLOY.md gate). Deploys from `main`.
+
+name: bulk-edit-prod-api
+region: nyc
+
+domains:
+  - domain: api.bulkeditapp.com
+    type: PRIMARY
+
+services:
+  - name: api
+    github:
+      repo: Sekiph82/Bulk-Edit
+      branch: main
+      deploy_on_push: true
+    source_dir: apps/backend
+    dockerfile_path: apps/backend/Dockerfile
+    http_port: 8000
+    instance_count: 2 # HA; adjust to load
+    instance_size_slug: basic-xs
+    run_command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    health_check:
+      http_path: /api/v1/health
+      initial_delay_seconds: 20
+      period_seconds: 15
+      failure_threshold: 5
+    envs:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: FRONTEND_URL
+        value: https://app.bulkeditapp.com
+      - key: BACKEND_URL
+        value: https://api.bulkeditapp.com
+      # App subdomain calls the API; apex marketing may call it for the contact form.
+      - key: BACKEND_CORS_ORIGINS
+        value: https://app.bulkeditapp.com,https://bulkeditapp.com
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: RATE_LIMIT_BACKEND
+        value: redis
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${prod-db.DATABASE_URL}
+      - key: REDIS_URL
+        scope: RUN_TIME
+        value: ${prod-redis.DATABASE_URL}
+      - key: ETSY_REDIRECT_URI
+        value: https://api.bulkeditapp.com/api/v1/etsy/callback
+      - key: PINTEREST_REDIRECT_URI
+        value: https://api.bulkeditapp.com/api/v1/promote/pinterest/callback
+      - key: INSTAGRAM_REDIRECT_URI
+        value: https://api.bulkeditapp.com/api/v1/promote/instagram/callback
+      - key: AI_PROVIDER
+        value: openai # set real provider + key (SECRET) at launch
+      # Product Video Generator: ffmpeg is installed in the Docker image
+      # (see apps/backend/Dockerfile) — real MP4 rendering, download only,
+      # never auto-uploaded to Etsy.
+      - key: VIDEO_RENDERER_ENABLED
+        value: "true"
+
+jobs:
+  - name: migrate
+    kind: PRE_DEPLOY
+    github:
+      repo: Sekiph82/Bulk-Edit
+      branch: main
+    source_dir: apps/backend
+    dockerfile_path: apps/backend/Dockerfile
+    run_command: alembic upgrade head
+    envs:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${prod-db.DATABASE_URL}
+
+databases:
+  - name: prod-db
+    engine: PG
+    version: "16"
+    production: true # managed cluster with automated backups + PITR
+  - name: prod-redis
+    engine: REDIS
+    production: true
+
+# REQUIRED SECRETS (DO dashboard, encrypted) - LIVE values at launch:
+#   JWT_SECRET, ENCRYPTION_KEY, STRIPE_SECRET_KEY (sk_live_), STRIPE_WEBHOOK_SECRET,
+#   STRIPE_PRICE_* (4, live), ETSY_CLIENT_ID/_SECRET, PINTEREST_*/META_* (optional),
+#   OPENAI_API_KEY/ANTHROPIC_API_KEY, SMTP_* (Resend), SENTRY_DSN

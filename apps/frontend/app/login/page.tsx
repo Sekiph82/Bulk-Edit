@@ -33,6 +33,13 @@ export default function LoginPage() {
       }
       localStorage.setItem("access_token", data.access_token);
       localStorage.setItem("refresh_token", data.refresh_token);
+      // On the owner console host there is no /dashboard route — a full
+      // navigation to "/" lets middleware rewrite it to /owner, where
+      // OwnerShell re-reads the token just stored above.
+      if (typeof window !== "undefined" && window.location.hostname === "owner.bulkeditapp.com") {
+        window.location.href = "/";
+        return;
+      }
       router.push("/dashboard");
     } catch {
       setError("Network error. Please try again.");
@@ -67,7 +74,12 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">Password</label>
+              <Link href="/forgot-password" className="text-xs text-indigo-600 hover:underline font-medium">
+                Forgot password?
+              </Link>
+            </div>
             <input
               name="password"
               type="password"

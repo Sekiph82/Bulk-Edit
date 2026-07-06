@@ -30,7 +30,7 @@ const seededTest = runSeededTests ? test : test.skip;
 
 test.describe("Seeded user flows (requires PLAYWRIGHT_RUN_SEEDED_TESTS=1)", () => {
   seededTest(
-    "normal user: admin nav hidden, /admin shows Access Denied",
+    "normal user: admin nav hidden, /admin is a 404",
     async ({ page }) => {
       await page.goto("/login");
       await page.fill(
@@ -48,16 +48,14 @@ test.describe("Seeded user flows (requires PLAYWRIGHT_RUN_SEEDED_TESTS=1)", () =
       const adminLink = page.locator("[data-testid='admin-nav-link']");
       await expect(adminLink).not.toBeVisible();
 
-      // /admin must show Access Denied
-      await page.goto("/admin");
-      await expect(
-        page.locator("[data-testid='admin-access-denied']").first()
-      ).toBeVisible({ timeout: 8000 });
+      // /admin is no longer the owner entrypoint — must 404 for non-superusers
+      const response = await page.goto("/admin");
+      expect(response?.status()).toBe(404);
     }
   );
 
   seededTest(
-    "superuser: admin nav visible, /admin dashboard loads with 6 tabs",
+    "superuser: admin nav visible, /admin redirects to the owner console",
     async ({ page }) => {
       await page.goto("/login");
       await page.fill(
@@ -75,25 +73,12 @@ test.describe("Seeded user flows (requires PLAYWRIGHT_RUN_SEEDED_TESTS=1)", () =
       const adminLink = page.locator("[data-testid='admin-nav-link']");
       await expect(adminLink).toBeVisible({ timeout: 8000 });
 
-      // /admin must load dashboard
+      // /admin must redirect a confirmed superuser to the owner console
       await page.goto("/admin");
+      await page.waitForURL("**/owner", { timeout: 8000 });
       await expect(
-        page.locator("[data-testid='admin-dashboard']").first()
+        page.locator("text=Owner Dashboard").first()
       ).toBeVisible({ timeout: 8000 });
-
-      // All 6 tabs must be present
-      for (const tab of [
-        "Overview",
-        "Users",
-        "Billing",
-        "Etsy",
-        "Usage",
-        "System",
-      ]) {
-        await expect(
-          page.locator(`button:has-text("${tab}")`).first()
-        ).toBeVisible({ timeout: 5000 });
-      }
     }
   );
 });

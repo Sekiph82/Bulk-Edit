@@ -1118,3 +1118,60 @@ Frontend:
 - `docs/operations/VERCEL_RENDER_DEPLOY.md` — "Claude Code guided deployment" section
 
 **Verification:** all 3 scripts parse clean (PSParser) · prepare creates local file + opens Notepad · deploy with blank secrets fails safe (exit 2, lists only 4 missing key names, no values) · git check-ignore confirms local secrets/.vercel/output all ignored · no secret file tracked (only .example template).
+
+---
+
+## Phase 0 + Phase 1 scaffolding (DigitalOcean migration)
+
+**Branch:** feature/phase0-1-scaffold (not pushed). staging branch created.
+
+**Phase 0 (guardrails):** .github/dependabot.yml, .github/workflows/codeql.yml, CHANGELOG.md, docs/operations/GIT_WORKFLOW.md, docs/operations/GITHUB_SETUP_CHECKLIST.md.
+
+**Phase 1 (DO staging scaffold):**
+- .do/app.staging-frontend.yaml, .do/app.staging-backend.yaml (+ pre-deploy migrate job, PG, Redis), .do/app.production-{frontend,backend}.yaml (design only), .do/README.md
+- apps/frontend/middleware.ts (host routing: www->apex 301, app-route bounce to app subdomain, X-Robots-Tag noindex for app/staging; localhost/preview pass-through)
+- apps/frontend/app/robots.ts (per-host: marketing allow, app/staging Disallow /)
+- apps/frontend/components/StagingBanner.tsx + wired into app/layout.tsx (shows when NEXT_PUBLIC_APP_ENV=staging)
+- docs/operations/DIGITALOCEAN_DEPLOY.md, CLOUDFLARE_DNS.md; updated ENVIRONMENT.md + STAGING_DEPLOYMENT.md
+
+**Verification:** frontend lint clean, build OK (robots.txt dynamic, middleware 26.8kB), all .do/*.yaml + dependabot + codeql parse clean, no secrets in any new file. Nothing committed to main; nothing pushed.
+
+---
+
+## Staging provisioning automation (token-driven)
+
+**Branch:** feature/staging-automation (PR into staging).
+
+**Added:**
+- deploy-staging.local.env.example (template; local deploy-staging.local.env is gitignored)
+- .gitignore: deploy-staging.local.env, *.local.env, *secrets*.env, .doctl/, .cloudflared/, token files
+- scripts/prepare-staging-secrets.ps1 (create+open local env)
+- scripts/provision-staging.ps1 (validate + refuse prod/live values + generate JWT/Fernet locally +
+  doctl app create from .do specs + Cloudflare DNS CNAMEs; secrets never printed)
+- scripts/smoke-staging.ps1 (health/ready/db/redis, CORS allow+reject, robots Disallow, X-Robots noindex,
+  no prod-API, no sk_live_)
+- docs/operations/STAGING_AUTOMATION.md (fill env, tokens/scopes, run order, stop conditions, cost, rollback)
+
+**Verified:** all 3 scripts parse clean; provision safe-fails on blank env (lists missing tokens, no
+provisioning, no secrets printed); local env gitignored + untracked; example trackable; no secrets in diff.
+
+---
+
+## Owner console subdomain rebuild + contact submission persistence (2026-07-05)
+
+**Branch:** `feature/owner-console-subdomain-rebuild` (off `staging`, not yet merged).
+
+**Audit findings (reported before any code changed, per instruction):** `/admin` backend endpoints (20, under `/api/v1/admin`) were and remain correctly `require_superuser`-gated. `AppShell.tsx`'s sidebar nav item was correctly hidden from non-superusers. Real bug found: `(app)/dashboard/page.tsx`'s static `activeFeatures` list unconditionally showed an "Admin Panel" card (linking to `/admin`) to every logged-in customer, not just superusers — fixed by removing the card. `/admin` was already absent from sitemap/robots/nav/footer/JSON-LD.
+
+**Added:**
+- `apps/frontend/app/owner/*` — 11 pages (Dashboard, Users, Organizations, Shops, Jobs, Contact Submissions, Emails, Audit Logs, System Health, Feature Flags, Content) + `layout.tsx` + shared `components/owner/OwnerShell.tsx` (client-side superuser gate — this app's tokens live in localStorage, so Next middleware cannot check auth server-side) + `components/owner/OwnerUI.tsx` (shared table/badge/pagination helpers).
+- `apps/frontend/middleware.ts` — `owner.bulkeditapp.com` host constant; rewrites every request on that host to `/owner/*` (same frontend app, no new DO app); applies `X-Robots-Tag: noindex`.
+- `apps/frontend/app/(app)/admin/page.tsx` — rewritten from the old single tabbed dashboard into a thin compat shim: `notFound()` for unauthenticated/non-superuser, same-origin `router.replace("/owner")` for confirmed superusers.
+- `apps/backend/app/models/contact_submission.py` + migration `0020_create_contact_submissions.py` — contact form (`app/api/v1/contact.py`) now persists every submission (name/email/subject/message/email_delivered) regardless of send outcome, so an inquiry isn't lost while SUPPORT_EMAIL delivery is failing (live Resend blocker).
+- `GET /api/v1/admin/contact-submissions` + `GET /api/v1/admin/feature-flags` — both `require_superuser`; feature-flags is read-only (mirrors `VIDEO_RENDERER_ENABLED`, `RATE_LIMIT_ENABLED`, `EMAIL_CONFIGURED`, `AI_PROVIDER_LIVE` — no functional toggle backend exists, none faked).
+- Deliberately NOT built: `email_events` persistence (send_email() only logs, never persists — Emails page states this plainly instead of faking history; documented as a follow-up in `PRODUCTION_LAUNCH_FOLLOWUPS.md` §8).
+
+**Tests:** 875/875 backend (6 new: contact persistence, contact-submissions auth, feature-flags auth). Frontend `tsc --noEmit` clean, `next build` clean (61 routes, incl. 11 new `/owner/*`). Updated `e2e/auth-flow.spec.ts` for the new `/admin` 404/redirect behavior.
+
+**Not done in this branch:** Cloudflare DNS / DO custom-domain attachment for `owner.bulkeditapp.com` (separate step, reported before applying); Cloudflare Access policy for the owner host (needs an explicit allow-list confirmation first); PR/merge into staging.
+No provisioning executed. Production untouched.

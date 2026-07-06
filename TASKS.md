@@ -631,6 +631,35 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
+---
+
+## Owner Console Subdomain Rebuild + Contact Persistence
+
+**Status:** `[~] CODE COMPLETE, NOT MERGED` (branch `feature/owner-console-subdomain-rebuild`)
+
+- [x] Audit: confirmed backend admin endpoints properly `require_superuser`-gated; found + fixed real bug (dashboard showed "Admin Panel" card to all users, not just superusers)
+- [x] `apps/frontend/app/owner/*` — 11 pages (Dashboard, Users, Organizations, Shops, Jobs, Contact Submissions, Emails, Audit Logs, System Health, Feature Flags, Content) + `OwnerShell`/`OwnerUI` shared components
+- [x] `middleware.ts` — `owner.bulkeditapp.com` host rewrite to `/owner/*`, noindex, no new DO app
+- [x] `/admin` rebuilt as compat shim (404 for non-superusers, redirect to `/owner` for superusers)
+- [x] `contact_submissions` table (migration 0020) — contact form persists every submission regardless of email delivery
+- [x] `GET /api/v1/admin/contact-submissions` + `GET /api/v1/admin/feature-flags` (both `require_superuser`)
+- [x] Backend 875/875 tests, frontend `tsc`/`next build` clean, `e2e/auth-flow.spec.ts` updated
+- [x] Docs: `DECISIONS.md`, `PRODUCTION_LAUNCH_FOLLOWUPS.md` §8/§9, `HANDOFF.md`, `CHANGELOG_AI.md`
+- [ ] Commit + push branch, open PR into `staging`, CI/CodeQL green, squash-merge, pull staging
+- [ ] Attach `owner.bulkeditapp.com` to existing staging frontend DO app + Cloudflare CNAME (separate step, report exact record first)
+- [ ] Cloudflare Access policy for `owner.bulkeditapp.com` (needs explicit allow-list confirmation)
+- [ ] Follow-up (not this PR): `email_events` persistence table so `/owner/emails` shows real history instead of a static explanation
+
+## Resend Outbound Email Domain Verification (bulkeditapp.com)
+
+**Status:** `[ ] BLOCKED ON USER` — waiting for exact DNS records pasted from the Resend dashboard (Domain Verification/DKIM + Enable Sending/SPF/return-path + optional DMARC only — explicitly not inbound/MX; "Enable Receiving" confirmed disabled)
+
+- [x] Resend SMTP env vars applied to staging backend
+- [x] Diagnosed real failure via backend logs: `550 The bulkeditapp.com domain is not verified`
+- [ ] Add exact DNS records to Cloudflare zone (DNS-only, never proxied)
+- [ ] Click "Verify DNS Records" in Resend dashboard
+- [ ] Retest staging email end-to-end (health, forgot-password known/unknown, contact form to both `SUPPORT_EMAIL` recipients)
+
 ## Backlog / Future
 - [ ] Shopify integration
 - [ ] Multi-language support

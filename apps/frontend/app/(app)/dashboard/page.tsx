@@ -26,7 +26,6 @@ const activeFeatures = [
   { title: "Listing Health", description: "Score every listing 0–100 for title, tags, description, and photos — prioritise your fixes", href: "/listing-health" },
   { title: "Profit Calculator", description: "Track product costs, Etsy fees, and margins — find which listings are actually profitable", href: "/profit" },
   { title: "Scheduled Jobs", description: "Schedule safe syncs, draft creation, and pricing previews — nothing publishes without your approval", href: "/scheduled" },
-  { title: "Admin Panel", description: "Platform-level user and subscription management (superusers only)", href: "/admin" },
   { title: "Pricing", description: "View plans and feature limits", href: "/pricing" },
   { title: "Billing", description: "Manage your subscription", href: "/billing" },
 ];

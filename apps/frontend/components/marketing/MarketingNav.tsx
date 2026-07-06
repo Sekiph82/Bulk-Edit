@@ -6,6 +6,7 @@ import ThemeToggle from "@/components/theme/ThemeToggle";
 
 const NAV_LINKS = [
   { href: "/features", label: "Features" },
+  { href: "/blog", label: "Blog" },
   { href: "/faq", label: "FAQ" },
   { href: "/contact-us", label: "Contact" },
   { href: "/pricing", label: "Pricing" },
@@ -21,7 +22,7 @@ export default function MarketingNav() {
           href="/"
           className="text-xl font-extrabold tracking-tight text-gray-900 hover:text-indigo-600 transition-colors"
         >
-          Bulk-Edit
+          Bulk Edit App
         </Link>
 
         <div className="hidden sm:flex items-center gap-0.5">

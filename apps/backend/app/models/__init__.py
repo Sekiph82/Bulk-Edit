@@ -44,3 +44,8 @@ from app.models.listing_cost import ListingCost
 from app.models.video_render import VideoRender
 from app.models.social_connection import SocialConnection
 from app.models.social_oauth_state import SocialOAuthState
+from app.models.password_reset_token import PasswordResetToken
+from app.models.contact_submission import ContactSubmission
+from app.models.comp_access_grant import CompAccessGrant
+from app.models.owner_alert_rule import OwnerAlertRule
+from app.models.owner_action_log import OwnerActionLog

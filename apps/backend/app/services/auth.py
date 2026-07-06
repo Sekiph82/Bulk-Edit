@@ -1,7 +1,8 @@
+import logging
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import (
@@ -15,9 +16,13 @@ from app.core.security import (
 from app.core.config import settings
 from app.models.organization import Organization
 from app.models.organization_member import OrganizationMember
+from app.models.password_reset_token import PasswordResetToken
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.schemas.auth import LoginRequest, RegisterRequest
+from app.services.email import send_password_reset_email
+
+logger = logging.getLogger(__name__)
 
 
 class AuthError(Exception):
@@ -99,6 +104,70 @@ async def logout_user(raw_token: str, db: AsyncSession) -> None:
         stored.revoked = True
         db.add(stored)
         await db.commit()
+
+
+async def request_password_reset(email: str, db: AsyncSession) -> None:
+    """Always completes successfully regardless of whether the email exists —
+    callers must not be able to distinguish the two cases (no user enumeration).
+    """
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if not user:
+        logger.info("Password reset requested for unknown email (no-op, no enumeration signal)")
+        return
+
+    raw_token = generate_refresh_token()
+    token_hash = hash_refresh_token(raw_token)
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+    )
+
+    reset_token = PasswordResetToken(user_id=user.id, token_hash=token_hash, expires_at=expires_at)
+    db.add(reset_token)
+    await db.commit()
+
+    reset_url = f"{settings.APP_PUBLIC_URL}/reset-password?token={raw_token}"
+    send_password_reset_email(user.email, reset_url)
+
+
+async def reset_password(token: str, new_password: str, db: AsyncSession) -> None:
+    token_hash = hash_refresh_token(token)
+    result = await db.execute(
+        select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
+    )
+    reset_token = result.scalar_one_or_none()
+
+    if not reset_token:
+        raise AuthError("Invalid or expired reset token", 400)
+    if reset_token.used_at is not None:
+        raise AuthError("Invalid or expired reset token", 400)
+
+    # SQLite (used in tests) returns DateTime(timezone=True) columns as
+    # naive datetimes — normalize before comparing, same fix already used
+    # in app/api/v1/promote.py for the same class of bug.
+    expires_at = reset_token.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
+        raise AuthError("Invalid or expired reset token", 400)
+
+    user_result = await db.execute(select(User).where(User.id == reset_token.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise AuthError("Invalid or expired reset token", 400)
+
+    user.password_hash = hash_password(new_password)
+    reset_token.used_at = datetime.now(timezone.utc)
+
+    # Revoke all existing sessions — a password reset should invalidate
+    # every previously issued refresh token for this user.
+    await db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user.id, RefreshToken.revoked == False)  # noqa: E712
+        .values(revoked=True)
+    )
+
+    await db.commit()
 
 
 async def get_user_by_id(user_id: str, db: AsyncSession) -> User | None:

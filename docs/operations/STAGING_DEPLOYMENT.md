@@ -1,5 +1,12 @@
 # Staging Deployment Guide
 
+> **Hosting: DigitalOcean App Platform + Cloudflare.** Concrete provisioning steps,
+> app specs, and the staging→production gate are in `DIGITALOCEAN_DEPLOY.md`;
+> DNS/Access/TLS/email in `CLOUDFLARE_DNS.md`. Specs: `.do/app.staging-*.yaml`.
+> Staging protection = Cloudflare Access on the frontend + strict CORS on the API
+> (`https://staging.bulkeditapp.com` only) + noindex + staging banner. This guide
+> describes the general staging model; the DO docs are authoritative.
+
 ## Purpose
 
 Staging mirrors production but uses test credentials and a separate database.

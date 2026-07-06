@@ -5,8 +5,8 @@ import { useTheme, type ThemePref } from "./ThemeProvider";
 
 const OPTIONS: { value: ThemePref; label: string; desc: string; icon: string }[] = [
   { value: "system", label: "System preference", desc: "Follows your device setting automatically.", icon: "💻" },
-  { value: "light",  label: "Light mode",        desc: "Always use the light Bulk-Edit theme.",    icon: "☀️" },
-  { value: "dark",   label: "Dark mode",          desc: "Always use the dark Bulk-Edit theme.",     icon: "🌙" },
+  { value: "light",  label: "Light mode",        desc: "Always use the light Bulk Edit App theme.",    icon: "☀️" },
+  { value: "dark",   label: "Dark mode",          desc: "Always use the dark Bulk Edit App theme.",     icon: "🌙" },
 ];
 
 function ThemeIcon({ resolved, pref }: { resolved: "light" | "dark"; pref: ThemePref }) {

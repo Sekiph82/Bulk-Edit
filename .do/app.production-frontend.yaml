@@ -1,0 +1,48 @@
+# DigitalOcean App Platform - PRODUCTION FRONTEND
+# DESIGN ONLY - DO NOT PROVISION until staging is validated. Deploys from `main`.
+#
+# ONE Next.js app serves all three production hostnames; middleware.ts host-routes:
+#   bulkeditapp.com      -> marketing (indexable)
+#   www.bulkeditapp.com  -> 301 to apex (middleware)
+#   app.bulkeditapp.com  -> private app (noindex)
+
+name: bulk-edit-prod-web
+region: nyc
+
+domains:
+  - domain: bulkeditapp.com
+    type: PRIMARY
+  - domain: www.bulkeditapp.com
+    type: ALIAS
+  - domain: app.bulkeditapp.com
+    type: ALIAS
+
+services:
+  - name: web
+    github:
+      repo: Sekiph82/Bulk-Edit
+      branch: main
+      deploy_on_push: true
+    source_dir: apps/frontend
+    environment_slug: node-js
+    # --include=dev: see .do/app.staging-frontend.yaml — NODE_ENV=production
+    # (below) makes a plain `npm ci` skip devDependencies (incl. `typescript`,
+    # needed for tsconfig `@/*` alias resolution), breaking the build.
+    build_command: npm ci --include=dev && npm run build
+    run_command: npm start
+    http_port: 3000
+    instance_count: 2
+    instance_size_slug: basic-xs
+    health_check:
+      http_path: /
+      initial_delay_seconds: 30
+      period_seconds: 15
+    envs:
+      - key: NEXT_PUBLIC_APP_ENV
+        value: production
+      - key: NEXT_PUBLIC_BACKEND_URL
+        value: https://api.bulkeditapp.com
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://app.bulkeditapp.com
+      - key: NODE_ENV
+        value: production

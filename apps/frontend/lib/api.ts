@@ -535,6 +535,48 @@ export interface MediaBackupSnapshot {
   updated_at: string;
 }
 
+export interface VideoRenderSummary {
+  id: string;
+  status: string;
+  template_id: string;
+  source: string; // "generated" (Product Video Generator) | "uploaded" (own MP4 file)
+  image_count: number;
+  aspect_ratio: string | null;
+  duration_seconds: number | null;
+  width: number | null;
+  height: number | null;
+  file_size_bytes: number | null;
+  is_etsy_ready: boolean | null;
+  etsy_issues: string[] | null;
+  error_message: string | null;
+  download_url: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export function listVideoRenders(etsyReadyOnly = false): Promise<VideoRenderSummary[]> {
+  return apiFetch(`/api/v1/video-generator/renders?etsy_ready_only=${etsyReadyOnly}`);
+}
+
+// Uploads a local MP4 file for use by Add Video / Replace Video. The file is
+// validated and stored server-side immediately — nothing is sent to Etsy
+// until a media job that references it is applied.
+export async function uploadVideoFile(file: File): Promise<VideoRenderSummary> {
+  const token = getAccessToken();
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${BACKEND_URL}/api/v1/video-generator/uploads`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.detail ?? res.statusText);
+  }
+  return res.json();
+}
+
 // ---- Media API helpers ----
 
 export function createMediaJob(
@@ -1237,6 +1279,29 @@ export interface AdminUser {
   is_superuser: boolean;
   created_at: string;
   updated_at: string;
+  organization_id: string | null;
+  organization_name: string | null;
+  plan: string | null;
+}
+
+export interface AdminUserOrgMembership {
+  organization_id: string;
+  organization_name: string;
+  role: string;
+}
+
+export interface AdminUserUsageSummary {
+  bulk_edit_sessions_count: number;
+  ai_sessions_count: number;
+  csv_jobs_count: number;
+  dynamic_pricing_jobs_count: number;
+  media_jobs_count: number;
+}
+
+export interface AdminUserDetail extends AdminUser {
+  organizations: AdminUserOrgMembership[];
+  usage: AdminUserUsageSummary;
+  recent_events: AdminAuditEvent[];
 }
 
 export interface AdminOrganization {
@@ -1245,12 +1310,48 @@ export interface AdminOrganization {
   owner_id: string;
   created_at: string;
   updated_at: string;
+  owner_email: string | null;
+  plan: string | null;
+  subscription_status: string | null;
+  etsy_connected: boolean;
+  users_count: number;
+}
+
+export interface AdminOrgMemberItem {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  role: string;
+}
+
+export interface AdminOrgUsageSummary {
+  bulk_edit_sessions_count: number;
+  ai_sessions_count: number;
+  csv_jobs_count: number;
+  dynamic_pricing_jobs_count: number;
+  sync_jobs_count: number;
+  media_jobs_count: number;
+  video_renders_count: number;
+}
+
+export interface AdminOrgRiskSummary {
+  failed_bulk_edit_count: number;
+  failed_ai_count: number;
+  failed_scheduled_runs_count: number;
+  etsy_disconnected: boolean;
+  billing_issue: boolean;
 }
 
 export interface AdminOrganizationDetail extends AdminOrganization {
   subscription: AdminSubscription | null;
   shop_count: number;
   listing_count: number;
+  members: AdminOrgMemberItem[];
+  shops: AdminShop[];
+  usage: AdminOrgUsageSummary;
+  recent_events: AdminAuditEvent[];
+  risk: AdminOrgRiskSummary;
+  effective_access: AdminEffectiveAccess;
 }
 
 export interface AdminSubscription {
@@ -1315,12 +1416,211 @@ export function adminGetOverview(): Promise<AdminOverview> {
   return apiFetch(`${ADM}/overview`);
 }
 
-export function adminListUsers(page = 1, page_size = 25): Promise<AdminPage<AdminUser>> {
-  return apiFetch(`${ADM}/users?page=${page}&page_size=${page_size}`);
+export interface AdminUserFilters {
+  q?: string;
+  status?: "active" | "disabled" | "all";
+  role?: "superuser" | "user" | "all";
+  organization_id?: string;
+  plan?: string;
+  created_from?: string;
+  created_to?: string;
 }
 
-export function adminListOrganizations(page = 1, page_size = 25): Promise<AdminPage<AdminOrganization>> {
-  return apiFetch(`${ADM}/organizations?page=${page}&page_size=${page_size}`);
+export interface AdminOrganizationFilters {
+  q?: string;
+  plan?: string;
+  subscription_status?: string;
+  etsy_connected?: boolean;
+  created_from?: string;
+  created_to?: string;
+}
+
+function toQueryString(params: Record<string, unknown>): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+  }
+  return qs.toString();
+}
+
+export function adminListUsers(
+  page = 1,
+  page_size = 25,
+  filters: AdminUserFilters = {},
+): Promise<AdminPage<AdminUser>> {
+  const qs = toQueryString({ page, page_size, ...filters });
+  return apiFetch(`${ADM}/users?${qs}`);
+}
+
+export function adminGetUserDetail(userId: string): Promise<AdminUserDetail> {
+  return apiFetch(`${ADM}/users/${userId}`);
+}
+
+export function adminListOrganizations(
+  page = 1,
+  page_size = 25,
+  filters: AdminOrganizationFilters = {},
+): Promise<AdminPage<AdminOrganization>> {
+  const qs = toQueryString({ page, page_size, ...filters });
+  return apiFetch(`${ADM}/organizations?${qs}`);
+}
+
+export function adminGetOrganizationDetail(orgId: string): Promise<AdminOrganizationDetail> {
+  return apiFetch(`${ADM}/organizations/${orgId}`);
+}
+
+// ── Plan change / comp access / effective access ──────────────────────────────
+
+export interface AdminCompGrantOut {
+  id: string;
+  organization_id: string;
+  comp_plan: string;
+  reason: string;
+  granted_by_user_id: string | null;
+  starts_at: string;
+  ends_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
+export interface AdminEffectiveAccess {
+  subscription_plan: string | null;
+  subscription_status: string | null;
+  stripe_managed: boolean;
+  comp: AdminCompGrantOut | null;
+  effective_plan: string;
+}
+
+export function adminGetEffectiveAccess(orgId: string): Promise<AdminEffectiveAccess> {
+  return apiFetch(`${ADM}/organizations/${orgId}/effective-access`);
+}
+
+export function adminChangePlan(orgId: string, plan: string, reason: string): Promise<AdminActionResult> {
+  return apiFetch(`${ADM}/organizations/${orgId}/plan`, {
+    method: "POST",
+    body: JSON.stringify({ plan, reason }),
+  });
+}
+
+export function adminGrantComp(orgId: string, comp_plan: string, reason: string, ends_at?: string | null): Promise<AdminCompGrantOut> {
+  return apiFetch(`${ADM}/organizations/${orgId}/comp`, {
+    method: "POST",
+    body: JSON.stringify({ comp_plan, reason, ends_at: ends_at ?? null }),
+  });
+}
+
+export function adminRevokeComp(orgId: string): Promise<AdminCompGrantOut> {
+  return apiFetch(`${ADM}/organizations/${orgId}/comp`, { method: "DELETE" });
+}
+
+// ── Manual Etsy sync ───────────────────────────────────────────────────────────
+
+export interface AdminSyncTriggerResult {
+  status: string;
+  job_id: string;
+  message: string;
+}
+
+export function adminTriggerSync(orgId: string, shop_id?: string | null, reason?: string | null): Promise<AdminSyncTriggerResult> {
+  return apiFetch(`${ADM}/organizations/${orgId}/sync`, {
+    method: "POST",
+    body: JSON.stringify({ shop_id: shop_id ?? null, reason: reason ?? null }),
+  });
+}
+
+// ── Password reset ─────────────────────────────────────────────────────────────
+
+export function adminSendPasswordReset(userId: string): Promise<{ message: string }> {
+  return apiFetch(`${ADM}/users/${userId}/send-password-reset`, { method: "POST" });
+}
+
+// ── Payments ──────────────────────────────────────────────────────────────────
+
+export interface AdminPaymentItem {
+  id: string;
+  organization_id: string | null;
+  organization_name: string | null;
+  owner_email: string | null;
+  plan: string | null;
+  subscription_status: string | null;
+  event_type: string;
+  status: string;
+  amount: number | null;
+  currency: string | null;
+  stripe_customer_id: string | null;
+  refundable_ref: string | null;
+  created_at: string;
+}
+
+export interface AdminPaymentFilters {
+  q?: string;
+  organization_id?: string;
+  plan?: string;
+  subscription_status?: string;
+  created_from?: string;
+  created_to?: string;
+}
+
+export function adminListPayments(
+  page = 1,
+  page_size = 25,
+  filters: AdminPaymentFilters = {},
+): Promise<AdminPage<AdminPaymentItem>> {
+  const qs = toQueryString({ page, page_size, ...filters });
+  return apiFetch(`${ADM}/payments?${qs}`);
+}
+
+export function adminRefundPayment(paymentId: string, reason: string, amount?: number | null): Promise<AdminActionResult> {
+  return apiFetch(`${ADM}/payments/${paymentId}/refund`, {
+    method: "POST",
+    body: JSON.stringify({ reason, amount: amount ?? null }),
+  });
+}
+
+// ── Alerts ────────────────────────────────────────────────────────────────────
+
+export interface AdminAlertRuleOut {
+  id: string;
+  name: string;
+  event_type: string;
+  enabled: boolean;
+  threshold_count: number;
+  window_minutes: number;
+  channel_email_enabled: boolean;
+  channel_email_to: string | null;
+  channel_slack_enabled: boolean;
+  slack_webhook_configured: boolean;
+  last_triggered_at: string | null;
+  updated_at: string;
+}
+
+export interface AdminAlertRuleUpdate {
+  enabled?: boolean;
+  threshold_count?: number;
+  window_minutes?: number;
+  channel_email_enabled?: boolean;
+  channel_email_to?: string | null;
+  channel_slack_enabled?: boolean;
+  slack_webhook_url?: string;
+}
+
+export function adminListAlerts(): Promise<AdminAlertRuleOut[]> {
+  return apiFetch(`${ADM}/alerts`);
+}
+
+export function adminUpdateAlert(ruleId: string, update: AdminAlertRuleUpdate): Promise<AdminAlertRuleOut> {
+  return apiFetch(`${ADM}/alerts/${ruleId}`, {
+    method: "PUT",
+    body: JSON.stringify(update),
+  });
+}
+
+export function adminTestAlert(ruleId: string): Promise<AdminActionResult> {
+  return apiFetch(`${ADM}/alerts/${ruleId}/test`, { method: "POST" });
+}
+
+export function adminRunAlertCheck(): Promise<{ checked: number; triggered: string[] }> {
+  return apiFetch(`${ADM}/alerts/run-check`, { method: "POST" });
 }
 
 export function adminListSubscriptions(page = 1, page_size = 25): Promise<AdminPage<AdminSubscription>> {
@@ -1404,6 +1704,12 @@ export interface AdminProductUsage {
 
 export interface AdminSystemHealth {
   database_status: string;
+  redis_status: string;
+  rate_limit_backend: string;
+  rate_limit_enabled: boolean;
+  sentry_configured: boolean;
+  worker_status: string;
+  csp_mode: string;
   total_users: number;
   total_organizations: number;
   total_audit_events: number;
@@ -1429,12 +1735,67 @@ export function adminGetSystemHealth(): Promise<AdminSystemHealth> {
   return apiFetch(`${ADM}/system-health`);
 }
 
+// ── Admin Trends ───────────────────────────────────────────────────────────────
+
+export interface AdminTrendPoint {
+  date: string;
+  count: number;
+}
+
+export interface AdminTrendSeries {
+  users: AdminTrendPoint[];
+  organizations: AdminTrendPoint[];
+  bulk_edit_jobs: AdminTrendPoint[];
+  media_jobs: AdminTrendPoint[];
+}
+
+export interface AdminTrendsOut {
+  days: number;
+  series: AdminTrendSeries;
+}
+
+export function adminGetTrends(days = 30): Promise<AdminTrendsOut> {
+  return apiFetch(`${ADM}/metrics/trends?days=${days}`);
+}
+
 export function adminListAuditLog(page = 1, page_size = 25): Promise<AdminPage<AdminAuditEvent>> {
   return apiFetch(`${ADM}/audit-log?page=${page}&page_size=${page_size}`);
 }
 
 export function adminListUsage(page = 1, page_size = 25): Promise<AdminPage<AdminUsageSummary>> {
   return apiFetch(`${ADM}/usage?page=${page}&page_size=${page_size}`);
+}
+
+// ── Contact Submissions ────────────────────────────────────────────────────────
+
+export interface AdminContactSubmission {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  email_delivered: boolean;
+  created_at: string;
+}
+
+export function adminListContactSubmissions(page = 1, page_size = 25): Promise<AdminPage<AdminContactSubmission>> {
+  return apiFetch(`${ADM}/contact-submissions?page=${page}&page_size=${page_size}`);
+}
+
+// ── Feature Flags (read-only) ─────────────────────────────────────────────────
+
+export interface AdminFeatureFlag {
+  key: string;
+  enabled: boolean;
+  source: string;
+}
+
+export interface AdminFeatureFlags {
+  flags: AdminFeatureFlag[];
+}
+
+export function adminGetFeatureFlags(): Promise<AdminFeatureFlags> {
+  return apiFetch(`${ADM}/feature-flags`);
 }
 
 // ── Listing Health Types ──────────────────────────────────────────────────────

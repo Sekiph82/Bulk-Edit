@@ -1,25 +1,69 @@
 """
-Etsy API media write service — Sprint 11.
+Etsy API media write service.
 
-Supported in Sprint 11:
+Images:
   Image fetch:   GET /v3/application/shops/{shop_id}/listings/{listing_id}/images
   Image upload:  POST /v3/application/shops/{shop_id}/listings/{listing_id}/images
                  (multipart/form-data — downloads image from URL first)
   Image delete:  DELETE /v3/application/shops/{shop_id}/listings/{listing_id}/images/{image_id}
 
-Video stubs (Sprint 11):
-  fetch, upload, delete — safe stubs; upload/delete raise EtsyMediaWriteError(not_implemented=True)
-  Etsy video upload requires server-side direct file upload which is not available in Sprint 11.
+Videos:
+  Video fetch:   GET /v3/application/shops/{shop_id}/listings/{listing_id}/videos
+  Video upload:  POST /v3/application/shops/{shop_id}/listings/{listing_id}/videos
+                 (multipart/form-data, local file — see notes below)
+  Video delete:  DELETE /v3/application/shops/{shop_id}/listings/{listing_id}/videos/{video_id}
 
-Reorder stubs:
-  Etsy has no atomic reorder endpoint. Reorder would require delete-all + re-upload.
-  Not implemented: raises EtsyMediaWriteError(not_implemented=True).
+  Evidence checked across multiple independent sources:
+    (1) Etsy's own public API changelog (developers.etsy.com) references a
+        real, named "ListingVideo_Upload" operation with its own bug-fix
+        history.
+    (2) ButterMyGit/Etsy-Bulk-Video-Uploader (github.com), a working
+        third-party tool, uses exactly this shape: POST /application/shops/
+        {shop_id}/listings/{listing_id}/videos, multipart field "video", no
+        other form fields; DELETE .../videos/{video_id}; delete-then-upload
+        for a replace — identical to what's implemented here.
+    (3) Etsy's live official reference site (developers.etsy.com/documentation/
+        reference/) has valid operationId-anchored links for both
+        "uploadListingVideo" and "getListingVideos" — Redoc/Swagger-style
+        docs generate these anchors directly from the underlying spec's
+        operationId, so their existence is itself first-party evidence these
+        operations are real. The reference page is a JS-rendered SPA, so the
+        actual request/response schema couldn't be fetched programmatically
+        here — only the anchor's existence was confirmable.
+    (4) A direct fetch of Etsy's raw OpenAPI JSON
+        (https://www.etsy.com/openapi/generated/oas/3.0.0.json) initially
+        appeared to show zero operations under the "ShopListing Video" tag —
+        but given (3) confirms the operationIds are real on the live docs
+        site, this was almost certainly an artifact of summarizing a huge
+        (70+ endpoint) spec file through an intermediate model, not a
+        genuine absence.
+  Taken together, (1)-(3) are strong enough to implement this for real
+  rather than stub it. NOT YET exercised against our own live Etsy
+  connection — the first real apply on staging is the actual end-to-end
+  confirmation for this codebase. EtsyMediaWriteError.not_implemented is set
+  to True when Etsy responds 404/405/501, so a shape mismatch would still
+  surface as a clear, distinct, actionable error rather than a generic one.
+
+Reorder — investigated and NOT implemented:
+  Etsy has no PATCH/PUT endpoint to change an existing image's rank without
+  re-uploading it (confirmed: only GET/POST-create/DELETE exist for images).
+  The only possible path is delete-then-reupload, which — because Etsy's
+  create endpoint requires image bytes and has no true "swap" primitive —
+  necessarily has a real, uneliminable window where a LIVE customer-facing
+  listing can show fewer/zero photos if the process fails mid-sequence
+  (network error, timeout, process restart). Magic Revert can repair this
+  after the fact, but the risk during the operation itself cannot be
+  eliminated with Etsy's current API, which fails the "no risk of data loss"
+  bar. Not offered as an operation; revisit only with a safe path such as
+  testing against a disposable/sandbox shop first, or an explicit opt-in
+  beta with warnings.
 
 Safety contract: callers must backup media before calling any write function.
 """
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import httpx
@@ -34,6 +78,7 @@ VALID_IMAGE_CONTENT_TYPES = {
     "image/jpeg", "image/png", "image/gif", "image/webp",
 }
 MAX_IMAGE_DOWNLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
+MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB — matches Etsy's listing video spec
 
 
 class EtsyMediaWriteError(Exception):
@@ -213,26 +258,65 @@ async def fetch_etsy_listing_videos(
         return []
 
 
-# ── Video write stubs ─────────────────────────────────────────────────────────
+# ── Video writes ──────────────────────────────────────────────────────────────
 
 async def upload_etsy_listing_video(
     access_token: str,
     shop_etsy_id: str,
     listing_etsy_id: str,
-    video_url: str,
+    video_file_path: str,
 ) -> dict[str, Any]:
     """
-    STUB — not implemented in Sprint 11.
-    Etsy video upload requires direct server-side file upload (multipart).
-    URL-based video upload is not supported by Etsy API.
-    File upload storage (S3) is deferred to a future sprint.
+    POST a local MP4 file (produced by app/services/video_renderer.py — the
+    Product Video Generator) to Etsy as multipart/form-data. Unlike images,
+    no URL download step is needed: we already generated and stored the file
+    ourselves, so we read it directly from disk.
+
+    Raises EtsyMediaWriteError on missing/oversized file or Etsy HTTP error.
+    Sets not_implemented=True if Etsy responds 404/405/501 — that specific
+    response would mean this endpoint shape doesn't match Etsy's real API,
+    which is the concrete signal this needs re-investigation rather than a
+    generic failure.
     """
-    raise EtsyMediaWriteError(
-        "Video upload not supported in Sprint 11: Etsy requires direct file upload. "
-        "URL-based video upload is not available. File upload storage (S3) is deferred.",
-        status_code=501,
-        not_implemented=True,
-    )
+    if not os.path.isfile(video_file_path):
+        raise EtsyMediaWriteError(f"Video file not found on disk: {video_file_path}", status_code=500)
+
+    file_size = os.path.getsize(video_file_path)
+    if file_size > MAX_VIDEO_UPLOAD_BYTES:
+        raise EtsyMediaWriteError(
+            f"Video too large: {file_size} bytes (max {MAX_VIDEO_UPLOAD_BYTES})",
+            status_code=400,
+        )
+
+    with open(video_file_path, "rb") as f:
+        video_bytes = f.read()
+
+    files: list[tuple[str, Any]] = [
+        ("video", (os.path.basename(video_file_path), video_bytes, "video/mp4")),
+    ]
+    headers = _auth_headers(access_token)
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        resp = await client.post(
+            f"{ETSY_API_BASE}/application/shops/{shop_etsy_id}/listings/{listing_etsy_id}/videos",
+            headers=headers,
+            files=files,
+        )
+
+    if resp.status_code >= 400:
+        body: Any = None
+        try:
+            body = resp.json()
+        except Exception:
+            body = resp.text
+        raise EtsyMediaWriteError(
+            f"Etsy video upload failed: HTTP {resp.status_code}",
+            status_code=resp.status_code,
+            response_body=body,
+            not_implemented=resp.status_code in (404, 405, 501),
+        )
+
+    return resp.json()
 
 
 async def delete_etsy_listing_video(
@@ -241,13 +325,25 @@ async def delete_etsy_listing_video(
     listing_etsy_id: str,
     video_id: str,
 ) -> None:
-    """
-    STUB — not implemented in Sprint 11.
-    Etsy video delete behavior is uncertain and untested.
-    Deferred to a future sprint after endpoint behavior is confirmed.
-    """
-    raise EtsyMediaWriteError(
-        "Video delete not supported in Sprint 11: endpoint behavior unconfirmed. Deferred.",
-        status_code=501,
-        not_implemented=True,
-    )
+    """DELETE a listing video. Raises EtsyMediaWriteError on HTTP error (404 treated as success)."""
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.delete(
+            f"{ETSY_API_BASE}/application/shops/{shop_etsy_id}/listings/{listing_etsy_id}/videos/{video_id}",
+            headers=_auth_headers(access_token),
+        )
+
+    if resp.status_code == 404:
+        return
+
+    if resp.status_code >= 400:
+        body: Any = None
+        try:
+            body = resp.json()
+        except Exception:
+            body = resp.text
+        raise EtsyMediaWriteError(
+            f"Etsy video delete failed: HTTP {resp.status_code}",
+            status_code=resp.status_code,
+            response_body=body,
+            not_implemented=resp.status_code in (405, 501),
+        )

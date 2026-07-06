@@ -10,25 +10,43 @@ import {
   applyMediaJob,
   getMediaResults,
   getMediaBackups,
+  listVideoRenders,
+  uploadVideoFile,
   ApiError,
   type ListingListItem,
   type MediaJob,
   type MediaResult,
+  type VideoRenderSummary,
 } from "@/lib/api";
 
 // ── Local upload types & constants ──────────────────────────────────────────
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
-const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"] as const;
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const IMAGE_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+const IMAGE_ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"] as const;
+const MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_FILES = 20;
+
+// Only MP4 is accepted — it's the one format our backend actually validates
+// (via ffprobe) and uploads to Etsy. Listing MOV/WEBM here would be a promise
+// the backend can't keep.
+const VIDEO_ALLOWED_TYPES = ["video/mp4"] as const;
+const VIDEO_ALLOWED_EXTENSIONS = [".mp4"] as const;
+const MAX_VIDEO_FILE_SIZE = 100 * 1024 * 1024; // 100 MB — matches Etsy's listing video limit
 
 type LocalUpload = { id: string; file: File; preview: string; sizeLabel: string };
 
-function isAllowedFile(file: File): boolean {
+function isAllowedImageFile(file: File): boolean {
   const ext = ("." + (file.name.split(".").pop() ?? "")).toLowerCase();
   return (
-    (ALLOWED_TYPES as readonly string[]).includes(file.type) &&
-    (ALLOWED_EXTENSIONS as readonly string[]).includes(ext)
+    (IMAGE_ALLOWED_TYPES as readonly string[]).includes(file.type) &&
+    (IMAGE_ALLOWED_EXTENSIONS as readonly string[]).includes(ext)
+  );
+}
+
+function isAllowedVideoFile(file: File): boolean {
+  const ext = ("." + (file.name.split(".").pop() ?? "")).toLowerCase();
+  return (
+    (VIDEO_ALLOWED_TYPES as readonly string[]).includes(file.type) &&
+    (VIDEO_ALLOWED_EXTENSIONS as readonly string[]).includes(ext)
   );
 }
 
@@ -38,16 +56,40 @@ function fmtSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function LocalUploadPanel() {
+type VideoUpload = {
+  id: string;
+  file: File;
+  sizeLabel: string;
+  status: "uploading" | "success" | "error";
+  error?: string;
+  render?: VideoRenderSummary;
+};
+
+function LocalUploadPanel({ onVideoUploaded }: { onVideoUploaded: (render: VideoRenderSummary) => void }) {
   const [uploads, setUploads] = useState<LocalUpload[]>([]);
+  const [videoUploads, setVideoUploads] = useState<VideoUpload[]>([]);
   const [rejections, setRejections] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  async function uploadVideo(file: File) {
+    const id = crypto.randomUUID();
+    setVideoUploads((prev) => [...prev, { id, file, sizeLabel: fmtSize(file.size), status: "uploading" }]);
+    try {
+      const render = await uploadVideoFile(file);
+      setVideoUploads((prev) => prev.map((v) => (v.id === id ? { ...v, status: "success", render } : v)));
+      onVideoUploaded(render);
+    } catch (e) {
+      const message = e instanceof ApiError ? e.message : "Upload failed.";
+      setVideoUploads((prev) => prev.map((v) => (v.id === id ? { ...v, status: "error", error: message } : v)));
+    }
+  }
 
   function processFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     const errs: string[] = [];
     const accepted: LocalUpload[] = [];
+    const videoFiles: File[] = [];
 
     if (uploads.length + files.length > MAX_FILES) {
       errs.push(`Max ${MAX_FILES} files allowed. Clear some before adding more.`);
@@ -56,11 +98,19 @@ function LocalUploadPanel() {
     }
 
     Array.from(files).forEach((file) => {
-      if (!isAllowedFile(file)) {
-        errs.push(`"${file.name}" — unsupported type. Only JPG, PNG, WEBP allowed.`);
+      if (isAllowedVideoFile(file)) {
+        if (file.size > MAX_VIDEO_FILE_SIZE) {
+          errs.push(`"${file.name}" — file too large (${fmtSize(file.size)}). Max 100 MB.`);
+          return;
+        }
+        videoFiles.push(file);
         return;
       }
-      if (file.size > MAX_FILE_SIZE) {
+      if (!isAllowedImageFile(file)) {
+        errs.push(`"${file.name}" — unsupported type. Images: JPG, PNG, WEBP. Videos: MP4.`);
+        return;
+      }
+      if (file.size > MAX_IMAGE_FILE_SIZE) {
         errs.push(`"${file.name}" — file too large (${fmtSize(file.size)}). Max 10 MB.`);
         return;
       }
@@ -74,6 +124,7 @@ function LocalUploadPanel() {
 
     setRejections(errs);
     setUploads((prev) => [...prev, ...accepted]);
+    videoFiles.forEach((f) => { void uploadVideo(f); });
   }
 
   function handleRemove(id: string) {
@@ -87,6 +138,7 @@ function LocalUploadPanel() {
   function handleClearAll() {
     uploads.forEach((u) => URL.revokeObjectURL(u.preview));
     setUploads([]);
+    setVideoUploads([]);
     setRejections([]);
   }
 
@@ -98,22 +150,28 @@ function LocalUploadPanel() {
     navigator.clipboard.writeText(preview).catch(() => {});
   }
 
+  const totalCount = uploads.length + videoUploads.length;
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-semibold text-gray-800">Upload Images from Computer</h2>
-        {uploads.length > 0 && (
+        <h2 className="font-semibold text-gray-800">Upload Images / Videos from Computer</h2>
+        {totalCount > 0 && (
           <button
             onClick={handleClearAll}
             className="text-xs text-gray-400 hover:text-red-600 transition-colors"
           >
-            Clear all ({uploads.length})
+            Clear all ({totalCount})
           </button>
         )}
       </div>
 
+      <p className="text-xs text-gray-400 mb-1">
+        Images: JPG, PNG, WEBP up to 10 MB · Preview-only (not uploaded anywhere until used in a job below)
+      </p>
       <p className="text-xs text-gray-400 mb-3">
-        JPG, PNG, WEBP · Max 10 MB per file · Max {MAX_FILES} files · Preview-only (files are not uploaded to Etsy)
+        Videos: MP4 up to 100 MB · Uploaded to secure storage right away so they can be validated and selected
+        for Add Video / Replace Video below — nothing is sent to Etsy until you create and apply a media job.
       </p>
 
       {/* Drop zone */}
@@ -133,13 +191,13 @@ function LocalUploadPanel() {
         onClick={() => inputRef.current?.click()}
         role="button"
         tabIndex={0}
-        aria-label="Upload images"
+        aria-label="Upload images or videos"
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") inputRef.current?.click(); }}
       >
         <input
           ref={inputRef}
           type="file"
-          accept=".jpg,.jpeg,.png,.webp"
+          accept=".jpg,.jpeg,.png,.webp,.mp4"
           multiple
           className="sr-only"
           onChange={(e) => processFiles(e.target.files)}
@@ -148,9 +206,9 @@ function LocalUploadPanel() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
         <p className="text-sm text-gray-500">
-          <span className="font-medium text-indigo-600">Click to upload</span> or drag and drop
+          <span className="font-medium text-indigo-600">Click to upload images or videos</span>, or drag and drop
         </p>
-        <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP up to 10 MB</p>
+        <p className="text-xs text-gray-400 mt-1">Images: JPG, PNG, WEBP · Videos: MP4</p>
       </div>
 
       {/* Rejections */}
@@ -158,6 +216,27 @@ function LocalUploadPanel() {
         <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200">
           {rejections.map((r, i) => (
             <p key={i} className="text-xs text-red-700">{r}</p>
+          ))}
+        </div>
+      )}
+
+      {/* Video upload progress/results */}
+      {videoUploads.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {videoUploads.map((v) => (
+            <div key={v.id} className="flex items-center gap-3 p-2 rounded-lg border border-gray-100 bg-gray-50">
+              <svg className="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-700 truncate font-medium" title={v.file.name}>{v.file.name}</p>
+                <p className="text-xs text-gray-400">{v.sizeLabel}</p>
+                {v.status === "error" && <p className="text-xs text-red-600 mt-0.5">{v.error}</p>}
+              </div>
+              {v.status === "uploading" && <span className="text-xs text-gray-400 shrink-0">Uploading…</span>}
+              {v.status === "success" && <span className="text-xs text-green-600 font-medium shrink-0">Ready to select below</span>}
+              {v.status === "error" && <span className="text-xs text-red-600 font-medium shrink-0">Failed</span>}
+            </div>
           ))}
         </div>
       )}
@@ -198,8 +277,8 @@ function LocalUploadPanel() {
         </div>
       )}
 
-      {uploads.length === 0 && rejections.length === 0 && (
-        <p className="text-xs text-gray-400 text-center">No images uploaded yet.</p>
+      {totalCount === 0 && rejections.length === 0 && (
+        <p className="text-xs text-gray-400 text-center">No files uploaded yet.</p>
       )}
     </div>
   );
@@ -209,7 +288,7 @@ const OPERATION_OPTIONS = [
   { value: "add_image", label: "Add Image", implemented: true },
   { value: "replace_image", label: "Replace Image (at rank)", implemented: true },
   { value: "delete_image", label: "Delete Image", implemented: true },
-  { value: "reorder_images", label: "Reorder Images", implemented: true },
+  { value: "add_video", label: "Add Video", implemented: true },
   { value: "replace_video", label: "Replace Video", implemented: true },
   { value: "delete_video", label: "Delete Video", implemented: true },
 ];
@@ -242,6 +321,10 @@ export default function MediaPage() {
   const [targetRank, setTargetRank] = useState<number | "">("");
   const [imageId, setImageId] = useState("");
   const [altText, setAltText] = useState("");
+  const [videoRenders, setVideoRenders] = useState<VideoRenderSummary[]>([]);
+  const [selectedVideoRenderId, setSelectedVideoRenderId] = useState("");
+  const [addVideoTab, setAddVideoTab] = useState<"generated" | "upload">("generated");
+  const [selectedAddVideoId, setSelectedAddVideoId] = useState("");
   const [jobs, setJobs] = useState<MediaJob[]>([]);
   const [results, setResults] = useState<MediaResult[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -255,12 +338,14 @@ export default function MediaPage() {
 
   const load = useCallback(async () => {
     try {
-      const [pg, jobList] = await Promise.all([
+      const [pg, jobList, renders] = await Promise.all([
         getListings({ per_page: 200 }),
         listMediaJobs(),
+        listVideoRenders(true).catch(() => []),
       ]);
       setListings(pg.items);
       setJobs(jobList);
+      setVideoRenders(renders);
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) { router.push("/login"); return; }
       setError("Failed to load listings.");
@@ -281,6 +366,14 @@ export default function MediaPage() {
     });
   };
 
+  const handleVideoUploaded = (render: VideoRenderSummary) => {
+    setVideoRenders(prev => [render, ...prev]);
+    if (operationType === "add_video") {
+      setAddVideoTab("upload");
+      setSelectedAddVideoId(render.id);
+    }
+  };
+
   const buildPayload = (): Record<string, unknown> => {
     const p: Record<string, unknown> = {};
     if (operationType === "add_image") {
@@ -294,6 +387,11 @@ export default function MediaPage() {
     } else if (operationType === "delete_image") {
       if (imageId) p.image_id = imageId;
       else if (targetRank !== "") p.target_rank = Number(targetRank);
+    } else if (operationType === "add_video") {
+      if (addVideoTab === "upload") p.uploaded_video_id = selectedAddVideoId;
+      else p.video_render_id = selectedAddVideoId;
+    } else if (operationType === "replace_video") {
+      p.video_render_id = selectedVideoRenderId;
     }
     return p;
   };
@@ -306,6 +404,12 @@ export default function MediaPage() {
     if (!op?.implemented) { setError("This operation is not yet available."); return; }
     if ((operationType === "add_image" || operationType === "replace_image") && !imageUrl) {
       setError("Image URL is required."); return;
+    }
+    if (operationType === "add_video" && !selectedAddVideoId) {
+      setError("Choose or upload an Etsy-ready video first."); return;
+    }
+    if (operationType === "replace_video" && !selectedVideoRenderId) {
+      setError("Choose a completed, Etsy-ready video render first."); return;
     }
     setLoading(true);
     try {
@@ -370,11 +474,11 @@ export default function MediaPage() {
     <main className="max-w-6xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Photo & Video Bulk Editor</h1>
         <p className="text-sm text-gray-500 mb-6">
-          Safely add, replace, or delete images across multiple listings. Backups are created before every write.
+          Safely add, replace, or delete images across multiple listings, or attach a generated video. Backups are created before every write.
         </p>
 
-        {/* Local image upload (frontend-only preview) */}
-        <LocalUploadPanel />
+        {/* Local image/video upload — images are preview-only, videos upload to storage immediately */}
+        <LocalUploadPanel onVideoUploaded={handleVideoUploaded} />
 
         {error && (
           <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>
@@ -486,6 +590,130 @@ export default function MediaPage() {
                   value={altText}
                   onChange={e => setAltText(e.target.value)}
                 />
+              </>
+            )}
+
+            {(operationType === "add_video" || operationType === "replace_video" || operationType === "delete_video") && (
+              <div className="rounded-lg bg-purple-50 border border-purple-200 p-3 mb-3">
+                <p className="text-xs text-purple-800 font-medium">New — not yet exercised against your live shop</p>
+                <p className="text-xs text-purple-700 mt-0.5">
+                  Uses the same Etsy video endpoint a working third-party tool relies on. Your first
+                  use here is the real end-to-end confirmation for your shop — if Etsy rejects it,
+                  you&apos;ll see a clear error rather than a silent failure.
+                </p>
+              </div>
+            )}
+
+            {operationType === "add_video" && (
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 mb-3">
+                <p className="text-xs text-blue-800">
+                  Add Video uploads the selected MP4 video to the selected Etsy listing through the
+                  media job flow. Nothing is sent to Etsy until you apply the job.
+                </p>
+              </div>
+            )}
+            {operationType === "replace_video" && (
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 mb-3">
+                <p className="text-xs text-blue-800">
+                  Replace Video removes the existing listing video first, then uploads the selected MP4 video.
+                </p>
+              </div>
+            )}
+            {operationType === "delete_video" && (
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 mb-3">
+                <p className="text-xs text-blue-800">Delete Video removes the current listing video.</p>
+              </div>
+            )}
+
+            {operationType === "add_video" && (() => {
+              const tabRenders = videoRenders.filter(r => r.source === (addVideoTab === "upload" ? "uploaded" : "generated"));
+              const selected = videoRenders.find(r => r.id === selectedAddVideoId);
+              return (
+                <>
+                  <div className="flex rounded-lg border border-gray-200 p-1 mb-3 text-sm">
+                    <button
+                      type="button"
+                      onClick={() => { setAddVideoTab("generated"); setSelectedAddVideoId(""); }}
+                      className={`flex-1 py-1.5 rounded-md transition ${addVideoTab === "generated" ? "bg-indigo-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}
+                    >
+                      Use generated video
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAddVideoTab("upload"); setSelectedAddVideoId(""); }}
+                      className={`flex-1 py-1.5 rounded-md transition ${addVideoTab === "upload" ? "bg-indigo-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}
+                    >
+                      Upload video from computer
+                    </button>
+                  </div>
+
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Video *</label>
+                  <select
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    value={selectedAddVideoId}
+                    onChange={e => setSelectedAddVideoId(e.target.value)}
+                  >
+                    <option value="">Select a completed, Etsy-ready video…</option>
+                    {tabRenders.map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.template_id} · {r.aspect_ratio ?? "?"} · {r.duration_seconds?.toFixed(0)}s · {new Date(r.created_at).toLocaleDateString()}
+                      </option>
+                    ))}
+                  </select>
+
+                  {tabRenders.length === 0 && addVideoTab === "generated" && (
+                    <p className="text-xs text-gray-400 mb-3">
+                      No Etsy-ready videos yet. Generate one in Product Video Generator first or upload an MP4 video above.{" "}
+                      <a href="/video-generator" className="text-indigo-600 hover:underline">Go to Product Video Generator →</a>
+                    </p>
+                  )}
+                  {tabRenders.length === 0 && addVideoTab === "upload" && (
+                    <p className="text-xs text-gray-400 mb-3">
+                      No uploaded videos yet — use the upload panel above to add one.
+                    </p>
+                  )}
+
+                  {selected && (
+                    <div className="rounded-lg bg-gray-50 border border-gray-200 p-3 mb-3 text-xs text-gray-600 space-y-1">
+                      <p><span className="font-medium text-gray-700">Source:</span> {selected.source === "uploaded" ? "Uploaded file" : "Generated"}</p>
+                      <p><span className="font-medium text-gray-700">Template / file:</span> {selected.template_id}</p>
+                      <p><span className="font-medium text-gray-700">Aspect ratio:</span> {selected.aspect_ratio ?? "unknown"}</p>
+                      <p><span className="font-medium text-gray-700">Duration:</span> {selected.duration_seconds?.toFixed(1) ?? "?"}s</p>
+                      <p><span className="font-medium text-gray-700">File size:</span> {selected.file_size_bytes ? fmtSize(selected.file_size_bytes) : "unknown"}</p>
+                      <p><span className="font-medium text-gray-700">Created:</span> {new Date(selected.created_at).toLocaleString()}</p>
+                      {selected.completed_at && (
+                        <p><span className="font-medium text-gray-700">Completed:</span> {new Date(selected.completed_at).toLocaleString()}</p>
+                      )}
+                      <p><span className="font-medium text-gray-700">Etsy-ready:</span> {selected.is_etsy_ready ? "Yes" : "No"}</p>
+                      {selected.download_url && (
+                        <p><a href={`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100"}${selected.download_url}`} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">Preview / download →</a></p>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
+            {operationType === "replace_video" && (
+              <>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Video Render *</label>
+                <select
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  value={selectedVideoRenderId}
+                  onChange={e => setSelectedVideoRenderId(e.target.value)}
+                >
+                  <option value="">Select a completed, Etsy-ready render…</option>
+                  {videoRenders.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.source === "uploaded" ? "Uploaded" : "Generated"} · {r.template_id} · {r.aspect_ratio ?? "?"} · {r.duration_seconds?.toFixed(0)}s · {new Date(r.created_at).toLocaleDateString()}
+                    </option>
+                  ))}
+                </select>
+                {videoRenders.length === 0 && (
+                  <p className="text-xs text-gray-400 mb-3">
+                    No Etsy-ready renders yet — generate one on the Video Generator page first, or upload an MP4 video above.
+                  </p>
+                )}
               </>
             )}
 

@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   pull_request:
-    branches: [main]
+    branches: [main, staging]
 
 jobs:
   backend-tests:
@@ -42,7 +42,7 @@ jobs:
       CELERY_BROKER_URL: redis://localhost:6379/0
       CELERY_RESULT_BACKEND: redis://localhost:6379/0
       JWT_SECRET: ci-test-jwt-secret-not-real-64chars-padding-here-xxxxxxxxxx
-      ENCRYPTION_KEY: dGVzdC1lbmNyeXB0aW9uLWtleS10ZXN0LWVuY3J5cHRpb24=
+      ENCRYPTION_KEY: uOv7K6PYL6v4G77O0WqJrA5BrM42x3NCAQZUSO2rTio=
       AI_PROVIDER: mock
       STRIPE_SECRET_KEY: ""
       ETSY_CLIENT_ID: ""
@@ -73,7 +73,7 @@ jobs:
           CELERY_BROKER_URL: redis://localhost:6379/0
           CELERY_RESULT_BACKEND: redis://localhost:6379/0
           JWT_SECRET: ci-test-jwt-secret-not-real-64chars-padding-here-xxxxxxxxxx
-          ENCRYPTION_KEY: dGVzdC1lbmNyeXB0aW9uLWtleS10ZXN0LWVuY3J5cHRpb24=
+          ENCRYPTION_KEY: uOv7K6PYL6v4G77O0WqJrA5BrM42x3NCAQZUSO2rTio=
           AI_PROVIDER: mock
           BACKEND_CORS_ORIGINS: http://localhost:3100
           FRONTEND_URL: http://localhost:3100

@@ -2,15 +2,15 @@
 
 ## Current Phase
 
-**One-click startup reliability COMPLETE (2026-06-30). Port conflict fixed. Demo login seeding fixed. 45/45 tests pass.**
+**Staging on DigitalOcean + Cloudflare, production still design-only. Owner console rebuild code-complete on a feature branch (not yet merged); Resend outbound email domain verification blocked on user-provided DNS records.**
 
 ## Status
 
-`Sprint 26 polish complete. video_renderer.py: ASPECT_RATIO_PRESETS {9:16→1080×1920, 1:1→1080×1080, 4:5→1080×1350, 16:9→1920×1080}, check_etsy_ready() returning (bool, list[str]), render_slideshow_mp4() now returns dict {output_path, file_size_bytes, width, height}. VideoRender model: added aspect_ratio, width, height, is_etsy_ready, etsy_issues_json columns. Migration 0017. video_generator.py: duration validation (5–15s → 400), aspect ratio validation (→ 400), is_etsy_ready + etsy_issues in render status response (file_path/stored_filename never exposed), templates endpoint returns aspect_ratios + etsy_specs + renderer_enabled/available, status returns renderer_enabled + renderer_available. promote.py: /config-status endpoint added. Frontend video-generator: format selector (9:16 default), duration input min=5/max=15/helper text, EtsyReadyChecklist component with 5 checks. promote page: 4 state-specific copy blocks per platform (not_configured/not_connected/connected/expired), always-visible Instagram Business/Creator note, fallback copy+download row always visible. 747/747 backend tests (130 new). TypeScript: 0 errors.`
+`Owner console rebuilt at apps/frontend/app/owner/* (Dashboard, Users, Organizations, Shops, Jobs, Contact Submissions, Emails, Audit Logs, System Health, Feature Flags, Content), served at owner.bulkeditapp.com via middleware.ts host rewrite (no new DO app). /admin is now a compat shim: 404 for non-superusers, redirect to /owner for confirmed superusers. Removed a real bug: dashboard "Admin Panel" card was shown to all users, not gated by is_superuser. Backend: contact_submissions table (migration 0020, contact form now persists every submission regardless of email delivery), GET /api/v1/admin/contact-submissions + GET /api/v1/admin/feature-flags (both require_superuser). 875/875 backend tests pass. Frontend: tsc clean, next build clean (61 routes). Branch feature/owner-console-subdomain-rebuild not yet merged. Separately: staging Resend SMTP wired but blocked — "domain not verified" — waiting on user to paste exact DNS records (no invented/guessed values per explicit instruction).`
 
 ## Last Updated
 
-2026-06-30
+2026-07-05
 
 ## Active Skills
 

@@ -1,5 +1,59 @@
 # HANDOFF.md — Session Handoff
 
+## RESUME HERE — 2026-07-05 (Resend domain verification + owner console rebuild)
+
+**Where we are:** Two connected tasks in flight.
+
+**Part A — Resend outbound sending domain verification (BLOCKED on user):**
+Staging Resend SMTP is wired up (env vars applied to `bulk-edit-staging-api`), but every real send fails: `550 The bulkeditapp.com domain is not verified`. Stopped and asked the user to paste the exact DNS records from their Resend dashboard (Domain Verification/DKIM + Enable Sending/SPF/return-path + optional DMARC — explicitly NOT inbound/MX, "Enable Receiving" is disabled and must stay disabled). No Cloudflare DNS changes made yet. **Next action once records are provided:** add them to the Cloudflare zone for `bulkeditapp.com` (DNS-only, never proxied), click "Verify DNS Records" in Resend, then retest staging email end-to-end (health, forgot-password known/unknown email, contact form to both `SUPPORT_EMAIL` recipients).
+
+**Part B — Owner console rebuild (code complete, not yet merged):**
+Branch `feature/owner-console-subdomain-rebuild` off `staging`. Rebuilt the internal admin/owner structure per user spec:
+- New `/owner` route group (`apps/frontend/app/owner/*`): Dashboard, Users, Organizations, Shops, Jobs, Contact Submissions, Emails (documented follow-up, no fake data), Audit Logs, System Health, Feature Flags (read-only), Content (placeholder) — all reusing the existing `require_superuser`-gated `/api/v1/admin/*` endpoints.
+- `middleware.ts` rewrites `owner.bulkeditapp.com/*` → `/owner/*` (no new DO app — attaches to the existing frontend app), applies `X-Robots-Tag: noindex`.
+- `/admin` is now a thin compat shim: real 404 for unauthenticated/non-superuser, same-origin redirect to `/owner` for confirmed superusers.
+- Fixed a real bug found during the audit: the customer dashboard (`(app)/dashboard/page.tsx`) was unconditionally showing an "Admin Panel" card to every logged-in user (not gated by `is_superuser`, unlike the sidebar nav) — removed.
+- Backend additions: `contact_submissions` table (migration 0020) — contact form now persists every submission regardless of email delivery outcome, so inquiries aren't lost while the Resend blocker is live; `GET /api/v1/admin/contact-submissions` and `GET /api/v1/admin/feature-flags` (both `require_superuser`-gated).
+- Backend: 875/875 tests pass (6 new). Frontend: `tsc --noEmit` clean, `next build` clean (61 routes incl. 11 `/owner/*`), updated `e2e/auth-flow.spec.ts` for the new `/admin` behavior.
+- Docs updated: `DECISIONS.md` (2 new entries), `docs/operations/PRODUCTION_LAUNCH_FOLLOWUPS.md` (§8 email-history persistence follow-up, §9 feature-flags follow-up).
+
+**Not yet done for Part B:** commit + push branch, open PR into `staging`, wait for CI/CodeQL, squash-merge, pull staging. Then (separate, deliberately not bundled into the same DNS action as Part A): attach `owner.bulkeditapp.com` as a custom domain on the existing staging frontend DO app + add the Cloudflare CNAME (DNS-only) — report the exact record before applying, per the user's own B9 instruction. Also still owed: a Cloudflare Access recommendation for `owner.bulkeditapp.com` (restrict to `sekiphayit1982@gmail.com` + explicitly-approved others only — do not create the policy without confirming the exact allow-list).
+
+**Rules still active:** do not touch `main`/production; no new DO app; Cloudflare DNS changes limited to Resend verification records and `owner.bulkeditapp.com` routing only; never print SMTP_PASSWORD/Resend API key; owner console must never appear in sitemap/nav/footer/JSON-LD on the marketing site.
+
+---
+
+## Previous — 2026-07-02 (DigitalOcean + Cloudflare staging)
+
+**Where we are:** Guardrails done; staging deploy scaffolding + automation built; **nothing provisioned yet** (blocked on DO/Cloudflare tokens + paid-resource approval). Production untouched, design-only.
+
+**Branches / PRs:**
+- `main` = `11c70da` (protected, unchanged — do NOT touch).
+- `staging` = `dac28bb` (protected; PR required, 0 approvals, 5 checks, no force/delete).
+- **PR #3 MERGED** → staging (docs: STAGING_PROVISIONING.md + guardrail status).
+- **PR #4 OPEN** (`feature/staging-automation` → staging): staging provisioning automation. Not merged. Needs 5 checks green.
+- Current local branch: `feature/staging-automation`.
+
+**Tooling state:** `gh` installed + authed (user `Sekiph82`, ADMIN). `doctl` NOT installed (winget lacks it → use `scoop install doctl` or GitHub releases). No DO/Cloudflare tokens yet.
+
+**Guardrails (done, verified):** main+staging rulesets active; secret scanning + push protection + Dependabot alerts/security updates on; Actions read-only. CI + CodeQL green on staging.
+
+**Exact next steps (in order):**
+1. Merge PR #4 into staging (after checks green) — user action (or `gh pr merge 4 --squash`).
+2. User fills `deploy-staging.local.env` (gitignored): DIGITALOCEAN_ACCESS_TOKEN, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID, CLOUDFLARE_ACCOUNT_ID (+ optional sk_test_/etsy/AI). Run `scripts/prepare-staging-secrets.ps1`.
+3. Install `doctl` (`scoop install doctl`).
+4. **Approve DO cost** (~$10–40/mo staging) before creating paid resources.
+5. Run `scripts/provision-staging.ps1` (I can drive it; pause for price OK before create).
+6. DO dashboard: set backend SECRET env vars (values from local file), attach `api-staging` + `staging` custom domains.
+7. Cloudflare: SSL Full(strict); Access on `staging.bulkeditapp.com` only (api-staging stays public + strict CORS).
+8. Run `scripts/smoke-staging.ps1`. Then → Phase 2 Security Hardening.
+
+**Key files:** `docs/operations/STAGING_AUTOMATION.md` (run guide), `STAGING_PROVISIONING.md` (manual), `.do/app.staging-*.yaml`, `scripts/{prepare-staging-secrets,provision-staging,smoke-staging}.ps1`.
+
+**Rules still active:** no direct push to main/staging (PR only); production design-only; no sk_live_; fresh private ENCRYPTION_KEY (never the public CI key `uOv7…`); secrets never printed/committed.
+
+---
+
 ## Last Session
 
 **Date:** 2026-06-30
