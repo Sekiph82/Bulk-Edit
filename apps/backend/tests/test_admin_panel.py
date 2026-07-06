@@ -600,3 +600,279 @@ async def test_admin_organization_detail_with_shop(client, db_session):
     assert r.status_code == 200
     data = r.json()
     assert data["shop_count"] == 1
+
+
+# ── 21. Users list search/filter ──────────────────────────────────────────────
+
+async def test_admin_list_users_search_by_email(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    target = await _make_user(db_session, email="findme-unique@example.com")
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/users?q=findme-unique", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {u["id"] for u in r.json()["items"]}
+    assert target.id in ids
+
+
+async def test_admin_list_users_filter_status_disabled(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    disabled = await _make_user(db_session, is_active=False)
+    active = await _make_user(db_session, is_active=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/users?status=disabled", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {u["id"] for u in r.json()["items"]}
+    assert disabled.id in ids
+    assert active.id not in ids
+
+
+async def test_admin_list_users_filter_role_superuser(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    other_su = await _make_user(db_session, is_superuser=True)
+    regular = await _make_user(db_session, is_superuser=False)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/users?role=superuser", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {u["id"] for u in r.json()["items"]}
+    assert other_su.id in ids
+    assert regular.id not in ids
+
+
+async def test_admin_list_users_filter_organization_id(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    member = await _make_user(db_session)
+    org = await _make_org(db_session, member)
+    outsider = await _make_user(db_session)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get(f"/api/v1/admin/users?organization_id={org.id}", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {u["id"] for u in r.json()["items"]}
+    assert member.id in ids
+    assert outsider.id not in ids
+
+
+async def test_admin_list_users_filter_plan(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    pro_user = await _make_user(db_session)
+    await _make_org(db_session, pro_user, plan="pro_monthly")
+    free_user = await _make_user(db_session)
+    await _make_org(db_session, free_user, plan="free")
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/users?plan=pro_monthly", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {u["id"] for u in r.json()["items"]}
+    assert pro_user.id in ids
+    assert free_user.id not in ids
+
+
+async def test_admin_list_users_includes_primary_org_and_plan(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session)
+    org = await _make_org(db_session, owner, plan="basic_monthly")
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/users", headers=_auth(token))
+    assert r.status_code == 200
+    item = next(u for u in r.json()["items"] if u["id"] == owner.id)
+    assert item["organization_id"] == org.id
+    assert item["organization_name"] == org.name
+    assert item["plan"] == "basic_monthly"
+
+
+# ── 22. Organizations list search/filter ──────────────────────────────────────
+
+async def test_admin_list_organizations_search_by_name(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session)
+    org = Organization(id=_id(), name="Unique Findable Org", owner_id=owner.id)
+    db_session.add(org)
+    await db_session.flush()
+    db_session.add(OrganizationMember(id=_id(), organization_id=org.id, user_id=owner.id, role="owner"))
+    db_session.add(Subscription(id=_id(), organization_id=org.id, plan="free", status="free"))
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/organizations?q=Unique Findable", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {o["id"] for o in r.json()["items"]}
+    assert org.id in ids
+
+
+async def test_admin_list_organizations_filter_plan(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    pro_owner = await _make_user(db_session)
+    pro_org = await _make_org(db_session, pro_owner, plan="pro_monthly")
+    free_owner = await _make_user(db_session)
+    free_org = await _make_org(db_session, free_owner, plan="free")
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/organizations?plan=pro_monthly", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {o["id"] for o in r.json()["items"]}
+    assert pro_org.id in ids
+    assert free_org.id not in ids
+
+
+async def test_admin_list_organizations_filter_etsy_connected(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    connected_owner = await _make_user(db_session)
+    connected_org = await _make_org(db_session, connected_owner)
+    await _make_shop(db_session, connected_org)
+    disconnected_owner = await _make_user(db_session)
+    disconnected_org = await _make_org(db_session, disconnected_owner)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/organizations?etsy_connected=true", headers=_auth(token))
+    assert r.status_code == 200
+    ids = {o["id"] for o in r.json()["items"]}
+    assert connected_org.id in ids
+    assert disconnected_org.id not in ids
+
+
+async def test_admin_list_organizations_includes_enrichment_fields(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session, email="org-owner@example.com")
+    org = await _make_org(db_session, owner, plan="pro_monthly")
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/organizations", headers=_auth(token))
+    assert r.status_code == 200
+    item = next(o for o in r.json()["items"] if o["id"] == org.id)
+    assert item["owner_email"] == "org-owner@example.com"
+    assert item["plan"] == "pro_monthly"
+    assert item["subscription_status"] == "active"
+    assert item["etsy_connected"] is False
+    assert item["users_count"] == 1
+
+
+# ── 23. User detail enrichment ────────────────────────────────────────────────
+
+async def test_admin_user_detail_includes_organizations_and_usage(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session)
+    org = await _make_org(db_session, owner, plan="basic_monthly")
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get(f"/api/v1/admin/users/{owner.id}", headers=_auth(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["organizations"][0]["organization_id"] == org.id
+    assert data["organizations"][0]["role"] == "owner"
+    assert data["plan"] == "basic_monthly"
+    assert "usage" in data
+    assert data["usage"]["bulk_edit_sessions_count"] == 0
+    assert "recent_events" in data
+    assert "password_hash" not in data
+
+
+# ── 24. Organization detail enrichment ────────────────────────────────────────
+
+async def test_admin_organization_detail_includes_members_usage_risk(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    owner = await _make_user(db_session, email="member-owner@example.com")
+    org = await _make_org(db_session, owner)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get(f"/api/v1/admin/organizations/{org.id}", headers=_auth(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["members"][0]["email"] == "member-owner@example.com"
+    assert data["members"][0]["role"] == "owner"
+    assert "usage" in data
+    assert data["usage"]["media_jobs_count"] == 0
+    assert "risk" in data
+    assert data["risk"]["etsy_disconnected"] is False  # no shops at all yet
+    assert data["risk"]["billing_issue"] is False
+    assert "recent_events" in data
+
+
+async def test_admin_organization_detail_no_etsy_tokens_in_shops(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    org = await _make_org(db_session, su)
+    await _make_shop(db_session, org)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get(f"/api/v1/admin/organizations/{org.id}", headers=_auth(token))
+    assert r.status_code == 200
+    for shop in r.json()["shops"]:
+        assert "access_token" not in shop
+        assert "refresh_token" not in shop
+
+
+async def test_admin_organization_detail_etsy_disconnected_risk_flag(client, db_session):
+    from app.models.etsy_shop import EtsyShop
+
+    su = await _make_user(db_session, is_superuser=True)
+    org = await _make_org(db_session, su)
+    shop = EtsyShop(id=_id(), organization_id=org.id, etsy_shop_id=f"shop-{_id()[:8]}", shop_name="Disconnected Shop", is_connected=False)
+    db_session.add(shop)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get(f"/api/v1/admin/organizations/{org.id}", headers=_auth(token))
+    assert r.status_code == 200
+    assert r.json()["risk"]["etsy_disconnected"] is True
+
+
+# ── 25. Trends endpoint ────────────────────────────────────────────────────────
+
+async def test_admin_trends_forbidden_for_regular_user(client, db_session):
+    user = await _make_user(db_session, is_superuser=False)
+    await db_session.commit()
+    token = await _login(client, user.email)
+    r = await client.get("/api/v1/admin/metrics/trends", headers=_auth(token))
+    assert r.status_code == 403
+
+
+async def test_admin_trends_default_30_days(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/metrics/trends", headers=_auth(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["days"] == 30
+    assert len(data["series"]["users"]) == 30
+    assert len(data["series"]["organizations"]) == 30
+    assert len(data["series"]["bulk_edit_jobs"]) == 30
+    assert len(data["series"]["media_jobs"]) == 30
+
+
+async def test_admin_trends_zero_filled_no_fake_data(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/metrics/trends?days=7", headers=_auth(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["days"] == 7
+    for point in data["series"]["bulk_edit_jobs"]:
+        assert point["count"] == 0  # no bulk edit sessions created in this test
+    for point in data["series"]["users"] + data["series"]["organizations"]:
+        assert "date" in point and "count" in point
+
+
+async def test_admin_trends_counts_todays_new_user(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+
+    from datetime import datetime, timezone
+    today_key = datetime.now(timezone.utc).date().isoformat()
+
+    r = await client.get("/api/v1/admin/metrics/trends?days=1", headers=_auth(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["series"]["users"][0]["date"] == today_key
+    assert data["series"]["users"][0]["count"] >= 1  # su was just created today
+
+
+async def test_admin_trends_days_capped(client, db_session):
+    su = await _make_user(db_session, is_superuser=True)
+    await db_session.commit()
+    token = await _login(client, su.email)
+    r = await client.get("/api/v1/admin/metrics/trends?days=999", headers=_auth(token))
+    assert r.status_code == 422  # FastAPI rejects >365 via Query(le=365)

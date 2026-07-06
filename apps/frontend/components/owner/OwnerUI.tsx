@@ -1,5 +1,74 @@
 "use client";
 
+// On owner.bulkeditapp.com the middleware rewrites clean paths
+// (owner.bulkeditapp.com/users/123) to the internal /owner/* route tree, so
+// links FROM that host must use the clean form or they'd be rewritten twice
+// and 404 as /owner/owner/users/123. On any other host (e.g. testing
+// staging.bulkeditapp.com/owner directly) the real path keeps the /owner
+// prefix. Call this once per page and prefix all owner-internal hrefs with it.
+export function useOwnerBase(): string {
+  if (typeof window === "undefined") return "/owner";
+  return window.location.hostname === "owner.bulkeditapp.com" ? "" : "/owner";
+}
+
+// Client-side CSV export — no secrets, no tokens, no password hashes. Callers
+// pass already-fetched/filtered rows and the exact column order/keys to emit.
+export function downloadCsv(filename: string, rows: Record<string, unknown>[], columns: string[]): void {
+  const escape = (v: unknown): string => {
+    const s = v === null || v === undefined ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const header = columns.join(",");
+  const body = rows.map((r) => columns.map((c) => escape(r[c])).join(",")).join("\n");
+  const blob = new Blob([`${header}\n${body}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export function todayStamp(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Lightweight bar chart — no chart library dependency. Renders an honest
+// "No activity yet" state instead of a flat/fake-looking empty chart.
+export function TrendBarChart({ points, label }: { points: { date: string; count: number }[]; label: string }) {
+  const max = Math.max(1, ...points.map((p) => p.count));
+  const hasActivity = points.some((p) => p.count > 0);
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-4">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{label}</p>
+      {!hasActivity ? (
+        <div className="h-24 flex items-center justify-center">
+          <p className="text-sm text-gray-400">No activity yet</p>
+        </div>
+      ) : (
+        <div className="h-24 flex items-end gap-px">
+          {points.map((p) => (
+            <div
+              key={p.date}
+              className="flex-1 bg-indigo-500 hover:bg-indigo-600 rounded-t-sm transition-colors"
+              style={{ height: `${Math.max(4, Math.round((p.count / max) * 96))}px` }}
+              title={`${p.date}: ${p.count}`}
+            />
+          ))}
+        </div>
+      )}
+      {points.length > 0 && (
+        <div className="flex justify-between mt-2 text-[10px] text-gray-400">
+          <span>{points[0].date}</span>
+          <span>{points[points.length - 1].date}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function fmt(dt: string | null | undefined): string {
   if (!dt) return "—";
   return new Date(dt).toLocaleString();

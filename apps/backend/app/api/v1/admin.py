@@ -29,6 +29,7 @@ from app.schemas.admin import (
     AdminSystemHealth,
     AdminContactSubmissionSummary,
     AdminFeatureFlags,
+    AdminTrendsOut,
 )
 import app.services.admin as svc
 
@@ -48,12 +49,25 @@ async def admin_overview(
 async def admin_list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
+    q: str | None = Query(None, description="Search email, name, or exact user id"),
+    status: str | None = Query(None, pattern="^(active|disabled|all)$"),
+    role: str | None = Query(None, pattern="^(superuser|user|all)$"),
+    organization_id: str | None = Query(None),
+    plan: str | None = Query(None),
+    created_from: str | None = Query(None, description="YYYY-MM-DD"),
+    created_to: str | None = Query(None, description="YYYY-MM-DD"),
     _su=Depends(require_superuser),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await svc.list_users(db, page=page, page_size=page_size)
+    result = await svc.list_users(
+        db, page=page, page_size=page_size, q=q,
+        status=None if status == "all" else status,
+        role=None if role == "all" else role,
+        organization_id=organization_id, plan=plan,
+        created_from=created_from, created_to=created_to,
+    )
     return AdminPage[AdminUserListItem](
-        items=[AdminUserListItem.model_validate(u) for u in result["items"]],
+        items=result["items"],
         page=result["page"],
         page_size=result["page_size"],
         total=result["total"],
@@ -66,20 +80,29 @@ async def admin_get_user(
     _su=Depends(require_superuser),
     db: AsyncSession = Depends(get_db),
 ):
-    user = await svc.get_user_detail(db, user_id)
-    return AdminUserDetail.model_validate(user)
+    return await svc.get_user_detail(db, user_id)
 
 
 @router.get("/organizations", response_model=AdminPage[AdminOrganizationListItem])
 async def admin_list_organizations(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
+    q: str | None = Query(None, description="Search name, exact org id, or owner email"),
+    plan: str | None = Query(None),
+    subscription_status: str | None = Query(None),
+    etsy_connected: bool | None = Query(None),
+    created_from: str | None = Query(None, description="YYYY-MM-DD"),
+    created_to: str | None = Query(None, description="YYYY-MM-DD"),
     _su=Depends(require_superuser),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await svc.list_organizations(db, page=page, page_size=page_size)
+    result = await svc.list_organizations(
+        db, page=page, page_size=page_size, q=q, plan=plan,
+        subscription_status=subscription_status, etsy_connected=etsy_connected,
+        created_from=created_from, created_to=created_to,
+    )
     return AdminPage[AdminOrganizationListItem](
-        items=[AdminOrganizationListItem.model_validate(o) for o in result["items"]],
+        items=result["items"],
         page=result["page"],
         page_size=result["page_size"],
         total=result["total"],
@@ -92,19 +115,16 @@ async def admin_get_organization(
     _su=Depends(require_superuser),
     db: AsyncSession = Depends(get_db),
 ):
-    data = await svc.get_organization_detail(db, org_id)
-    org = data["org"]
-    sub = data["subscription"]
-    return AdminOrganizationDetail(
-        id=org.id,
-        name=org.name,
-        owner_id=org.owner_id,
-        created_at=org.created_at,
-        updated_at=org.updated_at,
-        subscription=AdminSubscriptionSummary.model_validate(sub) if sub else None,
-        shop_count=data["shop_count"],
-        listing_count=data["listing_count"],
-    )
+    return await svc.get_organization_detail(db, org_id)
+
+
+@router.get("/metrics/trends", response_model=AdminTrendsOut)
+async def admin_metrics_trends(
+    days: int = Query(30, ge=1, le=365),
+    _su=Depends(require_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    return await svc.get_admin_trends(db, days=days)
 
 
 @router.get("/subscriptions", response_model=AdminPage[AdminSubscriptionListItem])
