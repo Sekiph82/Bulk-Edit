@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MarketingNav from "@/components/marketing/MarketingNav";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
+import { PLAN_PRICE_DISPLAY as PLAN_DISPLAY, PLAN_ORDER } from "@/lib/pricingPlans";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8100";
 
@@ -20,16 +21,6 @@ type PlanLimits = {
   can_use_dynamic_pricing: boolean;
   can_schedule_jobs: boolean;
 };
-
-const PLAN_DISPLAY: Record<string, { label: string; price: string; badge?: string }> = {
-  free: { label: "Free", price: "$0/month" },
-  basic_monthly: { label: "Basic", price: "$19/month" },
-  pro_monthly: { label: "Pro", price: "$49/month", badge: "Popular" },
-  basic_yearly: { label: "Basic (Yearly)", price: "$15/month", badge: "Save 20%" },
-  pro_yearly: { label: "Pro (Yearly)", price: "$39/month", badge: "Save 20%" },
-};
-
-const PLAN_ORDER = ["free", "basic_monthly", "pro_monthly", "basic_yearly", "pro_yearly"];
 
 function FeatureRow({ label, value }: { label: string; value: boolean | number | string }) {
   if (typeof value === "boolean") {

@@ -19,10 +19,12 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
   },
-  // No favicon/OG image asset yet — next/og ImageResponse generation was
-  // tried and reverted because it breaks `next build` on Windows (a known
-  // @vercel/og local-font-resolution bug with Windows file:// URLs). See
-  // docs/operations/PRODUCTION_LAUNCH_FOLLOWUPS.md for the follow-up plan.
+  // Favicon/apple-icon/OG image are static PNGs at app/icon.png,
+  // app/apple-icon.png, app/opengraph-image.png — Next.js file-convention
+  // metadata picks these up automatically. Deliberately static, not
+  // next/og ImageResponse: ImageResponse generation was tried and reverted
+  // because it breaks `next build` on Windows (a known @vercel/og
+  // local-font-resolution bug with Windows file:// URLs).
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
