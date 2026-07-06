@@ -1,6 +1,11 @@
 # DigitalOcean App Platform - PRODUCTION BACKEND (api.bulkeditapp.com)
-# DESIGN ONLY - DO NOT PROVISION until staging is validated (see answer 5 /
-# DIGITALOCEAN_DEPLOY.md gate). Deploys from `main`.
+# Deploys from `main`. Provisioned in limited "Marketing + API Health +
+# Private Beta" mode: Etsy/Stripe are intentionally left unconfigured
+# (placeholder defaults in app/core/config.py) so is_etsy_configured() /
+# is_stripe_configured() stay false and those endpoints return a clean 503
+# instead of ever redirecting to a real (garbage-credentialed) OAuth/checkout
+# URL. Email IS configured — see SMTP_* below, reusing the same verified
+# bulkeditapp.com Resend sending domain already used by staging.
 
 name: bulk-edit-prod-api
 region: nyc
@@ -37,9 +42,9 @@ services:
         value: https://app.bulkeditapp.com
       - key: BACKEND_URL
         value: https://api.bulkeditapp.com
-      # App subdomain calls the API; apex marketing may call it for the contact form.
+      # App subdomain calls the API; apex + www marketing may call it for the contact form.
       - key: BACKEND_CORS_ORIGINS
-        value: https://app.bulkeditapp.com,https://bulkeditapp.com
+        value: https://app.bulkeditapp.com,https://bulkeditapp.com,https://www.bulkeditapp.com
       - key: RATE_LIMIT_ENABLED
         value: "true"
       - key: RATE_LIMIT_BACKEND
@@ -56,13 +61,33 @@ services:
         value: https://api.bulkeditapp.com/api/v1/promote/pinterest/callback
       - key: INSTAGRAM_REDIRECT_URI
         value: https://api.bulkeditapp.com/api/v1/promote/instagram/callback
+      # Left at the safe "mock" default (no real AI provider) until an
+      # OPENAI_API_KEY/ANTHROPIC_API_KEY (SECRET) is actually provided —
+      # avoids AI_PROVIDER pointing at a provider with no working key.
       - key: AI_PROVIDER
-        value: openai # set real provider + key (SECRET) at launch
+        value: mock
       # Product Video Generator: ffmpeg is installed in the Docker image
       # (see apps/backend/Dockerfile) — real MP4 rendering, download only,
       # never auto-uploaded to Etsy.
       - key: VIDEO_RENDERER_ENABLED
         value: "true"
+      # Email (Resend, SMTP) — reuses the same verified bulkeditapp.com
+      # sending domain already used by staging. SMTP_PASSWORD is the Resend
+      # API key, set separately as a SECRET (never in this file).
+      - key: EMAIL_PROVIDER
+        value: smtp
+      - key: SMTP_HOST
+        value: smtp.resend.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        value: resend
+      - key: SMTP_FROM_EMAIL
+        value: noreply@bulkeditapp.com
+      - key: SUPPORT_EMAIL
+        value: support@bulkeditapp.com
+      - key: APP_PUBLIC_URL
+        value: https://app.bulkeditapp.com
 
 jobs:
   - name: migrate
@@ -80,16 +105,28 @@ jobs:
         scope: RUN_TIME
         value: ${prod-db.DATABASE_URL}
 
+# Both are standalone managed clusters (not inline app-bundled databases) —
+# DO App Platform requires production-tier Redis/Valkey to be a pre-existing
+# standalone cluster referenced by cluster_name (same reason staging's Redis
+# had to move to a standalone Valkey cluster; see DIGITALOCEAN_DEPLOY.md).
+# Postgres was also provisioned standalone here for consistency/decoupling
+# from app lifecycle. Already created and online: bulk-edit-prod-db,
+# bulk-edit-prod-redis.
 databases:
   - name: prod-db
     engine: PG
-    version: "16"
-    production: true # managed cluster with automated backups + PITR
+    cluster_name: bulk-edit-prod-db
+    production: true
   - name: prod-redis
-    engine: REDIS
+    engine: VALKEY
+    cluster_name: bulk-edit-prod-redis
     production: true
 
 # REQUIRED SECRETS (DO dashboard, encrypted) - LIVE values at launch:
-#   JWT_SECRET, ENCRYPTION_KEY, STRIPE_SECRET_KEY (sk_live_), STRIPE_WEBHOOK_SECRET,
-#   STRIPE_PRICE_* (4, live), ETSY_CLIENT_ID/_SECRET, PINTEREST_*/META_* (optional),
-#   OPENAI_API_KEY/ANTHROPIC_API_KEY, SMTP_* (Resend), SENTRY_DSN
+#   JWT_SECRET, ENCRYPTION_KEY (generated fresh, never reused from staging),
+#   SMTP_PASSWORD (Resend API key, may reuse staging's — same verified domain).
+# STILL MISSING, left unconfigured (safe placeholder defaults apply, gate
+# cleanly to 503 rather than exposing broken flows) until provided:
+#   STRIPE_SECRET_KEY (sk_live_), STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_* (4, live),
+#   ETSY_CLIENT_ID/_SECRET, OPENAI_API_KEY/ANTHROPIC_API_KEY (optional),
+#   PINTEREST_*/META_* (optional), SENTRY_DSN (optional)

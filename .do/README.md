@@ -8,8 +8,8 @@ subdomains need separate apps.
 |---|---|---|---|---|
 | `app.staging-frontend.yaml` | Next.js web | `staging.bulkeditapp.com` | `staging` | Provision in Phase 1 |
 | `app.staging-backend.yaml` | FastAPI + migrate job + PG + Redis | `api-staging.bulkeditapp.com` | `staging` | Provision in Phase 1 |
-| `app.production-frontend.yaml` | Next.js web (apex + www + app) | `bulkeditapp.com`, `www`, `app` | `main` | **Design only** |
-| `app.production-backend.yaml` | FastAPI + migrate job + PG + Redis | `api.bulkeditapp.com` | `main` | **Design only** |
+| `app.production-frontend.yaml` | Next.js web (apex + www + app) | `bulkeditapp.com`, `www`, `app` | `main` | Provisioning — limited "Marketing + API Health + Private Beta" mode (`NEXT_PUBLIC_PRIVATE_BETA_MODE=true`); `owner.bulkeditapp.com` intentionally not added yet |
+| `app.production-backend.yaml` | FastAPI + migrate job + PG + Redis | `api.bulkeditapp.com` | `main` | Provisioning — Etsy/Stripe left unconfigured (safe placeholder defaults); email configured via existing verified `bulkeditapp.com` Resend domain |
 
 - Migrations run in a **PRE_DEPLOY job** (`alembic upgrade head`), never in the web
   container start — a failed migration aborts the deploy instead of crash-looping.
