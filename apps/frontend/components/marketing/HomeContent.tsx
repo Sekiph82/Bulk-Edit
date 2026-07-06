@@ -15,6 +15,7 @@ import VideoInsightsSection from "@/components/marketing/VideoInsightsSection";
 import ExplainerBlocks from "@/components/marketing/ExplainerBlocks";
 import ConversionCTA from "@/components/marketing/ConversionCTA";
 import SEOFAQ, { type FaqItem } from "@/components/marketing/SEOFAQ";
+import { PLAN_PRICE_DISPLAY, HOMEPAGE_PLAN_SUMMARIES } from "@/lib/pricingPlans";
 
 const TRUST_ITEMS = [
   "Preview every change",
@@ -234,26 +235,73 @@ export default function HomeContent() {
         </Link>
       </div>
 
-      {/* Pricing preview */}
+      {/* Pricing preview — same plan names/prices as /pricing (lib/pricingPlans.ts) */}
       <section className="py-20 px-6 sm:px-8 bg-white border-t border-gray-100">
-        <div className="max-w-3xl mx-auto text-center">
-          <FadeUp>
+        <div className="max-w-5xl mx-auto">
+          <FadeUp className="text-center mb-10">
             <h2 className="text-2xl font-bold text-gray-900 mb-3">
               Start free. Upgrade when you need more.
             </h2>
-            <p className="text-gray-500 mb-8">
+            <p className="text-gray-500">
               A free plan to get started, plus Basic and Pro tiers for growing shops that need
               more bulk edits, AI credits, and automation.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link href="/pricing" className="be-btn-primary px-8 py-3">
-                See full pricing
-              </Link>
-              <Link href="/register" className="be-btn-secondary px-8 py-3">
-                Start for free
-              </Link>
+          </FadeUp>
+
+          <FadeUp delay={0.1}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
+              {HOMEPAGE_PLAN_SUMMARIES.map(({ key, highlights }) => {
+                const display = PLAN_PRICE_DISPLAY[key];
+                const isFree = key === "free";
+                return (
+                  <div
+                    key={key}
+                    className={`relative bg-white rounded-2xl border p-6 flex flex-col gap-4 ${
+                      key === "pro_monthly" ? "border-indigo-400 ring-2 ring-indigo-200" : "border-gray-200"
+                    }`}
+                  >
+                    {display.badge && (
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                        {display.badge}
+                      </span>
+                    )}
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-lg">{display.label}</h3>
+                      <p className="text-indigo-600 font-semibold mt-1">{display.price}</p>
+                    </div>
+                    <ul className="space-y-1.5 flex-1 text-left">
+                      {highlights.map((h) => (
+                        <li key={h} className="flex items-start gap-2 text-sm text-gray-600">
+                          <svg className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          {h}
+                        </li>
+                      ))}
+                    </ul>
+                    {isFree ? (
+                      <Link href="/register" className="be-btn-secondary w-full text-center py-2.5 text-sm">
+                        Start for free
+                      </Link>
+                    ) : (
+                      <Link href="/pricing" className="be-btn-primary w-full text-center py-2.5 text-sm">
+                        See full pricing
+                      </Link>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </FadeUp>
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link href="/pricing" className="be-btn-primary px-8 py-3">
+              See full pricing
+            </Link>
+            <Link href="/register" className="be-btn-secondary px-8 py-3">
+              Start for free
+            </Link>
+          </div>
         </div>
       </section>
 

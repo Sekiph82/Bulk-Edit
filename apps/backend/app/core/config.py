@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = "noreply@bulkeditapp.com"
     SMTP_FROM_NAME: str = "Bulk-Edit"
     SMTP_USE_TLS: bool = True
-    SUPPORT_EMAIL: str = "support@bulk-edit.com"
+    SUPPORT_EMAIL: str = "support@bulkeditapp.com"
     APP_PUBLIC_URL: str = "http://localhost:3100"
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 60
 

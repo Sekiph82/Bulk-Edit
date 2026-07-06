@@ -11,8 +11,8 @@ const CONTACT_CARDS = [
     icon: "✉️",
     title: "Email Support",
     desc: "Send us a message and we'll get back to you within one business day.",
-    action: "support@bulk-edit.com",
-    href: "mailto:support@bulk-edit.com",
+    action: "support@bulkeditapp.com",
+    href: "mailto:support@bulkeditapp.com",
     cta: "Send email",
   },
   {
@@ -166,8 +166,8 @@ export default function ContactContent() {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Send us a message</h2>
             <p className="text-gray-500 text-sm">
               Or write directly to{" "}
-              <a href="mailto:support@bulk-edit.com" className="text-indigo-600 hover:underline">
-                support@bulk-edit.com
+              <a href="mailto:support@bulkeditapp.com" className="text-indigo-600 hover:underline">
+                support@bulkeditapp.com
               </a>
               .
             </p>

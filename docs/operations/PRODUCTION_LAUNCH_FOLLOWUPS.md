@@ -15,17 +15,19 @@ found `apps/backend/app/api/v1/bulk_create.py` always returns
 input — there is no real draft-creation logic behind it at all. It has been
 **removed from all public marketing copy** (homepage, `/features`, `/faq`)
 per product decision — not shown as "coming soon" either, just not
-mentioned publicly until it's real. The internal `/bulk-create` app page
-already honestly shows a "not configured" state to logged-in users, so no
-change was needed there. Building the real feature (actual draft
-persistence + Etsy listing creation via the existing preview/confirm
-pattern used elsewhere) is unscoped future work.
+mentioned publicly until it's real. 
 
 ---
 
-## 0. Favicon / Open Graph image assets
+## 0. Favicon / Open Graph image assets — RESOLVED (`chore/launch-polish-icons-legal-pricing-repo-cleanup`)
 
-**Attempted and reverted in this PR:** a code-generated favicon (`app/icon.tsx`)
+**Resolved:** option 2 below was taken — static `app/icon.png`, `app/apple-icon.png`,
+and `app/opengraph-image.png` binary assets were added (small, optimized
+PNGs, brand gradient + checkmark/card motif, no stock imagery). Next's
+file-convention metadata picks these up automatically; no code generation,
+no Windows build risk.
+
+**Original problem (kept for history):** a code-generated favicon (`app/icon.tsx`)
 and OG image (`app/opengraph-image.tsx`) using Next's built-in `next/og`
 `ImageResponse` — this avoids committing binary asset files, but it broke
 `next build` on this Windows dev machine:
