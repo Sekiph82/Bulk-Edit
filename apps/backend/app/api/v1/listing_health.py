@@ -326,6 +326,20 @@ async def get_ai_suggestions(
             message="AI suggestions are not configured in this environment. Set AI_PROVIDER and API keys to enable.",
         )
 
+    # Etsy compliance gate: this listing's title/description/tags are
+    # Etsy-synced data. Do not send them to a live AI provider unless Etsy
+    # has authorized it. See ETSY_SUPPORT_QUESTIONS.md Q2.
+    if not settings.ALLOW_ETSY_DATA_TO_AI:
+        return AISuggestionsOut(
+            listing_id=listing_id,
+            ai_available=False,
+            message=(
+                "AI suggestions for synced Etsy listings are temporarily disabled "
+                "pending Etsy's confirmation that sharing listing content with an "
+                "AI provider is permitted."
+            ),
+        )
+
     # Feature gate: paid plan required
     try:
         await assert_ai_usage_allowed(org_id, db)

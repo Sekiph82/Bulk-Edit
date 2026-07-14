@@ -44,6 +44,27 @@ class AIToolsError(Exception):
         super().__init__(message)
 
 
+def assert_etsy_data_to_ai_allowed() -> None:
+    """
+    Hard gate: every current AI tool input (_get_listing_context) is built
+    entirely from Etsy-synced Listing fields — there is no manual-entry
+    input path today. Etsy's API Terms require authorization before Etsy
+    content is shared with a third party (here, OpenAI/Anthropic). This
+    check runs at the service layer (not just the API/UI layer) so it
+    cannot be bypassed by a direct call, a background worker, or a crafted
+    request — only the mock provider (which never leaves our servers) is
+    exempt. See ETSY_SUPPORT_QUESTIONS.md Q2 for the pending clarification.
+    """
+    if settings.AI_PROVIDER.lower() != "mock" and not settings.ALLOW_ETSY_DATA_TO_AI:
+        raise AIToolsError(
+            "AI suggestions for synced Etsy listings are temporarily disabled pending "
+            "Etsy's confirmation that sharing listing content with an AI provider is "
+            "permitted. Set ALLOW_ETSY_DATA_TO_AI=true only after receiving that "
+            "confirmation.",
+            503,
+        )
+
+
 async def assert_ai_usage_allowed(org_id: str, db: AsyncSession) -> None:
     from app.core.plans import VALID_PAID_PLANS
     sub = await ensure_subscription_exists(org_id, db)
@@ -155,6 +176,7 @@ async def run_ai_session(session_id: str, org_id: str, db: AsyncSession) -> AISe
         raise AIToolsError(f"Session is already {session.status}", 400)
 
     await assert_ai_usage_allowed(org_id, db)
+    assert_etsy_data_to_ai_allowed()
 
     session.status = "running"
     db.add(session)
