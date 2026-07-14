@@ -39,7 +39,7 @@ Branch: `etsy-compliance-production-readiness`. Trigger: Etsy developer app "bul
 
 ## Retention Cleanup: Option B → Option A (2026-07-14, sixth session)
 
-**Status:** `[~] IN PROGRESS — PR #57 merged; this session's scheduler PR pending merge, DO Scheduled Job not yet applied/confirmed live`
+**Status:** `[x] OPTION A CONFIRMED LIVE (2026-07-14) — retention-cleanup SCHEDULED job registered on bulk-edit-prod-api, confirmed via doctl; first scheduled execution (03:30 UTC) still pending`
 
 Branch: `ops/production-retention-cleanup-scheduler`. Converts retention cleanup from "script deployed, no schedule" (Option B) to a real production DigitalOcean Scheduled Job (Option A).
 
@@ -47,13 +47,13 @@ Branch: `ops/production-retention-cleanup-scheduler`. Converts retention cleanup
 - [x] Added `--dry-run` to `scripts/run_retention_cleanup.py` and `count_expired_snapshots()` to `app/services/retention_cleanup.py` (same `WHERE` clause as the real delete, shared table list so the two can't drift apart). Prints aggregate per-table + total counts only — no record content, ever.
 - [x] 7 new tests in `tests/test_retention_cleanup.py`: dry-run finds expired records, dry-run deletes nothing, dry-run doesn't touch unexpired rows, normal cleanup deletes expired rows, normal cleanup preserves unexpired rows, cleanup is idempotent (second run deletes 0), and a subprocess-level test confirming the script exits non-zero when the database is unreachable.
 - [x] Discovered DigitalOcean App Platform's job `kind` for time-based execution is `SCHEDULED`, not `CRON` (verified directly against the live API via `doctl apps propose`, which validates without applying — see `DECISIONS.md`). Built `ops/app-specs/bulk-edit-prod-api.yaml`: adds a `retention-cleanup` job (`kind: SCHEDULED`, `schedule.cron: "30 3 * * *"` = 03:30 UTC daily — DO Scheduled Jobs have no timezone override, so this is exactly UTC), mirroring the existing `migrate` job's build config (same source/Dockerfile/branch, same minimal `ENVIRONMENT`+`DATABASE_URL` envs), single instance, smallest size, no public route or domain. Validated against the real `bulk-edit-prod-api` app via `doctl apps propose --app ... --spec ...` (read-only) before committing.
-- [ ] Local Postgres verification (4 expired + 4 unexpired fixture rows, dry-run then real run then idempotency re-run)
-- [ ] Full backend suite + targeted retention tests + frontend health checks + secret scan
-- [ ] Scheduler PR opened, CI green, merged
-- [ ] `doctl apps update` applied to register the new job component (a brand-new component requires an explicit spec update — `deploy_on_push` alone only rebuilds components already in the spec)
-- [ ] DO confirms the `retention-cleanup` job exists as `SCHEDULED`, correct cron, no public route
-- [ ] Production dry-run counts confirmed sane (below anomaly thresholds) before the first real scheduled run
-- [ ] Documentation flipped to "Option A" only after DO confirms the job exists — not claimed before that
+- [x] Local Postgres verification: seeded 4 expired + 4 unexpired fixture rows across all 4 tables in an isolated local DB — dry-run reported exactly 4 candidates and deleted 0, the real run deleted exactly 4 and preserved all 4 unexpired rows, a second real run deleted 0.
+- [x] Full backend suite: **982 passed** (975 baseline + 7 new), 0 failed. Targeted retention tests 7/7. Frontend `tsc`/lint/build clean. `git diff --check` clean. Secret scan clean.
+- [x] Scheduler PR #58 opened, all 6 required checks green, merged (`5f0cdb8`).
+- [x] `doctl apps update bulk-edit-prod-api --spec ops/app-specs/bulk-edit-prod-api.yaml --wait` applied — deployment `4f22a22f` reached `ACTIVE`. Backend health/DB/Redis/Private-Beta/migration-0025 all reconfirmed unaffected before and after.
+- [x] DO confirms the job exists: `name: retention-cleanup`, `kind: SCHEDULED`, `schedule.cron: "30 3 * * *"`, `run_command: python scripts/run_retention_cleanup.py`, 1 instance, smallest size, not present in the `services`/`domains` list (no public route).
+- [x] Production dry-run counts confirmed sane both before and after this deploy: `0` across all 4 tables, both times — well below the anomaly thresholds (>10,000 total or >5,000 any single table). Did **not** manually trigger the real cleanup to "prove it works" — the first real execution is left to the 03:30 UTC scheduled run.
+- [ ] First scheduled execution (03:30 UTC) has not yet happened as of this session — not claimed as succeeded. Verify on next session or via `doctl apps logs bulk-edit-prod-api --component retention-cleanup --type run` after it runs.
 
 ---
 

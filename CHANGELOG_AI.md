@@ -4,7 +4,7 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
-## 2026-07-14 (sixth session, in progress) Retention cleanup: Option B → Option A
+## 2026-07-14 (sixth session) Retention cleanup: Option B → Option A, confirmed live
 
 **Trigger:** Owner instruction to merge the pending docs-only PR #57, then convert retention cleanup from "script deployed, no schedule" to a real production scheduler — smallest reliable option, explicitly no Celery/Redis-queue/separate-worker — with a safe dry-run mode verified locally before touching production, plus a final (not-submitted) Etsy appeal package.
 
@@ -16,7 +16,13 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 **Spec built:** `ops/app-specs/bulk-edit-prod-api.yaml` — the existing prod-api spec (reused an already-cached copy rather than re-pulling in full) plus a new `retention-cleanup` job mirroring the existing `migrate` job's build config exactly, single instance, smallest size, no public route/domain. Re-validated the whole modified spec against the real prod-api app via `propose` — passed. `SECRET`-type env vars are DigitalOcean's `EV[...]` encrypted placeholders, round-tripped unchanged, never decrypted or re-exposed.
 
-**Not yet done:** local Postgres verification, full suite re-run, PR creation/CI/merge, `doctl apps update` to actually register the job, production dry-run with anomaly-threshold check, and only then flipping docs to "Option A." Etsy appeal draft not yet written. Nothing submitted to Etsy.
+**Local Postgres verification (real DB, not SQLite):** seeded 4 expired + 4 unexpired rows across all 4 tables in an isolated `retention_verify` database (after resolving the recurring Windows Hyper-V host-port issue by using port 45432). Dry-run reported exactly 4 candidates with a `ROLLBACK` (no writes); the real run deleted exactly 4 and a direct SQL count confirmed the 4 unexpired rows remained; a second real run deleted 0.
+
+**Verification, PR, merge:** full backend suite **982 passed** (975 + 7 new), 0 failed; frontend tsc/lint/build clean; `git diff --check` and secret scan clean. Committed in the 3 specified logical groups, opened **PR #58**, all 6 required checks passed. Pre-merge production checks: DB backup current, health OK, migration unaffected (no schema change), and a pre-merge production dry-run via direct read-only query — **0 expired candidates**. Merged (`5f0cdb8`); both prod apps auto-rebuilt and reconfirmed healthy (rebuild alone doesn't add new components).
+
+**Job registered:** ran `doctl apps update bulk-edit-prod-api --spec ops/app-specs/bulk-edit-prod-api.yaml --wait` (additive-only, preserves every existing setting) to actually add the new component — `deploy_on_push` alone only rebuilds components already in the spec. Confirmed directly against the live app (narrow, filtered query): `retention-cleanup`, `kind: SCHEDULED`, cron `30 3 * * *`, correct command, 1 instance, no public route. A final post-deploy production dry-run again showed **0** across all 4 tables, well below the anomaly thresholds — did not manually trigger the real cleanup to prove it works; the first real execution is left to the 03:30 UTC scheduled run and had not happened yet as of this session.
+
+**Not yet done:** confirming the first real scheduled execution actually ran and succeeded (next session or later). `ETSY_FINAL_APPEAL_DRAFT.md` not yet written. Nothing submitted to Etsy.
 
 ---
 
