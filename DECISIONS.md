@@ -4,6 +4,16 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-07-14, sixth session (retention cleanup: Option B → Option A)
+
+### [OPS] DigitalOcean App Platform job `kind` for time-based execution is `SCHEDULED`, not `CRON`
+The task brief (and this project's own prior docs) referred to this as adding a "CRON component." Checked directly against the real API before writing any spec: `doctl apps propose` with `kind: CRON` returned `400 unknown value "CRON" for enum apps.AppJobSpec.Kind`. Probed the actual enum by trial against the live `bulk-edit-prod-api` app (via `propose`, which validates without applying) — `kind: SCHEDULED` with a `schedule: { cron: "<expr>" }` block is correct and validates cleanly, with `instance_size_slug`/`instance_count` defaulting the same way `PRE_DEPLOY` jobs do. There is no `timezone` field on `schedule` (confirmed by testing one — rejected as an unknown field); DO Scheduled Jobs run in UTC only, which is exactly what this task needed, so no workaround was required. Chose to verify against the real API rather than trust either the task brief's or the docs' assumed field name, since a wrong `kind` would have failed at spec-apply time in production.
+
+### [OPS] Retention scheduling uses a DO App Platform `SCHEDULED` job, not Celery
+Per explicit instruction: no Celery, no Redis queue, no separate always-running worker, for a task this small (one daily DB cleanup). `bulk-edit-prod-api` already has a `PRE_DEPLOY`-kind job (`migrate`) proving the job-component pattern works in this app; the new `retention-cleanup` job mirrors its exact build config (same `github`/`dockerfile_path`/`source_dir`, same minimal `envs`: `ENVIRONMENT` + `DATABASE_URL`) and differs only in `kind`/`schedule`/`run_command`. This is the smallest reliable addition compatible with the existing deployment — no new dependencies, no new always-on process, no new attack surface. `docs/operations/WORKERS.md`'s existing "Future Celery Architecture" section is left untouched as the eventual path if background-task volume ever grows beyond what a single daily job justifies.
+
+---
+
 ## 2026-07-14, fifth session (Etsy compliance — production merge and deploy)
 
 ### [OPS] Merge = deploy on this repo; pre-merge gates must run before merging, not after

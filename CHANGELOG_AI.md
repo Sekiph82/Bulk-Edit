@@ -4,6 +4,22 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-07-14 (sixth session, in progress) Retention cleanup: Option B → Option A
+
+**Trigger:** Owner instruction to merge the pending docs-only PR #57, then convert retention cleanup from "script deployed, no schedule" to a real production scheduler — smallest reliable option, explicitly no Celery/Redis-queue/separate-worker — with a safe dry-run mode verified locally before touching production, plus a final (not-submitted) Etsy appeal package.
+
+**PR #57:** merged (`8345de4`) after confirming factual accuracy and CI green. Retriggered both prod apps' auto-deploy (push-triggered, not path-filtered); both reconfirmed `ACTIVE` with health/DB/Redis/Private-Beta/migration-0025 unaffected.
+
+**Dry-run support:** `count_expired_snapshots()` added to `app/services/retention_cleanup.py`, sharing one `_RETENTION_MODELS` tuple with the real delete so the two queries can't drift apart. `scripts/run_retention_cleanup.py` gained `--dry-run` via `argparse`. Both paths print aggregate per-table + total counts only — no record content. 7 new tests in `tests/test_retention_cleanup.py`, all passing against the SQLite test DB.
+
+**Scheduler discovery:** DigitalOcean App Platform's job `kind` for time-based execution is `SCHEDULED`, not `CRON` — found by testing directly against the live API (`doctl apps propose`, which validates without applying): `kind: CRON` was rejected outright as an unknown enum value; `kind: SCHEDULED` + `schedule: { cron: "..." }` validated cleanly. No `timezone` field exists on `schedule` — DO Scheduled Jobs are UTC-only, confirmed by testing one and having it rejected as an unknown field, which conveniently is exactly what was needed (03:30 UTC).
+
+**Spec built:** `ops/app-specs/bulk-edit-prod-api.yaml` — the existing prod-api spec (reused an already-cached copy rather than re-pulling in full) plus a new `retention-cleanup` job mirroring the existing `migrate` job's build config exactly, single instance, smallest size, no public route/domain. Re-validated the whole modified spec against the real prod-api app via `propose` — passed. `SECRET`-type env vars are DigitalOcean's `EV[...]` encrypted placeholders, round-tripped unchanged, never decrypted or re-exposed.
+
+**Not yet done:** local Postgres verification, full suite re-run, PR creation/CI/merge, `doctl apps update` to actually register the job, production dry-run with anomaly-threshold check, and only then flipping docs to "Option A." Etsy appeal draft not yet written. Nothing submitted to Etsy.
+
+---
+
 ## 2026-07-14 (fifth session) Etsy compliance — merged PR #56 and deployed directly to production
 
 **Trigger:** Owner instruction to merge the already-open PR #56 (`etsy-compliance-production-readiness` → `main`) and deploy the approved Etsy compliance / legal / billing-safety / account-deletion changes directly to production, with no staging step, subject to an extensive list of hard safety rules (no live Etsy/Stripe writes, no DNS changes, never disable Private Beta, fail closed on CI or orphan-data problems, never print secrets).

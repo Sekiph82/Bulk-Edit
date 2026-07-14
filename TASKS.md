@@ -33,7 +33,27 @@ Branch: `etsy-compliance-production-readiness`. Trigger: Etsy developer app "bul
 - [x] Cleanup-scheduler readiness: **Option B** — `run_retention_cleanup.py` is deployed with the backend image but has no `CRON`-kind DO job wired; scheduling remains manual until a real worker exists.
 - [ ] Submit Etsy appeal using `ETSY_APPEAL_CHECKLIST.md` + `ETSY_SUPPORT_QUESTIONS.md` draft
 - [ ] Manual verification once Etsy access restored (see `ETSY_PRODUCTION_READINESS.md` MANUAL/BLOCKED items — live OAuth, live video upload, email delivery)
-- [ ] Wire retention cleanup script into a real scheduled job (DO `CRON` job kind, or a Celery beat schedule once a worker exists)
+- [x] Wire retention cleanup script into a real scheduled job — see "Retention Cleanup: Option B → Option A" below
+
+---
+
+## Retention Cleanup: Option B → Option A (2026-07-14, sixth session)
+
+**Status:** `[~] IN PROGRESS — PR #57 merged; this session's scheduler PR pending merge, DO Scheduled Job not yet applied/confirmed live`
+
+Branch: `ops/production-retention-cleanup-scheduler`. Converts retention cleanup from "script deployed, no schedule" (Option B) to a real production DigitalOcean Scheduled Job (Option A).
+
+- [x] Reviewed the existing implementation end-to-end: `delete_expired_snapshots()` only ever touches `listing_backup_snapshots`, `listing_media_backup_snapshots`, `listing_variation_backup_snapshots`, `csv_jobs`, filtered by `expires_at < now()`; confirmed by FK direction that it cannot cascade to shops/tokens/listings/users/orgs/active bulk-edit sessions (those are parents, not children, of the snapshot rows).
+- [x] Added `--dry-run` to `scripts/run_retention_cleanup.py` and `count_expired_snapshots()` to `app/services/retention_cleanup.py` (same `WHERE` clause as the real delete, shared table list so the two can't drift apart). Prints aggregate per-table + total counts only — no record content, ever.
+- [x] 7 new tests in `tests/test_retention_cleanup.py`: dry-run finds expired records, dry-run deletes nothing, dry-run doesn't touch unexpired rows, normal cleanup deletes expired rows, normal cleanup preserves unexpired rows, cleanup is idempotent (second run deletes 0), and a subprocess-level test confirming the script exits non-zero when the database is unreachable.
+- [x] Discovered DigitalOcean App Platform's job `kind` for time-based execution is `SCHEDULED`, not `CRON` (verified directly against the live API via `doctl apps propose`, which validates without applying — see `DECISIONS.md`). Built `ops/app-specs/bulk-edit-prod-api.yaml`: adds a `retention-cleanup` job (`kind: SCHEDULED`, `schedule.cron: "30 3 * * *"` = 03:30 UTC daily — DO Scheduled Jobs have no timezone override, so this is exactly UTC), mirroring the existing `migrate` job's build config (same source/Dockerfile/branch, same minimal `ENVIRONMENT`+`DATABASE_URL` envs), single instance, smallest size, no public route or domain. Validated against the real `bulk-edit-prod-api` app via `doctl apps propose --app ... --spec ...` (read-only) before committing.
+- [ ] Local Postgres verification (4 expired + 4 unexpired fixture rows, dry-run then real run then idempotency re-run)
+- [ ] Full backend suite + targeted retention tests + frontend health checks + secret scan
+- [ ] Scheduler PR opened, CI green, merged
+- [ ] `doctl apps update` applied to register the new job component (a brand-new component requires an explicit spec update — `deploy_on_push` alone only rebuilds components already in the spec)
+- [ ] DO confirms the `retention-cleanup` job exists as `SCHEDULED`, correct cron, no public route
+- [ ] Production dry-run counts confirmed sane (below anomaly thresholds) before the first real scheduled run
+- [ ] Documentation flipped to "Option A" only after DO confirms the job exists — not claimed before that
 
 ---
 
