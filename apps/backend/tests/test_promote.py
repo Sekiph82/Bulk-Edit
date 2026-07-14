@@ -18,6 +18,7 @@ LOGIN_URL = "/api/v1/auth/login"
 async def _register_and_login(client: AsyncClient, email: str, org: str) -> str:
     await client.post(REGISTER_URL, json={
         "email": email, "password": "Test1234!", "full_name": "Test", "organization_name": org,
+        "terms_accepted": True,
     })
     r = await client.post(LOGIN_URL, json={"email": email, "password": "Test1234!"})
     return r.json()["access_token"]

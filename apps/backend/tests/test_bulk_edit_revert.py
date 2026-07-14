@@ -33,7 +33,7 @@ def _mock_etsy_settings():
 # ── helpers ────────────────────────────────────────────────────────────────────
 
 async def _register_and_login(client, user: dict) -> str:
-    await client.post(REGISTER_URL, json=user)
+    await client.post(REGISTER_URL, json={**user, "terms_accepted": True})
     r = await client.post(LOGIN_URL, json={"email": user["email"], "password": user["password"]})
     return r.json()["access_token"]
 

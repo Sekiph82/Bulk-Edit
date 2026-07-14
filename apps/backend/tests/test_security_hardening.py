@@ -31,6 +31,7 @@ async def _register(client: AsyncClient, suffix: str = "") -> dict:
         "password": "SecurePass1!",
         "full_name": "Security Tester",
         "organization_name": f"Sec Org {_uid()[:6]}",
+        "terms_accepted": True,
     }
     r = await client.post(REGISTER_URL, json=payload)
     assert r.status_code == 201, r.text
@@ -434,6 +435,7 @@ async def test_register_rejects_xss_email(client):
         "email": "<script>alert(1)</script>@evil.com",
         "password": "SecurePass1!",
         "full_name": "XSS Tester",
+        "terms_accepted": True,
     })
     assert r.status_code == 422
 
@@ -444,6 +446,7 @@ async def test_register_rejects_short_password(client):
         "email": "short@example.com",
         "password": "123",
         "full_name": "Short Pass",
+        "terms_accepted": True,
     })
     assert r.status_code == 422
 
@@ -465,6 +468,7 @@ async def test_register_duplicate_email_returns_409(client):
         "password": "SecurePass1!",
         "full_name": "Dup User",
         "organization_name": "Dup Org",
+        "terms_accepted": True,
     }
     r1 = await client.post(REGISTER_URL, json=payload)
     assert r1.status_code == 201

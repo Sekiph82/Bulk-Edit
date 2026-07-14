@@ -23,6 +23,7 @@ async def auth_headers(client):
         "email": "billing@example.com",
         "password": "password123",
         "full_name": "Billing User",
+        "terms_accepted": True,
     })
     assert r.status_code == 201
     token = r.json()["access_token"]

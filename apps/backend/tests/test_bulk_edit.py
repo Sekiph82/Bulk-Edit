@@ -21,7 +21,7 @@ SESSIONS_URL = "/api/v1/bulk-edit/sessions"
 
 
 async def _register_and_login(client, user: dict) -> str:
-    await client.post(REGISTER_URL, json=user)
+    await client.post(REGISTER_URL, json={**user, "terms_accepted": True})
     r = await client.post(LOGIN_URL, json={"email": user["email"], "password": user["password"]})
     return r.json()["access_token"]
 

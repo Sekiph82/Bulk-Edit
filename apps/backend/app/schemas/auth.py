@@ -6,12 +6,20 @@ class RegisterRequest(BaseModel):
     password: str
     full_name: str = ""
     organization_name: str = ""
+    terms_accepted: bool = False
 
     @field_validator("password")
     @classmethod
     def password_strength(cls, v: str) -> str:
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
+        return v
+
+    @field_validator("terms_accepted")
+    @classmethod
+    def must_accept_terms(cls, v: bool) -> bool:
+        if not v:
+            raise ValueError("You must agree to the Terms of Service and Privacy Policy")
         return v
 
 
@@ -42,6 +50,14 @@ class ResetPasswordRequest(BaseModel):
 
 class ResetPasswordResponse(BaseModel):
     message: str = "Password reset successfully. You can now log in."
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str
+
+
+class DeleteAccountResponse(BaseModel):
+    message: str = "Account and associated data deleted."
 
 
 class RefreshRequest(BaseModel):
