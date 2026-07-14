@@ -63,6 +63,43 @@ class Settings(BaseSettings):
     ANTHROPIC_MODEL: str = "claude-3-5-haiku-latest"
     AI_REQUEST_TIMEOUT_SECONDS: int = 30
 
+    # Etsy compliance gate: Etsy's API Terms restrict sharing Etsy-derived
+    # content with third parties without authorization. AI_PROVIDER alone
+    # controls WHICH provider is used; this flag controls WHETHER Etsy-synced
+    # listing content (title/description/tags/materials) may be sent to any
+    # live AI provider at all. Defaults False until Etsy confirms in writing
+    # that this is permitted — see ETSY_SUPPORT_QUESTIONS.md Q2.
+    ALLOW_ETSY_DATA_TO_AI: bool = False
+
+    # How long Etsy-derived backup snapshots (listing/media/variation) and
+    # CSV job exports are retained before the cleanup script deletes them.
+    # Etsy's API Terms require cached Etsy content not be stored "longer
+    # than is reasonably necessary" but do NOT specify a number of days —
+    # 30 is this project's own conservative choice pending Etsy clarification
+    # (see ETSY_COMPLIANCE_AUDIT.md §6b, ETSY_DATA_RETENTION.md). Configurable
+    # so it can be tightened or loosened without a code change if Etsy gives
+    # explicit guidance later. This does not affect existing rows retroactively
+    # in the same run it's changed — expires_at is computed once at insert time.
+    ETSY_DERIVED_DATA_RETENTION_DAYS: int = 30
+
+    @field_validator("ETSY_DERIVED_DATA_RETENTION_DAYS")
+    @classmethod
+    def _validate_retention_days(cls, v: int) -> int:
+        if not (1 <= v <= 365):
+            raise ValueError("ETSY_DERIVED_DATA_RETENTION_DAYS must be between 1 and 365")
+        return v
+
+    # Legal entity — only rendered on the public site if explicitly set.
+    # Never invent a value here; leave blank until the owner confirms.
+    LEGAL_ENTITY_NAME: str = ""
+    LEGAL_ENTITY_ADDRESS: str = ""
+    LEGAL_ENTITY_COUNTRY: str = ""
+    LEGAL_CONTACT_EMAIL: str = ""
+
+    # Legal document versions — bump when Terms/Privacy content materially changes
+    TERMS_VERSION: str = "2026-07-13"
+    PRIVACY_VERSION: str = "2026-07-13"
+
     # Etsy API rate limit guidance
     ETSY_API_REQUESTS_PER_SECOND: float = 5.0
     ETSY_API_DAILY_LIMIT: int = 5000

@@ -77,6 +77,20 @@ celery -A app.worker.celery_app inspect ping
 
 ---
 
+## Scheduled External Job: Snapshot/CSV Retention Cleanup
+
+`app/services/retention_cleanup.py::delete_expired_snapshots()` deletes rows in `listing_backup_snapshots`, `listing_media_backup_snapshots`, `listing_variation_backup_snapshots`, and `csv_jobs` whose `expires_at` (30 days from creation, see `ETSY_DATA_RETENTION.md`) has passed. Same pattern as `ScheduledJob`'s `run-due` endpoint — no live worker, so this ships as a standalone script:
+
+```bash
+docker compose exec backend python scripts/run_retention_cleanup.py
+```
+
+Run this on an external scheduler (cron, DO App Platform Scheduled Job, GitHub Actions scheduled workflow, etc.) at least once daily in production. Until it's wired up on a real schedule, expired snapshots exist in the DB but are inert — reverts against them already correctly fail with a clear "backup snapshot no longer available" error rather than silently succeeding with stale data.
+
+When a real Celery worker is added (see Future Celery Architecture above), migrate this into a Celery Beat periodic task rather than an external cron script.
+
+---
+
 ## Admin System Health
 
 `GET /api/v1/admin/system-health` returns `"worker_status": "not_configured"` indicating no Celery worker is deployed.

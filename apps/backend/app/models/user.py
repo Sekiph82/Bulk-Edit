@@ -16,5 +16,10 @@ class User(Base, TimestampMixin):
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_superuser: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
-    memberships: Mapped[list["OrganizationMember"]] = relationship("OrganizationMember", back_populates="user", lazy="select")
-    refresh_tokens: Mapped[list["RefreshToken"]] = relationship("RefreshToken", back_populates="user", lazy="select")
+    # passive_deletes=True on both: same fix as Organization.members — let
+    # PostgreSQL's ON DELETE CASCADE (both organization_members.user_id and
+    # refresh_tokens.user_id) handle child-row deletion instead of letting
+    # SQLAlchemy attempt to NULL out those NOT NULL columns when the User is
+    # deleted. Found via a real-Postgres test of DELETE /api/v1/auth/me.
+    memberships: Mapped[list["OrganizationMember"]] = relationship("OrganizationMember", back_populates="user", lazy="select", passive_deletes=True)
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship("RefreshToken", back_populates="user", lazy="select", passive_deletes=True)
