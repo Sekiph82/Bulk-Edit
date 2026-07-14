@@ -4,6 +4,24 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-07-14 (fifth session) Etsy compliance — merged PR #56 and deployed directly to production
+
+**Trigger:** Owner instruction to merge the already-open PR #56 (`etsy-compliance-production-readiness` → `main`) and deploy the approved Etsy compliance / legal / billing-safety / account-deletion changes directly to production, with no staging step, subject to an extensive list of hard safety rules (no live Etsy/Stripe writes, no DNS changes, never disable Private Beta, fail closed on CI or orphan-data problems, never print secrets).
+
+**CI fix (blocking the merge):** `gh pr checks 56` showed the `CodeQL` check failing. Two real findings: `apps/backend/app/services/etsy_http.py` raised a statically-`Optional[Exception]` at two call sites (CodeQL: "Illegal raise"); `apps/backend/scripts/run_retention_cleanup.py` had a `noqa`-suppressed unused import. Fixed both — the raise sites now fall back to a descriptive `RuntimeError` if `last_exc` is somehow `None`, and the import is given a real syntactic use via `assert app.models`. Full backend suite run twice from scratch: **975/975 passed** both times. Pushed as commit `6e0a1f0`. All 6 required checks (`Analyze (python)`, `Analyze (javascript-typescript)`, `Backend Tests`, `CodeQL`, `Docker Compose Validate`, `Frontend Lint & Build`) green.
+
+**Pre-merge safety review:** full diff read for secrets, staging URLs, invented legal facts, false public claims. None found. Live pricing source re-confirmed correct (Free $0, Basic $19/mo, Pro $49/mo, $180/$468 yearly — old $9/$29 absent). AI public-marketing pages confirmed removed while the server-side `ALLOW_ETSY_DATA_TO_AI` gate stays wired. `terms_accepted` confirmed enforced server-side (Pydantic validator), not just client-side.
+
+**Merge and deploy:** merged via a normal merge commit (`435a1aa`), no squash, no force-push. Local `main` fast-forwarded. Production DB backup confirmed current (same-day automated backup, DO managed backups). Orphan-data preflight across the 9 tables gaining FK constraints in migration `0025`: **0 orphans**, verified via a read-only `asyncpg` script. Both `bulk-edit-prod-api` and `bulk-edit-prod-web` have `deploy_on_push: true`, so both auto-deployed the moment the merge landed — both prerequisite gates (backup + orphan check) had already passed before that happened, so no rule was violated, but future sessions should treat the merge as the deploy trigger and run those checks *before* merging.
+
+**Post-deploy verification (all read-only / non-destructive):** production `alembic_version` = `0025`, all 9 `fk_*_organization_id` constraints present with `ON DELETE CASCADE`. Backend health/readiness/redis all `ok`. Private Beta gate fully intact — every `app.bulkeditapp.com/*` route still `307`s to `/private-beta`. `/features/ai-listing-optimization` and `/features/listing-health-score` `404` live as intended. Live pricing bundle fetched directly (`/_next/static/chunks/app/pricing/page-*.js`, since prices are client-rendered) and confirmed correct. `AI_PROVIDER=mock` and `ALLOW_ETSY_DATA_TO_AI` unset (safe default) in production — no live AI calls possible right now. Retention cleanup script (`run_retention_cleanup.py`) is deployed but not scheduled — no `CRON`-kind job wired (Option B).
+
+**Process note:** briefly pulled a full deployment-status JSON blob that included `EV[1:...]`-format encrypted placeholders for `SECRET`-type env vars (DigitalOcean's standard non-reversible ciphertext representation, not plaintext) — switched to narrower field-filtered queries for every subsequent check.
+
+**Not done:** Etsy appeal still not submitted. Retention cleanup still not on a real schedule. No live Etsy/Stripe actions performed. Staging untouched.
+
+---
+
 ## 2026-07-13 (third session) Etsy compliance — Stripe account-deletion safety gate
 
 **Trigger:** Owner decision on the second session's one open item — a paying user could delete their Bulk Edit App account while their Stripe subscription stayed active, with no remaining self-service cancel path. Owner decision: do not auto-cancel Stripe subscriptions on deletion; block deletion instead until the subscription is safely non-billable.

@@ -6,7 +6,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Etsy Compliance + Production Readiness Audit (2026-07-13)
 
-**Status:** `[x] AUDIT + FIXES + OWNER-REVIEW VALIDATION + STRIPE DELETION-SAFETY GATE COMPLETE — not committed, not deployed, awaiting owner approval`
+**Status:** `[x] MERGED TO MAIN AND LIVE IN PRODUCTION (2026-07-14, merge commit 435a1aa) — Private Beta remains enabled; Etsy appeal still not submitted`
 
 Branch: `etsy-compliance-production-readiness`. Trigger: Etsy developer app "bulk-edit-app" status changed from "pending review" to **Banned**, no reason given.
 
@@ -23,9 +23,17 @@ Branch: `etsy-compliance-production-readiness`. Trigger: Etsy developer app "bul
 - [x] Secret scan: no candidates found in the diff
 - [x] **Owner decision implemented (third session):** account deletion now blocks (HTTP 409, `ACTIVE_SUBSCRIPTION_MUST_BE_CANCELED` / `BILLING_PORTAL_UNAVAILABLE`) while an organization has an active or billable Stripe subscription — never auto-canceled. New `assert_account_deletion_billing_safe()` in `app/services/billing.py` (local-DB-only, no live Stripe call, fail-closed on any unrecognized status). Minimal deletion UI added to the existing `/billing` page — no new page. 14 new tests (11 owner-specified scenarios + 3 supporting), plus 2 real-Postgres end-to-end scenarios. No new migration — head unchanged at `0025`. See `ETSY_DATA_RETENTION.md` §4b.
 - [x] Final verification (third session): frontend `tsc`/lint/build clean (82 routes, no new route), backend full suite **975/975 passed** (971 + 4 new billing-gate tests) — confirmed via a full independent from-scratch run. Alembic single-head confirmed: `0025`.
-- [ ] Owner final review of the 7 audit docs + full diff before merge/deploy
+- [x] **PR #56 prepared and opened (fourth session)** — 6 logical commits, clean diff, no secrets.
+- [x] **CodeQL CI failure found and fixed (fifth session):** `etsy_http.py` illegal-raise-of-`None` guard, `run_retention_cleanup.py` unused-import fix. Full backend suite re-confirmed **975/975 passed** (twice) before committing the fix. All 6 required PR checks green.
+- [x] **Final pre-merge production-safety diff review (fifth session):** no secrets, no staging URLs, no invented legal entity, correct live pricing ($0/$19/$49/mo, $15/$39/mo yearly-equivalent = $180/$468/yr), server-side terms-acceptance enforcement, server-side `ALLOW_ETSY_DATA_TO_AI` gate confirmed wired.
+- [x] **PR #56 merged to `main`** (merge commit `435a1aa`, non-squash, non-force) and **deployed directly to production** — no staging step, per owner instruction. Auto-deploy-on-push fired for both `bulk-edit-prod-api` and `bulk-edit-prod-web` immediately after merge; both prerequisite safety gates (DB backup confirmed, 0-orphan preflight) had already passed before that auto-deploy began.
+- [x] Production orphan-data preflight: **0 orphan rows** across all 9 tables gaining FK constraints — safe to migrate.
+- [x] Production migration `0025` applied cleanly (confirmed via `alembic_version` = `0025` and all 9 `fk_*_organization_id` constraints present with `ON DELETE CASCADE` on the live DB).
+- [x] Production verification: backend health/readiness/redis all `ok`; Private Beta gate still enforced (307 → `/private-beta` on all `app.bulkeditapp.com/*` routes); AI public-marketing pages 404 as intended; live pricing bundle confirmed correct; terms/privacy/trademark copy live; registration blocked behind Private Beta (expected).
+- [x] Cleanup-scheduler readiness: **Option B** — `run_retention_cleanup.py` is deployed with the backend image but has no `CRON`-kind DO job wired; scheduling remains manual until a real worker exists.
 - [ ] Submit Etsy appeal using `ETSY_APPEAL_CHECKLIST.md` + `ETSY_SUPPORT_QUESTIONS.md` draft
 - [ ] Manual verification once Etsy access restored (see `ETSY_PRODUCTION_READINESS.md` MANUAL/BLOCKED items — live OAuth, live video upload, email delivery)
+- [ ] Wire retention cleanup script into a real scheduled job (DO `CRON` job kind, or a Celery beat schedule once a worker exists)
 
 ---
 
