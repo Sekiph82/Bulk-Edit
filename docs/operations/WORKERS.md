@@ -82,12 +82,24 @@ celery -A app.worker.celery_app inspect ping
 `app/services/retention_cleanup.py::delete_expired_snapshots()` deletes rows in `listing_backup_snapshots`, `listing_media_backup_snapshots`, `listing_variation_backup_snapshots`, and `csv_jobs` whose `expires_at` (30 days from creation, see `ETSY_DATA_RETENTION.md`) has passed. Same pattern as `ScheduledJob`'s `run-due` endpoint — no live worker, so this ships as a standalone script:
 
 ```bash
+# Preview only — reports per-table + total expired-row counts, deletes nothing:
+docker compose exec backend python scripts/run_retention_cleanup.py --dry-run
+
+# Actual cleanup — deletes expired rows, prints per-table + total deleted counts:
 docker compose exec backend python scripts/run_retention_cleanup.py
 ```
 
-Run this on an external scheduler (cron, DO App Platform Scheduled Job, GitHub Actions scheduled workflow, etc.) at least once daily in production. Until it's wired up on a real schedule, expired snapshots exist in the DB but are inert — reverts against them already correctly fail with a clear "backup snapshot no longer available" error rather than silently succeeding with stale data.
+Both commands print aggregate counts only — no listing content, titles, descriptions, tags, user data, emails, Etsy IDs, or tokens are ever printed. The script exits non-zero on any database/query failure (no error is swallowed) and exits `0` on success. `delete_expired_snapshots` commits once after all four tables' deletes, and re-running it after a successful run is a no-op (each table's `WHERE expires_at < now()` matches nothing left to delete) — safe to run more than once without side effects.
 
-When a real Celery worker is added (see Future Celery Architecture above), migrate this into a Celery Beat periodic task rather than an external cron script.
+**Production schedule:** deployed as a DigitalOcean App Platform job component named `retention-cleanup` on `bulk-edit-prod-api`, `kind: SCHEDULED`, `schedule.cron: "30 3 * * *"` (03:30 daily; DO Scheduled Jobs run in UTC — there is no timezone override field in the App Platform job spec, confirmed via `doctl apps propose` against the live app). Spec tracked at `ops/app-specs/bulk-edit-prod-api.yaml`. It runs the real (non-dry-run) command, inherits `DATABASE_URL`/`ENVIRONMENT` the same way the existing `migrate` `PRE_DEPLOY` job does, has no public route or domain (job components never get one), and runs as a single instance on the smallest available size (`apps-s-1vcpu-0.5gb`).
+
+Note: DigitalOcean App Platform's job `kind` enum for time-based execution is `SCHEDULED`, not `CRON` — confirmed directly against the API (`doctl apps propose`) after `kind: CRON` was rejected as an unknown enum value. Anything describing this as a "CRON job component" elsewhere in this repo's docs means a `SCHEDULED`-kind DO job configured with a cron expression, not a literal `kind: CRON`.
+
+When a real Celery worker is added (see Future Celery Architecture above), migrate this into a Celery Beat periodic task rather than the DO Scheduled Job.
+
+**Manual recovery:** if the scheduled job is ever paused, deleted, or fails silently, retention is not lost — `expires_at` is stored on every row regardless of whether cleanup has run, and reverts against an expired-but-undeleted snapshot already fail safely with "backup snapshot no longer available" rather than serving stale data. To catch up manually: `doctl apps create-deployment <app-id>` does not trigger a one-off job run; instead run `docker compose exec backend python scripts/run_retention_cleanup.py --dry-run` first to confirm counts are sane, then the same command without `--dry-run` inside the production container (e.g. via `doctl apps console`), or re-deploy after fixing the underlying issue so the next scheduled run catches up on its own.
+
+**Monitoring:** check job run status and logs via `doctl apps logs <app-id> --component retention-cleanup --type run`, or the DO App Platform console's Activity tab for the app. A failed run exits non-zero and is visible there; it does not silently disappear.
 
 ---
 
