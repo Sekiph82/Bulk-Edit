@@ -90,7 +90,7 @@ export const COMPARISON_PAGES: ComparisonPage[] = [
       { need: "Bulk listing updates", bulkEditApproach: "Core focus — preview-first bulk updates across titles, tags, prices, and more", otherConsiderations: "Check whether your plan supports this workflow and how it's applied." },
       { need: "Preview before apply", bulkEditApproach: "Full before/after diff on every bulk edit, before anything is sent to Etsy", otherConsiderations: "Verify preview and rollback workflow before making bulk changes." },
       { need: "Revert / backup snapshots", bulkEditApproach: "Automatic snapshot before every apply; one-click Magic Revert", otherConsiderations: "Feature availability varies by tool and plan." },
-      { need: "Listing cleanup", bulkEditApproach: "Listing health score and AI suggestions, reviewed before applying", otherConsiderations: "Feature availability varies by tool and plan." },
+      { need: "Listing cleanup", bulkEditApproach: "Bulk edit titles, tags, and descriptions across your catalog, reviewed before applying", otherConsiderations: "Feature availability varies by tool and plan." },
       { need: "Media/video updates", bulkEditApproach: "Add Video, Replace Video, and Delete Video, previewed before applying", otherConsiderations: "Verify current media workflow support." },
       { need: "Pricing clarity", bulkEditApproach: "Free $0, Basic $19/mo, Pro $49/mo — published on our pricing page", otherConsiderations: "Verify current pricing on the provider's website." },
       { need: "Safety-first workflow", bulkEditApproach: "No blind writes — preview, confirmation, and a snapshot on every Etsy write", otherConsiderations: "Check whether your plan supports this workflow and how previews/rollback are handled." },
@@ -165,7 +165,7 @@ export const COMPARISON_PAGES: ComparisonPage[] = [
       },
     ],
     table: [
-      { need: "Listing cleanup", bulkEditApproach: "Listing health score and AI suggestions, reviewed before applying", otherConsiderations: "Feature availability varies by tool and plan." },
+      { need: "Listing cleanup", bulkEditApproach: "Bulk edit titles, tags, and descriptions across your catalog, reviewed before applying", otherConsiderations: "Feature availability varies by tool and plan." },
       { need: "Bulk edits", bulkEditApproach: "Core focus — preview-first bulk updates across titles, tags, prices, and more", otherConsiderations: "Check whether your plan supports this workflow and how it's applied." },
       { need: "Preview before apply", bulkEditApproach: "Full before/after diff on every bulk edit, before anything is sent to Etsy", otherConsiderations: "Verify preview and rollback workflow before making bulk changes." },
       { need: "Revert / backup snapshots", bulkEditApproach: "Automatic snapshot before every apply; one-click Magic Revert", otherConsiderations: "Feature availability varies by tool and plan." },

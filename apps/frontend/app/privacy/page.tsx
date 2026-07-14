@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "2026-07-06";
+const LAST_UPDATED = "2026-07-13";
 const SUPPORT_EMAIL = "support@bulkeditapp.com";
 
 export default function PrivacyPage() {
@@ -52,10 +52,10 @@ export default function PrivacyPage() {
                 authorization flow. We never see or store your Etsy password — only a
                 time-limited, revocable access token (and a refresh token, stored securely) used
                 to read your shop data and, only after you preview and confirm a change, write
-                updates to your listings on your behalf. You can disconnect Etsy access at any
-                time, which revokes our stored tokens immediately. &ldquo;Etsy&rdquo; is a
-                trademark of Etsy, Inc.; Bulk Edit App is an independent tool and is not endorsed
-                or certified by Etsy, Inc.
+                updates to your listings on your behalf. Disconnecting your Etsy shop deletes our
+                stored access and refresh tokens for that shop immediately. The term
+                &ldquo;Etsy&rdquo; is a trademark of Etsy, Inc. This application uses the Etsy API
+                but is not endorsed or certified by Etsy, Inc.
               </p>
             </section>
 
@@ -126,9 +126,16 @@ export default function PrivacyPage() {
               <h2 className="text-xl font-bold text-gray-900 mb-2">10. Data retention</h2>
               <p>
                 We retain account and shop data while your account is active. Backup snapshots
-                and change history are retained as needed to support Magic Revert and safety
-                features. You can request deletion of your account and associated data at any
-                time (see Contact below).
+                created before a bulk edit, media, or variation write (used to power Magic
+                Revert) are automatically deleted no later than 30 days after creation — after
+                that window, that specific change can no longer be reverted through the app.
+                Synced listing data is treated as stale after 6 hours and is refreshed, or the
+                seller is shown a freshness warning, before it is relied on for a new write.
+                Disconnecting an Etsy shop deletes its stored access/refresh tokens immediately
+                and pauses any scheduled jobs tied to that shop. You can request deletion of your
+                account and associated data at any time (see Contact below); we do not yet offer
+                fully automated self-service account deletion, so these requests are currently
+                processed manually by support.
               </p>
             </section>
 

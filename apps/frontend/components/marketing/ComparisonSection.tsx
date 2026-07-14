@@ -28,7 +28,7 @@ const ROWS: { need: string; bulkEdit: string; vela: string; evlista: string }[] 
   },
   {
     need: "Listing cleanup workflow",
-    bulkEdit: "Listing health score and AI suggestions, reviewed before applying",
+    bulkEdit: "Bulk edit titles, tags, and descriptions across your catalog, reviewed before applying",
     vela: "Feature availability varies by tool and plan",
     evlista: "Feature availability varies by tool and plan",
   },

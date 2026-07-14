@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any
 
 import stripe
@@ -262,3 +264,124 @@ def _extract_price_id(subscription_obj: Any) -> str | None:
     except Exception:
         pass
     return None
+
+
+# ---------------------------------------------------------------------------
+# Account-deletion billing eligibility
+#
+# Owner decision (2026-07-13, third session): do NOT auto-cancel Stripe
+# subscriptions on account deletion. Instead, block deletion outright while
+# a paid subscription is still active or billable, so a user never loses
+# their only self-service cancellation path (the Stripe customer portal,
+# which requires a logged-in org) while Stripe keeps charging them.
+#
+# This uses ONLY the local Subscription row, kept current by verified Stripe
+# webhooks (see process_webhook_event above) — no live Stripe API call is
+# made here. That is a deliberate choice, not an oversight: a live call on
+# every deletion attempt adds latency and a new Stripe-availability
+# dependency to a safety check that must itself be reliable, and the local
+# state is authoritative for exactly the kinds of decisions this makes
+# (Stripe's own webhook delivery is what keeps it current). If the local
+# state doesn't match one of the explicitly-defined safe shapes below, this
+# fails closed — deletion is blocked, not guessed at.
+# ---------------------------------------------------------------------------
+
+class AccountDeletionBillingStatus(str, Enum):
+    SAFE_NO_SUBSCRIPTION = "safe_no_subscription"
+    SAFE_FREE_PLAN = "safe_free_plan"
+    SAFE_SUBSCRIPTION_ENDED = "safe_subscription_ended"
+    BLOCKED_ACTIVE_SUBSCRIPTION = "blocked_active_subscription"
+    BLOCKED_NO_PORTAL_ACCESS = "blocked_no_portal_access"
+
+
+@dataclass(frozen=True)
+class AccountDeletionBillingCheck:
+    safe: bool
+    status: AccountDeletionBillingStatus
+    reason: str
+
+
+def _is_period_over(period_end: datetime | None) -> bool:
+    """
+    True only if current_period_end is present AND already in the past.
+    Absent (None) is NOT treated as "over" — see the fail-closed reasoning
+    at the call site below. A missing value means we have no positive proof
+    the billing period has ended, not that it's safe to assume so.
+    """
+    if period_end is None:
+        return False
+    if period_end.tzinfo is None:
+        period_end = period_end.replace(tzinfo=timezone.utc)
+    return period_end < datetime.now(timezone.utc)
+
+
+async def assert_account_deletion_billing_safe(org_id: str, db: AsyncSession) -> AccountDeletionBillingCheck:
+    """
+    Classifies whether an organization's billing state permits account
+    deletion right now. Only three shapes are treated as safe — everything
+    else, including any Stripe status this function doesn't explicitly
+    recognize, is blocked by default (fail closed).
+
+    Deliberately uses get_subscription(), not ensure_subscription_exists():
+    a safety check must not have the side effect of creating a row, and
+    "no Subscription row exists at all" is itself one of the safe cases.
+    """
+    sub = await get_subscription(org_id, db)
+
+    if sub is None:
+        return AccountDeletionBillingCheck(
+            True, AccountDeletionBillingStatus.SAFE_NO_SUBSCRIPTION,
+            "No subscription record exists for this organization.",
+        )
+
+    if sub.plan == "free" and not sub.stripe_subscription_id:
+        return AccountDeletionBillingCheck(
+            True, AccountDeletionBillingStatus.SAFE_FREE_PLAN,
+            "Organization is on the free plan with no Stripe subscription.",
+        )
+
+    if sub.status == "canceled" and _is_period_over(sub.current_period_end):
+        # REQUIRES current_period_end to be present AND in the past —
+        # status == "canceled" alone is not trusted as a standalone signal.
+        #
+        # Traced every local write path (2026-07-14 narrow review) before
+        # relying on status alone: status="canceled" is NOT set exclusively
+        # by _handle_subscription_deleted (Stripe's definitive
+        # customer.subscription.deleted event, which never touches
+        # current_period_end at all). It can also be set by
+        # _handle_subscription_updated, which fires on the more general
+        # customer.subscription.updated event and writes whatever raw
+        # `status` string Stripe sends — Stripe subscriptions can reach a
+        # terminal "canceled" status via an .updated event, not just
+        # .deleted, depending on the cancellation path and API version. That
+        # handler's current_period_end write is conditional
+        # (`if period_end: ...`) on the webhook payload actually containing
+        # it — not guaranteed. There is no separate local field (no
+        # "ended_at"/"fully_deleted_at") distinguishing "canceled via the
+        # definitive .deleted event" from "canceled via .updated with an
+        # incomplete or delayed payload." Given that ambiguity, a NULL
+        # current_period_end on a canceled subscription is NOT proof the
+        # billing period has actually ended — it might just mean we never
+        # received (or haven't yet received) the webhook that would have
+        # told us. Fail closed: require positive proof (a real, past
+        # timestamp), not just the absence of one.
+        return AccountDeletionBillingCheck(
+            True, AccountDeletionBillingStatus.SAFE_SUBSCRIPTION_ENDED,
+            "Subscription has been canceled and its billing period has ended.",
+        )
+
+    # Everything else is blocked: active, trialing, past_due, unpaid,
+    # incomplete, incomplete_expired, paused, any Stripe status this
+    # function doesn't recognize, and "canceled" while still inside a
+    # not-yet-ended period (e.g. cancel_at_period_end=true but Stripe
+    # hasn't actually ended the subscription yet — status will still read
+    # whatever it was before cancellation completes, not "canceled").
+    if not sub.stripe_customer_id:
+        return AccountDeletionBillingCheck(
+            False, AccountDeletionBillingStatus.BLOCKED_NO_PORTAL_ACCESS,
+            "Billing state requires resolution but no Stripe customer is on file.",
+        )
+    return AccountDeletionBillingCheck(
+        False, AccountDeletionBillingStatus.BLOCKED_ACTIVE_SUBSCRIPTION,
+        "An active or billable subscription must be canceled before the account can be deleted.",
+    )

@@ -4,6 +4,116 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-07-13 (third session) Etsy compliance — Stripe account-deletion safety gate
+
+**Trigger:** Owner decision on the second session's one open item — a paying user could delete their Bulk Edit App account while their Stripe subscription stayed active, with no remaining self-service cancel path. Owner decision: do not auto-cancel Stripe subscriptions on deletion; block deletion instead until the subscription is safely non-billable.
+
+**Backend:**
+- `app/services/billing.py` — new `AccountDeletionBillingStatus` enum, `AccountDeletionBillingCheck` dataclass, `assert_account_deletion_billing_safe(org_id, db)`: the single authoritative eligibility check. Local-DB-only (no live Stripe call), explicit allowlist, fail-closed. Safe only when: no `Subscription` row exists; plan is free with no `stripe_subscription_id`; or status is `canceled` with `current_period_end` already past. Every other state blocks, including `active` with `cancel_at_period_end=true` (not yet actually ended) and any Stripe status not explicitly recognized.
+- `app/services/auth.py::delete_account()` — runs the check for every organization the user owns, before any row is touched; raises `AuthError(..., 409, code=...)` if any organization is unsafe. Nothing is deleted if any check fails — trivially transactional, no partial deletion possible.
+- `app/api/v1/auth.py::delete_me` — surfaces the code in a structured `{"code": ..., "message": ...}` 409 body. No Stripe IDs or billing metadata in the response.
+
+**Frontend:**
+- `apps/frontend/app/(app)/billing/page.tsx` — minimal "Danger zone" section added to the existing billing page (no new page). Password-confirmed deletion; on block, shows the owner's exact required copy plus a "Manage Subscription" button routed through the existing `/billing/portal` endpoint.
+
+**Tests:** 14 new in `tests/test_auth.py` — one table-driven test covering all 11 owner-specified scenarios, plus 3 supporting tests (portal-unavailable edge case, blocked-leaves-data-untouched, safe-deletion-still-cascades).
+
+**Real-Postgres verification (local Docker only, zero live Stripe calls):** Scenario A — active subscription inserted directly, live API call → 409, confirmed user/org/subscription unchanged. Scenario B — subscription updated to canceled-and-ended, Etsy shop added, retried → 200, confirmed zero rows remain in any table.
+
+**Verification:** Backend **975/975 passed** (971 + 4 new), full independent run. Frontend `tsc`/lint/build clean, 82 routes (no new route). Alembic single head confirmed unchanged: `0025` — no new migration needed.
+
+**Not done:** not committed, not pushed, no PR, not merged, not deployed. No real Stripe API action performed anywhere in this session.
+
+---
+
+## 2026-07-13 (second session) Etsy compliance — owner-review validation pass
+
+**Trigger:** Owner asked for a rigorous final validation of the existing `etsy-compliance-production-readiness` branch before merge — real Postgres testing, independent policy-citation verification, full change inventory, hygiene/secret scans, explicit decision matrix. No delegated write access to subagents this session.
+
+**Found and fixed — 2 real bugs invisible to the SQLite test suite:**
+- `DELETE /api/v1/auth/me` crashed (500) whenever the user had an active refresh token or org membership. Root cause: `Organization.members` / `User.memberships` / `User.refresh_tokens` relationships had no `passive_deletes=True`, so SQLAlchemy tried to NULL out NOT NULL foreign keys instead of letting Postgres's own `ON DELETE CASCADE` run. Fixed in `app/models/organization.py` + `app/models/user.py`.
+- 9 tables (`etsy_shops`, `listings`, `cost_profiles`, `listing_costs`, `social_connections`, `social_oauth_states`, `etsy_oauth_states`, `sync_jobs`, `video_renders`) had `organization_id` with no foreign key at the database level at all — pre-existing since early sprints. Account deletion could never actually cascade to them. Added `ForeignKey(..., ondelete="CASCADE")` to all 9 models + new migration `apps/backend/alembic/versions/0025_add_missing_org_fk_constraints.py`.
+- Both reproduced live against real Postgres (actual tracebacks), both fixed, both re-verified end-to-end (register → connect shop/listing/snapshot → delete → 0 rows remain anywhere, confirmed via direct SQL, not just a 200 response). 3 new tests in `tests/test_auth.py`.
+
+**Real Postgres migration testing (all 3 required scenarios):** clean `alembic upgrade head` on a fresh DB (single head, `0025`); upgrade from a 0022 snapshot with representative pre-existing data (verified: no data loss, correct `expires_at` backfill, existing users NOT retroactively marked as accepting terms); full downgrade/re-upgrade round trip. Also found and documented (not fixed — it only makes retention more conservative, never less): migration 0023's backfill computes `expires_at` from migration-run-time, not each row's true `created_at`.
+
+**Other additions:** consolidated official Etsy policy citation table (`ETSY_COMPLIANCE_AUDIT.md` §6b, sourced only from `developers.etsy.com`/`developer.etsy.com`/`etsy.com/legal`, explicit A–E classification so conservative choices are never described as Etsy mandates); `ETSY_DERIVED_DATA_RETENTION_DAYS` config (default 30, range 1-365, no new migration needed); full grouped 69-file change inventory with per-deleted-file justification; secret scan (clean) and hygiene scan (clean) across the whole diff.
+
+**Flagged, not fixed — needs an owner decision:** `delete_account()` never touches Stripe. A paying user who deletes their account keeps an active, un-cancelable Stripe subscription. See `ETSY_PRODUCTION_READINESS.md` §27b.
+
+**Verification:** Backend **971/971 passed** (964 + 4 from the first pass + 3 new this pass), confirmed via a full independent run. Frontend `tsc`/build re-confirmed clean (82 routes) after the backend model changes.
+
+**Not done:** not committed, not pushed, no PR, not merged, not deployed. Etsy appeal not sent.
+
+---
+
+## 2026-07-13 (first session) Etsy compliance + production readiness audit (branch `etsy-compliance-production-readiness`)
+
+**Trigger:** Etsy developer app "bulk-edit-app" marked Banned, no reason given. Full audit + correction pass, not deployed.
+
+### Audit docs (new)
+`ETSY_COMPLIANCE_AUDIT.md`, `ETSY_FEATURE_MATRIX.md`, `ETSY_PRODUCTION_READINESS.md`, `ETSY_DATA_RETENTION.md`, `ETSY_OAUTH_SCOPES.md`, `ETSY_APPEAL_CHECKLIST.md`, `ETSY_SUPPORT_QUESTIONS.md`.
+
+### Most likely ban causes found
+Etsy-synced listing content sent to OpenAI/Anthropic with no Etsy authorization (`ai_tools.py`, `listing_health.py`); OAuth `scopes` column bug (stored `token_type` not granted `scope`); public site "founding access"/pre-launch language contradicting a live, feature-complete app; `disconnect_shop` not actually deleting tokens (contradicted the Privacy Policy); no snapshot retention limit.
+
+### Backend fixes
+- `etsy.py`: fixed scopes-storage bug; `disconnect_shop` now deletes `EtsyToken` + pauses related `ScheduledJob` rows.
+- `etsy_sync.py`: wired the already-existing `refresh_etsy_token()` into the read path (was previously logged-and-ignored); revoked-grant now surfaces a clean 401.
+- New `etsy_http.py`: shared GET retry/backoff (429/5xx, `Retry-After`), wired into `etsy_sync.py` + `etsy_variation_write.py`'s inventory fetch.
+- New `ALLOW_ETSY_DATA_TO_AI` flag (default False) hard-gates the Etsy-data→AI-provider pathway in `ai_tools.py` and `listing_health.py`, independent of `AI_PROVIDER`.
+- New `expires_at` (30-day) on `ListingBackupSnapshot`/`ListingMediaBackupSnapshot`/`ListingVariationBackupSnapshot`/`CSVJob` + `retention_cleanup.py` + `scripts/run_retention_cleanup.py`. Migrations `0023`, `0024`.
+- New `TermsAcceptance` model + `POST /api/v1/auth/register` terms_accepted enforcement (frontend + backend + service layer) + `terms_acceptances` table.
+- New self-service `DELETE /api/v1/auth/me` (password-confirmed account deletion, cascades via existing FK `ondelete=CASCADE`).
+- `bulk_edit.py`: preview summary now reports `stale_listing_count` (Etsy sync >6h old) — surfaced as a frontend warning banner before apply.
+- `config.py`: added `ALLOW_ETSY_DATA_TO_AI`, `LEGAL_ENTITY_NAME/ADDRESS/COUNTRY/CONTACT_EMAIL`, `TERMS_VERSION`, `PRIVACY_VERSION`.
+
+### Frontend fixes
+- Removed "Founding access"/pre-launch marketing (`FoundingAccessSection.tsx` → `TrustSection.tsx`); rewrote `/private-beta` to state the real reason (Etsy verification pending) instead of "opening access gradually."
+- Fixed "Your Etsy control panel"/"Everything you need to manage your Etsy shop" Etsy-replacement language; added the required primary positioning statement + "complements Etsy's seller tools" line to the homepage.
+- Removed public marketing for Listing Health Score / AI Listing Optimization (features grid, pricing rows, comparison/blog copy, `/features/[slug]` entries) pending Etsy clarification — features remain live in-app.
+- Added full Etsy trademark disclaimer near the always-visible Connect Etsy Shop button on `/shops` (previously only in the empty state).
+- `MarketingFooter`/`Terms`: legal entity name now `LEGAL_ENTITY_NAME`-driven (no invented "LLC" — falls back to "© 2026 Bulk Edit App").
+- `register/page.tsx`: required Terms/Privacy checkbox, unchecked by default, blocks submit client-side too.
+- `terms/page.tsx`: added Etsy API developer disclaimer section. `privacy/page.tsx`: retention section now states the real 30-day/6-hour/immediate-token-deletion policy.
+- `README.md`: removed stale "Sprint 1 — Monorepo Skeleton" claim.
+
+### Verification
+Frontend: `tsc --noEmit` clean, `next lint` 0 errors (pre-existing warnings only), `next build` clean (82 routes). Backend: delegated test-payload fix (terms_accepted added across 23 test files + 3 new auth tests) — full suite 964/964 passed, confirmed independently twice.
+
+Independent verification pass (same session, before presenting to owner) found and fixed 3 real gaps the delegated work had missed: `docs/operations/WORKERS.md` was claimed-but-not-actually updated with the retention-cleanup cron hook (fixed); `ETSY_OAUTH_SCOPES.md` described a nonexistent `EtsyReauthRequiredError` exception class and wrong HTTP status (corrected to match the real `SyncError`/401 code); and none of this branch's own compliance-critical fixes (scope-storage bug, disconnect token deletion, token auto-refresh/revoked-grant handling) had regression tests. Added 4 tests to `tests/test_etsy.py` covering all three — full suite now 968/968 passed (964 baseline + 4 new, confirmed by a full independent run, 13m38s). Also flagged: two subagents each independently believed themselves to be "the main thread" mid-session and one disregarded scoping instructions; since both share one working tree, the landed result is a single coherent diff, confirmed by direct file-by-file review rather than trusting either agent's self-report. See `ETSY_COMPLIANCE_AUDIT.md` §6a for full detail.
+
+### Not deployed
+Per task instruction — audit, fixes, and test report only. Owner reviews before any deploy.
+
+## 2026-07-10 Final controlled activation phase — Stripe PASSED, Etsy BLOCKED (Etsy app pending review)
+
+**No code changes this session** — validation + ops only.
+
+### Preflight
+- Confirmed API/DB/Redis healthy, migration stayed at 0022, all Etsy/Stripe/email env var keys present in `bulk-edit-prod-api` (names only checked, never values).
+
+### Controlled internal test account
+- Created `sekiphayit1982+internal-test@gmail.com` via `POST /api/v1/auth/register` directly against production. Credentials appended to gitignored `deploy-production.local.env` (`INTERNAL_TEST_ACCOUNT_EMAIL`/`_PASSWORD`), never printed to transcript.
+
+### Stripe checkout validation — PASSED
+- `POST /api/v1/billing/checkout {"plan":"basic_monthly"}` with the test account's bearer token returned a Live Mode Checkout Session (`cs_live_...`).
+- Verified via Stripe MCP: Price `price_1TrcNUHwWcsILCcPaBpeX4UP` = $19.00 USD (Basic Monthly); the other three prices (Basic Yearly $180, Pro Monthly $49, Pro Yearly $468) all confirmed active/correct via read-only Price lookups — no additional checkout sessions created for those three, per the task's own "read-only mapping check" instruction.
+- One live Stripe customer created (`cus_UrMfFr80ISI59r`) for the test account; confirmed via Stripe search: zero charges, zero subscriptions.
+- Confirmed `FRONTEND_URL=https://app.bulkeditapp.com` in the deployed spec, so checkout success/cancel URLs are production, not staging/localhost.
+- Webhook signing secret present and code validates signatures, but the Stripe MCP connector has no webhook-endpoint API surface at all (list/create/retrieve all return empty across every resource name tried) — endpoint/event existence still unverifiable from this session.
+
+### Etsy OAuth validation — BLOCKED
+- `GET /api/v1/etsy/authorize` returned a structurally correct URL: production `redirect_uri`, correct scopes, PKCE `code_challenge` + `state`.
+- User opened it; Etsy returned "application not recognized." Owner checked Etsy Developer Console: app status is **pending review**.
+- Ruled out a config sync bug: sha256-hashed the local `ETSY_CLIENT_ID` and the value embedded in the live authorization URL — identical, so DO and local are in sync. The failure is Etsy-side app review status, not our infra.
+- Stopped per the task's own Etsy-failure protocol: Private Beta remains enabled, no further Etsy testing possible until Etsy approves the app.
+
+### Private Beta
+- Remains enabled (`NEXT_PUBLIC_PRIVATE_BETA_MODE=true`) — correctly not disabled since the activation checklist requires both Etsy and Stripe to pass, and Etsy hasn't.
+
+**Next session:** once the Etsy app clears review, resume from re-generating the OAuth URL and completing the callback/token/read-only-shop checks (see HANDOFF.md), then proceed to disabling Private Beta (requires a frontend **rebuild**, not just an env update, since `NEXT_PUBLIC_PRIVATE_BETA_MODE` is inlined at Next.js build time in `middleware.ts`) and the post-activation smoke tests.
+
 ## 2026-06-30 Fix: Port conflict + demo login seeding for one-click startup
 
 **Commits:** e7d5111, aa93aee, 32c0e49

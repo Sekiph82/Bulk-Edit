@@ -15,6 +15,7 @@ USER = {
     "password": "OriginalPass123!",
     "full_name": "Reset User",
     "organization_name": "Reset Org",
+    "terms_accepted": True,
 }
 
 

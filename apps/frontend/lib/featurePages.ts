@@ -69,7 +69,7 @@ export const FEATURE_PAGES: FeaturePage[] = [
     boundaries: [
       "Revenue, views, and favourites trend data are not shown — Etsy doesn't expose reliable trend data through this app's connection, and we won't fake it.",
     ],
-    related: ["listing-health-score", "profit-calculator"],
+    related: ["profit-calculator"],
   },
   {
     slug: "magic-revert",
@@ -145,54 +145,14 @@ export const FEATURE_PAGES: FeaturePage[] = [
     bestFor: "Sellers who prefer spreadsheets, or need to edit hundreds of listings faster than a UI allows.",
     related: ["bulk-listing-editor", "safe-preview-engine"],
   },
-  {
-    slug: "ai-listing-optimization",
-    metaTitle: "AI Listing Optimization for Etsy — Bulk Edit App",
-    metaDescription:
-      "Generate AI-powered title, description, tag, and alt text suggestions for your Etsy listings. Review every suggestion before it's applied.",
-    h1: "AI Listing Optimization",
-    intro:
-      "Get AI-generated suggestions for listing titles, descriptions, tags, and photo alt text — then decide which ones to use.",
-    howItWorks: [
-      "Start an AI session on the listings you want to improve.",
-      "Bulk Edit App generates suggestions for title, description, tags, and alt text.",
-      "Review each suggestion individually — accept or reject.",
-      "Accepted suggestions convert into a draft bulk edit session, previewed and confirmed like any other change.",
-    ],
-    benefits: [
-      "AI-generated title, description, tag, and alt text suggestions",
-      "Accept or reject each suggestion individually",
-      "Nothing publishes automatically — same preview-and-confirm flow",
-      "Speeds up SEO cleanup across many listings at once",
-    ],
-    bestFor: "Sellers who know their listings need better titles, tags, or descriptions but don't have time to rewrite them one by one.",
-    boundaries: ["Nothing is published automatically — every suggestion goes through the same preview-and-confirm workflow as a manual edit."],
-    related: ["listing-health-score", "bulk-listing-editor"],
-  },
-  {
-    slug: "listing-health-score",
-    metaTitle: "Etsy Listing Health Score — Bulk Edit App",
-    metaDescription:
-      "Score every Etsy listing 0–100 and find missing tags, weak titles, thin descriptions, and low photo counts before they cost you sales.",
-    h1: "Listing Health Score",
-    intro:
-      "A rule-based health score for every listing — surfacing the specific, fixable issues that are most likely holding a listing back.",
-    howItWorks: [
-      "Bulk Edit App scores each listing from 0–100 based on title length, tag count, description depth, and photo count.",
-      "Listings are graded (excellent, good, needs work, critical) and given a priority.",
-      "Each issue lists a specific, recommended fix.",
-      "Fix issues manually, or route them into a bulk edit / AI optimization session.",
-    ],
-    benefits: [
-      "Instant 0–100 score for every listing",
-      "Specific, fixable issues — not vague advice",
-      "Prioritized list so you fix what matters most first",
-      "Routes straight into bulk edit or AI optimization",
-    ],
-    bestFor: "Sellers with a large catalog who need to know exactly which listings to fix first.",
-    boundaries: ["This is a rule-based internal score, not a guarantee of Etsy or Google search ranking."],
-    related: ["ai-listing-optimization", "bulk-listing-editor"],
-  },
+  // "ai-listing-optimization" and "listing-health-score" public feature
+  // pages removed pending Etsy's written confirmation that these features
+  // (Etsy-listing-content sent to a third-party AI provider; scoring built
+  // on Etsy listing data) are permitted — see ETSY_SUPPORT_QUESTIONS.md
+  // Q1/Q2. Both remain real, working, in-app (post-login) features; the
+  // Etsy-data pathway for AI suggestions is additionally hard-gated behind
+  // ALLOW_ETSY_DATA_TO_AI (see app/services/ai_tools.py). Only the public
+  // marketing pages are removed here.
   {
     slug: "profit-calculator",
     metaTitle: "Etsy Profit & Cost Calculator — Bulk Edit App",
@@ -417,11 +377,6 @@ export const FEATURE_CLUSTERS: { title: string; description: string; slugs: stri
     title: "Bulk Listing Control",
     description: "Update titles, tags, prices, descriptions, photos, and variations across your whole shop at once.",
     slugs: ["bulk-listing-editor", "bulk-tag-editor", "variation-editor", "etsy-csv-import-export"],
-  },
-  {
-    title: "SEO & AI Optimization",
-    description: "Find weak listings and generate better titles, tags, and descriptions — you approve every change.",
-    slugs: ["listing-health-score", "ai-listing-optimization"],
   },
   {
     title: "Photo & Video Tools",

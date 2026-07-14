@@ -147,7 +147,7 @@ export default function ComparisonPageContent({ page }: { page: ComparisonPage }
 
       <section className="max-w-4xl mx-auto px-6 sm:px-8 py-8 text-center">
         <p className="text-xs text-gray-400">
-          Bulk Edit App is an independent tool and is not endorsed by Etsy, Inc. Etsy is a trademark of Etsy, Inc.
+          The term &quot;Etsy&quot; is a trademark of Etsy, Inc. This application uses the Etsy API but is not endorsed or certified by Etsy, Inc.
         </p>
       </section>
 

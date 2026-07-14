@@ -11,7 +11,7 @@ class ListingCost(Base, TimestampMixin):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    organization_id: Mapped[str] = mapped_column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     listing_id: Mapped[str] = mapped_column(String(36), ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True)
     product_cost: Mapped[object] = mapped_column(Numeric(10, 4), nullable=False, default="0.0000")
     shipping_cost: Mapped[object] = mapped_column(Numeric(10, 4), nullable=False, default="0.0000")

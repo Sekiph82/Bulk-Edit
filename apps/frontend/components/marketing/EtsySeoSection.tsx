@@ -1,10 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import FadeUp from "./FadeUp";
 import AnimatedTagCloud from "./AnimatedTagCloud";
-import HealthScoreGauge from "./HealthScoreGauge";
 
+// Listing Health Score and AI Listing Optimization are real, shipped,
+// in-app features (post-login only) — but public marketing claims about
+// Etsy-derived scoring/AI-suggestion features are paused pending Etsy's
+// written confirmation that they're permitted. See ETSY_SUPPORT_QUESTIONS.md
+// Q1/Q2. This section only promotes the bulk-editing mechanics, which do
+// not require that clarification.
 export default function EtsySeoSection() {
   return (
     <section className="py-20 px-6 sm:px-8 be-section-accent">
@@ -18,33 +22,18 @@ export default function EtsySeoSection() {
               Fix the titles, tags, and descriptions holding your listings back
             </h2>
             <p className="text-gray-500 leading-relaxed mb-5">
-              Listing Health Score finds the specific, fixable issues — weak titles, missing tags,
-              thin descriptions, low photo counts — and grades every listing 0–100. AI Listing
-              Optimization then generates title, description, tag, and alt text suggestions you
-              review and approve before anything changes.
+              Edit titles, tags, and descriptions across your whole catalog at once, with a full
+              before/after preview and explicit confirmation before anything reaches Etsy.
             </p>
             <ul className="space-y-2 text-sm text-gray-600 mb-6">
-              <li>• Score every listing 0–100 with specific, prioritized fixes</li>
-              <li>• AI-generated title, tag, and description suggestions</li>
+              <li>• Bulk-edit titles, tags, and descriptions across many listings at once</li>
               <li>• Bulk-apply cleanup across your whole catalog at once</li>
-              <li>• Every suggestion previewed and approved — nothing automatic</li>
+              <li>• Every change previewed and confirmed — nothing automatic</li>
             </ul>
-            <div className="flex flex-wrap gap-3">
-              <Link href="/features/listing-health-score" className="text-sm font-medium text-indigo-600 hover:underline">
-                Listing Health Score →
-              </Link>
-              <Link href="/features/ai-listing-optimization" className="text-sm font-medium text-indigo-600 hover:underline">
-                AI Listing Optimization →
-              </Link>
-            </div>
           </div>
         </FadeUp>
         <FadeUp delay={0.1}>
           <div className="be-card p-8 flex flex-col items-center gap-8">
-            <div className="flex gap-6">
-              <HealthScoreGauge score={92} label="Excellent listing" />
-              <HealthScoreGauge score={54} label="Needs work" />
-            </div>
             <AnimatedTagCloud />
           </div>
         </FadeUp>

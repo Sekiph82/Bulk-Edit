@@ -327,7 +327,7 @@ export const BLOG_POSTS: BlogPost[] = [
         heading: "Where Bulk Edit App fits: preview-first, reversible bulk updates",
         paragraphs: [
           "Bulk Edit App is built around a preview-first bulk editing workflow: select listings, define a change, review a full before/after diff, apply, and revert individual listings from an automatic backup snapshot if needed.",
-          "It also includes AI-assisted title/tag/description suggestions (reviewed before applying, never auto-published), a rule-based listing health score, a profit/fee calculator, and media tools for adding, replacing, or deleting product video.",
+          "It also includes a profit/fee calculator and media tools for adding, replacing, or deleting product video.",
         ],
       },
       {
@@ -480,9 +480,9 @@ export const BLOG_POSTS: BlogPost[] = [
       "Look for listings with fewer than 5 photos",
       "Update seasonal language at least twice a year",
     ],
-    ctaTitle: "Find and fix listing health issues across your shop",
+    ctaTitle: "Fix listing issues across your shop, in bulk",
     ctaBody:
-      "Bulk Edit App's listing health score flags missing tags, weak titles, and thin descriptions — then routes fixes into a previewed bulk edit.",
+      "Bulk Edit App lets you fix missing tags, weak titles, and thin descriptions across many listings at once — with a full preview before anything is applied.",
     related: ["etsy-description-cleanup", "etsy-seo-title-tag-optimization-checklist"],
   },
   {

@@ -640,6 +640,15 @@ function BulkEditContent() {
               ))}
             </div>
 
+            {/* Staleness warning — Etsy content synced more than 6 hours ago */}
+            {(previewResp.summary.stale_listing_count ?? 0) > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 text-sm text-amber-800">
+                <strong>Note:</strong> {previewResp.summary.stale_listing_count} listing(s) in this
+                preview were last synced from Etsy more than 6 hours ago. Re-sync your shop before
+                applying if the listing may have changed on Etsy since then.
+              </div>
+            )}
+
             {/* Variation inventory skip notice */}
             {previewItems.some(
               (item) =>

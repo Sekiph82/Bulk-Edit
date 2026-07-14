@@ -5,26 +5,35 @@ import FadeUp from "./FadeUp";
 
 // No fake ratings, testimonials, user counts, or press logos here on
 // purpose — this section builds trust through what's actually true
-// (early-stage, built specifically for this workflow) rather than
-// inventing social proof.
+// rather than inventing social proof.
 const TRUST_POINTS = [
   "Built for shops with too many listings to edit one by one",
-  "Help shape the bulk editing workflow before public launch",
-  "Early users get closer feedback loops and priority onboarding",
+  "Every change is previewed and requires your explicit confirmation before it reaches Etsy",
+  "Backup snapshots and Magic Revert on every bulk write",
   "No fake ratings. No inflated seller counts. Just a safer workflow for Etsy sellers.",
 ];
 
-export default function FoundingAccessSection() {
+export default function TrustSection() {
   return (
     <section className="py-20 px-6 sm:px-8 bg-white">
       <div className="max-w-3xl mx-auto text-center">
         <FadeUp>
           <span className="inline-block text-xs font-semibold text-indigo-600 tracking-widest uppercase mb-4 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
-            Founding access
+            Built for Etsy sellers
           </span>
           <h2 className="text-3xl font-bold text-gray-900 mb-5">
-            Founding access for early Etsy sellers
+            A seller-authorized listing management utility
           </h2>
+        </FadeUp>
+
+        <FadeUp delay={0.04}>
+          <p className="text-sm text-gray-600 leading-relaxed max-w-lg mx-auto mb-8">
+            Bulk Edit App is a seller-authorized listing management utility that helps Etsy
+            sellers synchronize their own listings, prepare bulk changes, review exact
+            before-and-after differences and explicitly confirm changes before submission through
+            Etsy&rsquo;s documented API. Bulk Edit App complements Etsy&rsquo;s seller tools.
+            Orders, checkout, payments and core shop management remain within Etsy.
+          </p>
         </FadeUp>
 
         <FadeUp delay={0.08}>
@@ -45,7 +54,7 @@ export default function FoundingAccessSection() {
         <FadeUp delay={0.16}>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/register" className="be-btn-primary px-8 py-3 text-base">
-              Join founding access
+              Create your account
             </Link>
             <Link href="/contact-us" className="be-btn-secondary px-8 py-3 text-base">
               Have questions? Contact us

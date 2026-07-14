@@ -15,6 +15,7 @@ async def test_register_rate_limit_disabled_in_tests(client):
         "email": "ratelimitcheck@example.com",
         "password": "Test1234!",
         "full_name": "Rate Test",
+        "terms_accepted": True,
     })
     assert r.status_code != 429
 

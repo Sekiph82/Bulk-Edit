@@ -8,7 +8,7 @@ class SyncJob(Base, TimestampMixin):
     __tablename__ = "sync_jobs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    organization_id: Mapped[str] = mapped_column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     etsy_shop_id: Mapped[str] = mapped_column(String(36), ForeignKey("etsy_shops.id", ondelete="CASCADE"), nullable=False, index=True)
     job_type: Mapped[str] = mapped_column(String(50), nullable=False, default="manual_listing_sync")
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending", index=True)

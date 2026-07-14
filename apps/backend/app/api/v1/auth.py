@@ -5,6 +5,8 @@ from app.core.deps import require_active_user
 from app.core.rate_limit import forgot_password_rate_limit, login_rate_limit, register_rate_limit
 from app.db.session import get_db
 from app.schemas.auth import (
+    DeleteAccountRequest,
+    DeleteAccountResponse,
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     LoginRequest,
@@ -20,6 +22,7 @@ from app.schemas.auth import (
 )
 from app.services.auth import (
     AuthError,
+    delete_account,
     get_user_memberships,
     login_user,
     logout_user,
@@ -104,3 +107,25 @@ async def me(current_user=Depends(require_active_user), db: AsyncSession = Depen
         user=UserResponse.model_validate(current_user),
         memberships=[MembershipResponse.model_validate(m) for m in memberships],
     )
+
+
+@router.delete("/me", response_model=DeleteAccountResponse)
+async def delete_me(
+    data: DeleteAccountRequest,
+    current_user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Self-service account deletion. Requires password re-confirmation.
+    Deletes every organization this user owns (and everything scoped to
+    it — Etsy tokens, listings, sessions, snapshots) via DB-level cascade.
+    Blocked with 409 while any owned organization has an active or billable
+    Stripe subscription — see assert_account_deletion_billing_safe() in
+    app/services/billing.py and ETSY_DATA_RETENTION.md §4.
+    """
+    try:
+        await delete_account(current_user.id, data.password, db)
+    except AuthError as e:
+        detail = {"code": e.code, "message": e.message} if e.code else e.message
+        raise HTTPException(status_code=e.status_code, detail=detail)
+    return DeleteAccountResponse()

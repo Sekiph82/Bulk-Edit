@@ -4,6 +4,43 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---
 
+## Etsy Compliance + Production Readiness Audit (2026-07-13)
+
+**Status:** `[x] AUDIT + FIXES + OWNER-REVIEW VALIDATION + STRIPE DELETION-SAFETY GATE COMPLETE — not committed, not deployed, awaiting owner approval`
+
+Branch: `etsy-compliance-production-readiness`. Trigger: Etsy developer app "bulk-edit-app" status changed from "pending review" to **Banned**, no reason given.
+
+- [x] Full repo audit — 7 docs (`ETSY_COMPLIANCE_AUDIT.md`, `ETSY_FEATURE_MATRIX.md`, `ETSY_PRODUCTION_READINESS.md`, `ETSY_DATA_RETENTION.md`, `ETSY_OAUTH_SCOPES.md`, `ETSY_APPEAL_CHECKLIST.md`, `ETSY_SUPPORT_QUESTIONS.md`)
+- [x] Fixed OAuth scopes-storage bug, `disconnect_shop` token deletion, token auto-refresh wiring
+- [x] Gated Etsy-data→AI-provider pathway behind `ALLOW_ETSY_DATA_TO_AI` (default off)
+- [x] 30-day snapshot/CSV-job retention + cleanup script; retention window now configurable (`ETSY_DERIVED_DATA_RETENTION_DAYS`)
+- [x] Terms/Privacy acceptance checkbox + backend enforcement + migration + tests
+- [x] Self-service account deletion endpoint
+- [x] Removed founding-access/pre-launch marketing language; removed public Listing Health Score / AI Optimization marketing claims (features stay live in-app)
+- [x] Fixed Etsy-replacement language, trademark disclaimer placement, legal-entity-name invention
+- [x] **Owner-review validation pass (second session, real Postgres, no delegated write access):** consolidated official-policy citation table added (`ETSY_COMPLIANCE_AUDIT.md` §6b); real local Postgres migration testing — clean upgrade, 0022→head with pre-existing data, downgrade/re-upgrade round trip, all verified for migrations 0023/0024/0025; found and fixed 2 real account-deletion bugs (SQLAlchemy relationship cascade crash; 9 tables missing `organization_id` foreign keys entirely) via live testing against real Postgres, not just reading code — see `ETSY_DATA_RETENTION.md` §4a; new migration `0025_add_missing_org_fk_constraints.py`; 3 new account-deletion regression tests.
+- [x] Verification (second session): frontend `tsc`/lint/build clean (82 routes), backend full suite **971/971 passed** (964 original baseline + 4 from first review pass + 3 new account-deletion tests) — confirmed via a full independent from-scratch run
+- [x] Secret scan: no candidates found in the diff
+- [x] **Owner decision implemented (third session):** account deletion now blocks (HTTP 409, `ACTIVE_SUBSCRIPTION_MUST_BE_CANCELED` / `BILLING_PORTAL_UNAVAILABLE`) while an organization has an active or billable Stripe subscription — never auto-canceled. New `assert_account_deletion_billing_safe()` in `app/services/billing.py` (local-DB-only, no live Stripe call, fail-closed on any unrecognized status). Minimal deletion UI added to the existing `/billing` page — no new page. 14 new tests (11 owner-specified scenarios + 3 supporting), plus 2 real-Postgres end-to-end scenarios. No new migration — head unchanged at `0025`. See `ETSY_DATA_RETENTION.md` §4b.
+- [x] Final verification (third session): frontend `tsc`/lint/build clean (82 routes, no new route), backend full suite **975/975 passed** (971 + 4 new billing-gate tests) — confirmed via a full independent from-scratch run. Alembic single-head confirmed: `0025`.
+- [ ] Owner final review of the 7 audit docs + full diff before merge/deploy
+- [ ] Submit Etsy appeal using `ETSY_APPEAL_CHECKLIST.md` + `ETSY_SUPPORT_QUESTIONS.md` draft
+- [ ] Manual verification once Etsy access restored (see `ETSY_PRODUCTION_READINESS.md` MANUAL/BLOCKED items — live OAuth, live video upload, email delivery)
+
+---
+
+## Production Activation (2026-07-10)
+
+**Status:** `[~] IN PROGRESS — blocked on Etsy (status escalated from "pending review" to "Banned" — see Etsy Compliance Audit above)`
+
+- [x] Stripe Live checkout validated end-to-end (controlled internal account, no charge/subscription created)
+- [x] All four Stripe price mappings confirmed correct
+- [!] Etsy OAuth validation — **blocked: Etsy Developer app is now Banned** (was "pending review" as of 2026-07-10; status changed since). Waiting on Etsy appeal response; no workaround exists on our side. See HANDOFF.md for exact resume steps.
+- [ ] Disable Private Beta (blocked on the Etsy item above passing)
+- [ ] Post-activation app + marketing smoke tests
+
+---
+
 ## Sprint 0: Project Memory and Operating System
 
 **Status:** `[x] COMPLETE`

@@ -1,6 +1,6 @@
 import uuid
 import json
-from sqlalchemy import String, Text, Integer, Float, Boolean, DateTime
+from sqlalchemy import String, Text, Integer, Float, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base, TimestampMixin
 
@@ -9,7 +9,7 @@ class VideoRender(Base, TimestampMixin):
     __tablename__ = "video_renders"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    organization_id: Mapped[str] = mapped_column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     template_id: Mapped[str] = mapped_column(String(100), nullable=False)
     # source: "generated" (Product Video Generator slideshow) | "uploaded" (user's own MP4 file)
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="generated", server_default="generated")

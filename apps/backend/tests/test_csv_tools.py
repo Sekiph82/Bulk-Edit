@@ -33,6 +33,7 @@ async def _register_and_login(client, user: dict) -> str:
     payload = {**user}
     if "organization_name" not in payload:
         payload["organization_name"] = payload.get("full_name", "Org") + " Org"
+    payload.setdefault("terms_accepted", True)
     await client.post(REGISTER_URL, json=payload)
     r = await client.post(LOGIN_URL, json={"email": user["email"], "password": user["password"]})
     return r.json()["access_token"]

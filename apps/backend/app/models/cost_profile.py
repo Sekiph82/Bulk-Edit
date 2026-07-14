@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, String, Numeric
+from sqlalchemy import Boolean, String, Numeric, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base, TimestampMixin
 import uuid
@@ -8,7 +8,7 @@ class CostProfile(Base, TimestampMixin):
     __tablename__ = "cost_profiles"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    organization_id: Mapped[str] = mapped_column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False, default="Default")
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default="USD")
     transaction_fee_percent: Mapped[object] = mapped_column(Numeric(6, 5), nullable=False, default="0.06500")

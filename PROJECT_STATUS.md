@@ -2,15 +2,17 @@
 
 ## Current Phase
 
-**Staging on DigitalOcean + Cloudflare, production still design-only. Owner console rebuild code-complete on a feature branch (not yet merged); Resend outbound email domain verification blocked on user-provided DNS records.**
+**Production is LIVE (bulk-edit-prod-api / bulk-edit-prod-web) under Private Beta gate. Etsy developer app status escalated from "pending review" to BANNED (2026-07-13) — no reason given by Etsy. A full Etsy compliance + production-readiness audit and correction pass was completed on branch `etsy-compliance-production-readiness` (NOT merged or deployed — awaiting owner review). Stripe Live checkout was previously validated and PASSED (2026-07-10). Private Beta correctly stays enabled until Etsy responds to the appeal.**
 
 ## Status
 
-`Owner console rebuilt at apps/frontend/app/owner/* (Dashboard, Users, Organizations, Shops, Jobs, Contact Submissions, Emails, Audit Logs, System Health, Feature Flags, Content), served at owner.bulkeditapp.com via middleware.ts host rewrite (no new DO app). /admin is now a compat shim: 404 for non-superusers, redirect to /owner for confirmed superusers. Removed a real bug: dashboard "Admin Panel" card was shown to all users, not gated by is_superuser. Backend: contact_submissions table (migration 0020, contact form now persists every submission regardless of email delivery), GET /api/v1/admin/contact-submissions + GET /api/v1/admin/feature-flags (both require_superuser). 875/875 backend tests pass. Frontend: tsc clean, next build clean (61 routes). Branch feature/owner-console-subdomain-rebuild not yet merged. Separately: staging Resend SMTP wired but blocked — "domain not verified" — waiting on user to paste exact DNS records (no invented/guessed values per explicit instruction).`
+`Stripe Live: products/prices/env fully configured and validated end-to-end (2026-07-10) — Basic Monthly Live Checkout Session created via a controlled internal test account, $19 USD confirmed, production success/cancel URLs confirmed, one live customer created, zero charges/subscriptions. All four price mappings confirmed via Stripe Price lookups.`
+
+`Etsy: app status escalated from "pending review" to "Banned" with no explanation. Full compliance audit completed 2026-07-13 (see ETSY_COMPLIANCE_AUDIT.md) — found and fixed: OAuth granted-scope storage bug, disconnect not deleting tokens, no AI-data authorization gate, no snapshot retention limit, public site pre-launch/beta framing contradicting a live product, and several other items (full list in ETSY_FEATURE_MATRIX.md). A second owner-review validation pass (same day, real Postgres, no delegated write access) additionally found and fixed two real account-deletion bugs invisible to SQLite tests — a SQLAlchemy relationship-cascade crash, and 9 tables missing `organization_id` foreign keys entirely (meaning "deleted" accounts left Etsy shop/token/listing data orphaned) — migration 0025, full detail in ETSY_DATA_RETENTION.md §4a. A third session (same day) implemented the owner's decision on the one remaining item: account deletion is now blocked (HTTP 409) while an organization has an active or billable Stripe subscription — never auto-canceled — via a new local-only eligibility check (`assert_account_deletion_billing_safe`, ETSY_DATA_RETENTION.md §4b), with a minimal deletion UI added to the existing `/billing` page. No new migration needed; head remains 0025. Frontend (tsc/lint/build, 82 routes) and backend (**975/975 tests**) verified clean via a full independent run, including 2 additional real-Postgres end-to-end scenarios for the new billing gate. Not committed, not deployed. No open items remain from the owner's blocker list. Next action: owner does final review of the audit + diff, then either merges/deploys the fixes and/or submits the Etsy appeal (ETSY_APPEAL_CHECKLIST.md, ETSY_SUPPORT_QUESTIONS.md draft). Private Beta (NEXT_PUBLIC_PRIVATE_BETA_MODE=true) remains enabled. Stripe webhook endpoint existence/events still unverifiable via the Stripe MCP connector — same limitation as the prior session.`
 
 ## Last Updated
 
-2026-07-05
+2026-07-13
 
 ## Active Skills
 
@@ -66,7 +68,7 @@ All scripts: check Docker, auto-create `.env` from `.env.example` if missing, en
 
 ## Blockers
 
-None
+- Etsy developer app "bulk-edit-app" is **Banned** (escalated from "pending review" 2026-07-13, no reason given). Blocks all live Etsy OAuth/API testing. Appeal drafted in `ETSY_SUPPORT_QUESTIONS.md`, not yet sent (requires owner to send from the account that manages the Etsy developer app).
 
 ## Known Issues
 

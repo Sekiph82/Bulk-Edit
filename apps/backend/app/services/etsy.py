@@ -6,13 +6,14 @@ from typing import Any
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete, cast, String
 
 from app.core.config import settings
 from app.core.encryption import encrypt_token, decrypt_token
 from app.models.etsy_shop import EtsyShop
 from app.models.etsy_token import EtsyToken
 from app.models.etsy_oauth_state import EtsyOAuthState
+from app.models.scheduled_job import ScheduledJob
 
 
 ETSY_AUTH_URL = "https://www.etsy.com/oauth/connect"
@@ -104,19 +105,22 @@ async def handle_oauth_callback(code: str, state: str, db: AsyncSession) -> None
     result = await db.execute(select(EtsyToken).where(EtsyToken.etsy_shop_id == shop.id))
     token_row = result.scalar_one_or_none()
 
+    granted_scopes = token_data.get("scope") or settings.ETSY_SCOPES
+
     if token_row is None:
         token_row = EtsyToken(
             etsy_shop_id=shop.id,
             access_token_enc=access_enc,
             refresh_token_enc=refresh_enc,
             expires_at=expires_at,
-            scopes=token_data.get("token_type", ""),
+            scopes=granted_scopes,
         )
         db.add(token_row)
     else:
         token_row.access_token_enc = access_enc
         token_row.refresh_token_enc = refresh_enc
         token_row.expires_at = expires_at
+        token_row.scopes = granted_scopes
 
     await db.commit()
 
@@ -159,6 +163,14 @@ async def list_connected_shops(org_id: str, db: AsyncSession) -> list[EtsyShop]:
 
 
 async def disconnect_shop(shop_id: str, org_id: str, db: AsyncSession) -> None:
+    """
+    Disconnects an Etsy shop: deletes the stored access/refresh token immediately
+    (matches the Privacy Policy's "disconnecting revokes our stored tokens
+    immediately" claim — this must stay true of the implementation, not just
+    the marketing copy) and pauses any scheduled jobs referencing this shop so
+    a disconnected shop's sync/draft jobs don't keep firing against a shop we
+    no longer have a valid token for.
+    """
     result = await db.execute(
         select(EtsyShop).where(EtsyShop.id == shop_id, EtsyShop.organization_id == org_id)
     )
@@ -168,6 +180,20 @@ async def disconnect_shop(shop_id: str, org_id: str, db: AsyncSession) -> None:
         raise HTTPException(status_code=404, detail="Shop not found")
 
     shop.is_connected = False
+    await db.execute(delete(EtsyToken).where(EtsyToken.etsy_shop_id == shop.id))
+
+    payload_text = cast(ScheduledJob.job_payload, String)
+    await db.execute(
+        ScheduledJob.__table__.update()
+        .where(
+            ScheduledJob.organization_id == org_id,
+            ScheduledJob.status == "active",
+            payload_text.ilike('%"shop_id"%'),
+            payload_text.ilike(f'%{shop.id}%'),
+        )
+        .values(status="paused")
+    )
+
     await db.commit()
 
 

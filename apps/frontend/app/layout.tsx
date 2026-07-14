@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     template: "%s",
   },
   description:
-    "Bulk edit your Etsy listings at scale with AI-powered optimization tools.",
+    "Preview-first bulk editing for Etsy listings — titles, tags, prices, photos, and variations, with backup snapshots and Magic Revert.",
   openGraph: {
     siteName: "Bulk Edit App",
     type: "website",

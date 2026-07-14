@@ -129,6 +129,11 @@ function ShopsContent() {
           </button>
         </div>
 
+        <p className="text-gray-400 text-xs mb-6">
+          The term &quot;Etsy&quot; is a trademark of Etsy, Inc. This application uses the Etsy
+          API but is not endorsed or certified by Etsy, Inc.
+        </p>
+
         {successMsg && (
           <div className="mb-6 bg-green-50 border border-green-200 text-green-800 rounded-lg px-5 py-3 text-sm">
             {successMsg}
@@ -154,7 +159,7 @@ function ShopsContent() {
             <p className="text-gray-400 text-xs mb-6 max-w-sm mx-auto">
               Clicking &quot;Connect Etsy Shop&quot; will redirect you to Etsy to authorise access.
               Your Etsy credentials are never stored by this application — only the OAuth token
-              Etsy issues is saved. Etsy® is a trademark of Etsy, Inc.
+              Etsy issues is saved.
             </p>
             <button
               onClick={connectShop}
@@ -163,6 +168,10 @@ function ShopsContent() {
             >
               {connecting ? "Redirecting to Etsy..." : "Connect Etsy Shop"}
             </button>
+            <p className="text-gray-400 text-xs mt-4 max-w-sm mx-auto">
+              The term &quot;Etsy&quot; is a trademark of Etsy, Inc. This application uses the Etsy
+              API but is not endorsed or certified by Etsy, Inc.
+            </p>
           </div>
         ) : (
           <div className="space-y-4">

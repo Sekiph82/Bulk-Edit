@@ -23,6 +23,7 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
+from app.services.etsy_http import etsy_get
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,8 @@ async def fetch_etsy_listing_inventory(
     Raises EtsyVariationWriteError on HTTP error.
     """
     async with httpx.AsyncClient(timeout=20.0) as client:
-        resp = await client.get(
+        resp = await etsy_get(
+            client,
             f"{ETSY_API_BASE}/application/shops/{shop_etsy_id}/listings/{listing_etsy_id}/inventory",
             headers=_auth_headers(access_token),
         )

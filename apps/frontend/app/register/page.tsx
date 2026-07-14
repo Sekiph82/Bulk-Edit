@@ -14,6 +14,7 @@ export default function RegisterPage() {
     full_name: "",
     organization_name: "",
   });
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -24,12 +25,16 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    if (!termsAccepted) {
+      setError("You must agree to the Terms of Service and acknowledge the Privacy Policy.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/v1/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, terms_accepted: termsAccepted }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -108,9 +113,31 @@ export default function RegisterPage() {
             />
           </div>
 
+          <div className="flex items-start gap-2">
+            <input
+              id="terms-accepted"
+              name="terms_accepted"
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <label htmlFor="terms-accepted" className="text-sm text-gray-600">
+              I agree to the{" "}
+              <Link href="/terms" className="text-indigo-600 hover:underline" target="_blank">
+                Terms of Service
+              </Link>{" "}
+              and acknowledge the{" "}
+              <Link href="/privacy" className="text-indigo-600 hover:underline" target="_blank">
+                Privacy Policy
+              </Link>
+              .
+            </label>
+          </div>
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !termsAccepted}
             className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium py-2.5 text-sm transition-colors"
           >
             {loading ? "Creating account…" : "Create account"}
