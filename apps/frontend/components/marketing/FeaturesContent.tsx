@@ -51,13 +51,6 @@ const FEATURES: FeatureItem[] = [
     href: "/features/variation-editor",
   },
   {
-    icon: "🤖",
-    title: "AI Listing Optimizer",
-    desc: "Generate AI-powered title, description, tag, and alt text suggestions. Review every suggestion before accepting.",
-    color: "from-indigo-50 to-violet-50 border-indigo-200",
-    href: "/features/ai-listing-optimization",
-  },
-  {
     icon: "📊",
     title: "CSV Import / Export",
     desc: "Export your listings to CSV for external editing. Import changes back as a draft bulk edit session.",
@@ -77,13 +70,6 @@ const FEATURES: FeatureItem[] = [
     desc: "Schedule safe syncs and draft creations. Jobs never auto-publish to Etsy — your approval is always required.",
     color: "from-blue-50 to-indigo-50 border-blue-200",
     href: "/features/scheduled-jobs",
-  },
-  {
-    icon: "🩺",
-    title: "Listing Health Score",
-    desc: "Score every listing 0–100. Detect missing tags, weak titles, thin descriptions, and low photo counts before they cost you sales.",
-    color: "from-green-50 to-teal-50 border-green-200",
-    href: "/features/listing-health-score",
   },
   {
     icon: "📈",

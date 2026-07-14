@@ -1,5 +1,10 @@
 import Link from "next/link";
 
+// Never invent a legal entity name. Only set NEXT_PUBLIC_LEGAL_ENTITY_NAME
+// once the owner has confirmed the entity is actually registered — see
+// ETSY_PRODUCTION_READINESS.md §4. Falls back to the plain product name.
+const LEGAL_ENTITY_NAME = process.env.NEXT_PUBLIC_LEGAL_ENTITY_NAME || "Bulk Edit App";
+
 const FOOTER_LINKS = {
   Product: [
     { href: "/features", label: "Features" },
@@ -68,7 +73,7 @@ export default function MarketingFooter() {
 
         {/* Legal */}
         <div className="border-t border-gray-100 pt-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-gray-400">© 2026 Bulk Edit App LLC. All rights reserved.</p>
+          <p className="text-xs text-gray-400">© 2026 {LEGAL_ENTITY_NAME}. All rights reserved.</p>
           <p className="text-xs text-gray-400 text-center sm:text-right max-w-md">
             The term &ldquo;Etsy&rdquo; is a trademark of Etsy, Inc. This application uses the Etsy
             API but is not endorsed or certified by Etsy, Inc.

@@ -12,7 +12,7 @@ import FeatureShowcase from "@/components/marketing/FeatureShowcase";
 import SafetyPreviewPanel from "@/components/marketing/SafetyPreviewPanel";
 import ProductScreenshotsSection from "@/components/marketing/ProductScreenshotsSection";
 import DemoVideoSection from "@/components/marketing/DemoVideoSection";
-import FoundingAccessSection from "@/components/marketing/FoundingAccessSection";
+import TrustSection from "@/components/marketing/TrustSection";
 import ComparisonSection from "@/components/marketing/ComparisonSection";
 import EtsySeoSection from "@/components/marketing/EtsySeoSection";
 import VideoInsightsSection from "@/components/marketing/VideoInsightsSection";
@@ -78,7 +78,7 @@ const FAQ_ITEMS: FaqItem[] = [
   },
   {
     q: "Is this endorsed by Etsy?",
-    a: "No. Bulk Edit App is an independent tool that uses the official Etsy API. “Etsy” is a trademark of Etsy, Inc.",
+    a: "No. The term “Etsy” is a trademark of Etsy, Inc. This application uses the Etsy API but is not endorsed or certified by Etsy, Inc.",
   },
 ];
 
@@ -149,6 +149,19 @@ export default function HomeContent() {
         </div>
       </section>
 
+      {/* Primary positioning statement — plain, factual, no beta/launch framing */}
+      <section className="border-t border-gray-200 bg-white">
+        <div className="max-w-4xl mx-auto px-6 sm:px-8 py-8 text-center">
+          <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
+            Bulk Edit App is a seller-authorized listing management utility that helps Etsy sellers
+            synchronize their own listings, prepare bulk changes, review exact before-and-after
+            differences, and explicitly confirm changes before submission through Etsy&rsquo;s
+            documented API. Bulk Edit App complements Etsy&rsquo;s seller tools — orders, checkout,
+            payments, and core shop management remain within Etsy.
+          </p>
+        </div>
+      </section>
+
       {/* Stat strip — capability stats only, no invented usage numbers */}
       <section className="border-t border-gray-200 bg-white">
         <div className="max-w-7xl mx-auto px-6 sm:px-8 py-10">
@@ -173,9 +186,9 @@ export default function HomeContent() {
       <SafeEditingEngine />
 
       <ConversionCTA
-        eyebrow="Your Etsy shop, under control"
-        title="Too many listings for manual edits? Bulk Edit App is your control panel."
-        subtitle="Connect your shop and see exactly what a bulk edit would change — before anything happens."
+        eyebrow="Preview-first bulk editing"
+        title="Too many listings for manual edits? Bulk Edit App handles the bulk changes safely."
+        subtitle="Connect your shop and see exactly what a bulk edit would change — before anything happens. Orders, checkout, and core shop management stay in Etsy."
         primaryLabel="Try Bulk Edit App"
         secondaryLabel="See all features"
         secondaryHref="/features"
@@ -189,7 +202,7 @@ export default function HomeContent() {
       <DemoVideoSection />
 
       {/* Fake-free trust building — no testimonials, ratings, or invented counts */}
-      <FoundingAccessSection />
+      <TrustSection />
 
       {/* Careful, non-attack competitor positioning */}
       <ComparisonSection />

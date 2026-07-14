@@ -10,10 +10,12 @@ export default function FeatureShowcase() {
       <div className="max-w-7xl mx-auto">
         <FadeUp className="text-center mb-14">
           <h2 className="text-3xl font-bold text-gray-900 mb-3">
-            Everything you need to manage your Etsy shop at scale
+            Bulk listing tools for Etsy shops at scale
           </h2>
           <p className="text-gray-500 max-w-xl mx-auto">
-            Six tool groups, one safe editing engine underneath every one of them.
+            Six tool groups, one safe editing engine underneath every one of them. Bulk Edit App
+            complements Etsy&rsquo;s seller tools — orders, checkout, payments, and core shop
+            management remain within Etsy.
           </p>
         </FadeUp>
 

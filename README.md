@@ -19,9 +19,7 @@ Bulk-Edit lets Etsy sellers:
 
 ## Current Phase
 
-**Sprint 1 — Monorepo Skeleton** (Complete)
-
-Next: Sprint 2 — Auth + Organization
+**Production.** Bulk Edit App is a feature-complete, deployed SaaS product (26+ shipped sprints — auth, billing, Etsy OAuth/sync, bulk edit engine with preview/backup/revert, AI tools, CSV import/export, dynamic pricing, scheduling, admin console). See `PROJECT_STATUS.md` for current live status and any open blockers.
 
 ## How Claude Should Continue
 

@@ -13,8 +13,9 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "2026-07-06";
+const LAST_UPDATED = "2026-07-13";
 const SUPPORT_EMAIL = "support@bulkeditapp.com";
+const LEGAL_ENTITY_NAME = process.env.NEXT_PUBLIC_LEGAL_ENTITY_NAME || "Bulk Edit App";
 
 export default function TermsPage() {
   return (
@@ -37,10 +38,13 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-gray-900 mb-2">2. The service</h2>
               <p>
-                Bulk Edit App helps Etsy sellers manage, preview, and apply bulk changes to their
-                Etsy listings, using Etsy&rsquo;s official API and OAuth2 authorization. Bulk Edit
-                App is an independent tool and is not affiliated with, endorsed by, or certified
-                by Etsy, Inc. &ldquo;Etsy&rdquo; is a trademark of Etsy, Inc.
+                Bulk Edit App is a seller-authorized listing management utility that helps Etsy
+                sellers synchronize their own listings, prepare bulk changes, review exact
+                before-and-after differences, and explicitly confirm changes before submission
+                through Etsy&rsquo;s documented API. Bulk Edit App complements Etsy&rsquo;s seller
+                tools. Orders, checkout, payments, and core shop management remain within Etsy.
+                The term &ldquo;Etsy&rdquo; is a trademark of Etsy, Inc. This application uses the
+                Etsy API but is not endorsed or certified by Etsy, Inc.
               </p>
             </section>
 
@@ -156,7 +160,21 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">15. Contact</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">15. Etsy API developer disclaimer</h2>
+              <p>
+                This Application is solely provided by {LEGAL_ENTITY_NAME} (the &ldquo;Application
+                Developer&rdquo;). You acknowledge that Etsy, Inc. and its affiliates are not the
+                Application Developer, do not provide the Application service, and make no
+                warranties of any kind with respect to the Application or data accessed through
+                it. {LEGAL_ENTITY_NAME} represents that its use of the Etsy Open API v3 complies
+                with Etsy&rsquo;s API Terms of Use as in effect at the time of use, and will
+                promptly correct or remove any feature found to violate those terms upon notice
+                from Etsy.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">16. Contact</h2>
               <p>
                 Questions about these terms can be sent to{" "}
                 <a href={`mailto:${SUPPORT_EMAIL}`} className="text-indigo-600 hover:underline">
