@@ -4,6 +4,64 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-07-13, second session (Etsy compliance — owner-review validation pass)
+
+### [BUGFIX] `passive_deletes=True` added to Organization.members / User.memberships / User.refresh_tokens
+Real-Postgres testing of the new `DELETE /api/v1/auth/me` endpoint (added in the first session) crashed with a 500 whenever the deleting user had an active refresh token or org membership — SQLAlchemy's default `relationship()` behavior on parent delete tries to NULL out the child's foreign key to "disassociate" it, even though that FK is `NOT NULL` and the database already has `ON DELETE CASCADE`. SQLite's tests never caught this because the specific pre-existing test coverage for this endpoint was zero (confirmed by grep — no test existed at all before this session). Fix: `passive_deletes=True` tells SQLAlchemy to step back entirely and let Postgres's own cascade handle child rows. Reason to prefer this over cascade="all, delete-orphan": the DB-level CASCADE already does the right thing; passive_deletes just stops the ORM from getting in its way, rather than duplicating the deletion logic at two layers.
+
+### [BUGFIX] Added missing `ForeignKey(..., ondelete="CASCADE")` on organization_id for 9 tables + migration 0025
+`etsy_shops`, `listings`, `cost_profiles`, `listing_costs`, `social_connections`, `social_oauth_states`, `etsy_oauth_states`, `sync_jobs`, `video_renders` all had `organization_id` declared as a bare `String(36)` column — no foreign key at the ORM level or the actual database schema level, for as long as those tables have existed (etsy_shops traces to migration 0003, an early sprint, well before this compliance branch). This meant deleting an Organization could never cascade to any of them, by any mechanism. Found only because this session tested account deletion against real Postgres with a connected Etsy shop present, rather than trusting SQLite (where the missing-cascade behavior is invisible either way, since SQLite doesn't enforce declared FKs without an explicit pragma this app doesn't set). Fixed by adding the same `ForeignKey(..., ondelete="CASCADE")` convention already used everywhere else in the schema (see the 2026-06-26 "All FKs must define ON DELETE" decision — these 9 tables were simply missed at the time). Migration `0025_add_missing_org_fk_constraints.py` adds the constraints; tested against a database with intentionally orphaned data first (confirms the migration correctly refuses to apply rather than silently succeeding), then against clean data (confirms it applies and the full deletion cascade works end-to-end).
+
+### [DEFERRED] Account deletion does not touch Stripe — flagged for an owner decision, not fixed
+A paying user who calls `DELETE /api/v1/auth/me` keeps their Stripe subscription active and being billed, with no remaining way to self-cancel it (the only cancel path, the Stripe customer portal, requires being logged in to an organization that this endpoint just deleted). This is a genuine product decision (block deletion until canceled? auto-cancel as part of deletion? show a blocking warning first?), not a bug with one correct fix — left unfixed and documented rather than choosing unilaterally. See `ETSY_PRODUCTION_READINESS.md` §27b.
+
+### [POLICY] 30-day Etsy-data retention window made configurable, default unchanged
+`ETSY_DERIVED_DATA_RETENTION_DAYS` (default 30, validated range 1-365) replaces the hardcoded `SNAPSHOT_RETENTION_DAYS` constant. Etsy's API Terms require not caching content "longer than reasonably necessary" but specify no day count — 30 was always this project's own conservative choice, not an Etsy mandate (see the consolidated policy table, `ETSY_COMPLIANCE_AUDIT.md` §6b). Making it configurable means the number can be revised without a code change if Etsy ever gives explicit guidance. No new migration needed — the column type/structure is unchanged, only the application-level default computation changed.
+
+---
+
+## 2026-07-13, first session (Etsy compliance + production readiness audit)
+
+### [ETSY] Etsy-derived listing content sent to AI providers gated behind new `ALLOW_ETSY_DATA_TO_AI` flag, default False
+Every current AI tool (title/description/tags/alt-text/SEO score, plus the Listing Health "AI suggestions" endpoint) builds its prompt entirely from Etsy-synced `Listing` fields — no manual-entry input path exists today. This task's own instructions and Etsy's API Terms require Etsy's written authorization before sharing Etsy content with a third party (OpenAI/Anthropic). Added a hard service-layer gate (`assert_etsy_data_to_ai_allowed()` in `ai_tools.py`, mirrored in `listing_health.py`) that blocks any live-provider call regardless of `AI_PROVIDER` unless the new flag is explicitly set. The mock provider (never leaves our servers) is exempt. See `ETSY_SUPPORT_QUESTIONS.md` Q1/Q2.
+
+### [ETSY] Fixed real bug: OAuth token exchange stored `token_type` in the `scopes` column instead of the granted `scope` string
+`app/services/etsy.py::handle_oauth_callback` wrote `token_data.get("token_type", "")` (always the literal `"Bearer"`) into `EtsyToken.scopes`. Etsy's token response includes a `scope` field with the actual granted scopes. Fixed to store `token_data.get("scope") or settings.ETSY_SCOPES`. Purely a bookkeeping/audit-trail bug — did not affect what Etsy actually granted — but exactly the kind of implementation error a manual Etsy app review would flag.
+
+### [ETSY] `disconnect_shop` now deletes the stored token and pauses scheduled jobs, instead of only flipping `is_connected`
+Previously the encrypted `EtsyToken` row survived disconnect indefinitely, while the Privacy Policy claimed "disconnecting revokes our stored tokens immediately" — a false claim about the implementation. Fixed the code to match the claim rather than watering down the claim, since deleting on disconnect is the objectively correct behavior. Also pauses any `ScheduledJob` whose `job_payload.shop_id` matches, since a disconnected shop can no longer be synced.
+
+### [ETSY] Snapshot/CSV-job retention capped at 30 days via new `expires_at` columns + `retention_cleanup.py`, not a live worker
+Etsy's API Terms prohibit caching Etsy content longer than reasonably necessary. No Celery worker is deployed yet (per `PROJECT_STATUS.md`), so cleanup ships as `scripts/run_retention_cleanup.py` for an external scheduler (cron / DO scheduled job) to invoke, matching the existing `scheduled_jobs` "external trigger calls our endpoint/script" pattern rather than adding a new always-on worker process.
+
+### [ETSY] Etsy API retry/backoff added only to the highest-volume read paths, not every write call site
+New `app/services/etsy_http.py::etsy_get()` wraps GET calls with exponential backoff honoring `Retry-After`, using the previously-defined-but-unused `ETSY_RETRY_MAX_ATTEMPTS` config. Wired into `etsy_sync.py` (listing/image/video/inventory fetch — the highest call volume) and `etsy_variation_write.py`'s inventory fetch. Deliberately NOT wired into PATCH/POST/PUT/DELETE write calls — automatic retry of a non-idempotent write without a dedup key risks double-applying a change. `etsy_media_write.py`'s two GET calls are a documented fast-follow, not done in this branch.
+
+### [ETSY] Etsy access token auto-refresh wired into the sync path (was previously logged-and-ignored)
+`etsy_sync.py::get_valid_etsy_access_token` previously logged a warning on near-expiry and returned the stale token anyway (the actually-working `refresh_etsy_token()` in `etsy.py` was never called from here, despite an outdated docstring calling it "a stub"). Now calls it and, on a `httpx.HTTPStatusError` (revoked grant), marks the shop disconnected and raises a typed error surfaced as a clear "reconnect your shop" 401 instead of an opaque failure.
+
+### [PRODUCT] Account self-deletion (`DELETE /api/v1/auth/me`) relies on DB-level `ON DELETE CASCADE`, scoped to owned organizations only
+This app has no team/invite feature (confirmed — no invite endpoint exists; one owner per organization). Deletion removes every `Organization` this user owns (cascading via the same `ondelete="CASCADE"` FK convention used throughout the schema — see the 2026-06-26 "All FKs must define ON DELETE" decision) plus the user row itself. Stripe's customer/subscription record is intentionally NOT auto-deleted — cancellation still goes through the existing Stripe portal, since Stripe has independent compliance/record-keeping requirements. Marked manual-verification-required in `ETSY_PRODUCTION_READINESS.md` — only exercised against SQLite (no FK enforcement) in this session's tests, not a real Postgres cascade.
+
+### [WEBSITE] Removed "Founding access" / "Private Beta" marketing framing; kept the actual Private Beta *gate* (middleware.ts) unchanged
+The product is genuinely feature-complete and live, so pre-launch/beta marketing language was misleading and is exactly what this task's spec called out to remove. However, `NEXT_PUBLIC_PRIVATE_BETA_MODE` is a real, currently-necessary operational gate — Etsy OAuth cannot complete while the app is banned, so fully opening registration would let users hit a broken Etsy-connect flow. Kept the gate mechanism, rewrote `/private-beta`'s copy to state the real reason (pending Etsy verification) instead of "opening access gradually," and removed the "founding access" trust section from the homepage (replaced with `TrustSection.tsx`, no beta framing).
+
+### [WEBSITE] Removed public marketing pages/claims for "Listing Health Score" and "AI Listing Optimization"; kept both features live in-app
+Per this task's explicit instruction to remove Etsy-connected AI and Listing Health Score claims from public marketing until Etsy authorizes them. Deleted the two `/features/[slug]` entries from `lib/featurePages.ts` (routes now 404 via the existing `notFound()` fallback), removed the homepage `EtsySeoSection` scoring/AI copy, removed the two feature cards, pricing-page feature rows, and comparison/blog copy referencing them. The underlying features are unchanged and still reachable post-login (`/listing-health`, `/ai`) — only public marketing claims were removed, consistent with the AI feature being additionally hard-gated by `ALLOW_ETSY_DATA_TO_AI` and the health score being classified as an isolated (non-third-party) pathway that only needed a marketing-claim correction, not a code gate.
+
+### [LEGAL] Footer/Terms company name is now `LEGAL_ENTITY_NAME`-driven, defaulting to "Bulk Edit App" (no LLC suffix)
+No confirmation of "Bulk Edit App LLC" being a real registered entity exists anywhere in this repo's history. Per this task's explicit instruction not to invent legal facts, the footer copyright and Terms page now read `NEXT_PUBLIC_LEGAL_ENTITY_NAME` / backend `LEGAL_ENTITY_NAME`, falling back to the plain product name. Setting the env var to "Bulk Edit App LLC" restores the prior text exactly, once the owner confirms the registration.
+
+---
+
+## 2026-07-10 (Final controlled activation)
+
+### [SECURITY] Controlled Etsy/Stripe validation done via direct backend API calls, not a frontend Private-Beta bypass
+Task spec offered two options: (A) build a code-level internal-test bypass route in `middleware.ts`, or (B) hit backend OAuth/checkout endpoints directly with a bearer token while the frontend stays fully gated. Chose B — `middleware.ts` gates `NEXT_PUBLIC_PRIVATE_BETA_MODE` globally with no per-user exception logic, so A would require writing and deploying new gating code just to run a test. B needed zero code changes: `POST /api/v1/auth/register` → bearer token → `GET /api/v1/etsy/authorize` and `POST /api/v1/billing/checkout` both work standalone. Keeps Private Beta's public gate completely untouched during validation.
+
+### [BLOCKER] Etsy OAuth cannot pass until the Etsy Developer app clears review
+Etsy returned "application not recognized" on the real OAuth authorization page. Confirmed via the owner's Etsy Developer Console that the app is in "pending review" status — Etsy blocks OAuth completion for unreviewed apps. Ruled out a local/DO config sync bug by sha256-hash-comparing the local `ETSY_CLIENT_ID` against the value embedded in the live-generated authorization URL (identical). No workaround exists from our side; Private Beta stays enabled until Etsy approves the app and OAuth is re-tested.
+
 ## 2026-06-30 (One-click startup reliability)
 
 ### [DEVOPS] postgres/redis use `expose:` not `ports:` in docker-compose.yml
