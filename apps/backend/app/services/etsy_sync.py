@@ -1,9 +1,10 @@
 """
 Etsy listing sync service. Read-only: no writes to Etsy API.
 
-Limitation: refresh_etsy_token() in etsy.py is a stub. If an access token
-is expired, sync raises SyncError with a clear message instructing the user
-to reconnect their shop. Full token auto-refresh is tracked for Sprint 8.
+Access tokens nearing expiry are auto-refreshed via etsy.refresh_etsy_token()
+before use. If Etsy rejects the refresh (grant revoked by the seller, or the
+refresh token itself expired), the shop is marked disconnected and callers
+get a clear "reconnect your shop" error instead of an opaque failure.
 """
 import logging
 from datetime import datetime, timezone, timedelta
@@ -23,6 +24,7 @@ from app.models.listing_video import ListingVideo
 from app.models.listing_variation import ListingVariation
 from app.models.subscription import Subscription
 from app.models.sync_job import SyncJob
+from app.services.etsy_http import etsy_get
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +42,9 @@ class SyncError(Exception):
 
 async def get_valid_etsy_access_token(shop: EtsyShop, db: AsyncSession) -> str:
     """
-    Return decrypted access token. Raises SyncError if token is missing or expired.
-    NOTE: Auto-refresh is not fully implemented. Users must reconnect if token expired.
+    Return a decrypted, valid access token — auto-refreshing it first if it's
+    expired or within TOKEN_REFRESH_BUFFER_SECONDS of expiry. Raises SyncError
+    (401) if no token exists or Etsy rejects the refresh (revoked grant).
     """
     result = await db.execute(select(EtsyToken).where(EtsyToken.etsy_shop_id == shop.id))
     token_row = result.scalar_one_or_none()
@@ -54,9 +57,18 @@ async def get_valid_etsy_access_token(shop: EtsyShop, db: AsyncSession) -> str:
         expires = expires.replace(tzinfo=timezone.utc)
 
     if now >= (expires - timedelta(seconds=TOKEN_REFRESH_BUFFER_SECONDS)):
-        # Token expired or close to expiry. Full refresh deferred to Sprint 8.
-        # Attempt to use anyway — Etsy may still accept it briefly after expiry.
-        logger.warning("Etsy access token for shop %s is expired or near expiry. Reconnect recommended.", shop.id)
+        from app.services.etsy import refresh_etsy_token
+
+        try:
+            return await refresh_etsy_token(shop.id, db)
+        except httpx.HTTPStatusError:
+            shop.is_connected = False
+            db.add(shop)
+            await db.commit()
+            logger.warning("Etsy token refresh failed for shop %s — grant likely revoked.", shop.id)
+            raise SyncError(
+                "Etsy access has expired or was revoked. Please reconnect your shop.", 401
+            )
 
     return decrypt_token(token_row.access_token_enc)
 
@@ -69,7 +81,8 @@ async def fetch_shop_listings(
         "x-api-key": "",  # populated from config by callers if needed
     }
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.get(
+        resp = await etsy_get(
+            client,
             f"{ETSY_API_BASE}/application/shops/{etsy_shop_id}/listings/active",
             headers=headers,
             params={"limit": limit, "offset": offset, "includes": "Images,MainImage"},
@@ -80,7 +93,8 @@ async def fetch_shop_listings(
 
 async def fetch_listing_images(access_token: str, listing_id: str) -> list[dict[str, Any]]:
     async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.get(
+        resp = await etsy_get(
+            client,
             f"{ETSY_API_BASE}/application/listings/{listing_id}/images",
             headers={"Authorization": f"Bearer {access_token}"},
         )
@@ -94,7 +108,8 @@ async def fetch_listing_images(access_token: str, listing_id: str) -> list[dict[
 async def fetch_listing_videos(access_token: str, listing_id: str) -> list[dict[str, Any]]:
     """Placeholder — Etsy video API may not always be available."""
     async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.get(
+        resp = await etsy_get(
+            client,
             f"{ETSY_API_BASE}/application/listings/{listing_id}/videos",
             headers={"Authorization": f"Bearer {access_token}"},
         )
@@ -109,7 +124,8 @@ async def fetch_listing_videos(access_token: str, listing_id: str) -> list[dict[
 async def fetch_listing_inventory(access_token: str, listing_id: str) -> list[dict[str, Any]]:
     """Fetch product variations from Etsy inventory endpoint."""
     async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.get(
+        resp = await etsy_get(
+            client,
             f"{ETSY_API_BASE}/application/listings/{listing_id}/inventory",
             headers={"Authorization": f"Bearer {access_token}"},
         )

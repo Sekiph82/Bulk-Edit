@@ -272,6 +272,7 @@ export interface BulkEditPreviewGenerateResponse {
     valid: number;
     warning: number;
     invalid: number;
+    stale_listing_count?: number;
   };
 }
 

@@ -62,6 +62,7 @@ class BulkEditPreviewSummary(BaseModel):
     valid: int
     warning: int
     invalid: int
+    stale_listing_count: int = 0
 
 
 class BulkEditPreviewGenerateResponse(BaseModel):

@@ -4,7 +4,7 @@ Bulk Edit Preview Engine — Sprint 7.
 All operations are in-memory only. No Etsy API calls.
 No Listing rows modified. Apply endpoint is a stub.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -408,6 +408,21 @@ async def generate_bulk_edit_preview(
     )
     listings = {l.id: l for l in result.scalars().all()}
 
+    # Etsy listing-content freshness: Etsy's own caching rules treat listing
+    # content as stale past a few hours — surface a warning before the user
+    # reaches final confirmation rather than silently trusting an old sync.
+    # See ETSY_DATA_RETENTION.md §1.
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(hours=6)
+    stale_listing_ids: list[str] = []
+    for l in listings.values():
+        synced = l.last_synced_at
+        if synced is None:
+            continue
+        if synced.tzinfo is None:
+            synced = synced.replace(tzinfo=timezone.utc)
+        if synced < stale_cutoff:
+            stale_listing_ids.append(l.id)
+
     changes_result = await db.execute(
         select(BulkEditChange).where(BulkEditChange.bulk_edit_session_id == session_id)
     )
@@ -485,6 +500,7 @@ async def generate_bulk_edit_preview(
             "valid": counts.get("valid", 0),
             "warning": counts.get("warning", 0),
             "invalid": counts.get("invalid", 0),
+            "stale_listing_count": len(stale_listing_ids),
         },
     }
 
