@@ -1,8 +1,14 @@
 # ETSY_FINAL_APPEAL_DRAFT.md
 
-**STATUS: NOT SUBMITTED.** This is a draft prepared for owner review only. Per explicit instruction, nothing in this file is to be sent to Etsy without the owner's separate, explicit approval. See `ETSY_APPEAL_CHECKLIST.md` for pre-submission steps (verbatim trademark-wording re-check, confirming which inbox a ban reason might have gone to, etc.) that should happen *before* sending this.
+# Submission status
 
-Prepared: 2026-07-14, sixth session. Sources: `ETSY_APPEAL_CHECKLIST.md`, `ETSY_SUPPORT_QUESTIONS.md`, `ETSY_COMPLIANCE_AUDIT.md` (especially §6b's citation table), `ETSY_FEATURE_MATRIX.md`, and the current live production state (all compliance fixes from PR #56 are live as of 2026-07-14, merge commit `435a1aa`).
+**Not submitted.**
+
+**Owner approval required** before any part of this document is sent to Etsy. See section G (pre-submission checklist) for what to confirm first.
+
+---
+
+Prepared: 2026-07-14, seventh session (final review pass). Sources: `ETSY_APPEAL_CHECKLIST.md`, `ETSY_SUPPORT_QUESTIONS.md`, `ETSY_COMPLIANCE_AUDIT.md` (especially §6b's citation table), `ETSY_FEATURE_MATRIX.md`, `ETSY_PRODUCTION_READINESS.md`, `ETSY_DATA_RETENTION.md`, the current live production state (verified this session: backend/frontend healthy, migration `0025`, Private Beta enabled, retention-cleanup `SCHEDULED` job configured), and the current live public website.
 
 ---
 
@@ -12,41 +18,65 @@ Prepared: 2026-07-14, sixth session. Sources: `ETSY_APPEAL_CHECKLIST.md`, `ETSY_
 >
 > Hello,
 >
-> Our application, Bulk Edit App (bulkeditapp.com), was marked "Banned" and we have not received an email or in-console explanation of the specific reason. We would like to understand what triggered this so we can confirm it is fully resolved, and to be transparent about our own process: during our internal review, we identified several areas where our implementation and public documentation could be made clearer and more conservative, and we have already corrected them in production, in case any of them contributed.
+> Our application, Bulk Edit App (bulkeditapp.com), was marked "Banned," and we have not received an email or in-console explanation of the reason. We would like to understand what triggered this so we can confirm it is resolved. In the meantime, during an internal review, we identified several areas where our implementation and public documentation could be made clearer and more conservative, and we have implemented and deployed those changes.
 >
-> Specifically, we found and fixed a bug where our OAuth token storage recorded the token type instead of the granted scope string in one internal display field (this did not affect what scopes were actually granted by Etsy or used by the app). We found that disconnecting a shop was not immediately deleting the shop's stored access and refresh tokens the way our own Privacy Policy said it would, and fixed that so disconnection now deletes tokens immediately and pauses any scheduled jobs tied to that shop. We reviewed our handling of Etsy-derived content and set a conservative 30-day maximum retention window (configurable, not hardcoded) on backup snapshots and CSV export jobs, with an automated daily cleanup job now running in production. We also reviewed every feature in the app to confirm it uses only the documented Etsy Open API v3 endpoints — no scraping, no legacy or undocumented endpoints, and no browser automation against etsy.com anywhere in our codebase.
+> Specifically: we corrected an internal bug where OAuth token storage recorded the token type instead of the granted scope string in one display field (this did not affect what Etsy actually granted or what the app used). We fixed shop disconnection so it now immediately deletes the shop's stored access and refresh tokens and pauses any scheduled jobs tied to that shop, matching our Privacy Policy. We set a conservative, configurable 30-day maximum retention window on backup snapshots and CSV export records, enforced by an automated daily cleanup job now running in production. We reviewed every feature to confirm the app uses only the documented Etsy Open API v3 endpoints, with no scraping and no undocumented access anywhere in our codebase. We also removed public marketing language that described the product as pre-launch while it was actually live, and removed public marketing pages for two features (AI-assisted suggestions and a local listing-health score) pending the clarification below — both remain available in-app to sellers, but we are not marketing them publicly until we understand your position.
 >
-> One area we specifically want your guidance on: the app includes an optional feature that can send a seller's own synced listing content (title, description, tags) to a third-party AI provider to generate suggested edits, which the seller must manually review and approve before anything is written back to Etsy — nothing is ever auto-applied. We have disabled this specific Etsy-data-to-AI pathway by default in production (it requires an explicit server-side flag to be turned on, which it currently is not) until we have your written confirmation that it's permitted, and if so, under what conditions.
+> One area we would specifically like your guidance on: the app includes an optional feature that can send a seller's own synced listing content to a third-party AI provider to generate suggested edits, which the seller must review and approve before anything reaches Etsy — nothing is auto-applied. We have disabled this Etsy-data pathway by default in production pending your written confirmation that it's permitted, and under what conditions.
 >
-> Our production site is live at bulkeditapp.com, the application itself is at app.bulkeditapp.com, and our OAuth callback is at api.bulkeditapp.com/api/v1/etsy/callback. We currently request only the `listings_r`, `listings_w`, `shops_r`, and `profile_r` scopes. Account creation is currently gated behind a private-beta waitlist while we await your response, so no new sellers are being onboarded in the meantime.
+> Our production site is live at bulkeditapp.com, the application at app.bulkeditapp.com, and our callback at api.bulkeditapp.com/api/v1/etsy/callback, requesting only `listings_r`, `listings_w`, `shops_r`, and `profile_r`. New account creation is currently paused behind a private-beta gate while we await your response, and our backend and frontend are healthy and operating normally. We have not been able to test live Etsy OAuth or any live write since the ban took effect, so several of the changes above are verified in our own code and database, not yet against a live Etsy connection.
 >
-> Could you tell us the specific reason our app was banned, so we can confirm it's addressed? We're glad to answer any follow-up questions or provide further detail on any part of our implementation.
+> Could you tell us the specific reason our app was banned, so we can confirm it's addressed? We respectfully request reconsideration and would appreciate any clarification you can offer.
 >
 > Thank you for your time.
 >
 > — [Owner name], Bulk Edit App
 
-*(Word count: ~380, within the requested 300–500 range.)*
+*(Word count: ~430, within the requested 300–500 range.)*
 
 ---
 
 ## B. Detailed technical appendix
 
-**Architecture:** Next.js 14 (App Router) frontend, FastAPI (Python 3.12) backend, PostgreSQL 16, Redis 7, deployed on DigitalOcean App Platform. All Etsy communication goes through a single backend service (`bulk-edit-prod-api`) using `httpx` against `https://openapi.etsy.com/v3` — no direct frontend-to-Etsy calls, no other network path to Etsy anywhere in the codebase.
+**1. Application purpose.** Bulk Edit App is a seller-authorized listing management utility for Etsy sellers: bulk editing of titles, descriptions, tags, prices, quantities, variations, photos, and videos, with CSV import/export, scheduled updates, and cost/profit tooling. It does not process orders, payments, or buyer data.
 
-**OAuth implementation:** Authorization Code grant with mandatory PKCE (S256), a single-use `state` parameter with expiry, and the app's `x-api-key` header sent alongside the Bearer token on every request, per Etsy's documented Authentication flow. Access and refresh tokens are encrypted at rest (Fernet/AES) before being written to the database — plaintext tokens are never persisted.
+**2. Production URLs.** Marketing site `https://bulkeditapp.com` (and `www.bulkeditapp.com`); application `https://app.bulkeditapp.com`; API `https://api.bulkeditapp.com`; OAuth callback `https://api.bulkeditapp.com/api/v1/etsy/callback`.
 
-**Data freshness and caching:** Synced listing content is treated as stale after 6 hours; other Etsy content (shop info, etc.) after 24 hours. Stale data triggers a re-sync or a freshness warning to the seller before it's relied on for a new write, rather than being silently reused.
+**3. OAuth flow.** Authorization Code grant with mandatory PKCE (S256), a single-use `state` parameter with expiry, and the app's `x-api-key` header sent alongside the Bearer token on every request, per Etsy's documented Authentication flow.
 
-**Rate limiting and retries:** Outbound Etsy `GET` requests go through a shared retry/backoff wrapper (`app/services/etsy_http.py`) that respects `429`/`5xx` responses and any `Retry-After` header, with exponential backoff, honoring the documented 10 QPS / 10,000 QPD limits.
+**4. Requested scopes and justification.** `listings_r`, `listings_w` (read and write the seller's own listings — the core bulk-edit function), `shops_r` (read the seller's own shop metadata), `profile_r` (read the seller's own profile for account display). No transaction, buyer-email, financial, or billing scopes are requested anywhere in the codebase.
 
-**Write safety pipeline:** Every write to Etsy follows the same sequence, with no exceptions in the codebase: seller connects their shop → app generates a preview of the exact before/after change → seller explicitly confirms → a backup snapshot of the pre-write state is taken → the write executes → the action is recorded to an audit log. No code path in this application writes to Etsy without a preceding seller confirmation.
+**5. Seller authorization.** A seller initiates the connection from their own account. The app redirects to Etsy's own OAuth page, where the seller logs in directly with Etsy (this app never sees or stores an Etsy password) and grants the requested scopes on Etsy's own consent screen. There is no mechanism for connecting or acting on a shop the authenticated user does not themselves own.
 
-**Foreign-key / data-lifecycle integrity:** During this review we also found and fixed a data-lifecycle bug unrelated to any Etsy policy but relevant to describing our data-deletion behavior accurately: 9 internal tables (shop/listing/token/sync-related) were missing database-level foreign-key constraints on their organization reference, meaning a full account deletion could not previously guarantee those rows were removed. This is now fixed (`ON DELETE CASCADE` constraints added, migration verified against production with zero orphaned rows before and after).
+**6. Listing synchronization.** Listing content is synced from Etsy and treated as stale after 6 hours; other shop content after 24 hours. Stale data triggers a re-sync or a freshness warning before it is relied on for a new write, rather than being silently reused.
 
-**AI safeguard:** `ALLOW_ETSY_DATA_TO_AI` is a server-side configuration flag, default `false`, enforced in the AI service layer itself (not just the UI) — even if a request reaches the AI-suggestion endpoint, Etsy-derived content is not sent to any AI provider unless this flag is explicitly set to `true`. It is not set in the production environment today. Separately, the AI provider itself is currently configured as `mock` in production, meaning no live call to any external AI provider (OpenAI, Anthropic, or otherwise) is possible right now regardless of the flag.
+**7. Bulk-edit workflow.** A seller selects listings and builds a set of intended changes (field edits, tag operations, price/quantity rules, variation changes, media updates) either through the UI or a CSV import.
 
-**No scraping / no unofficial access:** Confirmed by direct code review — every Etsy interaction in the codebase goes through the documented Open API v3 REST surface via the single `httpx`-based client. No headless browser, no HTML parsing of etsy.com, no undocumented endpoints.
+**8. Preview and explicit confirmation.** Before anything reaches Etsy, the app renders an exact field-by-field before/after preview of every change. The seller must explicitly confirm. This is enforced in the backend service layer, not just the UI — there is no code path that skips the preview/confirmation step.
+
+**9. Etsy write behavior.** The full sequence, with no exceptions in the codebase: preview generated → seller confirms → backup snapshot of pre-write state taken → write executes → action recorded to an audit log.
+
+**10. Data storage.** Synced listing/shop data, encrypted OAuth tokens, backup snapshots (for revert), and CSV job records are stored in PostgreSQL. Tokens are encrypted at rest (Fernet/AES); plaintext tokens are never persisted.
+
+**11. Retention.** Backup snapshots and CSV job records are retained for a maximum of 30 days from creation (`ETSY_DERIVED_DATA_RETENTION_DAYS`, configurable without a code change), after which an automated daily job deletes them. This is this project's own conservative interpretation of Etsy's API Terms language that accessed content should not be stored "longer than reasonably necessary" — Etsy's terms do not specify a number of days, and we are not asserting they require exactly 30. Live listing data itself is not subject to this cap; it stays in sync for as long as the seller keeps the shop connected.
+
+**12. Disconnect behavior.** Disconnecting a shop immediately deletes its stored access and refresh tokens from the database (not merely marking them inactive) and pauses any scheduled jobs tied to that shop.
+
+**13. Token security.** OAuth access and refresh tokens are encrypted at rest before being written to the database. They are never logged, never returned in any API response body, and never exposed to the frontend.
+
+**14. AI safeguard.** Sending Etsy-derived listing content (title, description, tags) to a third-party AI provider (OpenAI or Anthropic) for the optional suggestion feature is gated behind a server-side flag, `ALLOW_ETSY_DATA_TO_AI`, defaulting to `false` and enforced at the service layer — not merely hidden in the UI. This flag is not enabled in production today. Separately, the configured AI provider itself is currently `mock` in production, meaning no live call to any external AI provider is possible right now regardless of the flag. We are not asserting Etsy has prohibited this kind of AI use — we found no official Etsy documentation addressing it either way, and disabled the pathway as our own conservative precaution pending guidance (see section F, question 1).
+
+**15. Social integration status.** A Pinterest/Instagram account-connection feature exists, but the actual "post to Pinterest/Instagram" API call is deliberately not implemented — it is fully stubbed and returns a "not yet available" response — specifically because we were unsure whether republishing synced Etsy listing content to a third-party marketing platform requires authorization (see section F, question 4).
+
+**16. No scraping.** Confirmed by direct code review: every Etsy interaction goes through the documented Open API v3 REST surface via a single `httpx`-based client. No headless browser, no HTML parsing of etsy.com, no undocumented endpoints, anywhere in the codebase.
+
+**17. Trademark and independence.** "Etsy" is a trademark of Etsy, Inc. Bulk Edit App uses Etsy's official API but is not endorsed, sponsored, or certified by Etsy, Inc. This is disclosed on the Terms of Service and Privacy Policy pages, and near the shop-connection flow. The live disclaimer text reads: *"The term 'Etsy' is a trademark of Etsy, Inc. This application uses the Etsy API but is not endorsed or certified by Etsy, Inc."* — this matches the phrasing found on Etsy's own Open API v3 developer documentation verbatim. A second, slightly different phrasing appears in search-indexed excerpts of Etsy's API Terms of Use page itself ("This Application uses Etsy's API, but is not endorsed or certified by Etsy," without the trailing ", Inc.") — the two official Etsy sources do not exactly match each other, and our live text matches one of them exactly. Direct automated re-fetch of `www.etsy.com/legal/trademarks/` and `www.etsy.com/legal/api/` returns HTTP 403 to this tooling (bot-blocked, not a content issue), so a manual, in-browser re-check of both pages immediately before submission is still recommended (see `ETSY_APPEAL_CHECKLIST.md` item 1) — but no production change has been made this session, since the discrepancy is between two of Etsy's own pages, not a case where our text clearly fails to match either one.
+
+**18. Public website corrections.** The site previously described the product with pre-launch/"founding access" framing while it was already live and requesting production write scopes — this language has been removed. Public marketing pages for "AI Listing Optimization" and "Listing Health Score" have also been removed (both features remain live and available in-app to authenticated sellers; only the public marketing pages were removed, pending the AI clarification in section F).
+
+**19. Testing and production validation.** Backend test suite: 982 tests passing. Anything touching cascading deletes, foreign-key constraints, or webhook-driven billing state was additionally verified against real PostgreSQL (not just the SQLite unit-test suite), since SQLite's lax constraint enforcement previously masked two real bugs that were found and fixed during this review. Frontend: TypeScript compiles clean, lint clean (only pre-existing, non-blocking warnings), production build clean. All changes described in this document are live in production as of 2026-07-14 (merge commit `435a1aa` and subsequent), verified directly against the live site and live API this session — backend health, database connectivity, and Redis connectivity all confirmed healthy, not merely committed to source control.
+
+**20. Current limitations.** Etsy developer access remains blocked by the ban itself, so live OAuth cannot currently be completed, and no live Etsy write has been re-tested since the ban took effect — everything above describing Etsy-facing behavior (except what predates the ban) is verified in code and against our own database, not against a live Etsy connection. The Etsy listing-video-upload endpoint specifically has not been tested live, for the same reason. New account sign-ups remain paused behind a private-beta gate while this appeal is pending, so the live seller-facing surface is not actively growing during Etsy's review.
 
 ---
 
@@ -56,16 +86,16 @@ Prepared: 2026-07-14, sixth session. Sources: `ETSY_APPEAL_CHECKLIST.md`, `ETSY_
 
 ---
 
-## D. Current production URLs
+## D. Production URLs
 
 - Marketing site: `https://bulkeditapp.com` (and `https://www.bulkeditapp.com`)
-- Application: `https://app.bulkeditapp.com` (currently gated behind a private-beta notice for new sign-ups — see section K)
+- Application: `https://app.bulkeditapp.com` (currently gated behind a private-beta notice for new sign-ups)
 - API: `https://api.bulkeditapp.com`
 - OAuth callback: `https://api.bulkeditapp.com/api/v1/etsy/callback`
 
 ---
 
-## E. Exact OAuth scopes requested
+## E. OAuth scopes
 
 ```
 listings_r
@@ -74,52 +104,30 @@ shops_r
 profile_r
 ```
 
-No transaction, buyer-email, financial, or billing scopes are requested anywhere in the codebase.
+Verified directly against `apps/backend/app/core/config.py` (`ETSY_SCOPES`) this session — exact match, no production environment override. No transaction, buyer-email, financial, or billing scopes are requested anywhere in the codebase.
 
 ---
 
-## F. User authorization explanation
+## F. Requested Etsy clarifications
 
-A seller initiates the connection from within their own account in the app. The app redirects to Etsy's own OAuth authorization page, where the seller logs in directly with Etsy (this app never sees or stores an Etsy password) and explicitly grants the requested scopes on Etsy's own consent screen. Only after that seller-driven grant does the app receive an authorization code, which it exchanges (server-side, with PKCE) for an access/refresh token pair scoped to that seller's own shop. There is no mechanism in the app for connecting or acting on a shop the authenticated user does not themselves own.
-
----
-
-## G. Preview and explicit confirmation before writes
-
-No write reaches Etsy without: (1) the seller building or selecting a set of intended changes in the app, (2) the app rendering an exact field-by-field before/after preview of what will change, (3) the seller clicking an explicit confirm action, (4) a backup snapshot of the current state being taken, and only then (5) the write being sent to Etsy. This sequence is enforced in the backend service layer, not just the UI, so there is no code path that can skip the preview/confirmation step.
+1. May Etsy-derived listing content be processed by a third-party AI provider with seller consent?
+2. What retention duration does Etsy consider reasonable for rollback snapshots and CSV exports?
+3. Are seller-authorized scheduled listing updates permitted under the granted OAuth scopes?
+4. May seller-selected Etsy listing content be republished to Pinterest or Instagram through the app?
+5. Are Listing Health Score and factual listing analytics acceptable if no external AI provider receives Etsy-derived content?
 
 ---
 
-## H. Data-retention explanation
+## G. Pre-submission checklist
 
-Backup snapshots (pre-write state, for revert) and CSV import/export job records are retained for a maximum of 30 days from creation, after which an automated daily job deletes them. This 30-day figure is this project's own conservative, configurable default (`ETSY_DERIVED_DATA_RETENTION_DAYS`, adjustable without a code change) — we are not asserting that Etsy requires exactly 30 days; Etsy's own API Terms state that accessed content should not be cached or stored longer than reasonably necessary to serve the app's users, without specifying a number, and 30 days is our own conservative interpretation of that principle pending any more specific guidance. Live, current listing data itself is not subject to this 30-day cap — it is kept in sync with Etsy on an ongoing basis (treated as stale after 6 hours) for as long as the seller keeps the shop connected.
-
----
-
-## I. Disconnect / token-deletion behavior
-
-When a seller disconnects their Etsy shop from within the app, the app immediately deletes the shop's stored access and refresh tokens from the database (not merely marking them inactive), and pauses any scheduled jobs tied to that shop. This was verified via live code review and testing this session; it was previously a discrepancy between the stated Privacy Policy behavior and the actual implementation, and is now corrected and matches what the Privacy Policy states.
-
----
-
-## J. AI safeguard explanation
-
-The app has an optional AI-assisted listing-suggestion feature. Sending any Etsy-derived listing content (title, description, tags) to a third-party AI provider (OpenAI or Anthropic) for this feature is gated behind a server-side configuration flag, `ALLOW_ETSY_DATA_TO_AI`, defaulting to `false` and enforced at the service layer — not merely hidden in the UI. This flag is not enabled in the production environment as of this appeal. We are not claiming Etsy has explicitly prohibited this kind of AI use; we found no official Etsy documentation addressing it in either direction, and we chose to disable the pathway by default as our own conservative precaution until we have Etsy's explicit written guidance either way (see the question raised in section A / the appeal message).
-
----
-
-## K. Trademark and independence statement
-
-"Etsy" is a trademark of Etsy, Inc. Bulk Edit App uses Etsy's official API but is not endorsed, sponsored, or certified by Etsy, Inc. This disclosure is displayed on the app's Terms of Service and Privacy Policy pages, and near the shop-connection flow. Bulk Edit App's own branding is presented independently and is not styled to imply any Etsy affiliation.
-
----
-
-## L. Testing and production-readiness summary
-
-- Backend test suite: 982 tests passing (SQLite for unit-level logic; separately verified against real PostgreSQL for anything touching cascading deletes, foreign-key constraints, or webhook-driven billing state, since SQLite's lax constraint enforcement previously masked two real bugs that were found and fixed this review cycle).
-- Frontend: TypeScript compiles clean, lint clean (only pre-existing, non-blocking warnings), production build clean.
-- All changes described in this document are live in production as of 2026-07-14 (merge commit `435a1aa`), verified directly against the live site and live API — not merely committed to source control.
-- Account registration currently requires explicit acceptance of the Terms of Service and Privacy Policy (enforced server-side, not just in the UI).
-- New account sign-ups are currently paused behind a private-beta notice while this appeal is pending, so the live seller-facing surface is not actively growing during Etsy's review.
-- We have not tested the Etsy listing-video-upload endpoint live, since doing so requires an active (non-banned) connection — implemented per the documented endpoint shape, pending live verification once access is restored.
-- We have not claimed Etsy has approved, endorsed, or confirmed any specific part of this implementation; every claim above about Etsy's own requirements is limited to what is stated in Etsy's own publicly available documentation (see `ETSY_COMPLIANCE_AUDIT.md` §6b for the full source-by-source citation table used to write this document).
+- [ ] Confirm the exact appeal destination (developer@etsy.com, or the specific contact/form named in the ban notice, if any).
+- [ ] Confirm which account/inbox owns the Etsy developer account, and send from (or to) that address.
+- [ ] Confirm the app's client_id (`7usvn9q6itlj6306sef64god`) is still current before including it.
+- [ ] Confirm the OAuth callback URL (`https://api.bulkeditapp.com/api/v1/etsy/callback`) matches what's registered in the Etsy developer console.
+- [ ] Confirm the production website (`https://bulkeditapp.com`) is live and reachable at send time.
+- [ ] Manually re-read `https://www.etsy.com/legal/trademarks/` and `https://www.etsy.com/legal/api/` in a browser to re-verify the exact current trademark disclaimer wording (see section B.17 — this tooling's automated fetch is blocked; a human browser check has not yet happened).
+- [ ] Confirm the requested scopes (`listings_r listings_w shops_r profile_r`) still match the developer console's granted scopes.
+- [ ] Confirm Private Beta is still enabled on `app.bulkeditapp.com` at send time.
+- [ ] Attach or link nothing that requires Etsy to create an account or log in; keep any evidence accessible without auth if possible. Screenshots only if Etsy's appeal channel explicitly allows attachments.
+- [ ] Do not include any secret value (API keys, tokens, database credentials, or internal deployment identifiers) anywhere in the submitted message — re-scan the final text immediately before sending.
+- [ ] Do not create a new Etsy developer application while this one is under appeal.
