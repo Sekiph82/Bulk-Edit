@@ -18,7 +18,9 @@ _backend_root = _script_dir.parent
 if str(_backend_root) not in sys.path:
     sys.path.insert(0, str(_backend_root))
 
-import app.models  # noqa: F401 — register all SQLAlchemy models before use
+import app.models
+
+assert app.models  # import is for its side effect: registers all ORM models on Base.metadata before first use
 
 from app.db.session import AsyncSessionLocal  # noqa: E402
 from app.services.retention_cleanup import delete_expired_snapshots  # noqa: E402

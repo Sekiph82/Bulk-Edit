@@ -47,7 +47,11 @@ async def etsy_get(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Respo
             delay *= 2
             continue
         if attempt == attempts:
-            raise last_exc
+            raise last_exc if last_exc is not None else RuntimeError(
+                "etsy_get: retry loop exhausted with no captured exception"
+            )
         await asyncio.sleep(delay)
         delay *= 2
-    raise last_exc  # pragma: no cover — unreachable, satisfies type checkers
+    raise last_exc if last_exc is not None else RuntimeError(
+        "etsy_get: retry loop exited without raising or returning"
+    )  # pragma: no cover — unreachable in practice, guards against raising None
