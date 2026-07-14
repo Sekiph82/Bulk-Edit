@@ -1,0 +1,184 @@
+name: bulk-edit-prod-api
+services:
+- name: api
+  github:
+    repo: Sekiph82/Bulk-Edit
+    branch: main
+    deploy_on_push: true
+  dockerfile_path: apps/backend/Dockerfile
+  run_command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+  source_dir: apps/backend
+  envs:
+  - key: ENVIRONMENT
+    value: production
+    scope: RUN_AND_BUILD_TIME
+  - key: DEBUG
+    value: 'false'
+    scope: RUN_AND_BUILD_TIME
+  - key: LOG_LEVEL
+    value: INFO
+    scope: RUN_AND_BUILD_TIME
+  - key: FRONTEND_URL
+    value: https://app.bulkeditapp.com
+    scope: RUN_AND_BUILD_TIME
+  - key: BACKEND_URL
+    value: https://api.bulkeditapp.com
+    scope: RUN_AND_BUILD_TIME
+  - key: BACKEND_CORS_ORIGINS
+    value: https://app.bulkeditapp.com,https://bulkeditapp.com,https://www.bulkeditapp.com
+    scope: RUN_AND_BUILD_TIME
+  - key: RATE_LIMIT_ENABLED
+    value: 'true'
+    scope: RUN_AND_BUILD_TIME
+  - key: RATE_LIMIT_BACKEND
+    value: redis
+    scope: RUN_AND_BUILD_TIME
+  - key: DATABASE_URL
+    value: ${prod-db.DATABASE_URL}
+    scope: RUN_TIME
+  - key: REDIS_URL
+    value: ${prod-redis.DATABASE_URL}
+    scope: RUN_TIME
+  - key: ETSY_REDIRECT_URI
+    value: https://api.bulkeditapp.com/api/v1/etsy/callback
+    scope: RUN_AND_BUILD_TIME
+  - key: PINTEREST_REDIRECT_URI
+    value: https://api.bulkeditapp.com/api/v1/promote/pinterest/callback
+    scope: RUN_AND_BUILD_TIME
+  - key: INSTAGRAM_REDIRECT_URI
+    value: https://api.bulkeditapp.com/api/v1/promote/instagram/callback
+    scope: RUN_AND_BUILD_TIME
+  - key: AI_PROVIDER
+    value: mock
+    scope: RUN_AND_BUILD_TIME
+  - key: VIDEO_RENDERER_ENABLED
+    value: 'true'
+    scope: RUN_AND_BUILD_TIME
+  - key: EMAIL_PROVIDER
+    value: smtp
+    scope: RUN_AND_BUILD_TIME
+  - key: SMTP_HOST
+    value: smtp.resend.com
+    scope: RUN_AND_BUILD_TIME
+  - key: SMTP_PORT
+    value: '587'
+    scope: RUN_AND_BUILD_TIME
+  - key: SMTP_USERNAME
+    value: resend
+    scope: RUN_AND_BUILD_TIME
+  - key: SMTP_FROM_EMAIL
+    value: noreply@bulkeditapp.com
+    scope: RUN_AND_BUILD_TIME
+  - key: SUPPORT_EMAIL
+    value: support@bulkeditapp.com
+    scope: RUN_AND_BUILD_TIME
+  - key: APP_PUBLIC_URL
+    value: https://app.bulkeditapp.com
+    scope: RUN_AND_BUILD_TIME
+  - key: JWT_SECRET
+    value: EV[1:uJxOJl6I9k5bFdmrvy3gGp/ANcaSZdQv:szOg6REz1m2Pbj4Xg1UO4hdnl1wru/cWyMHhyNs3GPYGKCHBrCL6TswtkxUgpo8QDL4eDlZzmEx/i9yOvxWAuFqbvRBYv3PVwekHxM7XudXZ3bCt/Mg/MtGVcFVlqQE92nrp+/Sl1xLUBdVeQQVi4A==]
+    scope: RUN_TIME
+    type: SECRET
+  - key: ENCRYPTION_KEY
+    value: EV[1:7Kivd6gG1d4kOomHXvY8EpUI6oI5tghS:B7pdAPfpheM78nf5qvk9exxTUYRNsJdU/3+Wp5PaiGCBpbi31wxU37+ua1w94EL7ckD5OqCgQ2+fkFLx]
+    scope: RUN_TIME
+    type: SECRET
+  - key: SMTP_PASSWORD
+    value: EV[1:lO3gL0JwnZ1bYz3ADR3rN4hi2EHW1RGA:nthb47kparkPRGk5io4eme/SxNjG2yxThnKdBTyI5oz0IgCrsvJxpYV9orsWsw3VINOf/Q==]
+    scope: RUN_TIME
+    type: SECRET
+  - key: ETSY_CLIENT_ID
+    value: EV[1:xixZzkHagmAu6a4nmq7sXQN5UuO/jKZQ:lTLOdYobdcE/O68Dm8qNd/1SIJxg1yc8HkQCHBR5uDeDCeiDow4sog==]
+    scope: RUN_TIME
+    type: SECRET
+  - key: ETSY_CLIENT_SECRET
+    value: EV[1:eIWkj5YpVYtphKc3PQ5OjIqf4YYFIVbD:rVqo26xhuLvfKF08ELkkCmIQvxUKxePIjZM=]
+    scope: RUN_TIME
+    type: SECRET
+  - key: STRIPE_SECRET_KEY
+    value: EV[1:fJ5wshb1QjCts9Yg6z1sVawePIN8IKN7:2wTYWzmT1MkxfpluDTKvx8S4oZC2Hfw8GFQnBhtWDL4J/vT1p/LSREC/yiUmrz0sZCgp1mWGvCX2MKJ3QE/oaFhsm30ylmo3TzqZXlIllkdqG5QIAkJmb3Ye6fz2DgHdBQvv/u3nXntLt79Ehueb/Ok5bDwVssTQmIlC]
+    scope: RUN_TIME
+    type: SECRET
+  - key: STRIPE_WEBHOOK_SECRET
+    value: EV[1:r1oF7dyL5fQrDcz/6nJe4OLuWEWyTsUj:pVHqyaeZ0t0/56M7YHRLu7uRKdwH5V/Pnmt3GkYW33bNEcoQNCbS6gb5fzBc7rG/nBumAKqD]
+    scope: RUN_TIME
+    type: SECRET
+  - key: STRIPE_PRICE_BASIC_MONTHLY
+    value: price_1TrcNUHwWcsILCcPaBpeX4UP
+    scope: RUN_AND_BUILD_TIME
+  - key: STRIPE_PRICE_PRO_MONTHLY
+    value: price_1TrcNvHwWcsILCcPv9dsoLRE
+    scope: RUN_AND_BUILD_TIME
+  - key: STRIPE_PRICE_BASIC_YEARLY
+    value: price_1TrcNgHwWcsILCcPWwkshQc7
+    scope: RUN_AND_BUILD_TIME
+  - key: STRIPE_PRICE_PRO_YEARLY
+    value: price_1TrcOBHwWcsILCcPrDyWyoF4
+    scope: RUN_AND_BUILD_TIME
+  instance_size_slug: basic-xs
+  instance_count: 1
+  http_port: 8000
+  health_check:
+    initial_delay_seconds: 20
+    period_seconds: 15
+    failure_threshold: 5
+    http_path: /api/v1/health
+jobs:
+- name: migrate
+  github:
+    repo: Sekiph82/Bulk-Edit
+    branch: main
+  dockerfile_path: apps/backend/Dockerfile
+  run_command: alembic upgrade head
+  source_dir: apps/backend
+  envs:
+  - key: ENVIRONMENT
+    value: production
+    scope: RUN_AND_BUILD_TIME
+  - key: DATABASE_URL
+    value: ${prod-db.DATABASE_URL}
+    scope: RUN_TIME
+  instance_size_slug: apps-s-1vcpu-0.5gb
+  instance_count: 1
+  kind: PRE_DEPLOY
+- name: retention-cleanup
+  kind: SCHEDULED
+  schedule:
+    cron: 30 3 * * *
+  github:
+    repo: Sekiph82/Bulk-Edit
+    branch: main
+  dockerfile_path: apps/backend/Dockerfile
+  source_dir: apps/backend
+  run_command: python scripts/run_retention_cleanup.py
+  envs:
+  - key: ENVIRONMENT
+    value: production
+    scope: RUN_AND_BUILD_TIME
+  - key: DATABASE_URL
+    value: ${prod-db.DATABASE_URL}
+    scope: RUN_TIME
+  instance_size_slug: apps-s-1vcpu-0.5gb
+  instance_count: 1
+databases:
+- name: prod-db
+  engine: PG
+  production: true
+  cluster_name: bulk-edit-prod-db
+- name: prod-redis
+  engine: VALKEY
+  production: true
+  cluster_name: bulk-edit-prod-redis
+domains:
+- domain: api.bulkeditapp.com
+  type: PRIMARY
+region: nyc
+ingress:
+  rules:
+  - match:
+      path:
+        prefix: /
+    component:
+      name: api
+features:
+- buildpack-stack=ubuntu-22
