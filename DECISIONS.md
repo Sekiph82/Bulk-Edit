@@ -4,6 +4,19 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-07-14, fifth session (Etsy compliance — production merge and deploy)
+
+### [OPS] Merge = deploy on this repo; pre-merge gates must run before merging, not after
+Both `bulk-edit-prod-api` and `bulk-edit-prod-web` have `deploy_on_push: true` on their DO App Platform GitHub integration. Merging PR #56 into `main` immediately, automatically triggered production deploys on both apps — there was no separate manual "deploy" step to gate. This session's sequencing happened to be safe (DB backup and orphan-data preflight both completed and passed before the merge), but the correct mental model going forward is: **the merge itself is the production deploy trigger.** Any future pre-deploy safety check (backup confirmation, orphan preflight, CI green) must complete before running `gh pr merge`, not after.
+
+### [OPS] No `doctl apps rollback` subcommand exists in doctl 1.163.0
+Checked directly (`doctl apps --help`, `doctl apps rollback --help`) — there is no native rollback subcommand in this doctl version, despite DigitalOcean's App Platform having rollback functionality in the web console. Documented rollback path for this repo: either use the DO console's per-app "Rollback" button, or `git revert` the merge commit and push (a normal forward commit — auto-deploy-on-push then redeploys the pre-merge state). The revert-and-push path is preferred when a rollback needs to be scripted/audited, since it doesn't require web-console access and produces a normal git history entry.
+
+### [OPS] Cleanup-scheduler status is genuinely "Option B," not yet automated
+`run_retention_cleanup.py` ships inside the deployed backend Docker image (it's on the container's filesystem, buildable and runnable), but `bulk-edit-prod-api`'s DO App Platform spec has no `CRON`-kind job component for it — nothing currently invokes it on any schedule. This was verified directly against the live app spec, not assumed from the script's own docstring. Needs either a DO `CRON` job or a Celery beat schedule once a real worker exists; until then, 30-day retention is enforced by `expires_at` at read/query time (already correct) but expired rows are never proactively deleted without a manual run.
+
+---
+
 ## 2026-07-13, second session (Etsy compliance — owner-review validation pass)
 
 ### [BUGFIX] `passive_deletes=True` added to Organization.members / User.memberships / User.refresh_tokens
