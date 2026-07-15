@@ -5,6 +5,8 @@
 **Trigger:** Etsy developer application "bulk-edit-app" marked **Banned**, no explanation email received.
 **Scope:** Full repository (`apps/backend`, `apps/frontend`), production config references, public website copy.
 
+**Current status (2026-07-15):** All findings below marked FIXED are live in production (merged `435a1aa` and subsequent, deployed 2026-07-14). Backend test suite: 982 passed (current authoritative count — see `PROJECT_STATUS.md`; older counts inline below are historical checkpoints, each explicitly superseded). Retention cleanup automated (DO Scheduled Job, first run succeeded 2026-07-15 — see `ETSY_DATA_RETENTION.md` §2). Etsy app remains **Banned**, no reason given; appeal drafted in `ETSY_FINAL_APPEAL_DRAFT.md` but **not submitted** — pending owner review/approval.
+
 This document is the top-level findings report. Per-feature classification lives in `ETSY_FEATURE_MATRIX.md`. Retention specifics in `ETSY_DATA_RETENTION.md`. Scope specifics in `ETSY_OAUTH_SCOPES.md`. Readiness workflow in `ETSY_PRODUCTION_READINESS.md`.
 
 ---
