@@ -153,15 +153,17 @@ details and `docs/operations/LAUNCH_CHECKLIST.md` for the go-live checklist.
 
 | Role | URL |
 |---|---|
-| Frontend | `https://www.bulkeditapp.com` |
-| Root (apex) | `https://bulkeditapp.com` → redirects to `https://www.bulkeditapp.com` |
+| Marketing site | `https://bulkeditapp.com` (and `https://www.bulkeditapp.com`) |
+| Application | `https://app.bulkeditapp.com` (Private Beta gated for new sign-ups) |
 | Backend API | `https://api.bulkeditapp.com` |
 
-### Chosen hosting: Vercel + Render
+### Chosen hosting: DigitalOcean App Platform + Cloudflare
 
-Production hosting is **Vercel (frontend)** + **Render (backend)**. Full walkthrough —
-project settings, env vars, `render.yaml` blueprint, custom domains, smoke test — in
-[`VERCEL_RENDER_DEPLOY.md`](VERCEL_RENDER_DEPLOY.md) and [`PRODUCTION_SMOKE_TEST.md`](PRODUCTION_SMOKE_TEST.md).
+Production hosting is **DigitalOcean App Platform** (`bulk-edit-prod-api`, `bulk-edit-prod-web`) +
+**Cloudflare** (DNS/TLS). Full walkthrough — app specs, env vars, custom domains, scheduled jobs — in
+[`DIGITALOCEAN_DEPLOY.md`](DIGITALOCEAN_DEPLOY.md) and [`CLOUDFLARE_DNS.md`](CLOUDFLARE_DNS.md).
+The original Vercel + Render plan ([`VERCEL_RENDER_DEPLOY.md`](VERCEL_RENDER_DEPLOY.md), [`PRODUCTION_SMOKE_TEST.md`](PRODUCTION_SMOKE_TEST.md))
+was superseded before it was ever provisioned in production and is kept only as historical reference — see `DECISIONS.md`.
 The stack stays provider-agnostic in code; the section below documents the neutral requirements.
 
 ### Provider (neutral — not chosen in code)

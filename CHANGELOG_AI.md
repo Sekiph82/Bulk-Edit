@@ -1,4 +1,6 @@
-# CHANGELOG_AI.md — AI Session Log
+# CHANGELOG_AI.md — AI Session Log (full engineering archive)
+
+**Role (2026-07-15):** this is the authoritative full build history — every sprint and session, in order, with file-level detail. `PROJECT_STATUS.md`, `TASKS.md`, and `HANDOFF.md` were trimmed to current-state-only during the 2026-07-15 documentation sync and now point here for anything historical rather than duplicating it. Kept in full (not deleted or merged into `CHANGELOG.md`) because it's the only place this level of engineering detail exists.
 
 Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 

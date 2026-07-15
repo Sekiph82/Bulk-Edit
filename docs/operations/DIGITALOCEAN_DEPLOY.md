@@ -1,7 +1,6 @@
 # DigitalOcean Deployment (App Platform + Cloudflare)
 
-Production target for Bulk Edit App. Staging is provisioned and validated first;
-production is provisioned only after the staging gate passes.
+**Current status (2026-07-15): this is the live hosting.** Production (`bulk-edit-prod-api`, `bulk-edit-prod-web`) has been provisioned and live since 2026-07-06 (Private Beta gate), running the Etsy-compliance deployment since 2026-07-14. The staging→production gate below is kept as the process record for how production was first provisioned, not a currently-pending step.
 
 Specs live in `.do/` (see `.do/README.md`). DNS/TLS/Access in `CLOUDFLARE_DNS.md`.
 
@@ -71,7 +70,7 @@ Required keys listed at the bottom of each backend spec.
 8. Trigger a deploy; confirm the pre-deploy migrate job succeeds.
 9. Run `scripts/smoke-production.ps1` adapted to staging hosts (or curl the health paths).
 
-## Staging -> production gate
+## Staging -> production gate (historical — production already passed this)
 
 Provision production only after ALL are true:
 - [ ] staging frontend + backend deploy successfully

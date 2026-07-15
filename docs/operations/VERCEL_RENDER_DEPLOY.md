@@ -1,6 +1,8 @@
 # Production Deployment — Vercel (frontend) + Render (backend)
 
-Chosen hosting for **bulkeditapp.com**:
+**SUPERSEDED (2026-07-15) — kept as historical reference only.** The project migrated to DigitalOcean App Platform + Cloudflare before this plan was ever provisioned in production (see `DECISIONS.md` "[DEPLOY] Migrating to DigitalOcean App Platform + Cloudflare"). Current live hosting is documented in `DIGITALOCEAN_DEPLOY.md` and `CLOUDFLARE_DNS.md` — use those, not this file, for anything touching the actual production environment.
+
+Originally chosen hosting for **bulkeditapp.com** (never went live):
 
 | Piece | Host |
 |---|---|

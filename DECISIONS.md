@@ -646,3 +646,17 @@ Previously stubbed `replace_video`/`delete_video` in `bulk_edit_media.py` are no
 Image reorder (`reorder_images`) stays a stub — this one's clean: no PATCH/PUT exists anywhere in Etsy's API to change an existing image's rank without re-uploading it. The only workaround (delete-then-reupload) has a real, uneliminable window where a *live, customer-facing* listing can show fewer/zero photos if the process fails mid-sequence — a risk Magic Revert can repair after the fact but can't prevent during. Not implemented rather than accepting that risk silently; documented in `bulk_edit_media.py`'s `_STUB_REASONS` with a path to revisit (sandbox testing first, or an explicit opt-in beta with a warning).
 
 Also found, not fixed as part of this: `apps/frontend/app/(app)/media/page.tsx`'s `OPERATION_OPTIONS` previously marked all six operations (including reorder and the old video stubs) as `implemented: true` — a real bug, since two of those were stubs and would silently fail. Fixed as part of this same change now that the backend truly matches the frontend's claims.
+
+---
+
+## 2026-07-13, third session (resolution of the account-deletion Stripe question)
+
+### [BILLING] Account deletion blocks on an active/billable Stripe subscription — does not auto-cancel
+Resolves the open question flagged in "[DEFERRED] Account deletion does not touch Stripe" above. Owner's explicit decision: block, don't auto-cancel — a subscription cancellation is a billing action serious enough to require the seller's own explicit step, not a side effect of account deletion. Implemented as `assert_account_deletion_billing_safe(org_id, db)` (`app/services/billing.py`), called from `delete_account()` before any row is touched. Reads only the local `Subscription` row (kept current by verified Stripe webhooks) — no live Stripe API call. Fail-closed allowlist: safe only when no `Subscription` row exists, the org is free-plan with no `stripe_subscription_id`, or the subscription is `canceled` with `current_period_end` already past (a `cancel_at_period_end=true` subscription that hasn't actually ended yet still blocks). Every other status — `active`, `trialing`, `past_due`, `unpaid`, `incomplete`, `incomplete_expired`, and any unrecognized future Stripe status — blocks by default, returning `409` (`ACTIVE_SUBSCRIPTION_MUST_BE_CANCELED` / `BILLING_PORTAL_UNAVAILABLE`). No Stripe IDs or billing metadata in the response. Full detail: `ETSY_DATA_RETENTION.md` §4b.
+
+---
+
+## 2026-07-15 (documentation full-sync session)
+
+### [LAUNCH] Private Beta gate stays enabled until Etsy's ban is resolved, regardless of engineering readiness
+`NEXT_PUBLIC_PRIVATE_BETA_MODE=true` on `bulk-edit-prod-web` is intentionally left on even though every other production-readiness item (Stripe Live, compliance fixes, retention automation) has passed. The explicit gate for disabling it has always been "both Etsy AND Stripe pass" (see the 2026-07-10 controlled-activation entries) — Etsy has not passed (app Banned, appeal not yet submitted), so the gate stays closed. This is a standing operational rule, not a one-time note: do not disable Private Beta on engineering merit alone: only after Etsy responds and OAuth is re-verified live.
