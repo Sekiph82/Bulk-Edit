@@ -19,7 +19,17 @@ Bulk-Edit lets Etsy sellers:
 
 ## Current Phase
 
-**Production.** Bulk Edit App is a feature-complete, deployed SaaS product (26+ shipped sprints — auth, billing, Etsy OAuth/sync, bulk edit engine with preview/backup/revert, AI tools, CSV import/export, dynamic pricing, scheduling, admin console). See `PROJECT_STATUS.md` for current live status and any open blockers.
+**Production.** Bulk Edit App is a feature-complete, deployed SaaS product (27 shipped sprints — auth, billing, Etsy OAuth/sync, bulk edit engine with preview/backup/revert, AI tools, CSV import/export, dynamic pricing, scheduling, admin console). See `PROJECT_STATUS.md` for current live status and any open blockers.
+
+## Production URLs
+
+| Site | URL |
+|---|---|
+| Marketing | https://bulkeditapp.com (and `www.`) |
+| Application | https://app.bulkeditapp.com (Private Beta gated for new sign-ups) |
+| API | https://api.bulkeditapp.com |
+
+Hosted on DigitalOcean App Platform + Cloudflare — see `docs/operations/DIGITALOCEAN_DEPLOY.md` / `CLOUDFLARE_DNS.md`.
 
 ## How Claude Should Continue
 
@@ -265,7 +275,7 @@ make health-redis  # GET http://localhost:8100/api/v1/health/redis
 | Frontend | Next.js 14, TypeScript, Tailwind CSS |
 | Backend | FastAPI, Python 3.12 |
 | Database | PostgreSQL 16 |
-| Cache / Queue | Redis 7 + Celery |
+| Cache | Redis 7 (scheduled/background tasks currently run inline or as DigitalOcean Scheduled Jobs — no Celery worker deployed yet, see `docs/operations/WORKERS.md`) |
 | Auth | JWT + Etsy OAuth2 |
 | Billing | Stripe |
 | Storage | S3-compatible |
