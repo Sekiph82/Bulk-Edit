@@ -1,5 +1,7 @@
 # ETSY_FEATURE_MATRIX.md
 
+**Current status (2026-07-15):** All "this branch" corrections below are live in production. Etsy app remains **Banned**; appeal drafted (`ETSY_FINAL_APPEAL_DRAFT.md`), not yet submitted.
+
 Per-feature compliance classification. Classifications: **A** allowed/production-ready · **B** allowed, needs correction (corrected in this branch unless noted) · **C** allowed only with Etsy-derived data isolated · **D** requires Etsy's express written authorization (flagged off by default) · **E** clearly prohibited · **F** incomplete/not production-ready.
 
 ---

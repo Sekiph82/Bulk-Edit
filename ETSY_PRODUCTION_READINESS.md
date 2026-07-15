@@ -1,5 +1,7 @@
 # ETSY_PRODUCTION_READINESS.md
 
+**Current status (2026-07-15):** every FIXED item below is live in production. Item 22's retention cleanup is now Option A (DO Scheduled Job, first run succeeded 2026-07-15, 0 rows deleted, no errors — see `ETSY_DATA_RETENTION.md` §2). Items 8/9/19 (Etsy OAuth/write) remain BLOCKED — Etsy app still Banned, no reason given, appeal drafted but not submitted. Items 6/29 remain MANUAL (owner-side, not re-verified this session — no new evidence either way).
+
 Full production workflow audit, items 1-30 as specified. Status legend: **OK** working as-is · **FIXED** corrected in this branch · **BLOCKED** blocked by the suspended Etsy key, mock/unit-tested only · **MANUAL** requires a manual verification pass the owner must run (cannot be safely automated in this session).
 
 1. **Homepage and public pages** — FIXED. Removed founding-access/pre-launch framing (see §"Website corrections" below); rest of the marketing site (features, pricing, FAQ, contact, blog, compare, tools) renders and builds cleanly.

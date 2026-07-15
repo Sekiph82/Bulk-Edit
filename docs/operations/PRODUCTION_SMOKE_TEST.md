@@ -1,5 +1,11 @@
 # Production Smoke Test
 
+**Superseded (2026-07-15)** — written for the original Vercel + Render plan, which was never
+provisioned in production. Current hosting is DigitalOcean App Platform + Cloudflare; use
+`scripts/smoke_test_deployment.ps1` / `.sh` (health, readiness, routes) plus the checks in
+`docs/operations/RUNBOOK.md` and `MONITORING.md` for the live equivalent. Kept below as historical
+reference for the general shape of a post-deploy smoke pass — domain/host-specific steps no longer apply.
+
 Run after every production deploy (Vercel frontend + Render backend). Fast pass/fail on the live
 `bulkeditapp.com` domain. Stop and roll back if a ❌ item fails.
 

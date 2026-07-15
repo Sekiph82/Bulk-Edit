@@ -3,11 +3,12 @@
 Production domain: **bulkeditapp.com** (purchased). This guide configures DNS, SSL, CORS, and
 OAuth/webhook callbacks for the production domain model.
 
-> **Chosen hosting: Vercel (frontend) + Render (backend).** For the step-by-step provider setup
-> (project settings, env vars, blueprint, custom domains), see
-> [`VERCEL_RENDER_DEPLOY.md`](VERCEL_RENDER_DEPLOY.md). This file covers the DNS/SSL/CORS layer that
-> applies regardless of provider. With Vercel + Render: add `www` + apex in Vercel (apex set to
-> "Redirect to www"), add `api` in Render — each shows the exact DNS target to enter at your registrar.
+> **Current hosting: DigitalOcean App Platform (frontend + backend) + Cloudflare (DNS/TLS).** For the
+> step-by-step provider setup (app specs, env vars, custom domains), see
+> [`DIGITALOCEAN_DEPLOY.md`](DIGITALOCEAN_DEPLOY.md) and [`CLOUDFLARE_DNS.md`](CLOUDFLARE_DNS.md) — the
+> latter is authoritative for actual DNS records. This file covers the DNS/SSL/CORS layer conceptually;
+> the older Vercel + Render specifics below (`VERCEL_RENDER_DEPLOY.md`) were superseded before production
+> ever used them and are kept only as historical reference.
 
 ## Domain Model
 

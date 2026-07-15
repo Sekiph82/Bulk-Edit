@@ -1,5 +1,7 @@
 # ETSY_SUPPORT_QUESTIONS.md
 
+**Status:** superseded as the appeal draft — use `ETSY_FINAL_APPEAL_DRAFT.md` for the actual message to send. **This file is kept anyway**, unmodified, because its Q1/Q2/Q3 numbering is cited by name in 5 production code comments as the pending-clarification pointer for real runtime gates: `apps/backend/app/core/config.py` (`ALLOW_ETSY_DATA_TO_AI`), `apps/backend/app/services/ai_tools.py`, `apps/backend/app/api/v1/listing_health.py`, `apps/frontend/lib/featurePages.ts`, `apps/frontend/components/marketing/EtsySeoSection.tsx`. Deleting or renumbering this file would break those references; updating the comments themselves is a code change, out of scope for a docs-only cleanup. If those comments are ever touched in a future code change, point them at `ETSY_FINAL_APPEAL_DRAFT.md` §F instead and retire this file then.
+
 ## Draft message to Etsy (developer@etsy.com, and/or the app-review contact if the ban notice provides one)
 
 > Subject: Appeal + compliance questions — app "bulk-edit-app" (client_id 7usvn9q6itlj6306sef64god), status "Banned"

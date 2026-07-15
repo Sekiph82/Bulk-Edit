@@ -1,201 +1,47 @@
 # PROJECT_STATUS.md
 
+Single current-state source of truth. For history, see `CHANGELOG.md` (product/release) and `CHANGELOG_AI.md` (full engineering session log, Sprint 0 onward). For the next session's exact resume point, see `HANDOFF.md`. For durable architecture/product decisions, see `DECISIONS.md`.
+
 ## Current Phase
 
-**Production is LIVE (bulk-edit-prod-api / bulk-edit-prod-web) under Private Beta gate, now running the full Etsy compliance + production-readiness correction pass (merged and deployed 2026-07-14, merge commit `435a1aa`). Etsy developer app remains BANNED (escalated 2026-07-13, no reason given) — appeal still not submitted. Stripe Live checkout was previously validated and PASSED (2026-07-10). Private Beta correctly stays enabled until Etsy responds to the appeal.**
+Post-launch operations. Production is **LIVE** under Private Beta (new sign-ups paused) since 2026-07-06, running the Etsy-compliance deployment since 2026-07-14. All planned sprints (0-27, incl. Productization UI, Landing Animation, CI/CD, monitoring) are complete — see `CHANGELOG_AI.md` for the full build history. Current work is compliance/appeal/documentation, not feature development.
 
-## Status
+## Production Status
 
-`Stripe Live: products/prices/env fully configured and validated end-to-end (2026-07-10) — Basic Monthly Live Checkout Session created via a controlled internal test account, $19 USD confirmed, production success/cancel URLs confirmed, one live customer created, zero charges/subscriptions. All four price mappings confirmed via Stripe Price lookups.`
+| Component | Status |
+|---|---|
+| Backend (`bulk-edit-prod-api`) | LIVE, healthy |
+| Frontend (`bulk-edit-prod-web`) | LIVE, healthy |
+| PostgreSQL | Connected |
+| Redis | Connected |
+| Alembic revision | `0025` (single head) |
+| Private Beta (`app.bulkeditapp.com`) | **Enabled** — new sign-ups paused, 307 → `/private-beta` on all app routes |
+| Retention cleanup | **Option A live** — DO Scheduled Job `retention-cleanup`, `30 3 * * *` (03:30 UTC daily). First real execution succeeded 2026-07-15, 03:31:29–03:31:31 UTC, 0 rows deleted (all 4 tables), no errors. |
+| Stripe | Live products/prices/env configured, validated end-to-end 2026-07-10 (controlled test account, zero real charges) |
+| Etsy developer app | **Banned** (escalated 2026-07-13, no reason given by Etsy) |
 
-`Etsy: app status escalated from "pending review" to "Banned" with no explanation. Full compliance audit completed 2026-07-13 (see ETSY_COMPLIANCE_AUDIT.md) — found and fixed: OAuth granted-scope storage bug, disconnect not deleting tokens, no AI-data authorization gate, no snapshot retention limit, public site pre-launch/beta framing contradicting a live product, and several other items (full list in ETSY_FEATURE_MATRIX.md). A second owner-review validation pass (same day, real Postgres, no delegated write access) additionally found and fixed two real account-deletion bugs invisible to SQLite tests — a SQLAlchemy relationship-cascade crash, and 9 tables missing `organization_id` foreign keys entirely (meaning "deleted" accounts left Etsy shop/token/listing data orphaned) — migration 0025, full detail in ETSY_DATA_RETENTION.md §4a. A third session (same day) implemented the owner's decision on the one remaining item: account deletion is now blocked (HTTP 409) while an organization has an active or billable Stripe subscription — never auto-canceled — via a new local-only eligibility check (`assert_account_deletion_billing_safe`, ETSY_DATA_RETENTION.md §4b), with a minimal deletion UI added to the existing `/billing` page. Frontend (tsc/lint/build, 82 routes) and backend (**975/975 tests**) verified clean via a full independent run, including 2 additional real-Postgres end-to-end scenarios for the new billing gate.`
+## Environment Status
 
-`Fourth session: PR #56 opened from the branch (6 logical commits, no secrets, detailed body). Fifth session: CI's CodeQL check failed on 2 findings (illegal raise-of-None in etsy_http.py, unused import in run_retention_cleanup.py) — both fixed, full suite re-confirmed 975/975 twice, all 6 required checks green. Final pre-merge diff review found no secrets/staging leaks/invented legal facts/false claims; live pricing verified correct ($0/$19/$49/mo, $180/$468/yr — old $9/$29 confirmed absent). PR #56 merged to main (435a1aa) and deployed DIRECTLY to production per explicit owner instruction — no staging step. Pre-deploy gates (DB backup confirmed same-day, 0-orphan preflight across all 9 FK-gaining tables) both passed before DO App Platform's auto-deploy-on-push fired for both prod apps. Migration 0025 applied cleanly on production (alembic_version=0025, all 9 FK constraints confirmed present with ON DELETE CASCADE). Post-deploy verification: health/readiness/redis all ok; Private Beta gate intact (307→/private-beta on every app.bulkeditapp.com/* route); AI-optimization/health-score public pages 404 as intended; ALLOW_ETSY_DATA_TO_AI not overridden in prod env (stays code-default False) and AI_PROVIDER=mock in prod (no live AI calls possible right now regardless); terms/privacy/trademark copy live and correct; retention cleanup script deployed but NOT scheduled (Option B — no CRON job wired, manual trigger only for now). Rollback baseline recorded: prod-api → deployment d8acd5a4 (pre-merge, main@9dfa89e), prod-web → deployment 38cb833e (pre-merge, main@9dfa89e); rollback path is a git revert of 435a1aa + push (auto-redeploys), or the DO console's per-app rollback button — no doctl rollback subcommand exists in this version.`
+- Backend tests: **982 passed**, 0 failed (targeted retention: 7/7).
+- Frontend: `tsc --noEmit` clean, `next lint` 0 errors, `next build` clean.
+- Hosting: DigitalOcean App Platform + Cloudflare (see `docs/operations/DIGITALOCEAN_DEPLOY.md`, `CLOUDFLARE_DNS.md`). The original Vercel + Render plan was superseded before it was ever provisioned — see `DECISIONS.md`.
+- AI: `ALLOW_ETSY_DATA_TO_AI` defaults `false` (not overridden in production); `AI_PROVIDER=mock` in production, so no live AI provider call is possible right now regardless of the flag.
+- Pricing (live, confirmed correct): Free $0/mo · Basic $19/mo ($180/yr) · Pro $49/mo ($468/yr).
 
-`Sixth session: PR #57 (session-log docs) merged (8345de4), retriggered both prod apps' auto-deploy, reconfirmed healthy. Converted retention cleanup from Option B to Option A: added --dry-run + count_expired_snapshots() (7 new tests), discovered DO App Platform's time-based job kind is SCHEDULED not CRON (verified directly against the live API), built ops/app-specs/bulk-edit-prod-api.yaml adding a retention-cleanup SCHEDULED job (03:30 UTC daily). Local Postgres verification passed exactly as specified (4 expired + 4 unexpired seeded, dry-run found 4/deleted 0, real run deleted 4/preserved 4, second run deleted 0). Full suite 982/982 passed. PR #58 opened, all 6 checks green, merged (5f0cdb8) — retriggered both apps' auto-deploy again, reconfirmed healthy. Applied doctl apps update to register the new job component (a brand-new component isn't picked up by deploy_on_push alone) — confirmed live via doctl: retention-cleanup, kind SCHEDULED, cron "30 3 * * *", correct command, single instance, no public route. Production dry-run confirmed 0 expired candidates across all 4 tables both before and after this deploy — well below anomaly thresholds. Did not manually trigger the real cleanup; the first actual execution is left to the 03:30 UTC scheduled run and has not yet happened as of this session — not claimed as succeeded.`
+## Known Blockers
 
-`Next action: owner may submit the Etsy appeal (ETSY_APPEAL_CHECKLIST.md, ETSY_SUPPORT_QUESTIONS.md draft, plus the new ETSY_FINAL_APPEAL_DRAFT.md once written this session) — not yet submitted, awaiting explicit approval. Private Beta (NEXT_PUBLIC_PRIVATE_BETA_MODE=true) remains enabled — do not disable until Etsy responds. Stripe webhook endpoint existence/events still unverifiable via the Stripe MCP connector — same limitation as prior sessions.`
+- **Etsy developer app "bulk-edit-app" is Banned**, no reason given. Blocks all live Etsy OAuth/API testing. Appeal fully drafted (`ETSY_FINAL_APPEAL_DRAFT.md`) but **not submitted** — requires owner review and explicit send.
+- Email-delivery domain verification (Resend, `bulkeditapp.com`) status not re-checked this session — see `docs/operations/PRODUCTION_LAUNCH_FOLLOWUPS.md` if this becomes relevant again.
+
+## Manual Owner Actions Required
+
+1. Review `ETSY_FINAL_APPEAL_DRAFT.md` in full, work through its §G pre-submission checklist (includes a manual in-browser re-check of Etsy's trademark-disclaimer wording — automated fetches of etsy.com legal pages are bot-blocked), fill in `[Owner name]`, and send it from the account/inbox that manages the Etsy developer app.
+2. Nothing else is currently blocking — no other owner action is outstanding.
+
+## Current Next Action
+
+Owner reviews and (if approved) submits the Etsy appeal. No further engineering work is blocking that step. Once Etsy responds: re-test live OAuth, live Etsy writes, and the listing-video-upload endpoint (never exercised live — see `DECISIONS.md`).
 
 ## Last Updated
 
-2026-07-14
-
-## Active Skills
-
-None (between sprints)
-
-## Completed Sprints
-
-- Sprint 0: Project Memory and Operating System ✓
-- Sprint 1: Monorepo Skeleton ✓
-- Sprint 2: Auth + Organization ✓
-- Sprint 3: Stripe Billing and Feature Gates ✓
-- Sprint 4: Etsy OAuth2 PKCE Flow ✓
-- Sprint 5: Etsy Listing Sync ✓
-- Sprint 6: Listings Grid UX ✓
-- Sprint 7: Bulk Edit Preview Engine ✓
-- Sprint 8: Etsy Write + Backup ✓
-- Sprint 9: Magic Revert ✓
-- Sprint 10: Etsy Inventory Writes (Price/Quantity) ✓
-- Sprint 11: Photo / Video Bulk Editor ✓
-- Sprint 12: Variation Editor ✓
-- Productization UI Sprint ✓ (Design system installed, all 9 customer-facing pages polished, build passing)
-- Landing Animation Sprint ✓ (AnimatedProductDemo + 2-column hero, motion v12, build passing)
-- Sprint 13: AI Tools ✓ (provider abstraction, 9 endpoints, 32 tests, /ai page, 304/304 suite)
-- Sprint 14: CSV Import / Export ✓ (CSVJob + CSVRow models, 6 endpoints, 49 tests, /csv page, 353/353 suite)
-- Sprint 15: Dynamic Pricing ✓ (DynamicPricingJob + DynamicPricingRecommendation models, 10 endpoints, 50 tests, /pricing-rules page, 403/403 suite)
-- Local Dev Reliability ✓ (gitignored seed config, local_seed.py service, bat readiness polling, FastAPI lifespan startup hook, 431/431 suite)
-- Sprint 16: Scheduled Jobs ✓ (ScheduledJob + ScheduledJobRun models, migration 0013, schedule calculator, 11 API endpoints, plan gates, /scheduled page, 41 tests, 479/479 suite)
-- Sprint 17: Admin Panel ✓ (20 endpoints all require_superuser, 16 schemas, paginated service, 42 tests, /admin page, 521/521 suite)
-- Sprint 17.5: Marketing Polish ✓ (MarketingNav, MarketingFooter, /features, /faq, /contact-us, motion v12 animations, globals.css design system, Etsy legal disclaimer, 22 routes build clean, 521/521 suite)
-- Sprint 17.5-B: Theme System + fmcg Visual Language ✓ (ThemeProvider, ThemeToggle, AppShell, anti-flash script, (app)/ route group, 11 app pages migrated, full dark mode CSS, 22 routes, 521/521 suite)
-- Sprint 18: Security Hardening + Deployment Readiness ✓ (45 security tests, /health/ready endpoint, mojibake fix, accessibility, ENVIRONMENT.md, TESTING.md, 566/566 suite)
-- Sprint 19: Internal Admin Business Dashboard ✓ (6-tab dashboard, 5 new summary endpoints, Admin nav gated to superusers, 17 new tests, 20 routes, 0 TS errors)
-- Sprint 20: Launch QA, CI/CD, E2E, Rate Limiting, CSP ✓ (GitHub Actions CI, Playwright E2E, rate limiting, security headers, CSP, launch checklist, 595/595 tests)
-- Sprint 21: Production Monitoring, Redis Rate Limiting, Sentry, Celery Readiness ✓ (Redis rate limiter, Sentry backend, system-health monitoring fields, MONITORING.md, RUNBOOK.md, WORKERS.md, e2e.yml, 609/609 tests)
-- Sprint 22: First-Run Onboarding, Non-Superuser Seed, Etsy Connection UX ✓ (seed role fix, OnboardingChecklist, dashboard shop/listing count fetch, Etsy trademark note, 621/621 tests)
-- Sprint 23: Production Deployment Readiness Kit ✓ (validate_env.py, smoke_test scripts, docker-compose.prod.example.yml, 6 ops docs, CI validate_env step, 621/621 tests)
-- Sprint 24: Listing Health Score + Profit & Cost Calculator ✓ (health score engine, profit calculator, migration 0014, 9 API endpoints, 2 frontend pages, dashboard widgets, 52 new tests, 673/673 total)
-- Sprint 25: Promote Health & Profit + Media Local Upload ✓ (FAQ disclaimer removed, features/homepage/pricing updated, Shops nav added, cross-links added, LocalUploadPanel in media, 4 new E2E tests, 673/673 backend, 25/25 Playwright)
-- Sprint 26 follow-up: Real ffmpeg rendering + Pinterest/Instagram OAuth ✓
-- Sprint 26 polish: Etsy video spec compliance + promote page clarity ✓ (4 aspect ratios, 5-15s validation, 100MB check, etsy_ready checklist, per-state copy, migration 0017, 747/747 tests)
-
-## Local Development (Windows)
-
-**For developers (already have Docker + repo cloned):**
-- `start-dev.bat` — double-click to start all services (preserves volumes, streams logs)
-- `start-dev-clean.bat` — full reset including volume deletion (requires typing YES to confirm)
-
-**For friend / reviewer (no developer tools needed):**
-- `setup-and-start.bat` — double-click; installs Git + Docker Desktop via winget if missing, clones repo to Desktop, builds, starts, opens browser at http://localhost:3100
-- `setup-and-start-clean.bat` — same with volume reset (requires YES confirmation)
-
-All scripts: check Docker, auto-create `.env` from `.env.example` if missing, enforce `docker compose -p bulk-edit` project name, safely stop old `fmcg-erp-system-main` ERP containers before starting.
-
-## Blockers
-
-- Etsy developer app "bulk-edit-app" is **Banned** (escalated from "pending review" 2026-07-13, no reason given). Blocks all live Etsy OAuth/API testing. Appeal drafted in `ETSY_SUPPORT_QUESTIONS.md`, not yet sent (requires owner to send from the account that manages the Etsy developer app).
-
-## Known Issues
-
-- `anyio==4.6.2` in requirements-dev.txt is yanked. Works fine. Upgrade when 4.7.0 stable.
-- Frontend `npm install` not run — node_modules absent. Run `npm install` or `docker compose up`.
-- Etsy access token auto-refresh not fully implemented. Partial: logs warning but uses token anyway. Full auto-refresh deferred to Sprint 10+.
-- `fetch_listing_videos` best-effort: returns empty list on 404/405.
-- Inline sync blocks HTTP thread. Celery background task deferred to Sprint 10.
-- Price/quantity Etsy writes implemented (Sprint 10). Variation listings handled in Sprint 12 variation editor.
-- Photo/video Etsy writes implemented (Sprint 11). Video upload/delete/reorder stubs only — requires direct file upload or S3 (Sprint 12+).
-- Variation inventory writes implemented (Sprint 12). Revert for variations deferred to Sprint 13 — backup snapshots created to enable it.
-- AuditLog model uses `extra_data` attribute in Python (SQLAlchemy reserved `metadata` name), stored as `metadata` column in DB.
-
-## Test Results
-
-| Test File | Result |
-|---|---|
-| `pytest tests/test_health.py` | 4/4 PASSED |
-| `pytest tests/test_auth.py` | 14/14 PASSED |
-| `pytest tests/test_billing.py` | 26/26 PASSED |
-| `pytest tests/test_etsy.py` | 15/15 PASSED |
-| `pytest tests/test_listings.py` | 34/34 PASSED |
-| `pytest tests/test_bulk_edit.py` | 38/38 PASSED |
-| `pytest tests/test_bulk_edit_apply.py` | 22/22 PASSED |
-| `pytest tests/test_bulk_edit_revert.py` | 28/28 PASSED |
-| `pytest tests/test_bulk_edit_inventory.py` | 19/19 PASSED |
-| `pytest tests/test_bulk_edit_media.py` | 25/25 PASSED |
-| `pytest tests/test_bulk_edit_variation.py` | 47/47 PASSED |
-| `pytest tests/test_ai_tools.py` | 32/32 PASSED |
-| `pytest tests/test_csv_tools.py` | 49/49 PASSED |
-| `pytest tests/test_dynamic_pricing.py` | 50/50 PASSED |
-| `pytest tests/test_seed_local_superusers.py` | 23/23 PASSED |
-| `pytest tests/test_windows_batch_readiness.py` | 12/12 PASSED |
-| `pytest tests/test_scheduled_jobs.py` | 41/41 PASSED |
-| `pytest tests/test_admin_panel.py` | 42/42 PASSED |
-| `pytest tests/test_security_hardening.py` | 45/45 PASSED |
-| `pytest tests/test_rate_limiting.py` | 9/9 PASSED |
-| `pytest tests/test_security_headers.py` | 10/10 PASSED |
-| `pytest tests/test_admin_dashboard.py` | 17/17 PASSED |
-| **Full suite `pytest`** | **617/617 PASSED** |
-
-## Sprint 11 — New Files
-
-| File | Description |
-|---|---|
-| `app/models/bulk_edit_media_job.py` | Media job tracking (status machine, counters) |
-| `app/models/bulk_edit_media_result.py` | Per-listing media write result |
-| `app/models/listing_media_backup_snapshot.py` | Pre-write images/videos snapshot |
-| `alembic/versions/0008_create_bulk_edit_media_tables.py` | Migration for 3 new tables |
-| `app/services/etsy_media_write.py` | Etsy image fetch/upload (multipart URL-download)/delete; video stubs |
-| `app/schemas/bulk_edit_media.py` | 6 Pydantic schemas |
-| `app/services/bulk_edit_media.py` | Full orchestration: create_media_job, apply_media_job, backup, audit |
-| `app/api/v1/bulk_edit_media.py` | 6 REST endpoints |
-| `tests/test_bulk_edit_media.py` | 25 tests |
-| `apps/frontend/app/media/page.tsx` | Photo & Video Bulk Editor UI |
-
-## Sprint 10 — Modified/New Files
-
-| File | Description |
-|---|---|
-| `app/services/etsy_write.py` | Added `build_etsy_inventory_payload` + `patch_etsy_listing_inventory` |
-| `app/services/bulk_edit_apply.py` | Dual-write: listing PATCH + inventory PUT; structured payloads |
-| `app/services/bulk_edit_revert.py` | Inventory revert from snapshot; local price restored only after success |
-| `tests/test_bulk_edit_inventory.py` | 19 tests (9 unit + 10 integration) |
-| `apps/frontend/app/bulk-edit/page.tsx` | Revert modal warning updated; variation skip notice added |
-
-## Sprint 9 — New Files
-
-| File | Description |
-|---|---|
-| `app/models/revert_job.py` | Revert job with status + counters |
-| `app/models/revert_result.py` | Per-listing revert result (nullable backup_snapshot_id) |
-| `alembic/versions/0007_create_bulk_edit_revert_tables.py` | Migration for revert_jobs + revert_results |
-| `app/schemas/bulk_edit_revert.py` | RevertJobOut, RevertResultOut, RevertJobWithResultsOut, RevertResultPageOut |
-| `app/services/bulk_edit_revert.py` | Full revert orchestration with safety gates |
-| `tests/test_bulk_edit_revert.py` | 28 tests (unit + API) |
-
-## Safety Gates (Sprint 9)
-
-All enforced in `revert_apply_job()` before any revert write:
-1. `ETSY_CLIENT_ID` must be configured
-2. Apply job must belong to organization (404 if not)
-3. Apply job must be `completed` or `completed_with_errors`
-4. No existing completed/running RevertJob for this apply job (409 if duplicate)
-5. Only `success` apply results are iterated (never reverts failed results)
-6. Per-listing: uses pre-write backup snapshot as source of truth
-7. Local Listing row updated ONLY after Etsy revert write success
-8. Backup snapshots never deleted
-9. Audit log written on revert start + revert finish
-10. Partial failures supported — each listing gets its own RevertResult row
-
-## Safety Gates (Sprint 8)
-
-All enforced in `apply_bulk_edit_session()` before any write:
-1. Session must be `preview_ready`
-2. Zero `invalid` preview items
-3. `ETSY_CLIENT_ID` must be configured (non-placeholder)
-4. Plan usage limit not exceeded
-5. Per-listing: backup snapshot created BEFORE write
-6. Local Listing row updated ONLY after Etsy write success
-7. Audit log written on job start + job finish
-
-## Port Configuration
-
-| Service | Host Port | Container Port |
-|---|---|---|
-| Frontend | 3100 | 3000 |
-| Backend | 8100 | 8000 |
-| PostgreSQL | 55432 | 5432 |
-| Redis | 56379 | 6379 |
-
-## Metrics
-
-| Metric | Value |
-|---|---|
-| Sprints complete | 21 / 21 (incl. Productization UI, Landing Animation, AI, CSV, DP, local dev, scheduled jobs, admin panel, admin dashboard, CI/CD, monitoring) |
-| Backend Python files | 132+ |
-| Frontend TypeScript files | 31 |
-| Total tests | 617 |
-| Open blockers | 0 |
-
-## Next Action
-
-Begin Sprint 22: User onboarding flow, empty state polish, first-run wizard, analytics events. See HANDOFF.md for exact prompt.
+2026-07-15
