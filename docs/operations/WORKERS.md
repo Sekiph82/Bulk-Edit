@@ -99,7 +99,18 @@ When a real Celery worker is added (see Future Celery Architecture above), migra
 
 **Manual recovery:** if the scheduled job is ever paused, deleted, or fails silently, retention is not lost — `expires_at` is stored on every row regardless of whether cleanup has run, and reverts against an expired-but-undeleted snapshot already fail safely with "backup snapshot no longer available" rather than serving stale data. To catch up manually: `doctl apps create-deployment <app-id>` does not trigger a one-off job run; instead run `docker compose exec backend python scripts/run_retention_cleanup.py --dry-run` first to confirm counts are sane, then the same command without `--dry-run` inside the production container (e.g. via `doctl apps console`), or re-deploy after fixing the underlying issue so the next scheduled run catches up on its own.
 
-**Monitoring:** check job run status and logs via `doctl apps logs <app-id> --component retention-cleanup --type run`, or the DO App Platform console's Activity tab for the app. A failed run exits non-zero and is visible there; it does not silently disappear.
+**Monitoring:** `doctl apps logs` takes the component name as a positional argument, not a `--component` flag, and for a `SCHEDULED` job (not tied to the current deployment the way `PRE_DEPLOY` jobs are) you need the specific invocation ID before it will return anything:
+
+```bash
+# 1. Find recent invocations and their status/timestamps:
+doctl apps list-job-invocations <app-id> --job-name retention-cleanup \
+  --format ID,Jobname,Created,Started,Completed,Phase
+
+# 2. Fetch that invocation's run logs:
+doctl apps logs <app-id> retention-cleanup --job-invocation <invocation-id> --type run
+```
+
+Or use the DO App Platform console's Activity tab for the app. A failed run exits non-zero and is visible there; it does not silently disappear.
 
 ---
 
