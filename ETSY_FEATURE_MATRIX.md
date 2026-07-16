@@ -1,6 +1,6 @@
 # ETSY_FEATURE_MATRIX.md
 
-**Current status (2026-07-15):** All "this branch" corrections below are live in production. Etsy app remains **Banned**; appeal drafted (`ETSY_FINAL_APPEAL_DRAFT.md`), not yet submitted.
+**Current status (2026-07-16):** All "this branch" corrections below are live in production, and public marketing exposure remains accurate as of PR #64 (2026-07-16): AI-related public marketing wording is neutralized site-wide (homepage, pricing, `/features`, FAQ, feature-page registry), internal authenticated features (AI suggestion tools, Listing Health) remain unchanged and available in-app, and the external Etsy-derived-data AI pathway (`ALLOW_ETSY_DATA_TO_AI`) remains disabled by default in production. Etsy app remains **Banned**; **appeal submitted by owner** (`ETSY_FINAL_APPEAL_DRAFT.md`), awaiting response.
 
 Per-feature compliance classification. Classifications: **A** allowed/production-ready · **B** allowed, needs correction (corrected in this branch unless noted) · **C** allowed only with Etsy-derived data isolated · **D** requires Etsy's express written authorization (flagged off by default) · **E** clearly prohibited · **F** incomplete/not production-ready.
 

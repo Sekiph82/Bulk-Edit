@@ -2,23 +2,24 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-07-15
+## RESUME HERE — 2026-07-16
 
-**Current state:** Production is LIVE and healthy (backend/frontend/DB/Redis all confirmed, migration `0025`, Private Beta enabled). Retention cleanup is Option A — DO Scheduled Job, first real execution succeeded 2026-07-15 (0 rows deleted, no errors). Etsy developer app remains **Banned**, no reason given. The final appeal package (`ETSY_FINAL_APPEAL_DRAFT.md`) is fully drafted and updated with the retention-run evidence, but **explicitly marked NOT SUBMITTED** — this requires the owner's own review and send, not something to do autonomously. PR #61 (retention-monitoring doc fix) and PR #62 (finalized appeal draft) are both merged. A documentation full-sync pass (this session) consolidated `PROJECT_STATUS.md`/`TASKS.md`/this file, synchronized the Etsy compliance docs, and fixed stale Vercel/Render-as-current-hosting claims in the operations docs.
+**Current state:** the Etsy appeal has been **submitted by the owner**. Production is LIVE and fully healthy (backend/frontend/DB/Redis all confirmed, migration `0025`, Private Beta enabled). Retention cleanup is Option A — DO Scheduled Job, **second consecutive successful run** 2026-07-16 (03:31:12–03:31:33 UTC, invocation `ad207ee4-f05c-4038-b244-6e54bf9fd13a`), following the first success on 2026-07-15. PR #64 (`fix/current-public-copy-appeal-alignment`, merge commit `6be4046e6059e1bdcfb8b4fa49c6dd1e349fc34c`) aligned the public website with the submitted appeal — neutralized remaining public AI wording (homepage, pricing, /features, FAQ, feature registry), updated Privacy/Terms for the current AI-safeguard and retention/account-deletion behavior — and was merged, deployed, and live-verified. No authenticated in-app functionality was removed or changed. There is **no active engineering work**.
 
 **Critical environment facts:**
 - Hosting: DigitalOcean App Platform (`bulk-edit-prod-api`, `bulk-edit-prod-web`) + Cloudflare. App IDs: prod-api `2f37fa86-a826-4dc2-b5d3-22f44d85cb1c`, prod-web `fb4415ca-cd2d-4929-a754-08f1893f4d25`.
 - **Merging to `main` triggers an immediate production rebuild for BOTH apps** (`deploy_on_push: true`, no path filter) — even a docs-only merge redeploys both. Always confirm DB backup + any relevant preflight *before* merging, not after; the merge itself is the deploy trigger.
 - Retention job monitoring: `doctl apps list-job-invocations <app-id> --job-name retention-cleanup --format ID,Jobname,Created,Started,Completed,Phase`, then `doctl apps logs <app-id> retention-cleanup --job-invocation <id> --type run`. (`--component` is not a real flag — component name is positional.)
-- Backend tests: 982 passed (current authoritative count — anything citing 975/971/968/964 elsewhere is historical, already annotated as superseded where it appears).
+- Checking Alembic revision live without a direct DB connection: the `migrate` PRE_DEPLOY job (`alembic upgrade head`) runs on every deploy — `doctl apps logs <api-app-id> migrate --deployment <deployment-id> --type run` shows "Running upgrade" lines only if something was actually applied. No lines + a repo migration chain topping out at the expected revision = confirmation, without ever opening a credentialed DB connection. (A prior session attempt to install a DB driver for a direct query was correctly blocked by the permission system — don't repeat that; this log-based method is the safer existing path.)
+- Backend tests: 982 passed (current authoritative count).
 
-**Current branch/PR state:** `docs/full-project-state-sync` (this session's documentation cleanup) — not yet opened as a PR as of this writing. `main` is otherwise clean; no other open feature branches in flight.
+**Current branch/PR state:** `main` is clean and matches `origin/main`. No open feature branches. PR #64 is merged and closed.
 
-**Unresolved work:** none engineering-side. The only remaining step in the Etsy compliance effort is the owner's own appeal submission — see Pending Owner Action in `TASKS.md`.
+**Unresolved work:** none engineering-side. The only remaining step is external: **waiting for Etsy's response** to the submitted appeal.
 
-**Exact next step:** if `docs/full-project-state-sync` hasn't been opened/merged yet, finish that (PR, CI, merge, post-merge prod health check). Otherwise: nothing is blocking engineering work. Whenever the owner is ready, they review and send `ETSY_FINAL_APPEAL_DRAFT.md`. After Etsy responds (either direction), re-test live OAuth, live Etsy writes, and the never-tested-live video-upload endpoint.
+**Exact next step:** wait for Etsy's response. Do not create a new Etsy developer app, do not disable Private Beta, do not enable Etsy-derived external AI processing (`ALLOW_ETSY_DATA_TO_AI`), and do not attempt live Etsy OAuth/write until Etsy access is restored. When Etsy responds, record their answer exactly (see `ETSY_FINAL_APPEAL_DRAFT.md` / `ETSY_APPEAL_CHECKLIST.md`) before deciding next steps — then re-test live OAuth, live Etsy writes, and the never-tested-live video-upload endpoint.
 
-**Safety constraints still active:** never print secrets/tokens or DigitalOcean's `EV[...]` encrypted placeholders; no live Etsy write/OAuth test while banned; no real Stripe charge/subscription/refund without explicit instruction; do not disable Private Beta until Etsy responds; no DNS/Cloudflare/owner-domain changes without explicit instruction; do not deploy without explicit go-ahead beyond normal PR-merge flow; do not submit the Etsy appeal — that is the owner's action alone.
+**Safety constraints still active:** never print secrets/tokens or DigitalOcean's `EV[...]` encrypted placeholders; no live Etsy write/OAuth test while banned; no real Stripe charge/subscription/refund without explicit instruction; do not disable Private Beta until Etsy responds; no DNS/Cloudflare/owner-domain changes without explicit instruction; do not deploy without explicit go-ahead beyond normal PR-merge flow; do not submit another Etsy appeal or contact Etsy again unless the owner explicitly decides to.
 
 ---
 

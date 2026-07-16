@@ -95,7 +95,7 @@ Both commands print aggregate counts only — no listing content, titles, descri
 
 Note: DigitalOcean App Platform's job `kind` enum for time-based execution is `SCHEDULED`, not `CRON` — confirmed directly against the API (`doctl apps propose`) after `kind: CRON` was rejected as an unknown enum value. Anything describing this as a "CRON job component" elsewhere in this repo's docs means a `SCHEDULED`-kind DO job configured with a cron expression, not a literal `kind: CRON`.
 
-**First real execution confirmed:** 2026-07-15, 03:31:29–03:31:31 UTC (invocation `afa4c26d-30fa-4a83-ae84-a415c0afacd6`) — clean `COMMIT`, 0 rows deleted across all four tables, no errors. The scheduler is not just configured, it has run successfully at least once in production.
+**First real execution confirmed:** 2026-07-15, 03:31:29–03:31:31 UTC (invocation `afa4c26d-30fa-4a83-ae84-a415c0afacd6`) — clean `COMMIT`, 0 rows deleted across all four tables, no errors. **Second consecutive successful run confirmed:** 2026-07-16, 03:31:30–03:31:33 UTC (invocation `ad207ee4-f05c-4038-b244-6e54bf9fd13a`), phase `SUCCEEDED`. The scheduler is not just configured, it is running successfully on its daily schedule in production.
 
 When a real Celery worker is added (see Future Celery Architecture above), migrate this into a Celery Beat periodic task rather than the DO Scheduled Job.
 

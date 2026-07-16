@@ -2,9 +2,9 @@
 
 # Submission status
 
-**Not submitted.**
+**Submitted by owner, on/around 2026-07-16.** Exact submission timestamp and case/ticket number not yet recorded in this repo — record them here (or in `PROJECT_STATUS.md`/`ETSY_APPEAL_CHECKLIST.md`) as soon as available.
 
-**Owner approval required** before any part of this document is sent to Etsy. See section G (pre-submission checklist) for what to confirm first.
+**Do not submit another appeal or contact Etsy again** unless Etsy explicitly asks for more information or the owner explicitly decides to. The body below (sections A–G) is kept as the submitted copy, unmodified, for reference — see `ETSY_APPEAL_CHECKLIST.md` for the post-submission checklist (what to do while awaiting Etsy's response).
 
 ---
 
