@@ -7,6 +7,29 @@ this project uses date-based release headings until versioned releases begin.
 > AI-assisted session-by-session detail lives in `CHANGELOG_AI.md`. This file is
 > the human-facing, product-level changelog.
 
+## [2026-07-16] Public website aligned with submitted Etsy appeal
+
+### Changed
+- Removed remaining public "AI optimization"/"AI credits"/"AI Listing Optimization" wording from the
+  homepage, pricing page/preview, `/features` metadata and safety copy, FAQ, and feature-page registry
+  (PR #64, merge `6be4046e6059e1bdcfb8b4fa49c6dd1e349fc34c`), replacing it with neutral phrasing so
+  public marketing no longer implies broader external AI processing than production performs.
+- Updated Privacy Policy: sending Etsy-derived listing data to an external AI provider is disabled by
+  default in production pending Etsy's written confirmation; corrected stale copy that claimed
+  self-service account deletion didn't exist (it does — password-confirmed, blocked while a Stripe
+  subscription is active/billable).
+- Updated Terms of Service: added the same AI-safeguard language and a note that account deletion does
+  not automatically cancel an active Stripe subscription.
+
+### Verified
+- Production deploy of the above completed and was verified live (homepage, `/features`, `/privacy`,
+  `/terms`, `/sitemap.xml`, both removed AI/health-score feature routes still 404, Private Beta still
+  enabled).
+- Full production health re-check: API, database, and Redis all healthy; retention-cleanup scheduler
+  unchanged and confirmed its second consecutive successful daily run (2026-07-16).
+- No application behavior changed and no authenticated in-app feature (AI tools, Listing Health, etc.)
+  was removed — public marketing/legal copy only.
+
 ## [2026-07-14] Etsy compliance, production deployment, retention automation
 
 ### Added

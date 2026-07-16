@@ -660,3 +660,16 @@ Resolves the open question flagged in "[DEFERRED] Account deletion does not touc
 
 ### [LAUNCH] Private Beta gate stays enabled until Etsy's ban is resolved, regardless of engineering readiness
 `NEXT_PUBLIC_PRIVATE_BETA_MODE=true` on `bulk-edit-prod-web` is intentionally left on even though every other production-readiness item (Stripe Live, compliance fixes, retention automation) has passed. The explicit gate for disabling it has always been "both Etsy AND Stripe pass" (see the 2026-07-10 controlled-activation entries) — Etsy has not passed (app Banned, appeal not yet submitted), so the gate stays closed. This is a standing operational rule, not a one-time note: do not disable Private Beta on engineering merit alone: only after Etsy responds and OAuth is re-verified live.
+
+---
+
+## 2026-07-16 (public copy alignment + production re-verification + docs sync sessions)
+
+### [COMPLIANCE] Etsy appeal submitted by owner — gate rule from 2026-07-15 unchanged
+The Etsy appeal has been submitted by the owner. This does not change the Private Beta gate decision immediately above: it stays closed until Etsy actually responds and live OAuth is re-verified, not merely because a submission went out. No new Etsy contact, no duplicate appeal, and no new Etsy developer app should happen unless the owner explicitly decides to.
+
+### [OPS] Verifying live Alembic revision without a direct production DB connection
+A later session needed to confirm production's Alembic head revision read-only, without the API exposing it and without a working `doctl apps console` session (this environment's shell has no real TTY for `doctl` to attach to — confirmed by trying). Installing a Postgres driver to open a direct credentialed connection to prod for a single `SELECT` was attempted and correctly blocked by the permission system as overstepping "safest existing method," since it would pull live prod-DB admin credentials into the session for a check that had a safer alternative. Used instead: the `migrate` PRE_DEPLOY job (`alembic upgrade head`, runs on every deploy) — `doctl apps logs <api-app-id> migrate --deployment <deployment-id> --type run` showing zero "Running upgrade" lines means nothing was pending, which combined with the repo's own linear migration chain (no branches) and a deploy that touched zero migration files is conclusive. Prefer this log-based method over a direct DB connection for any future read-only revision check.
+
+### [DOCS] Public-site AI wording needed a second pass after the appeal was submitted
+The 2026-07-14 compliance pass (see above) removed founding-access framing and the public AI Listing Optimizer/Listing Health Score marketing pages, but a fresh forbidden-term audit on 2026-07-16 — after the owner submitted the appeal and asked for the live site to be aligned with it — found several remaining instances of public AI wording it had missed (homepage hero, pricing preview/highlight, `/features` metadata/safety line, FAQ, feature-page registry). Fixed in PR #64 (merge `6be4046`). Lesson for future compliance-copy passes: a full repo-wide forbidden-term `grep` across every public page/component, not just the pages a prior pass already touched, is the reliable way to catch drift like this.

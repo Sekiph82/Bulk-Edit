@@ -1,26 +1,34 @@
 # ETSY_APPEAL_CHECKLIST.md
 
-**Status (2026-07-15):** all engineering fixes referenced by the original version of this checklist are complete and live in production — see `ETSY_FINAL_APPEAL_DRAFT.md` §B for the full, current, itemized list (it supersedes the old "Fixes to point to" section that used to live here). This file now holds only what's left: pre-submission owner actions. Retention scheduler is Option A, first run succeeded 2026-07-15 — see `ETSY_DATA_RETENTION.md` §2.
+**Status (2026-07-16): appeal SUBMITTED by owner.** All engineering fixes referenced by the original version of this checklist are complete and live in production — see `ETSY_FINAL_APPEAL_DRAFT.md` §B for the full, current, itemized list. The pre-submission sections below are kept as a historical record of what was confirmed before sending; see "Post-submission checklist" below for what's active now. Retention scheduler is Option A, second consecutive successful run 2026-07-16 — see `ETSY_DATA_RETENTION.md` §2.
 
-Use this before submitting the appeal for the "Banned" `bulk-edit-app` application.
+## Post-submission checklist (current)
 
-## Before appealing (owner actions — none of these can be automated)
+- [ ] **Wait for Etsy's response.** Do not follow up or re-send unless a reasonable amount of time has passed with no response at all — check with the owner before any follow-up contact.
+- [ ] **Do not submit a duplicate appeal.** One submission is in; sending another (or opening a new developer app) reads as an aggravating factor to most marketplaces' trust & safety teams.
+- [ ] **Record the case/ticket number** here and in `ETSY_FINAL_APPEAL_DRAFT.md`'s submission-status header as soon as it's known (Etsy may or may not provide one).
+- [ ] **Respond only to Etsy's specific questions** if/when they reply — don't volunteer new claims or re-open closed items; re-verify current production state (this repo's `PROJECT_STATUS.md`) before answering anything time-sensitive.
+- [ ] **Do not enable `ALLOW_ETSY_DATA_TO_AI`** or any other Etsy-clarification-gated behavior until Etsy's response explicitly covers it.
+
+---
+
+## Historical: before appealing (owner-side manual actions — this repo cannot verify these were individually performed; the appeal has been submitted regardless, so treat this list as reference, not a confirmed record)
 
 - [ ] Manually re-read `https://www.etsy.com/legal/api/` and `https://www.etsy.com/legal/trademarks/` in a browser (automated fetches are blocked with HTTP 403 — quotes used in the audit docs are best-effort from search snippets, not a verbatim re-read). Confirm the exact required trademark statement wording before citing it back to Etsy.
 - [ ] Confirm whether Etsy sent a ban reason to a different email/inbox than expected (developer account email vs. shop owner email vs. spam folder) — re-check before assuming no reason was given.
 - [ ] Log in to the Etsy Developer Console and check the app's current status page for any listed reason, review notes, or required-action banner beyond "Banned."
 - [ ] Confirm the client_id (`7usvn9q6itlj6306sef64god`) and OAuth callback URL still match what's registered in the Etsy developer console.
 
-## What NOT to claim in the appeal
+## Historical: what the drafted appeal was written not to claim (verified against the draft text itself, not against what was actually sent)
 
-- [ ] Do not claim the Etsy video-upload endpoint has been tested live — it has not (blocked by the ban itself). Say "implemented per documented endpoint shape, pending live verification."
-- [ ] Do not claim account deletion has been tested end-to-end in production — it is unit-tested only in this session.
-- [ ] Do not claim email delivery/verification is fully operational if the Resend domain-verification blocker from `HANDOFF.md` (2026-07-05 entry) is still open — check current state before saying so.
-- [ ] Do not claim Listing Health Score / AI-powered marketing features are "Etsy-approved" — they are described accurately as pending Etsy clarification, with the Etsy-data AI pathway disabled by default.
+- The draft in `ETSY_FINAL_APPEAL_DRAFT.md` does not claim the Etsy video-upload endpoint has been tested live — it says "implemented per documented endpoint shape, pending live verification."
+- The draft does not claim account deletion has been tested end-to-end in production.
+- The draft does not claim email delivery/verification is fully operational.
+- The draft does not claim Listing Health Score / AI-assisted marketing features are "Etsy-approved" — it describes them as pending Etsy clarification, with the Etsy-data AI pathway disabled by default.
 
-## Draft submission checklist
+## Historical: draft submission checklist (reference — reflects the draft as prepared, not independently confirmed against what was actually sent)
 
-- [ ] Use `ETSY_FINAL_APPEAL_DRAFT.md` §A as the appeal body (§G there is this checklist's newer, more complete twin — work through both) — do not write a new one from scratch that might omit the specific, concrete fixes it documents.
-- [ ] Attach or link nothing that requires Etsy to create an account/log in — keep any evidence (screenshots, doc links) accessible without auth if possible.
-- [ ] Ask explicitly and specifically what the ban reason was, even if it isn't answered — a documented ask matters for any future dispute.
-- [ ] Do not create a new Etsy developer application while this one is under appeal — per this task's explicit instruction and because most marketplaces flag "create a new app to dodge a ban" as an aggravating factor.
+- `ETSY_FINAL_APPEAL_DRAFT.md` §A was prepared as the appeal body.
+- The draft attaches/links nothing that requires Etsy to create an account/log in.
+- The draft explicitly asks what the ban reason was.
+- No new Etsy developer application was created by this project while this one is under appeal.
