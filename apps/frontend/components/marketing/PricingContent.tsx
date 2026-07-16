@@ -144,7 +144,7 @@ export default function PricingContent() {
                   <FeatureRow label="shops" value={limits.max_shops} />
                   <FeatureRow label="listings" value={limits.max_listings.toLocaleString()} />
                   <FeatureRow label="bulk edits/month" value={limits.bulk_edits_per_month.toLocaleString()} />
-                  <FeatureRow label="AI credits/month" value={limits.ai_credits_per_month.toLocaleString()} />
+                  <FeatureRow label="Suggestion credits/month" value={limits.ai_credits_per_month.toLocaleString()} />
                   <FeatureRow label="media assets" value={limits.media_assets.toLocaleString()} />
                   <FeatureRow label="Photo bulk edit" value={limits.can_bulk_edit_photos} />
                   <FeatureRow label="Variation edit" value={limits.can_bulk_edit_variations} />

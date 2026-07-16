@@ -73,7 +73,7 @@ const FAQ_DATA: Array<{ category: string; items: FaqItem[] }> = [
       },
       {
         q: "What features require a paid plan?",
-        a: "Photo and video bulk editing, variation editing, Magic Revert, AI listing optimization, Dynamic Pricing, and Scheduled Jobs are available on paid plans. Check the pricing page for full plan details.",
+        a: "Photo and video bulk editing, variation editing, Magic Revert, AI suggestion tools, Dynamic Pricing, and Scheduled Jobs are available on paid plans. Check the pricing page for full plan details.",
       },
       {
         q: "Can I cancel my subscription?",
@@ -115,8 +115,8 @@ const FAQ_DATA: Array<{ category: string; items: FaqItem[] }> = [
         a: "Shop Insights shows real data computed from your connected, synced Etsy shop — total listings, listing status breakdown, how many listings are missing tags or have low photo counts, and your price range. It does not show revenue, views, or favourites, since Etsy does not provide reliable trend data through this app's connection — we'd rather show accurate listing insights than invented analytics.",
       },
       {
-        q: "What are AI credits and bulk edit credits?",
-        a: "AI credits are consumed each time Bulk Edit App calls an AI model to generate suggestions (titles, tags, descriptions). Bulk edit credits are consumed when you apply a bulk edit session to Etsy. Your plan includes a monthly allowance of each. You can see your current usage in the dashboard.",
+        q: "What are suggestion credits and bulk edit credits?",
+        a: "Suggestion credits are consumed each time Bulk Edit App generates a suggestion (titles, tags, descriptions). Bulk edit credits are consumed when you apply a bulk edit session to Etsy. Your plan includes a monthly allowance of each. You can see your current usage in the dashboard.",
       },
     ],
   },

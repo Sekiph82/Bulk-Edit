@@ -4,7 +4,7 @@ import PricingContent from "@/components/marketing/PricingContent";
 export const metadata: Metadata = {
   title: "Pricing — Bulk Edit App",
   description:
-    "Simple, transparent pricing for Etsy sellers. Start free, upgrade to Basic or Pro for more bulk edits, AI credits, and automation.",
+    "Simple, transparent pricing for Etsy sellers. Start free, upgrade to Basic or Pro for more bulk edits, advanced workflows, and automation.",
   alternates: { canonical: "https://bulkeditapp.com/pricing" },
   openGraph: {
     title: "Pricing — Bulk Edit App",
