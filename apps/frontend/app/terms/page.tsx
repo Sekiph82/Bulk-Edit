@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "2026-07-13";
+const LAST_UPDATED = "2026-07-16";
 const SUPPORT_EMAIL = "support@bulkeditapp.com";
 const LEGAL_ENTITY_NAME = process.env.NEXT_PUBLIC_LEGAL_ENTITY_NAME || "Bulk Edit App";
 
@@ -80,10 +80,12 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-gray-900 mb-2">6. AI tools</h2>
               <p>
-                AI-generated titles, descriptions, tags, and other suggestions are suggestions
-                only. We make no guarantee of increased sales, search ranking, or shop
-                performance from using them. You must review AI output before applying it to your
-                listings.
+                AI-assisted titles, descriptions, tags, and other suggestions are suggestions
+                only. Sending Etsy-derived listing data to an external, third-party AI provider is
+                disabled by default in production while we await Etsy&rsquo;s written confirmation
+                on how AI processing of Etsy-derived data may be used. We make no guarantee of
+                increased sales, search ranking, or shop performance from using these suggestions.
+                You must review any suggestion before applying it to your listings.
               </p>
             </section>
 
@@ -103,7 +105,10 @@ export default function TermsPage() {
                 <a href="/pricing" className="text-indigo-600 hover:underline">pricing page</a>.
                 Subscriptions renew automatically unless canceled before the next billing period.
                 Plan limits apply as published. We do not yet have a formal refund policy in
-                place; refund requests are handled case-by-case through support.
+                place; refund requests are handled case-by-case through support. Closing or
+                deleting your Bulk Edit App account does not automatically cancel an active Stripe
+                subscription — an active or billable subscription must be canceled or resolved
+                through your billing settings before account deletion can complete.
               </p>
             </section>
 

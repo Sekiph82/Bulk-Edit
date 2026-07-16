@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "2026-07-13";
+const LAST_UPDATED = "2026-07-16";
 const SUPPORT_EMAIL = "support@bulkeditapp.com";
 
 export default function PrivacyPage() {
@@ -83,12 +83,25 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-bold text-gray-900 mb-2">6. AI features</h2>
               <p>
-                AI tools (title optimization, description writing, tag generation, alt text, SEO
-                scoring, category suggestions) process your listing text to generate suggestions.
-                Suggestions are shown to you for review and are never applied to Etsy
-                automatically. We make no guarantee that using AI suggestions will improve sales,
-                rankings, or shop performance — you are responsible for reviewing suggestions
-                before applying them.
+                Bulk Edit App includes optional, authenticated AI-assisted suggestion tools (for
+                example, title, description, tag, and alt-text suggestions). Suggestions are shown
+                to you for review only and are never applied to Etsy automatically — you decide
+                which ones to accept.
+              </p>
+              <p>
+                While we await Etsy&rsquo;s written confirmation on how AI processing of
+                Etsy-derived listing data may be used, sending your Etsy listing content to an
+                external, third-party AI provider is disabled by default in production. In this
+                default state, suggestions are generated without processing live Etsy listing data
+                through an external AI service. This is a conservative choice we have made while
+                guidance is pending — it is not a statement that Etsy has prohibited or restricted
+                AI use, and it is not a claim that Etsy has approved, certified, or endorsed any AI
+                feature.
+              </p>
+              <p>
+                We make no guarantee that using AI suggestions will improve sales, search ranking,
+                or shop performance — you are responsible for reviewing any suggestion before
+                applying it.
               </p>
             </section>
 
@@ -126,16 +139,34 @@ export default function PrivacyPage() {
               <h2 className="text-xl font-bold text-gray-900 mb-2">10. Data retention</h2>
               <p>
                 We retain account and shop data while your account is active. Backup snapshots
-                created before a bulk edit, media, or variation write (used to power Magic
-                Revert) are automatically deleted no later than 30 days after creation — after
-                that window, that specific change can no longer be reverted through the app.
-                Synced listing data is treated as stale after 6 hours and is refreshed, or the
-                seller is shown a freshness warning, before it is relied on for a new write.
-                Disconnecting an Etsy shop deletes its stored access/refresh tokens immediately
-                and pauses any scheduled jobs tied to that shop. You can request deletion of your
-                account and associated data at any time (see Contact below); we do not yet offer
-                fully automated self-service account deletion, so these requests are currently
-                processed manually by support.
+                created before a bulk edit, media, or variation write (used to power Magic Revert)
+                and CSV import/export job records are retained for a maximum of 30 days by default
+                — after that window, they are automatically deleted by a daily automated retention
+                cleanup process, and that specific change can no longer be reverted through the
+                app. This 30-day window is Bulk Edit App&rsquo;s own conservative, configurable
+                default; it is not a number mandated by Etsy. The first scheduled cleanup run
+                completed successfully on 2026-07-15.
+              </p>
+              <p>
+                Live synced listing and shop data may continue to be stored while you keep your
+                Etsy shop connected, since this data is needed to display and bulk-edit your shop.
+                Synced listing data is treated as stale after 6 hours and is refreshed, or you are
+                shown a freshness warning, before it is relied on for a new write. Disconnecting an
+                Etsy shop deletes its stored access/refresh tokens immediately and pauses any
+                scheduled jobs tied to that shop.
+              </p>
+              <p>
+                You can delete your account and its associated data at any time from within Bulk
+                Edit App&rsquo;s billing settings, after re-confirming your password. Account
+                deletion is blocked while any organization you own has an active or billable
+                Stripe subscription — that subscription must be canceled or resolved first.
+                Account deletion does not automatically cancel your Stripe subscription or delete
+                your Stripe customer/subscription records; those remain in Stripe per Stripe&rsquo;s
+                own retention practices and our accounting/legal requirements. Once the billing
+                check passes, deleting your account removes your organization(s) and associated app
+                data (shops, tokens, listings, bulk edit history, snapshots, subscriptions, and so
+                on) from Bulk Edit App. You can also contact support (see below) with any deletion
+                or data question.
               </p>
             </section>
 
