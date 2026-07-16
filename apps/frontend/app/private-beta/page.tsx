@@ -5,7 +5,7 @@ import MarketingFooter from "@/components/marketing/MarketingFooter";
 
 export const metadata: Metadata = {
   title: "Account Access Temporarily Paused — Bulk Edit App",
-  description: "New account sign-ups are temporarily paused while we complete a required Etsy verification step. Contact us for status or early access.",
+  description: "New account sign-ups are temporarily paused while we complete a required Etsy verification step. Contact us for a status update.",
   robots: { index: false, follow: false },
   alternates: { canonical: "https://bulkeditapp.com/private-beta" },
 };

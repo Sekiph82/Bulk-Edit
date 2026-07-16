@@ -115,7 +115,7 @@ const SAFETY_ITEMS = [
   "Backup snapshots created before every apply",
   "Preview-first — no blind writes, ever",
   "Scheduled jobs create drafts, never auto-publish",
-  "AI suggestions are reviewed before acceptance",
+  "Suggestions are reviewed before acceptance",
   "Dynamic Pricing creates recommendations, not auto-edits",
 ];
 

@@ -105,7 +105,7 @@ export default function HomeContent() {
                 </FadeUp>
                 <FadeUp delay={0.08}>
                   <p className="text-lg text-gray-500 leading-relaxed">
-                    Titles, tags, prices, photos, variations, CSV, AI optimization — update it all
+                    Titles, tags, prices, photos, variations, and CSV workflows — update them
                     across your whole Etsy shop with one safe engine: preview every change, apply
                     with confidence, revert instantly if something looks wrong.
                   </p>
@@ -273,7 +273,7 @@ export default function HomeContent() {
             </h2>
             <p className="text-gray-500">
               A free plan to get started, plus Basic and Pro tiers for growing shops that need
-              more bulk edits, AI credits, and automation.
+              more bulk edits, advanced workflows, and automation.
             </p>
           </FadeUp>
 

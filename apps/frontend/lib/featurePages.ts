@@ -279,7 +279,7 @@ export const FEATURE_PAGES: FeaturePage[] = [
     intro:
       "No blind writes. Every bulk edit — no matter which feature created it — goes through the same preview step before it's ever sent to Etsy.",
     howItWorks: [
-      "Build a bulk edit from any Bulk Edit App feature (listing editor, AI suggestions, CSV import, dynamic pricing).",
+      "Build a bulk edit from any Bulk Edit App feature (listing editor, CSV import, dynamic pricing, or scheduled drafts).",
       "Bulk Edit App generates a full before/after diff for every affected listing.",
       "Review the diff listing by listing, field by field.",
       "Only after you confirm does anything get written to Etsy.",
@@ -331,7 +331,7 @@ export const FEATURE_PAGES: FeaturePage[] = [
       "Copy the caption, download the image, or share when you're ready.",
     ],
     benefits: [
-      "AI-prepared captions and images from your listings",
+      "Prepared captions and images from your listings",
       "Works for Pinterest and Instagram",
       "You control exactly when and where it's shared",
       "Saves time writing captions from scratch",
@@ -350,13 +350,13 @@ export const FEATURE_PAGES: FeaturePage[] = [
       "Automate the safe parts of your workflow — syncing listing data and preparing drafts — without ever giving up control over what gets published.",
     howItWorks: [
       "Schedule a sync job to keep your listing data up to date automatically.",
-      "Schedule draft-creation jobs from CSV imports, AI sessions, or dynamic pricing rules.",
+      "Schedule draft-creation jobs from CSV imports, saved workflows, or dynamic pricing rules.",
       "Jobs run on schedule and prepare draft bulk edit sessions.",
       "Every draft still goes through the standard preview-and-confirm flow before anything reaches Etsy.",
     ],
     benefits: [
       "Keeps listing data automatically in sync",
-      "Prepares drafts from CSV, AI, or pricing rules on a schedule",
+      "Prepares drafts from CSV imports, saved workflows, or pricing rules on a schedule",
       "Every draft still requires your explicit approval",
       "Removes manual, repetitive sync work",
     ],

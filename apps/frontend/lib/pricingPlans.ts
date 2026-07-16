@@ -30,7 +30,7 @@ export type HomepagePlanKey = "free" | "basic_monthly" | "pro_monthly";
 export const HOMEPAGE_PLAN_SUMMARIES: { key: HomepagePlanKey; highlights: string[] }[] = [
   {
     key: "free",
-    highlights: ["1 shop, up to 25 listings", "10 bulk edits / month", "5 AI credits / month"],
+    highlights: ["1 shop, up to 25 listings", "10 bulk edits / month", "5 suggestion credits / month"],
   },
   {
     key: "basic_monthly",

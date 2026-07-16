@@ -16,7 +16,7 @@ const BLOCKS = [
   },
   {
     title: "What you can bulk edit",
-    body: "Titles, tags, descriptions, prices, photos, and variation prices/quantities/SKUs — plus CSV import/export, AI-generated suggestions, and rule-based pricing recommendations.",
+    body: "Titles, tags, descriptions, prices, photos, and variation prices/quantities/SKUs — plus CSV import/export, reviewed suggestion tools, and rule-based pricing recommendations.",
   },
   {
     title: "What stays under your control",
