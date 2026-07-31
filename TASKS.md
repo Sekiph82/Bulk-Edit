@@ -8,26 +8,23 @@ Full sprint-by-sprint build history (Sprint 0 through Sprint 27, all DevOps fixe
 
 ## Current Phase
 
-Post-appeal waiting period / Private Beta operations. All planned feature sprints are complete. The Etsy appeal has been submitted by the owner. Current focus: none active — waiting on Etsy's response.
+Post-credential-issuance / Private Beta operations. All planned feature sprints are complete. Etsy issued new developer-app credentials 2026-07-31; they are configured in production and OAuth URL generation is verified. Current focus: awaiting owner approval for a live OAuth test.
 
 ## In Progress
 
 None.
 
-## Blocked Externally
+## Blocked Externally (owner approval, not Etsy)
 
-- **Etsy OAuth / live API verification** — Etsy developer app "bulk-edit-app" is Banned (escalated 2026-07-13, no reason given). Appeal submitted by owner; cannot be resolved from this side — waiting on Etsy's response.
-- **Live Etsy write verification** (bulk-edit apply, revert, media, variations) — code-verified only, never re-exercised against a live shop since the ban.
+- **Live Etsy OAuth completion** — credentials configured and authorize-URL generation verified in production 2026-07-31; connecting a real shop needs explicit owner go-ahead (see Owner Action below), not another Etsy response.
+- **Live Etsy write verification** (bulk-edit apply, revert, media, variations) — code-verified only, blocked on the same live-OAuth approval above.
 - **Etsy listing-video-upload endpoint** — implemented per documented endpoint shape, never tested against a live shop (see `DECISIONS.md`, "[MEDIA] Etsy listing video upload/delete implemented for real").
-- **Etsy-derived external AI processing guidance** — `ALLOW_ETSY_DATA_TO_AI` stays off by default until Etsy responds (see `ETSY_FINAL_APPEAL_DRAFT.md` §F, question 1).
-- **Social republishing guidance** (Pinterest/Instagram auto-post) — deliberately stubbed pending Etsy's confirmation (§F, question 4).
-- Any other action requiring Etsy developer access to be restored.
+- **Etsy-derived external AI processing guidance** — `ALLOW_ETSY_DATA_TO_AI` stays off by default; still pending explicit written Etsy confirmation, independent of the credential issuance (see `ETSY_FINAL_APPEAL_DRAFT.md` §F, question 1).
+- **Social republishing guidance** (Pinterest/Instagram auto-post) — deliberately stubbed pending the same confirmation (§F, question 4).
 
 ## Owner Action
 
-- **Wait for Etsy's response** — nothing to do until then.
-- **Record the Etsy appeal's case/ticket number**, if one becomes available (not yet captured in the repo — see `ETSY_FINAL_APPEAL_DRAFT.md` submission-status header).
-- **When Etsy replies, send the response to the project/Claude** for next-step planning before acting on it.
+- **Approve a live OAuth test** when ready: confirm the callback URL registered in the Etsy Developer Console exactly matches `https://api.bulkeditapp.com/api/v1/etsy/callback`, confirm a test shop is available, confirm no write action will run — then give explicit go-ahead to connect it (read-only verification only).
 
 ## Deferred
 
@@ -41,6 +38,7 @@ None.
 
 ## Recently Completed
 
+- **Etsy production credential configuration (2026-07-31):** Etsy-issued Keystring + Shared Secret for `bulk-edit-app` configured as encrypted `SECRET` env vars on `bulk-edit-prod-api` via `doctl apps update --spec` (existing `ops/app-specs/bulk-edit-prod-api.yaml` structure reused as the source of truth). Rate limit (5 QPS/5000 QPD) and OAuth scopes already matched existing code defaults exactly — no code change, no PR. Local `apps/backend/.env` synced from `deploy-production.local.env` (git-ignored, never committed, never printed). Production OAuth URL generation verified end-to-end via the live `/api/v1/etsy/authorize` endpoint. Live OAuth completion deliberately not performed — see Owner Action above. Mid-task: caught and fixed a `[regex]::Replace` count-arg bug in a helper script that had triple-duplicated env entries across the api service and both jobs; fixed with a YAML-aware Python pass and re-verified before trusting the deploy. Full detail: `CHANGELOG_AI.md`, `DECISIONS.md`.
 - **Post-appeal public copy alignment (2026-07-16):** PR #64 (`fix/current-public-copy-appeal-alignment`, merge `6be4046`) neutralized remaining public AI wording (homepage hero/pricing preview, `/pricing`, `/features` metadata + safety line, FAQ, feature registry) and updated Privacy/Terms for current AI-safeguard and retention/account-deletion behavior. CI green (6/6), merged, both prod apps redeployed to `ACTIVE`, live site verified. No authenticated in-app functionality removed.
 - **Post-PR-#64 production health re-verification (2026-07-16):** API health, DB connectivity, Redis connectivity, retention scheduler config/cron/command, and latest retention invocation (`ad207ee4-f05c-4038-b244-6e54bf9fd13a`, SUCCEEDED — second consecutive successful daily run) all confirmed read-only, no production changes made.
 - **Documentation full-sync (2026-07-15):** consolidated `PROJECT_STATUS.md`/`TASKS.md`/`HANDOFF.md` to current-state-only; synchronized all Etsy compliance docs and the appeal draft to the confirmed-live retention scheduler and 982-test count; fixed stale Vercel/Render-as-current-hosting claims in `docs/operations/DEPLOYMENT.md`/`DNS_SSL.md`/`PRODUCTION_SMOKE_TEST.md` (now correctly point to DigitalOcean + Cloudflare, with the old plan marked superseded); merged PR #61 (retention-monitoring command fix) and PR #62 (finalized appeal draft).
