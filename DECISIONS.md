@@ -4,6 +4,19 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-07-31 (Etsy production credential configuration)
+
+### [OPS] Reused `ops/app-specs/bulk-edit-prod-api.yaml` structure via `doctl apps spec get`/`update`, not a hand-authored partial spec
+`doctl` has no single-env-var update command — any env change requires submitting the full app spec. Rather than hand-write a partial spec (risking silently dropping an untouched setting), the script pulls the *live* spec fresh via `doctl apps spec get` each run, patches only the 6 Etsy keys, and pushes the whole thing back via `doctl apps update --spec`. This guarantees every other setting (migrate job, retention job, DB/Redis bindings, domains, instance sizes, `deploy_on_push`) round-trips unchanged, since they're never touched in memory.
+
+### [BUGFIX] `[regex]::Replace($text, $pattern, $replacement, 1)` does not mean "first match only" in Windows PowerShell 5.1
+The static `[regex]::Replace(string, pattern, replacement, count)` overload doesn't exist on .NET's `Regex` class — the 4-arg static overload is `(input, pattern, replacement, RegexOptions)`, so the literal `1` was silently interpreted as `RegexOptions.IgnoreCase`, not a match limit. The intended "append once, at the first `envs:` block" instead applied to *every* `envs:` block in the spec (the api service's and both jobs'), triple-duplicating the new Etsy env entries and leaving the stale encrypted values in place too (inserted before, not replacing, the untouched originals — so it was genuinely ambiguous which value DO would have honored at runtime). Caught before trusting the deploy by re-fetching the live spec and grep-counting each key's occurrences with values redacted. Fixed by abandoning regex-based YAML editing entirely in favor of a small PyYAML script (`.ops-local/fix-etsy-env-duplicates.py`) that loads the spec as a real object, dedupes/corrects the api service's env list by key, strips any Etsy-prefixed keys from job env lists, and dumps it back — then re-verified exactly one occurrence per key before considering the fix complete. `.ops-local/deploy-etsy-env-to-digitalocean.ps1`'s original regex-based "patch existing" path was never fixed in place (superseded by the Python script for this run) — flagged in `HANDOFF.md` as unsafe to reuse as-is.
+
+### [OPS] No code change needed for Etsy rate-limit/scope configuration
+`apps/backend/app/core/config.py` already had `ETSY_API_REQUESTS_PER_SECOND: float = 5.0`, `ETSY_API_DAILY_LIMIT: int = 5000`, and `ETSY_SCOPES: str = "listings_r listings_w shops_r profile_r"` as pydantic `BaseSettings` fields (auto-bound to same-named env vars) since an earlier sprint — these already matched Etsy's issued limits and this project's required scopes exactly. Setting them as explicit (non-secret) env vars on the DO spec was done anyway for auditability/explicitness, not because the code defaults were wrong.
+
+---
+
 ## 2026-07-14, sixth session (retention cleanup: Option B → Option A)
 
 ### [OPS] DigitalOcean App Platform job `kind` for time-based execution is `SCHEDULED`, not `CRON`

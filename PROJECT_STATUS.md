@@ -4,7 +4,7 @@ Single current-state source of truth. For history, see `CHANGELOG.md` (product/r
 
 ## Current Phase
 
-Post-appeal waiting period / Private Beta operations. Production is **LIVE** under Private Beta (new sign-ups paused) since 2026-07-06. The Etsy appeal has been **submitted by the owner**; the project is now waiting on Etsy's response. All planned sprints (0-27) are complete — see `CHANGELOG_AI.md` for the full build history. PR #64 (2026-07-16) aligned the public website with the submitted appeal (neutralized remaining public AI wording, updated Privacy/Terms) — no authenticated in-app functionality was changed. Current work is monitoring/documentation only, not feature development.
+Post-credential-issuance / Private Beta operations. Production is **LIVE** under Private Beta (new sign-ups paused) since 2026-07-06. Etsy issued new developer-app credentials for `bulk-edit-app` on 2026-07-31 (owner received Keystring + Shared Secret directly, rate limit 5 QPS / 5000 QPD); credentials are now configured in production and OAuth URL generation is verified working. **Live OAuth completion (connecting a real shop) has not yet been performed** — pending explicit owner approval. All planned sprints (0-27) are complete — see `CHANGELOG_AI.md` for the full build history. Current work is credential configuration and verification, not feature development.
 
 ## Production Status
 
@@ -18,7 +18,7 @@ Post-appeal waiting period / Private Beta operations. Production is **LIVE** und
 | Private Beta (`app.bulkeditapp.com`) | **Enabled** — new sign-ups paused, 307 → `/private-beta` on all app routes |
 | Retention cleanup | **Option A live** — DO Scheduled Job `retention-cleanup`, `30 3 * * *` (03:30 UTC daily). First run succeeded 2026-07-15; **second consecutive run succeeded 2026-07-16** (03:31:12–03:31:33 UTC, invocation `ad207ee4-f05c-4038-b244-6e54bf9fd13a`). |
 | Stripe | Live products/prices/env configured, validated end-to-end 2026-07-10 (controlled test account, zero real charges) |
-| Etsy developer app | **Banned**, no reason given. **Appeal submitted by owner** — awaiting Etsy's response. |
+| Etsy developer app | **Credentials received from Etsy 2026-07-31** (`bulk-edit-app`, rate limit 5 QPS / 5000 QPD — matches existing `ETSY_API_REQUESTS_PER_SECOND`/`ETSY_API_DAILY_LIMIT` defaults, no code change needed) and configured on `bulk-edit-prod-api` as encrypted `SECRET` env vars. Production OAuth URL generation verified (masked keystring `qvmj...fh33`, callback/scopes/PKCE all correct). Live OAuth completion (connecting a real shop) not yet performed — pending explicit owner approval. |
 | Public website | Aligned with the submitted appeal as of PR #64 (merge `6be4046`) — public AI/marketing wording neutralized, Privacy/Terms updated, feature/health public routes not exposed, sitemap clean. |
 
 ## Environment Status
@@ -31,19 +31,18 @@ Post-appeal waiting period / Private Beta operations. Production is **LIVE** und
 
 ## Known Blockers
 
-- **Etsy developer app "bulk-edit-app" is Banned**, no reason given. Appeal has been submitted; **awaiting Etsy's response** — this is the only blocker on live Etsy OAuth/API/write/video-upload verification. Do not submit a duplicate appeal; do not contact Etsy again unless the owner explicitly decides to.
+- **Live Etsy OAuth completion not yet performed.** Credentials are configured and the authorize-URL step is verified in production, but no real shop has been connected — needs explicit owner approval per `TASKS.md` → Owner Action before the connect flow, live reads, or the never-tested-live video-upload endpoint can be exercised.
 - Email-delivery domain verification (Resend, `bulkeditapp.com`) status not re-checked this session — see `docs/operations/PRODUCTION_LAUNCH_FOLLOWUPS.md` if this becomes relevant again.
 
 ## Manual Owner Actions Required
 
-1. **Record the Etsy appeal's exact submission timestamp and any case/ticket number**, if not already captured — see `ETSY_FINAL_APPEAL_DRAFT.md` submission-status header.
-2. **When Etsy responds**, forward the response for next-step planning (do not act on it unilaterally, and do not re-test live Etsy OAuth/writes until the ban is confirmed lifted).
-3. Nothing else is currently blocking.
+1. **Approve a live OAuth test** (connect one real test Etsy shop, read-only — no writes) when ready, per `TASKS.md` → Owner Action. Confirm first that the callback URL registered in the Etsy Developer Console exactly matches `https://api.bulkeditapp.com/api/v1/etsy/callback`.
+2. Nothing else is currently blocking.
 
 ## Current Next Action
 
-**Wait for Etsy's response.** Do not create a new Etsy developer app, do not disable Private Beta, do not enable Etsy-derived external AI processing, and do not attempt live Etsy OAuth/write until Etsy access is restored. When Etsy responds, record their answer exactly before deciding next steps.
+**Await owner approval for a live OAuth test.** Do not create a new Etsy developer app, do not disable Private Beta, do not enable Etsy-derived external AI processing, do not perform any Etsy write, and do not submit another appeal. Once approved: connect one test shop, verify token exchange, re-verify live reads.
 
 ## Last Updated
 
-2026-07-16
+2026-07-31
