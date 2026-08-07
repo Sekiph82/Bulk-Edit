@@ -6,6 +6,28 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-07 (eleventh session) First live Etsy OAuth attempt — blocked by Etsy Developer Console redirect-URI allowlist
+
+**Trigger:** Etsy lifted the `bulk-edit-app` ban and granted Personal Use access. Owner instruction: perform the first live, read-only-only Etsy OAuth validation (no writes of any kind, no listing/media changes, no bulk-edit apply, no Magic Revert), following an extensive explicit safety protocol.
+
+**Preflight (all read-only, all passed):** `main` == `origin/main` at `b82b00c`, no tracked secrets, `deploy-production.local.env` present/ignored/untracked. Production `/health`, `/health/db`, `/health/redis`, `/health/ready` all 200/healthy. `app.bulkeditapp.com/` still 307s to `/private-beta` (Private Beta confirmed enabled). Code audit of `apps/backend/app/api/v1/etsy.py` + `apps/backend/app/services/etsy.py` confirmed: authorize route exists, callback mounted at exactly `/api/v1/etsy/callback` (`api_router` prefix `/api/v1` + `etsy_router` prefix `/etsy`), PKCE (`S256`) + `state` used, `ETSY_SCOPES` default is exactly `listings_r listings_w shops_r profile_r` with no extras, no shared secret referenced anywhere under `apps/frontend`, write endpoints (`bulk_edit.py`, `bulk_edit_media.py`, `bulk_edit_variations.py`, `listings.py`) are separate routers never touched by the OAuth flow. Token exchange (`exchange_code_for_token`) sends no `client_secret` at all — Etsy's v3 OAuth is PKCE-only for this app type, consistent with the 2026-07-31 finding that no `ETSY_CLIENT_SECRET` field exists in `Settings`.
+
+**OAuth URL generation:** reused the existing `.ops-local/verify-prod-oauth-url.py` (logs in as the internal test account via credentials read in-memory from `deploy-production.local.env`, never printed) — confirmed again: masked keystring `qvmj...fh33`, callback correct, scopes exact match, state present, PKCE `S256` present. Wrote a new small companion script, `.ops-local/get-prod-oauth-url-for-handoff.py`, to print *only* the full `authorization_url` (needed to hand the owner a clickable link — contains `client_id`+`code_challenge` per the OAuth spec, never a secret) without touching the existing verified script's behavior. Generated several fresh URLs across the session as prior ones expired (each state token is single-use, ~15 min TTL) while the owner was intermittently available.
+
+**Live attempt — BLOCKED, Etsy-side:** owner opened the generated URL, logged into the Etsy consent page, and got Etsy's own error: *"An error occurred. The requested redirect URL is not permitted."* This happens before Etsy ever redirects back to us, so our callback endpoint was never called — nothing to verify in backend logs/DB for this attempt. Root-caused as an Etsy Developer Console app-configuration gap, not a bug or config drift on our side: decoded the `redirect_uri` param embedded in the generated authorize URL and confirmed it's exactly `https://api.bulkeditapp.com/api/v1/etsy/callback`, matching both the deployed `ETSY_REDIRECT_URI` and the callback route in code. Etsy requires the exact callback URL to be present in the app's registered "Redirect URI(s)" allowlist in its Developer Console; this was very likely never populated while `bulk-edit-app` was banned/under review, since it could never have been exercised live before now.
+
+**No production change made:** per `CLAUDE.md`'s explicit rule ("do not change production env unless a read-only test proves the current config is wrong and owner explicitly approves a fix"), since the read-only test proved *our* config correct, nothing was touched — the fix is entirely on Etsy's side (owner action, Developer Console UI, not a `doctl`/env change).
+
+**Owner instructed to stop for now** (out of time) before registering the redirect URI; asked to resume by requesting a fresh OAuth URL once the console change is made. Session ends here with docs updated to capture full resume state — no code changed, so this is a docs-only commit.
+
+**Confirmed (mandatory safety checklist for this task):** Etsy Shared Secret never printed/committed/frontend/docs/GitHub/chat. Full Keystring never printed (masked only, `qvmj...fh33`). `deploy-production.local.env` never printed or committed. No OAuth token or refresh token was ever generated this session (flow never reached token exchange) so none could be printed. No Etsy write of any kind — no listing/media change, no bulk-edit apply, no Magic Revert, no scheduled Etsy write. No Stripe/DNS/Cloudflare/staging action. No database migration created. Private Beta remains enabled throughout (re-confirmed via live 307 checks before and would re-confirm after, unaffected either way since nothing deployed).
+
+**Not done (blocked, carried to next session):** callback verification, token exchange, token storage, shop-connection verification, read-only shop/listing fetch, refresh-token path check — all of Tasks 6-9 of the owner's task numbering. None could be reached because Etsy rejected the redirect before our backend was ever called.
+
+**Docs updated:** `TASKS.md`, `PROJECT_STATUS.md`, `HANDOFF.md`, this file, `DECISIONS.md`.
+
+---
+
 ## 2026-07-31 (tenth session) Etsy production credential configuration
 
 **Trigger:** Owner received new Etsy developer-app credentials (Keystring + Shared Secret for `bulk-edit-app`, rate limit 5 QPS / 5000 QPD) and saved them locally into `deploy-production.local.env` (git-ignored, pre-existing pattern). Task: configure production safely without ever printing/logging/committing the secret.
