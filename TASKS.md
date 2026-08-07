@@ -8,15 +8,15 @@ Full sprint-by-sprint build history (Sprint 0 through Sprint 27, all DevOps fixe
 
 ## Current Phase
 
-Post-credential-issuance / Private Beta operations. All planned feature sprints are complete. Etsy issued new developer-app credentials 2026-07-31; they are configured in production and OAuth URL generation is verified. Current focus: awaiting owner approval for a live OAuth test.
+Post-credential-issuance / Private Beta operations. All planned feature sprints are complete. Etsy lifted the ban and granted Personal Use access for `bulk-edit-app`. Current focus: blocked on registering the production callback URL in the Etsy Developer Console before the live read-only OAuth test can proceed (see Blocked Externally below).
 
 ## In Progress
 
 None.
 
-## Blocked Externally (owner approval, not Etsy)
+## Blocked Externally (Etsy Developer Console config, owner action required)
 
-- **Live Etsy OAuth completion** — credentials configured and authorize-URL generation verified in production 2026-07-31; connecting a real shop needs explicit owner go-ahead (see Owner Action below), not another Etsy response.
+- **Live Etsy OAuth completion (2026-08-07 attempt):** ban lifted, Personal Use access granted, owner attempted the live read-only OAuth test. Etsy's own consent page returned "The requested redirect URL is not permitted" — our `redirect_uri` (`https://api.bulkeditapp.com/api/v1/etsy/callback`) is not yet in the app's registered Redirect URI allowlist in the Etsy Developer Console. Confirmed not a config-sync bug (URL embedded in the generated authorize link matches production config and code exactly). No production env changed. **Owner must add the exact callback URL in Etsy's console before retrying** — see Owner Action below.
 - **Live Etsy write verification** (bulk-edit apply, revert, media, variations) — code-verified only, blocked on the same live-OAuth approval above.
 - **Etsy listing-video-upload endpoint** — implemented per documented endpoint shape, never tested against a live shop (see `DECISIONS.md`, "[MEDIA] Etsy listing video upload/delete implemented for real").
 - **Etsy-derived external AI processing guidance** — `ALLOW_ETSY_DATA_TO_AI` stays off by default; still pending explicit written Etsy confirmation, independent of the credential issuance (see `ETSY_FINAL_APPEAL_DRAFT.md` §F, question 1).
@@ -24,7 +24,8 @@ None.
 
 ## Owner Action
 
-- **Approve a live OAuth test** when ready: confirm the callback URL registered in the Etsy Developer Console exactly matches `https://api.bulkeditapp.com/api/v1/etsy/callback`, confirm a test shop is available, confirm no write action will run — then give explicit go-ahead to connect it (read-only verification only).
+- **Register the callback URL in the Etsy Developer Console:** https://www.etsy.com/developers/your-apps → `bulk-edit-app` → Redirect URI(s) → add `https://api.bulkeditapp.com/api/v1/etsy/callback` exactly (no trailing slash) → save. This is what's currently blocking the live OAuth test (2026-08-07).
+- **Then retry the live OAuth test:** ask for a fresh production OAuth URL, log in with the owner-controlled test Etsy shop, approve, and report the redirect result (success/error).
 
 ## Deferred
 

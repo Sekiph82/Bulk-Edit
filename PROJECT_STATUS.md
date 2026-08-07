@@ -4,7 +4,7 @@ Single current-state source of truth. For history, see `CHANGELOG.md` (product/r
 
 ## Current Phase
 
-Post-credential-issuance / Private Beta operations. Production is **LIVE** under Private Beta (new sign-ups paused) since 2026-07-06. Etsy issued new developer-app credentials for `bulk-edit-app` on 2026-07-31 (owner received Keystring + Shared Secret directly, rate limit 5 QPS / 5000 QPD); credentials are now configured in production and OAuth URL generation is verified working. **Live OAuth completion (connecting a real shop) has not yet been performed** — pending explicit owner approval. All planned sprints (0-27) are complete — see `CHANGELOG_AI.md` for the full build history. Current work is credential configuration and verification, not feature development.
+Post-credential-issuance / Private Beta operations. Production is **LIVE** under Private Beta (new sign-ups paused) since 2026-07-06. Etsy lifted the ban and granted Personal Use access for `bulk-edit-app` (credentials configured since 2026-07-31, rate limit 5 QPS / 5000 QPD). A live read-only OAuth test was attempted 2026-08-07: authorize-URL generation confirmed correct again, but Etsy's consent page rejected the redirect ("The requested redirect URL is not permitted") — the callback URL is not yet registered in the Etsy Developer Console. **Blocked on owner action**, not our code/config. All planned sprints (0-27) are complete — see `CHANGELOG_AI.md` for the full build history.
 
 ## Production Status
 
@@ -18,7 +18,7 @@ Post-credential-issuance / Private Beta operations. Production is **LIVE** under
 | Private Beta (`app.bulkeditapp.com`) | **Enabled** — new sign-ups paused, 307 → `/private-beta` on all app routes |
 | Retention cleanup | **Option A live** — DO Scheduled Job `retention-cleanup`, `30 3 * * *` (03:30 UTC daily). First run succeeded 2026-07-15; **second consecutive run succeeded 2026-07-16** (03:31:12–03:31:33 UTC, invocation `ad207ee4-f05c-4038-b244-6e54bf9fd13a`). |
 | Stripe | Live products/prices/env configured, validated end-to-end 2026-07-10 (controlled test account, zero real charges) |
-| Etsy developer app | **Credentials received from Etsy 2026-07-31** (`bulk-edit-app`, rate limit 5 QPS / 5000 QPD — matches existing `ETSY_API_REQUESTS_PER_SECOND`/`ETSY_API_DAILY_LIMIT` defaults, no code change needed) and configured on `bulk-edit-prod-api` as encrypted `SECRET` env vars. Production OAuth URL generation verified (masked keystring `qvmj...fh33`, callback/scopes/PKCE all correct). Live OAuth completion (connecting a real shop) not yet performed — pending explicit owner approval. |
+| Etsy developer app | Ban lifted, Personal Use access granted for `bulk-edit-app`. Credentials configured on `bulk-edit-prod-api` as encrypted `SECRET` env vars since 2026-07-31. Production OAuth URL generation re-verified working 2026-08-07 (masked keystring `qvmj...fh33`, callback/scopes/PKCE all correct). **Live OAuth blocked**: Etsy's consent page rejects the redirect — callback URL not yet registered in Etsy Developer Console. Needs owner action (see Manual Owner Actions Required) before retry. |
 | Public website | Aligned with the submitted appeal as of PR #64 (merge `6be4046`) — public AI/marketing wording neutralized, Privacy/Terms updated, feature/health public routes not exposed, sitemap clean. |
 
 ## Environment Status
@@ -31,18 +31,18 @@ Post-credential-issuance / Private Beta operations. Production is **LIVE** under
 
 ## Known Blockers
 
-- **Live Etsy OAuth completion not yet performed.** Credentials are configured and the authorize-URL step is verified in production, but no real shop has been connected — needs explicit owner approval per `TASKS.md` → Owner Action before the connect flow, live reads, or the never-tested-live video-upload endpoint can be exercised.
+- **Live Etsy OAuth blocked by Etsy Developer Console config (2026-08-07).** Etsy's consent page returns "The requested redirect URL is not permitted" — `https://api.bulkeditapp.com/api/v1/etsy/callback` is not yet in the app's registered Redirect URI allowlist. Confirmed our side (env + code) is correct; no production change made since nothing here was proven wrong. Owner must add the callback URL in Etsy's console before any further live OAuth/read/write testing can happen. See `TASKS.md` → Owner Action.
 - Email-delivery domain verification (Resend, `bulkeditapp.com`) status not re-checked this session — see `docs/operations/PRODUCTION_LAUNCH_FOLLOWUPS.md` if this becomes relevant again.
 
 ## Manual Owner Actions Required
 
-1. **Approve a live OAuth test** (connect one real test Etsy shop, read-only — no writes) when ready, per `TASKS.md` → Owner Action. Confirm first that the callback URL registered in the Etsy Developer Console exactly matches `https://api.bulkeditapp.com/api/v1/etsy/callback`.
-2. Nothing else is currently blocking.
+1. **Register the callback URL in the Etsy Developer Console**: https://www.etsy.com/developers/your-apps → `bulk-edit-app` → Redirect URI(s) → add `https://api.bulkeditapp.com/api/v1/etsy/callback` exactly (no trailing slash) → save. Currently blocking the live OAuth test.
+2. **Then retry the live read-only OAuth test** (connect one owner-controlled test Etsy shop, no writes) per `TASKS.md` → Owner Action.
 
 ## Current Next Action
 
-**Await owner approval for a live OAuth test.** Do not create a new Etsy developer app, do not disable Private Beta, do not enable Etsy-derived external AI processing, do not perform any Etsy write, and do not submit another appeal. Once approved: connect one test shop, verify token exchange, re-verify live reads.
+**Await owner confirmation that the Etsy Developer Console redirect URI is registered**, then generate a fresh production OAuth URL and retry. Do not create a new Etsy developer app, do not disable Private Beta, do not enable Etsy-derived external AI processing, do not perform any Etsy write, and do not submit another appeal. Once the redirect succeeds: verify callback/token exchange/shop connection, do read-only shop/listing fetch.
 
 ## Last Updated
 
-2026-07-31
+2026-08-07

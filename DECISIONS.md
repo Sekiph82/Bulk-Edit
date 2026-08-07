@@ -4,6 +4,13 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-07 (first live Etsy OAuth attempt)
+
+### [OPS] Etsy redirect-URI rejection root-caused to the Developer Console allowlist, not our config — no env change made
+Etsy's consent page rejected the live OAuth attempt with "The requested redirect URL is not permitted," thrown before any redirect back to us. Rather than guess at a config fix, decoded the actual `redirect_uri` query param from the generated authorize URL and diffed it byte-for-byte against both the deployed `ETSY_REDIRECT_URI` env var's known value and the callback route in code — exact match on all three. That rules out drift between local/production config and rules out a code bug in URL construction. The only remaining explanation consistent with Etsy's own error wording is that the callback URL was never added to the app's registered Redirect URI allowlist in Etsy's Developer Console — plausible since the app was banned/under review for the entire period this could have been set up. Per `CLAUDE.md`'s rule to only change production env when a read-only test *proves* the current config wrong, and this test proved the opposite, no `doctl`/env change was made. Fix is an owner action in Etsy's own console UI, not an engineering task.
+
+---
+
 ## 2026-07-31 (Etsy production credential configuration)
 
 ### [OPS] Reused `ops/app-specs/bulk-edit-prod-api.yaml` structure via `doctl apps spec get`/`update`, not a hand-authored partial spec
