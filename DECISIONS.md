@@ -4,6 +4,20 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-27 (Etsy x-api-key header format fix, issue #80)
+
+### [SECURITY/CONFIG] Reused the already-configured `ETSY_CLIENT_SECRET` instead of introducing `ETSY_SHARED_SECRET`
+The task instructions specified a new `ETSY_SHARED_SECRET` variable and assumed a new production secret would need to be added as a follow-up. Before implementing, grepped how `ETSY_CLIENT_ID` is referenced across the repo and found `ETSY_CLIENT_SECRET` already declared in every env-example/spec/CI file, with a live, non-empty encrypted value already configured on `bulk-edit-prod-api` (verified read-only via `doctl apps spec get`, values redacted before display, never printed in full) — a leftover from the 2026-07-31 credential issuance session, which configured both the Keystring and Shared Secret but only ever wired the Keystring (`ETSY_CLIENT_ID`) into application code. Using the existing name means this fix needs **zero** new production secret — it activates a value that's been sitting there unused for weeks. Deviated from the literal instruction deliberately, not silently, and documented why in `CHANGELOG_AI.md`.
+
+### [OPS] Centralized `x-api-key` construction in `etsy_http.py`, not duplicated per file
+Six call sites across 5 files (`etsy.py`, `etsy_write.py` ×2, `etsy_media_write.py`, `etsy_variation_write.py`, `etsy_sync.py` ×4) built this header inline. Rather than patch each one with the same string-formatting logic, added one `etsy_api_key_header()` in `etsy_http.py` (already the shared Etsy-request-utilities module, already imported by 2 of the 5 files) and pointed every call site at it. A future format change (or a future audit of "does every Etsy call send the right header") now has exactly one place to check.
+
+### [BUGFIX] `etsy_sync.py`'s x-api-key gap was worse than the rest of the codebase — found by "scan all v3 requests," not by report
+The task asked to scan every Etsy v3 request, not just the ones already implicated by the 403 evidence. That scan found `etsy_sync.py` (read-sync: listings/images/videos/inventory) had one call sending `x-api-key: ""` (explicitly, with a comment claiming it would be "populated from config by callers if needed" — no caller ever did) and three calls with no `x-api-key` header at all. None of these have ever been exercised against real Etsy (no shop has ever connected in production), so this was a second, independent, previously-silent bug in the same family — not a duplicate of the shop-lookup issue.
+
+### [PRODUCT] New category `etsy_oauth_configuration_error` instead of letting a missing secret surface as `etsy_oauth_unknown`
+`EtsyConfigurationError` (raised by `etsy_api_key_header()` when either credential half is missing/placeholder) is explicitly caught in `handle_oauth_callback` before the generic `except Exception`, so a future misconfigured deploy (e.g. someone accidentally blanks `ETSY_CLIENT_SECRET`) shows up in logs as a specific, actionable category instead of the catch-all bucket — consistent with why every other category in this multi-session Etsy debugging effort exists.
+
 ## 2026-08-27 (Etsy OAuth user_id defensive validation, issue #80)
 
 ### [OPS] Ship defensive validation now, even though it's not expected to fix the current 403

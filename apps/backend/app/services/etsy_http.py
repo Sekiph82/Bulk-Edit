@@ -22,6 +22,29 @@ logger = logging.getLogger(__name__)
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
+class EtsyConfigurationError(Exception):
+    """Raised when Etsy API credentials aren't fully configured. Never carries
+    the secret value itself -- only a safe, static message."""
+
+
+def etsy_api_key_header() -> str:
+    """
+    Build the x-api-key header value required on every Etsy Open API v3
+    request: "<keystring>:<shared_secret>" (Etsy's docs, see the comment on
+    ETSY_CLIENT_SECRET in app.core.config -- NOT the keystring alone). Raises
+    EtsyConfigurationError instead of silently returning a malformed value if
+    either half is missing, so a misconfigured deploy fails loudly at the
+    call site rather than sending Etsy a header that will always 403.
+    """
+    keystring = settings.ETSY_CLIENT_ID
+    shared_secret = settings.ETSY_CLIENT_SECRET
+    if not keystring or "placeholder" in keystring.lower():
+        raise EtsyConfigurationError("ETSY_CLIENT_ID is not configured")
+    if not shared_secret or "placeholder" in shared_secret.lower():
+        raise EtsyConfigurationError("ETSY_CLIENT_SECRET is not configured")
+    return f"{keystring}:{shared_secret}"
+
+
 async def etsy_get(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Response:
     """GET with exponential backoff on 429/5xx. Raises on final failure."""
     attempts = max(1, settings.ETSY_RETRY_MAX_ATTEMPTS)

@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from app.core.config import settings
+from app.services.etsy_http import etsy_api_key_header
 
 if TYPE_CHECKING:
     from app.models.listing import Listing
@@ -154,7 +154,7 @@ async def patch_etsy_listing(
 
     headers = {
         "Authorization": f"Bearer {access_token}",
-        "x-api-key": settings.ETSY_CLIENT_ID,
+        "x-api-key": etsy_api_key_header(),
         "Content-Type": "application/x-www-form-urlencoded",
     }
 
@@ -193,7 +193,7 @@ async def patch_etsy_listing_inventory(
     """
     headers = {
         "Authorization": f"Bearer {access_token}",
-        "x-api-key": settings.ETSY_CLIENT_ID,
+        "x-api-key": etsy_api_key_header(),
         "Content-Type": "application/json",
     }
 
