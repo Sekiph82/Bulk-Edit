@@ -4,6 +4,14 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-27 (Etsy OAuth confirmed working, issue #80 closed)
+
+### [OPS] Closed issue #80 immediately on confirmation, not held open for the follow-up sync validation
+The issue tracked a specific, now-resolved bug (shop connection failing). The next step — controlled read-only listing sync validation — is new scope, not a continuation of the same defect, so it gets its own tracking if/when the owner asks for it rather than keeping a stale-titled issue open indefinitely as a catch-all.
+
+### [OPS] Did not fix the uvicorn access-log query-string exposure found during log verification
+While confirming no `etsy_oauth_callback_failed` lines followed the successful attempt, found that uvicorn's own per-request access log includes the full `/etsy/callback` query string — meaning raw OAuth `code`/`state` values do reach `doctl apps logs` output today, separately from the categorized (and deliberately safe) `etsy_oauth_callback_failed` warning logger. Not fixed in this session — it was a read-only verification task, not a fix task, and this deserves its own deliberate change (likely a logging filter/formatter scoped to this one route) rather than a rushed edit appended to an unrelated task. Flagged in `CHANGELOG_AI.md` as a follow-up.
+
 ## 2026-08-27 (Etsy shop-lookup single-object parsing fix, issue #80)
 
 ### [BUGFIX] Kept `etsy_oauth_shop_not_found` as the category for this fix, did not add a new one

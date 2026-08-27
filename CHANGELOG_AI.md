@@ -6,6 +6,26 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-27 Etsy OAuth: production connection confirmed working end-to-end (issue #80 closed)
+
+**Result:** owner retried live OAuth after the shop-lookup parser fix deployed. Success — **WearYourStoriesCom** (Etsy shop ID `44263504`) is now connected in production, verified read-only via `/etsy/shops` (`total=1`, `is_connected=True`, `last_synced_at=None` — confirms no sync has run yet, no write of any kind performed).
+
+**Full root-cause chain, in the order found and fixed across this week's sessions:**
+1. **Private Beta callback masking** — the beta gate blocked every app route including `/etsy/callback`'s `/shops?...` redirect, hiding the real result behind `/private-beta?...` (`fix/private-beta-allow-signin`, merged `4a232fb`).
+2. **Missing categorized logging** — `/etsy/callback` caught every failure identically with zero logging anywhere in the path, making steps 3-4 undiagnosable without it (`fix/etsy-oauth-safe-callback-logging`, merged `34b53c9`).
+3. **x-api-key missing the shared secret** — Etsy Open API v3 requires `x-api-key: <keystring>:<shared_secret>`; the codebase sent the keystring alone on every `/v3/application/*` call, causing a 403 (`fix/etsy-oauth-shop-lookup-x-api-key` / PR #82, merged `9336c53`). Used the already-configured `ETSY_CLIENT_SECRET` — no new production secret needed.
+4. **`getShopByOwnerUserId` single-object response parsed as `results[]`** — the endpoint returns a `Shop` object directly per Etsy's own OpenAPI spec, not `{count, results: [...]}`; the parser expected the latter, so `etsy_oauth_shop_not_found` fired for any account regardless of whether a shop existed (`fix/etsy-shop-lookup-single-shop-response` / PR #83, merged `fee6e4c`).
+
+(A fifth change, `fix/etsy-oauth-user-id-validation` / PR #81, was shipped between steps 3 and 4 as defensive hardening — it didn't fix a root cause, just closed an unrelated gap.)
+
+**Log hygiene gap noted, not fixed this session:** uvicorn's access-log formatter logs the full request line for `GET /etsy/callback`, including the raw OAuth `code` and `state` query params, in production `doctl apps logs` output. This is separate from the categorized `etsy_oauth_callback_failed` warning logger (which never logs raw values) — it's uvicorn's own per-request INFO line. Out of scope for this session (read-only verification task); worth a follow-up to redact query strings for this specific route in the access-log config.
+
+**Verified:** production health (API/DB/Redis/ready) all OK. Private Beta still enabled, `/login` accessible, `/register` still paused — none of these were touched. Issue #80 commented with the full chain and closed as completed.
+
+**Not done:** no Etsy write of any kind. No listing sync triggered (`last_synced_at=None` confirms this). Next step is a **controlled, explicitly-approved, read-only** listing sync validation — not started.
+
+---
+
 ## 2026-08-27 Etsy OAuth: fix shop-lookup response parsing (issue #80, confirmed root cause after PR #82)
 
 **Branch:** `fix/etsy-shop-lookup-single-shop-response` (off `main`).

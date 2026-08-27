@@ -8,7 +8,7 @@ Full sprint-by-sprint build history (Sprint 0 through Sprint 27, all DevOps fixe
 
 ## Current Phase
 
-Post-credential-issuance / Private Beta operations. All planned feature sprints are complete. Etsy issued new developer-app credentials 2026-07-31; they are configured in production and OAuth URL generation is verified. Current focus: awaiting owner approval for a live OAuth test.
+Post-credential-issuance / Private Beta operations. All planned feature sprints are complete. **Etsy OAuth shop connection now works end-to-end in production (2026-08-27)** — WearYourStoriesCom (shop ID `44263504`) connected, issue #80 closed. Current focus: awaiting owner approval for a controlled read-only listing sync validation (next step, not yet started).
 
 ## In Progress
 
@@ -21,23 +21,24 @@ None.
 - **doctl auth restored (2026-08-27)** — token re-supplied from `deploy-production.local.env` directly into doctl's local config, never printed/argv'd. `doctl account get` confirmed working.
 - **Etsy OAuth root cause found + defensive hardening shipped (2026-08-27)** — production logs showed `etsy_oauth_shop_lookup_failed`, Etsy's shop-lookup endpoint returning 403 after a successful token exchange. Diagnosed at the time as likely a Personal Use access-tier restriction (issue #80) — `user_id` derivation confirmed correct against Etsy's own docs. Shipped `fix/etsy-oauth-user-id-validation` anyway: validates `user_id` is present/numeric before calling Etsy, new category `etsy_oauth_user_id_missing_or_invalid`. Superseded by the finding below.
 - **Etsy x-api-key header format fix (2026-08-27)** — `fix/etsy-oauth-shop-lookup-x-api-key`, merged `9336c53`, deployed, **confirmed working** (the 403 is gone on the next retry). Every `/v3/application/*` request now sends `x-api-key: "<keystring>:<shared_secret>"`. Used the already-configured `ETSY_CLIENT_SECRET` — no new production secret needed.
-- **Etsy shop-lookup response parsing fix (2026-08-27)** — `fix/etsy-shop-lookup-single-shop-response`, **PR open, not merged**: after the x-api-key fix, OAuth still failed with `etsy_oauth_shop_not_found` — owner confirmed an active shop exists (WearYourStoriesCom, 210 listings). Root cause: `fetch_etsy_shop()` parsed the response as `{count, results: [...]}`, but this endpoint (`getShopByOwnerUserId`) returns a single `Shop` object per Etsy's own OpenAPI spec — `results` was always empty regardless of whether a shop existed. Fixed to parse the single object directly. Do not retry OAuth until this PR is merged and deployed.
-
-## Blocked Externally (Etsy, not owner or engineering)
-
-- **Etsy OAuth shop connection (issue #80)** — three root causes found and fixed in sequence this session: (1) Private Beta masking the real result (fixed, confirmed), (2) malformed `x-api-key` header causing a 403 (fixed, confirmed — the 403 is gone), (3) shop-lookup response parsed as a list when Etsy returns a single object (fix above, PR open, not yet confirmed live). **Do not retry OAuth until the parsing-fix PR is merged and deployed.** If it still fails after that, treat it as a genuinely new category — the access-tier hypothesis is now less likely given the 403 is resolved, but don't assume without reading the fresh log line.
+- **Etsy shop-lookup response parsing fix (2026-08-27)** — `fix/etsy-shop-lookup-single-shop-response` / PR #83, merged `fee6e4c`, deployed. Root cause: `fetch_etsy_shop()` parsed the response as `{count, results: [...]}`, but this endpoint (`getShopByOwnerUserId`) returns a single `Shop` object per Etsy's own OpenAPI spec — `results` was always empty regardless of whether a shop existed. Fixed to parse the single object directly.
+- **Etsy OAuth shop connection confirmed working end-to-end (2026-08-27)** — owner retried live OAuth after the parser fix deployed. **Success:** WearYourStoriesCom (shop ID `44263504`) connected, verified read-only (`is_connected=True`, `last_synced_at=None` — no sync run, no writes). Issue #80 commented with the full 4-step root-cause chain (Private Beta masking → missing logging → x-api-key format → response parsing) and **closed as completed**.
 
 ## Blocked Externally (owner approval, not Etsy)
 
-- **Live Etsy OAuth completion** — credentials configured and authorize-URL generation verified in production 2026-07-31; connecting a real shop needs explicit owner go-ahead (see Owner Action below), not another Etsy response.
-- **Live Etsy write verification** (bulk-edit apply, revert, media, variations) — code-verified only, blocked on the same live-OAuth approval above.
-- **Etsy listing-video-upload endpoint** — implemented per documented endpoint shape, never tested against a live shop (see `DECISIONS.md`, "[MEDIA] Etsy listing video upload/delete implemented for real").
-- **Etsy-derived external AI processing guidance** — `ALLOW_ETSY_DATA_TO_AI` stays off by default; still pending explicit written Etsy confirmation, independent of the credential issuance (see `ETSY_FINAL_APPEAL_DRAFT.md` §F, question 1).
+- **Controlled read-only listing sync validation** — the shop is connected but never synced (`last_synced_at=None`). This is the next step, needs explicit owner go-ahead before triggering any sync call (read-only, no writes).
+- **Live Etsy write verification** (bulk-edit apply, revert, media, variations) — code-verified only, blocked on explicit owner approval; connection now confirmed working so this is unblocked from the connection side, but still needs its own separate go-ahead per `CLAUDE.md` rule 2 (preview → confirmation → backup → permission → subscription gate → audit log for every write).
+- **Etsy listing-video-upload endpoint** — implemented per documented endpoint shape, never tested against a live shop.
+- **Etsy-derived external AI processing guidance** — `ALLOW_ETSY_DATA_TO_AI` stays off by default; still pending explicit written Etsy confirmation, independent of the connection now working (see `ETSY_FINAL_APPEAL_DRAFT.md` §F, question 1).
 - **Social republishing guidance** (Pinterest/Instagram auto-post) — deliberately stubbed pending the same confirmation (§F, question 4).
 
 ## Owner Action
 
-- **Approve a live OAuth test** when ready: confirm the callback URL registered in the Etsy Developer Console exactly matches `https://api.bulkeditapp.com/api/v1/etsy/callback`, confirm a test shop is available, confirm no write action will run — then give explicit go-ahead to connect it (read-only verification only).
+- **Approve a controlled, read-only listing sync validation** when ready — the shop is connected but has never been synced. No writes will run without a separate, explicit go-ahead per `CLAUDE.md` rule 2.
+
+## Follow-up (non-urgent, not blocking)
+
+- **uvicorn access-log exposure on `/etsy/callback`** — the request's raw `code`/`state` query params appear in `doctl apps logs` via uvicorn's own access-log line, separate from the safe categorized `etsy_oauth_callback_failed` logger (which never logs raw values). Found 2026-08-27 during log verification; not fixed (out of scope for that read-only task). Needs a scoped access-log formatter change for this route.
 
 ## Deferred
 
