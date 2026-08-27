@@ -252,6 +252,104 @@ async def test_callback_token_response_invalid_logs_category(client, db_session,
     assert "etsy_oauth_token_response_invalid" in caplog.text
 
 
+async def test_callback_user_id_missing_logs_category_and_skips_shop_lookup(client, db_session, caplog):
+    """access_token has no dot and token_data has no explicit user_id -> invalid, shop lookup never called."""
+    state_val = await _seed_valid_state(db_session)
+
+    mock_token_resp = MagicMock()
+    mock_token_resp.raise_for_status = MagicMock()
+    mock_token_resp.json.return_value = {
+        "access_token": "malformed_token_no_dot_never_logged",
+        "refresh_token": "etsy_refresh_token_value",
+        "expires_in": 3600,
+    }
+
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = AsyncMock(return_value=mock_token_resp)
+    mock_http.get = AsyncMock(side_effect=AssertionError("shop lookup must not be called for an invalid user_id"))
+
+    with (
+        patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"),
+    ):
+        r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
+
+    assert r.status_code == 302
+    assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_user_id_missing_or_invalid" in caplog.text
+    assert "user_id_derivation" in caplog.text
+    mock_http.get.assert_not_called()
+    assert "malformed_token_no_dot_never_logged" not in caplog.text
+
+
+async def test_callback_user_id_non_numeric_logs_category_and_skips_shop_lookup(client, db_session, caplog):
+    """access_token prefix before the dot is not all-digits -> invalid, shop lookup never called."""
+    state_val = await _seed_valid_state(db_session)
+
+    mock_token_resp = MagicMock()
+    mock_token_resp.raise_for_status = MagicMock()
+    mock_token_resp.json.return_value = {
+        "access_token": "abc123not_numeric.opaque_part_never_logged",
+        "refresh_token": "etsy_refresh_token_value",
+        "expires_in": 3600,
+    }
+
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = AsyncMock(return_value=mock_token_resp)
+    mock_http.get = AsyncMock(side_effect=AssertionError("shop lookup must not be called for a non-numeric user_id"))
+
+    with (
+        patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"),
+    ):
+        r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
+
+    assert r.status_code == 302
+    assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_user_id_missing_or_invalid" in caplog.text
+    mock_http.get.assert_not_called()
+    assert "abc123not_numeric" not in caplog.text
+    assert "opaque_part_never_logged" not in caplog.text
+
+
+async def test_callback_user_id_from_numeric_access_token_prefix_proceeds_to_shop_lookup(client, db_session):
+    """access_token = '{numeric_user_id}.{opaque}' (Etsy's real format, no explicit user_id key) -> shop lookup is called and succeeds."""
+    state_val = await _seed_valid_state(db_session)
+
+    mock_token_resp = MagicMock()
+    mock_token_resp.raise_for_status = MagicMock()
+    mock_token_resp.json.return_value = {
+        "access_token": "55512345.opaque_token_part_never_logged",
+        "refresh_token": "etsy_refresh_token_value",
+        "expires_in": 3600,
+    }
+    mock_shop_resp = MagicMock()
+    mock_shop_resp.raise_for_status = MagicMock()
+    mock_shop_resp.json.return_value = {
+        "count": 1,
+        "results": [{"shop_id": 55512345, "shop_name": "Numeric Prefix Shop"}],
+    }
+
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = AsyncMock(return_value=mock_token_resp)
+    mock_http.get = AsyncMock(return_value=mock_shop_resp)
+
+    with patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http):
+        r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
+
+    assert r.status_code == 302
+    assert "connected=true" in r.headers["location"]
+    mock_http.get.assert_called_once()
+    called_url = mock_http.get.call_args.args[0]
+    assert "/users/55512345/shops" in called_url
+
+
 async def test_callback_shop_lookup_http_error_logs_category(client, db_session, caplog):
     import httpx as httpx_module
 
@@ -437,7 +535,7 @@ async def test_callback_stores_real_granted_scope_not_token_type(client, db_sess
     mock_token_resp = MagicMock()
     mock_token_resp.raise_for_status = MagicMock()
     mock_token_resp.json.return_value = {
-        "access_token": "etsy_access_token_value",
+        "access_token": "88888.etsy_access_token_value",
         "refresh_token": "etsy_refresh_token_value",
         "expires_in": 3600,
         "token_type": "Bearer",

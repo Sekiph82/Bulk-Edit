@@ -76,6 +76,27 @@ async def create_authorization_session(org_id: str, user_id: str, db: AsyncSessi
     return f"{ETSY_AUTH_URL}?{urlencode(params)}"
 
 
+def _derive_etsy_user_id(token_data: dict[str, Any]) -> str:
+    """
+    Etsy's token response never includes a `user_id` field (confirmed against
+    Etsy's own docs) -- the numeric user id is embedded as the access token's
+    `{user_id}.{opaque_token}` prefix. Validate it's actually present and
+    numeric before it's ever used in a request URL, instead of trusting it
+    blind.
+    """
+    raw_user_id = token_data.get("user_id")
+    if raw_user_id is None:
+        access_token = token_data.get("access_token") or ""
+        raw_user_id = access_token.split(".", 1)[0] if "." in access_token else None
+
+    etsy_user_id = str(raw_user_id or "").strip()
+
+    if not etsy_user_id.isdigit():
+        raise EtsyOAuthError("etsy_oauth_user_id_missing_or_invalid", stage="user_id_derivation")
+
+    return etsy_user_id
+
+
 async def handle_oauth_callback(code: str, state: str, db: AsyncSession) -> None:
     result = await db.execute(select(EtsyOAuthState).where(EtsyOAuthState.state == state))
     oauth_state = result.scalar_one_or_none()
@@ -99,7 +120,7 @@ async def handle_oauth_callback(code: str, state: str, db: AsyncSession) -> None
     if not isinstance(token_data, dict) or not token_data.get("access_token") or not token_data.get("refresh_token"):
         raise EtsyOAuthError("etsy_oauth_token_response_invalid", stage="token_exchange")
 
-    etsy_user_id = token_data.get("user_id") or token_data.get("access_token", "").split(".")[0]
+    etsy_user_id = _derive_etsy_user_id(token_data)
     try:
         shop_info = await fetch_etsy_shop(etsy_user_id, token_data["access_token"])
     except (httpx.HTTPStatusError, httpx.RequestError) as e:
