@@ -6,6 +6,35 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-27 Etsy OAuth: fix x-api-key header format across all v3 requests (issue #80 likely root cause)
+
+**Branch:** `fix/etsy-oauth-shop-lookup-x-api-key` (off `main`).
+
+**Why:** the diagnosis in issue #80 checked Etsy's own docs for the shop-lookup endpoint specifically and found the codebase's request shape looked right, provisionally pointing at a Personal Use access-tier restriction as the likely 403 cause. A closer re-read of Etsy's authentication docs (`developers.etsy.com/documentation/essentials/authentication/`) found the actual, previously-missed requirement: **every** `/v3/application/*` request's `x-api-key` header must be `"<keystring>:<shared_secret>"`, not the keystring alone. The whole codebase — not just `fetch_etsy_shop()` — was sending `x-api-key: <keystring>` only. This is a materially better-supported explanation for the 403 than the access-tier hypothesis, and is trivially and safely fixable without waiting on Etsy.
+
+**Also found while scanning "every Etsy v3 request" per instruction:** `etsy_sync.py` (read sync — listings/images/videos/inventory) had it *worse*: one call sent `x-api-key: ""` (literally empty, with a comment claiming it'd be "populated from config by callers if needed" — it never was) and three calls sent no `x-api-key` header at all. These have never been exercised against real Etsy (no shop has ever connected), so the gap was silent until now.
+
+**Discovery that changed the plan:** the task instructions assumed a *new* secret (`ETSY_SHARED_SECRET`) would need to be added to production as an external follow-up. Grepping the repo for how `ETSY_CLIENT_ID` is documented turned up `ETSY_CLIENT_SECRET` already declared everywhere — `.env.example`, `deploy-secrets.local.env.example`, `deploy-staging.local.env.example`, `ops/app-specs/bulk-edit-prod-api.yaml`, `.github/workflows/ci.yml`, `render.yaml` — and a **live, non-empty encrypted `EV[...]` value already configured on `bulk-edit-prod-api`** (confirmed read-only via `doctl apps spec get`, redacted before ever being displayed). This matches `HANDOFF.md`'s own account of the 2026-07-31 session: Etsy issued "Keystring + Shared Secret" together, and both were configured as encrypted `SECRET` env vars — but only `ETSY_CLIENT_ID` was ever wired into `app.core.config.Settings`. The secret has been sitting correctly configured in production, completely unused, since 2026-07-31. **Used the existing `ETSY_CLIENT_SECRET` name instead of the instructed `ETSY_SHARED_SECRET`** — same effect, zero new production secret needed. Documented as a deliberate deviation, not a silent one.
+
+**Added/changed:**
+- `apps/backend/app/core/config.py` — `ETSY_CLIENT_SECRET: str = "etsy_client_secret_placeholder"` (mirrors `ETSY_CLIENT_ID`'s placeholder-default pattern).
+- `apps/backend/app/services/etsy_http.py` — `EtsyConfigurationError` + `etsy_api_key_header()`: builds `"<keystring>:<shared_secret>"`, raising instead of returning a malformed value if either half is missing/placeholder. Single shared implementation, not duplicated per file.
+- `apps/backend/app/services/etsy.py` — `fetch_etsy_shop()` uses the shared helper; `handle_oauth_callback()` catches `EtsyConfigurationError` around the shop-lookup call and maps it to a new category `etsy_oauth_configuration_error` (stage `shop_lookup`) — the 13th `EtsyOAuthError` category, following the same pattern as every prior one this week.
+- `apps/backend/app/services/etsy_write.py`, `etsy_media_write.py`, `etsy_variation_write.py` — every `x-api-key: settings.ETSY_CLIENT_ID` (5 call sites across 3 files, some behind a shared local `_auth_headers()`) switched to the shared helper.
+- `apps/backend/app/services/etsy_sync.py` — added a local `_auth_headers()` (matching the pattern already used in the other write files) and fixed all 4 call sites (previously: 1 empty string, 3 missing entirely).
+- `apps/backend/scripts/validate_env.py` — added an `ETSY_CLIENT_SECRET` check mirroring the existing `ETSY_CLIENT_ID` one (masked value, `fail` in production / `warn` elsewhere).
+- `docker-compose.prod.example.yml` — added `ETSY_CLIENT_SECRET` next to `ETSY_CLIENT_ID` (was missing from this one template).
+- `.github/workflows/ci.yml` — `ETSY_CLIENT_ID`/`ETSY_CLIENT_SECRET` in the Backend Tests job env changed from `""` to non-empty fake test values (`ci-test-etsy-client-id-not-real` / `...-secret-not-real`) — needed once the new validation actually checks these values; previously they were inert.
+- **Not changed:** `exchange_code_for_token()` and `refresh_etsy_token()` — both hit `POST /v3/public/oauth/token`, a different host/path than `/v3/application/*`, and per the same docs page don't need `x-api-key` at all (PKCE, `client_id` in the body is sufficient — already working, confirmed by production logs reaching `shop_lookup` past a successful token exchange). Explicitly left alone per instruction and verified by a new regression test.
+
+**Verified locally:** `test_etsy.py` — 33 passed (6 new for this fix), 2 pre-existing unrelated failures (401-vs-403 drift). Confirmed the CI env fix actually works by reproducing CI's exact env override locally before pushing. Write-path tests (`test_bulk_edit_apply.py`, `test_bulk_edit_media.py`, `test_bulk_edit_revert.py`, `test_bulk_edit_variation.py`) run for regression coverage on the other 3 changed files (none of their existing assertions touch header content, only `is_etsy_configured()`, which was deliberately left untouched). `git diff --check` clean; diff scanned for secret-shaped strings — none found.
+
+**Issue #80 updated:** commented with this new evidence, reclassified from "likely access-tier restriction" to "likely malformed x-api-key header, now fixed — access-tier remains a fallback hypothesis only if the header fix doesn't resolve it on the next real attempt."
+
+**Not done:** no OAuth retry (task explicitly scoped to implementation only). No PR merge (opened, CI-gated, left for explicit merge approval separately). No production env change of any kind — the fix uses only what's already configured live.
+
+---
+
 ## 2026-08-27 Etsy OAuth: defensive user_id validation before shop lookup (issue #80)
 
 **Branch:** `fix/etsy-oauth-user-id-validation` (off `main`).

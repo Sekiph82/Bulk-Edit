@@ -66,6 +66,113 @@ def test_code_challenge_differs_from_verifier():
 
 
 # ---------------------------------------------------------------------------
+# x-api-key header (issue #80 follow-up: Etsy Open API v3 requires
+# "<keystring>:<shared_secret>", not the keystring alone)
+# ---------------------------------------------------------------------------
+
+def test_etsy_api_key_header_is_keystring_colon_secret():
+    from app.services.etsy_http import etsy_api_key_header
+
+    mock_settings = MagicMock()
+    mock_settings.ETSY_CLIENT_ID = "test_keystring_123"
+    mock_settings.ETSY_CLIENT_SECRET = "test_shared_secret_456"
+    with patch("app.services.etsy_http.settings", mock_settings):
+        header = etsy_api_key_header()
+    assert header == "test_keystring_123:test_shared_secret_456"
+
+
+def test_etsy_api_key_header_raises_when_secret_missing():
+    from app.services.etsy_http import etsy_api_key_header, EtsyConfigurationError
+
+    mock_settings = MagicMock()
+    mock_settings.ETSY_CLIENT_ID = "test_keystring_123"
+    mock_settings.ETSY_CLIENT_SECRET = ""
+    with patch("app.services.etsy_http.settings", mock_settings):
+        with pytest.raises(EtsyConfigurationError):
+            etsy_api_key_header()
+
+
+def test_etsy_api_key_header_raises_when_secret_is_placeholder():
+    from app.services.etsy_http import etsy_api_key_header, EtsyConfigurationError
+
+    mock_settings = MagicMock()
+    mock_settings.ETSY_CLIENT_ID = "test_keystring_123"
+    mock_settings.ETSY_CLIENT_SECRET = "etsy_client_secret_placeholder"
+    with patch("app.services.etsy_http.settings", mock_settings):
+        with pytest.raises(EtsyConfigurationError):
+            etsy_api_key_header()
+
+
+def test_etsy_api_key_header_raises_when_client_id_missing():
+    from app.services.etsy_http import etsy_api_key_header, EtsyConfigurationError
+
+    mock_settings = MagicMock()
+    mock_settings.ETSY_CLIENT_ID = ""
+    mock_settings.ETSY_CLIENT_SECRET = "test_shared_secret_456"
+    with patch("app.services.etsy_http.settings", mock_settings):
+        with pytest.raises(EtsyConfigurationError):
+            etsy_api_key_header()
+
+
+async def test_callback_configuration_error_logs_category_and_no_secret(client, db_session, caplog):
+    """Shop lookup with a missing shared secret -> safe categorized failure, no header/secret value logged."""
+    state_val = await _seed_valid_state(db_session)
+
+    mock_token_resp = MagicMock()
+    mock_token_resp.raise_for_status = MagicMock()
+    mock_token_resp.json.return_value = {
+        "access_token": "99999.opaque_part_never_logged",
+        "refresh_token": "etsy_refresh_token_value",
+        "expires_in": 3600,
+    }
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = AsyncMock(return_value=mock_token_resp)
+    mock_http.get = AsyncMock(side_effect=AssertionError("shop lookup must not be called without a configured x-api-key"))
+
+    mock_settings = MagicMock()
+    mock_settings.ETSY_CLIENT_ID = "test_keystring_123"
+    mock_settings.ETSY_CLIENT_SECRET = ""  # simulates the missing-in-this-env case
+
+    with (
+        patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        patch("app.services.etsy_http.settings", mock_settings),
+        caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"),
+    ):
+        r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
+
+    assert r.status_code == 302
+    assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_configuration_error" in caplog.text
+    mock_http.get.assert_not_called()
+    assert "test_keystring_123" not in caplog.text
+    assert "opaque_part_never_logged" not in caplog.text
+
+
+async def test_token_exchange_does_not_send_x_api_key_and_uses_client_id_unchanged():
+    """Regression: the OAuth token exchange (PKCE, no shared secret needed) must be untouched by this fix."""
+    from app.services.etsy import exchange_code_for_token
+
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json.return_value = {"access_token": "1.tok", "refresh_token": "r", "expires_in": 3600}
+
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = AsyncMock(return_value=mock_resp)
+
+    with patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http):
+        await exchange_code_for_token("some_code", "some_verifier")
+
+    mock_http.post.assert_called_once()
+    _, kwargs = mock_http.post.call_args
+    assert "headers" not in kwargs or "x-api-key" not in (kwargs.get("headers") or {})
+    assert "client_id" in kwargs["data"]
+
+
+# ---------------------------------------------------------------------------
 # GET /etsy/authorize
 # ---------------------------------------------------------------------------
 

@@ -194,6 +194,15 @@ def main() -> None:
     else:
         ok("ETSY_CLIENT_ID", f"Set ({_mask(etsy_id)})")
 
+    etsy_secret = _get("ETSY_CLIENT_SECRET")
+    if not etsy_secret or "placeholder" in etsy_secret.lower():
+        if env == "production":
+            fail("ETSY_CLIENT_SECRET", "MISSING - required for the x-api-key header on every Etsy Open API v3 call")
+        else:
+            warn("ETSY_CLIENT_SECRET", "Not set - Etsy API calls will fail with a configuration error")
+    else:
+        ok("ETSY_CLIENT_SECRET", f"Set ({_mask(etsy_secret)})")
+
     check_required(
         "ETSY_REDIRECT_URI",
         env,

@@ -15,6 +15,7 @@ from app.models.etsy_shop import EtsyShop
 from app.models.etsy_token import EtsyToken
 from app.models.etsy_oauth_state import EtsyOAuthState
 from app.models.scheduled_job import ScheduledJob
+from app.services.etsy_http import EtsyConfigurationError, etsy_api_key_header
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +124,8 @@ async def handle_oauth_callback(code: str, state: str, db: AsyncSession) -> None
     etsy_user_id = _derive_etsy_user_id(token_data)
     try:
         shop_info = await fetch_etsy_shop(etsy_user_id, token_data["access_token"])
+    except EtsyConfigurationError as e:
+        raise EtsyOAuthError("etsy_oauth_configuration_error", stage="shop_lookup") from e
     except (httpx.HTTPStatusError, httpx.RequestError) as e:
         status_code = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
         raise EtsyOAuthError("etsy_oauth_shop_lookup_failed", stage="shop_lookup", status_code=status_code) from e
@@ -199,7 +202,7 @@ async def fetch_etsy_shop(user_id: str, access_token: str) -> dict[str, Any]:
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{ETSY_API_BASE}/application/users/{user_id}/shops",
-            headers={"Authorization": f"Bearer {access_token}", "x-api-key": settings.ETSY_CLIENT_ID},
+            headers={"Authorization": f"Bearer {access_token}", "x-api-key": etsy_api_key_header()},
         )
         resp.raise_for_status()
         data = resp.json()

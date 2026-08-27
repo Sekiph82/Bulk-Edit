@@ -68,7 +68,7 @@ from typing import Any
 
 import httpx
 
-from app.core.config import settings
+from app.services.etsy_http import etsy_api_key_header
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ class EtsyMediaWriteError(Exception):
 def _auth_headers(access_token: str) -> dict[str, str]:
     return {
         "Authorization": f"Bearer {access_token}",
-        "x-api-key": settings.ETSY_CLIENT_ID,
+        "x-api-key": etsy_api_key_header(),
     }
 
 

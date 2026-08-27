@@ -38,6 +38,19 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY: str = "ZGV2X2VuY3J5cHRpb25fa2V5X3BsYWNlaG9sZGVyISE="
 
     ETSY_CLIENT_ID: str = "etsy_client_id_placeholder"
+    # Etsy Open API v3 requires every /v3/application/* request to send
+    # x-api-key as "<keystring>:<shared_secret>", not the keystring alone
+    # (confirmed against Etsy's own docs, developers.etsy.com/documentation/
+    # essentials/authentication/). Not needed for the OAuth token exchange
+    # itself (PKCE, no client secret there) -- only for API calls made with
+    # the resulting access token. ETSY_CLIENT_SECRET was already declared
+    # everywhere else (.env.example, DO app specs, CI) and already
+    # configured as a live encrypted SECRET on bulk-edit-prod-api since the
+    # 2026-07-31 credential issuance ("Keystring + Shared Secret") -- it was
+    # simply never read by application code until now. Reused that existing
+    # name/value instead of introducing a new env var that would need a
+    # fresh production secret add.
+    ETSY_CLIENT_SECRET: str = "etsy_client_secret_placeholder"
     ETSY_REDIRECT_URI: str = "http://localhost:8100/api/v1/etsy/callback"
     ETSY_SCOPES: str = "listings_r listings_w shops_r profile_r"
 

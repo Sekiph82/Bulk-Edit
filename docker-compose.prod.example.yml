@@ -44,6 +44,7 @@ services:
       STRIPE_PRICE_PRO_YEARLY: ${STRIPE_PRICE_PRO_YEARLY:-}
       # --- Etsy ---
       ETSY_CLIENT_ID: ${ETSY_CLIENT_ID}
+      ETSY_CLIENT_SECRET: ${ETSY_CLIENT_SECRET}
       ETSY_REDIRECT_URI: ${ETSY_REDIRECT_URI}
       ETSY_SCOPES: ${ETSY_SCOPES:-listings_r listings_w shops_r profile_r}
       # --- AI ---

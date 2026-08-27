@@ -24,13 +24,20 @@ from app.models.listing_video import ListingVideo
 from app.models.listing_variation import ListingVariation
 from app.models.subscription import Subscription
 from app.models.sync_job import SyncJob
-from app.services.etsy_http import etsy_get
+from app.services.etsy_http import etsy_api_key_header, etsy_get
 
 logger = logging.getLogger(__name__)
 
 ETSY_API_BASE = "https://openapi.etsy.com/v3"
 PAGE_LIMIT = 100
 TOKEN_REFRESH_BUFFER_SECONDS = 300
+
+
+def _auth_headers(access_token: str) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {access_token}",
+        "x-api-key": etsy_api_key_header(),
+    }
 
 
 class SyncError(Exception):
@@ -76,15 +83,11 @@ async def get_valid_etsy_access_token(shop: EtsyShop, db: AsyncSession) -> str:
 async def fetch_shop_listings(
     access_token: str, etsy_shop_id: str, limit: int = PAGE_LIMIT, offset: int = 0
 ) -> dict[str, Any]:
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "x-api-key": "",  # populated from config by callers if needed
-    }
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await etsy_get(
             client,
             f"{ETSY_API_BASE}/application/shops/{etsy_shop_id}/listings/active",
-            headers=headers,
+            headers=_auth_headers(access_token),
             params={"limit": limit, "offset": offset, "includes": "Images,MainImage"},
         )
         resp.raise_for_status()
@@ -96,7 +99,7 @@ async def fetch_listing_images(access_token: str, listing_id: str) -> list[dict[
         resp = await etsy_get(
             client,
             f"{ETSY_API_BASE}/application/listings/{listing_id}/images",
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers=_auth_headers(access_token),
         )
         if resp.status_code == 404:
             return []
@@ -111,7 +114,7 @@ async def fetch_listing_videos(access_token: str, listing_id: str) -> list[dict[
         resp = await etsy_get(
             client,
             f"{ETSY_API_BASE}/application/listings/{listing_id}/videos",
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers=_auth_headers(access_token),
         )
         if resp.status_code in (404, 405):
             return []
@@ -127,7 +130,7 @@ async def fetch_listing_inventory(access_token: str, listing_id: str) -> list[di
         resp = await etsy_get(
             client,
             f"{ETSY_API_BASE}/application/listings/{listing_id}/inventory",
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers=_auth_headers(access_token),
         )
         if resp.status_code in (404, 405):
             return []
