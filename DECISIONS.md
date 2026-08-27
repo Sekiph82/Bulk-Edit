@@ -4,6 +4,14 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-27 (Etsy shop-lookup single-object parsing fix, issue #80)
+
+### [BUGFIX] Kept `etsy_oauth_shop_not_found` as the category for this fix, did not add a new one
+`fetch_etsy_shop()`'s `ValueError` on a missing/invalid shop already maps to `etsy_oauth_shop_not_found`. Even though the *reason* for that error changed (was: real "no shop" case; also was: parsing bug masking any real shop as "not found"), the category still means exactly what it says from the caller's perspective — "we could not resolve a shop for this user" — so reusing it is correct, not a workaround. A new category would only be warranted if we needed to distinguish "genuinely no shop" from "parsing prevented us from seeing the shop" in logs going forward, which isn't needed now that the parser itself is fixed.
+
+### [OPS] Added a regression-guard test for the *wrong* (list-wrapped) shape, not just the correct one
+Beyond fixing the 5 fixtures that had the wrong shape, added a new test asserting that IF a list-wrapped `{count, results}` response is ever received at this endpoint, it fails closed (no shop connected) rather than silently succeeding. This endpoint had zero real-world exercise before this week — every existing fixture agreed on the same wrong assumption, so "the tests pass" alone provided no confidence. A test that would fail loudly if this exact class of shape-mismatch bug recurs is worth more here than one that only re-confirms the current fix works.
+
 ## 2026-08-27 (Etsy x-api-key header format fix, issue #80)
 
 ### [SECURITY/CONFIG] Reused the already-configured `ETSY_CLIENT_SECRET` instead of introducing `ETSY_SHARED_SECRET`

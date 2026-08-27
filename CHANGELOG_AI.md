@@ -6,6 +6,24 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-27 Etsy OAuth: fix shop-lookup response parsing (issue #80, confirmed root cause after PR #82)
+
+**Branch:** `fix/etsy-shop-lookup-single-shop-response` (off `main`).
+
+**Why:** PR #82's x-api-key fix worked — after it deployed, the owner's fresh OAuth retry no longer 403'd. But it still failed, with a different category: `etsy_oauth_shop_not_found` (was `etsy_oauth_shop_lookup_failed`/403). The owner then confirmed in Etsy Shop Manager that the account has an active shop — **WearYourStoriesCom** (wearyourstoriescom.etsy.com, 210 active listings, 121 sales) — ruling out "no shop exists" as the explanation.
+
+**Root cause found:** `fetch_etsy_shop()` (`apps/backend/app/services/etsy.py`) parsed the response from `GET /v3/application/users/{user_id}/shops` as `{count, results: [...]}` (a paginated-list shape) and read `results[0]`. Checked a generated mirror of Etsy's own OpenAPI spec (`gordonturner/etsy-open-api-client`, `docs/ShopApi.md`) and found this endpoint's documented return type is a **single `Shop` object**, not the plural `Shops` (list-wrapped) type used by `findShops` (the shop-by-name search endpoint). A bare `Shop` object has no `results` key, so `data.get("results", [])` was `[]` on **every** call to this endpoint — the "shop not found" error would have fired for any account, shop or no shop. Every existing test fixture mocked the same wrong shape, so this was never caught; this endpoint had never been exercised against real Etsy until this week's live attempts.
+
+**Fixed:**
+- `apps/backend/app/services/etsy.py::fetch_etsy_shop()` — parses the response as a single object directly: validates it's a dict with a truthy `shop_id`, returns it as-is. No `results`/`count`/pagination handling. Error category unchanged (`ValueError` → `etsy_oauth_shop_not_found` in `handle_oauth_callback`, per instruction — no new category needed since this is still genuinely "we couldn't resolve a shop," just for a different reason than before).
+- `apps/backend/tests/test_etsy.py` — updated all 5 success-path fixtures that mocked the wrong `{count, results: [...]}` shape to the real single-object shape. Changed the "not found" fixture from `{count: 0, results: []}` to `{}` (matches what Etsy actually sends for that case). Added `test_callback_shop_lookup_list_wrapped_response_is_not_a_valid_shop` — a regression guard proving that if a list-wrapped response *is* ever received (a future Etsy change, or someone reverting this fix by accident), it correctly still fails closed (`etsy_oauth_shop_not_found`, no shop row created) rather than silently connecting a bogus shop. Added DB-row assertions (shop + token rows actually created) to the main success-path test, which previously only checked the redirect.
+
+**Verified locally:** `test_etsy.py` + `test_listings.py` — only the 2-3 pre-existing 401-vs-403 local-environment-drift failures (confirmed harmless in earlier sessions, absent in CI). Full backend suite run for broader regression coverage. `git diff --check` clean; diff scanned for real secrets/tokens — none found.
+
+**Not done:** no OAuth retried in this task (implementation only, per instruction). No new error category (kept `etsy_oauth_shop_not_found` per instruction — still semantically accurate: after this fix, the app genuinely cannot resolve *any* shop for this user until this deploys). No production env change — this is a pure parsing-logic fix, no config/secret involved.
+
+---
+
 ## 2026-08-27 Etsy OAuth: fix x-api-key header format across all v3 requests (issue #80 likely root cause)
 
 **Branch:** `fix/etsy-oauth-shop-lookup-x-api-key` (off `main`).

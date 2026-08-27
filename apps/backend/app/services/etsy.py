@@ -199,6 +199,12 @@ async def exchange_code_for_token(code: str, code_verifier: str) -> dict[str, An
 
 
 async def fetch_etsy_shop(user_id: str, access_token: str) -> dict[str, Any]:
+    """
+    GET /v3/application/users/{user_id}/shops (getShopByOwnerUserId) returns a
+    single Shop object directly -- not a {count, results: [...]} page, unlike
+    list endpoints such as findShops (confirmed against Etsy's own OpenAPI
+    spec, see issue #80).
+    """
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{ETSY_API_BASE}/application/users/{user_id}/shops",
@@ -206,10 +212,9 @@ async def fetch_etsy_shop(user_id: str, access_token: str) -> dict[str, Any]:
         )
         resp.raise_for_status()
         data = resp.json()
-        results = data.get("results", [])
-        if not results:
+        if not isinstance(data, dict) or not data.get("shop_id"):
             raise ValueError("No Etsy shop found for user")
-        return results[0]
+        return data
 
 
 async def list_connected_shops(org_id: str, db: AsyncSession) -> list[EtsyShop]:
