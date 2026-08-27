@@ -6,6 +6,25 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-27 Etsy OAuth callback: safe categorized failure logging (no retry performed)
+
+**Branch:** `fix/etsy-oauth-safe-callback-logging` (off `main`).
+
+**Why:** the live OAuth debug earlier this session (owner logged into Bulk Edit App, approved Etsy access, landed on `/shops` with "Failed to connect Etsy shop. Please try again.") confirmed the Private Beta masking bug is fixed — the real `/shops?error=etsy_connect_failed` result now reaches an authenticated user — but the actual OAuth failure inside the backend callback is still uncategorized: `callback()` in `apps/backend/app/api/v1/etsy.py` caught a bare `Exception` and redirected to the same generic `error=etsy_connect_failed` for every failure mode (missing params, Etsy `error=` param, state not found/consumed/expired, token exchange failure, invalid token response, shop lookup failure, no shop found, DB write failure) with zero logging anywhere in the path. The next live attempt would have hit the same wall blind.
+
+**Added:**
+- `apps/backend/app/services/etsy.py` — `EtsyOAuthError(Exception)`: carries only `category` / `stage` / `status_code` (never code, state, tokens, or response bodies). `handle_oauth_callback` now raises it at each specific failure point instead of bare `ValueError` or letting `httpx.HTTPStatusError` propagate raw: `etsy_oauth_state_not_found` / `_state_consumed` / `_state_expired` (state-lookup guards, unchanged logic, just typed), `etsy_oauth_token_exchange_failed` (httpx error wrapping `exchange_code_for_token`, captures Etsy's HTTP status code only), `etsy_oauth_token_response_invalid` (new validation: token response missing `access_token`/`refresh_token` — previously would have KeyError'd uncategorized), `etsy_oauth_shop_lookup_failed` (httpx error wrapping `fetch_etsy_shop`) / `etsy_oauth_shop_not_found` (existing "no shop for user" `ValueError`, now typed), `etsy_oauth_token_storage_failed` (wraps the final `db.commit()`).
+- `apps/backend/app/api/v1/etsy.py` — `_log_callback_failure()` helper: one `logger.warning("etsy_oauth_callback_failed category=%s has_code=%s has_state=%s has_error=%s exc_type=%s stage=%s status_code=%s", ...)` call site, reused for all branches. Router now distinguishes the `error=` query param case (`etsy_oauth_provider_error_param`) from missing code/state (`etsy_oauth_missing_params`) — previously one combined `if` — and catches `EtsyOAuthError` before the generic `Exception` fallback (`etsy_oauth_unknown`, for anything genuinely unanticipated).
+- `apps/backend/tests/test_etsy.py` — 9 new/extended tests, one per category, using `caplog` to assert the category string appears in the log and that the test's own fake code/state/token literals do **not** appear anywhere in `caplog.text` (the actual secret-safety property, not just "a log line exists").
+
+**Deliberately unchanged:** browser-visible behavior. Every branch still redirects to exactly `/shops?connected=true` or `/shops?error=etsy_connect_failed` — the categorization is server-log-only, per instruction, so the frontend needs no change and no user-facing error copy changes yet.
+
+**Verified locally:** targeted `pytest tests/test_etsy.py` — all Etsy-specific tests pass except 2 pre-existing, unrelated failures (`test_authorize_401_without_token`, `test_list_shops_401_without_token`, both asserting `403` where the FastAPI/Starlette version in this environment returns `401` for a missing bearer token — reproduced identically on unmodified `main` via `git stash`, confirmed not caused by this change). Full backend suite: 861 passed, 29 failed — all 29 confirmed pre-existing on unmodified `main` via `git stash` (28 are a repo-wide `401` vs `403` mismatch on missing-bearer-token assertions, environment/dependency-version drift unrelated to Etsy or this change; the other 6 are unrelated `etsy_not_configured`/video-generator assertions, also reproduced on `main`). `PROJECT_STATUS.md`'s "982 passed" figure predates this drift and was not chased further — out of scope for a logging-only fix. `git diff --check` clean; diff scanned for `access_token=`/`refresh_token=`/`client_secret=`/`EV[`/the real masked keystring — none found (only test-fixture placeholder literals like `"etsy_access_token_value"`, which were already used by the pre-existing `test_callback_success_flow`).
+
+**Not done:** no change to the user-facing `error=etsy_connect_failed` query value (task explicitly deferred exposing categories to the client); no retry of the live OAuth attempt; no new OAuth URL generated; no Etsy write; no DB migration (no schema change — `EtsyOAuthError` is a plain Python exception, not a model).
+
+---
+
 ## 2026-08-27 Private Beta: allow sign-in for existing/beta users, keep registration paused
 
 **Branch:** `fix/private-beta-allow-signin` (off `main`).

@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,8 +14,31 @@ from app.schemas.etsy import (
     EtsyShopsResponse,
 )
 from app.services import etsy as etsy_service
+from app.services.etsy import EtsyOAuthError
 
 router = APIRouter(prefix="/etsy", tags=["etsy"])
+logger = logging.getLogger(__name__)
+
+
+def _log_callback_failure(
+    category: str,
+    code,
+    state,
+    error,
+    exc: Exception | None = None,
+    stage: str | None = None,
+    status_code: int | None = None,
+) -> None:
+    logger.warning(
+        "etsy_oauth_callback_failed category=%s has_code=%s has_state=%s has_error=%s exc_type=%s stage=%s status_code=%s",
+        category,
+        bool(code),
+        bool(state),
+        bool(error),
+        exc.__class__.__name__ if exc is not None else None,
+        stage,
+        status_code,
+    )
 
 
 @router.get("/authorize", response_model=EtsyAuthorizeResponse)
@@ -37,13 +62,21 @@ async def callback(
 ):
     frontend_shops_url = f"{settings.FRONTEND_URL}/shops"
 
-    if error or not code or not state:
+    if error:
+        _log_callback_failure("etsy_oauth_provider_error_param", code, state, error)
+        return RedirectResponse(url=f"{frontend_shops_url}?error=etsy_connect_failed", status_code=302)
+    if not code or not state:
+        _log_callback_failure("etsy_oauth_missing_params", code, state, error)
         return RedirectResponse(url=f"{frontend_shops_url}?error=etsy_connect_failed", status_code=302)
 
     try:
         await etsy_service.handle_oauth_callback(code, state, db)
         return RedirectResponse(url=f"{frontend_shops_url}?connected=true", status_code=302)
-    except Exception:
+    except EtsyOAuthError as exc:
+        _log_callback_failure(exc.category, code, state, error, exc, stage=exc.stage, status_code=exc.status_code)
+        return RedirectResponse(url=f"{frontend_shops_url}?error=etsy_connect_failed", status_code=302)
+    except Exception as exc:
+        _log_callback_failure("etsy_oauth_unknown", code, state, error, exc)
         return RedirectResponse(url=f"{frontend_shops_url}?error=etsy_connect_failed", status_code=302)
 
 

@@ -4,6 +4,17 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-27 (Etsy OAuth callback safe categorized logging)
+
+### [OPS] Categorize via a typed exception (`EtsyOAuthError`), not string-matching or re-parsing generic exceptions in the router
+The router previously caught bare `Exception` with no way to tell state-expired from a token-exchange 500 apart after the fact. Rather than inspect exception messages/types loosely at the catch site (fragile — message text changes silently break categorization), `handle_oauth_callback` now raises a small `EtsyOAuthError(category, stage, status_code)` at each specific failure point, and the router just reads those three attributes. A generic `except Exception` fallback (`etsy_oauth_unknown`) stays as the safety net for anything genuinely unanticipated, so a new untriaged failure mode still gets logged (just without a specific category) instead of silently falling through.
+
+### [SECURITY] Log category/stage/status_code/exception-class-name only — never construct log messages from request or response data
+Every raise site for `EtsyOAuthError` deliberately carries no reference to `code`, `state`, `token_data`, or Etsy's raw response body — the category string itself is the only thing derived from what Etsy or the client sent, and it's from a fixed enum-like set of literals in the code, not user input. This makes it structurally impossible for the log line to leak a secret by accident (e.g. an f-string that later gets extended to include "for debugging"), versus relying on developer discipline to remember to redact when editing the log call later.
+
+### [PRODUCT] Categorized logging ships without changing the user-facing `error=etsy_connect_failed` value
+Deliberately scoped down per instruction: this pass is diagnostic only. Exposing categories to the frontend (e.g. `?error=etsy_oauth_token_exchange_failed`) is a separate, larger decision (different error copy per category, possibly different retry guidance) that shouldn't ride along with a pure logging change — especially before knowing which category is actually firing in production.
+
 ## 2026-08-27 (Private Beta allows sign-in)
 
 ### [PRODUCT] Private Beta narrowed from "block every app route" to "block registration only"

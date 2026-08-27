@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 import base64
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
@@ -14,6 +15,22 @@ from app.models.etsy_shop import EtsyShop
 from app.models.etsy_token import EtsyToken
 from app.models.etsy_oauth_state import EtsyOAuthState
 from app.models.scheduled_job import ScheduledJob
+
+logger = logging.getLogger(__name__)
+
+
+class EtsyOAuthError(Exception):
+    """
+    Raised for a categorized OAuth callback failure. Carries only a safe
+    category/stage/status_code for logging — never the request/response data
+    (code, state, tokens, secrets) that caused it.
+    """
+
+    def __init__(self, category: str, stage: str, status_code: int | None = None):
+        self.category = category
+        self.stage = stage
+        self.status_code = status_code
+        super().__init__(category)
 
 
 ETSY_AUTH_URL = "https://www.etsy.com/oauth/connect"
@@ -64,19 +81,32 @@ async def handle_oauth_callback(code: str, state: str, db: AsyncSession) -> None
     oauth_state = result.scalar_one_or_none()
 
     if not oauth_state:
-        raise ValueError("Invalid state parameter")
+        raise EtsyOAuthError("etsy_oauth_state_not_found", stage="state_lookup")
     if oauth_state.consumed_at is not None:
-        raise ValueError("State already consumed")
+        raise EtsyOAuthError("etsy_oauth_state_consumed", stage="state_lookup")
     if datetime.now(timezone.utc) > oauth_state.expires_at.replace(tzinfo=timezone.utc):
-        raise ValueError("State expired")
+        raise EtsyOAuthError("etsy_oauth_state_expired", stage="state_lookup")
 
     oauth_state.consumed_at = datetime.now(timezone.utc)
     await db.flush()
 
-    token_data = await exchange_code_for_token(code, oauth_state.code_verifier)
+    try:
+        token_data = await exchange_code_for_token(code, oauth_state.code_verifier)
+    except (httpx.HTTPStatusError, httpx.RequestError) as e:
+        status_code = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
+        raise EtsyOAuthError("etsy_oauth_token_exchange_failed", stage="token_exchange", status_code=status_code) from e
+
+    if not isinstance(token_data, dict) or not token_data.get("access_token") or not token_data.get("refresh_token"):
+        raise EtsyOAuthError("etsy_oauth_token_response_invalid", stage="token_exchange")
 
     etsy_user_id = token_data.get("user_id") or token_data.get("access_token", "").split(".")[0]
-    shop_info = await fetch_etsy_shop(etsy_user_id, token_data["access_token"])
+    try:
+        shop_info = await fetch_etsy_shop(etsy_user_id, token_data["access_token"])
+    except (httpx.HTTPStatusError, httpx.RequestError) as e:
+        status_code = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
+        raise EtsyOAuthError("etsy_oauth_shop_lookup_failed", stage="shop_lookup", status_code=status_code) from e
+    except ValueError as e:
+        raise EtsyOAuthError("etsy_oauth_shop_not_found", stage="shop_lookup") from e
 
     etsy_shop_id = str(shop_info["shop_id"])
     shop_name = shop_info.get("shop_name")
@@ -122,7 +152,10 @@ async def handle_oauth_callback(code: str, state: str, db: AsyncSession) -> None
         token_row.expires_at = expires_at
         token_row.scopes = granted_scopes
 
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception as e:
+        raise EtsyOAuthError("etsy_oauth_token_storage_failed", stage="token_storage") from e
 
 
 async def exchange_code_for_token(code: str, code_verifier: str) -> dict[str, Any]:
