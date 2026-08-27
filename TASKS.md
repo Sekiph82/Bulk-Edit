@@ -17,6 +17,11 @@ None.
 ## Recently Completed
 
 - **Private Beta allows sign-in (2026-08-27)** — `fix/private-beta-allow-signin`: Private Beta now blocks only registration (`/register`, `/signup`, `/get-started`); sign-in and the authenticated app pass through, and the Etsy OAuth callback's `/shops?connected=true`/`?error=...` result is no longer masked by the beta gate. See `CHANGELOG_AI.md` for full detail.
+- **Etsy OAuth callback safe categorized logging (2026-08-27)** — `fix/etsy-oauth-safe-callback-logging`: the previously-bare `except Exception` in `/etsy/callback` now logs one of 11 safe categories (`etsy_oauth_state_not_found`, `_token_exchange_failed`, `_shop_not_found`, etc.) with no code/state/token values. Browser-visible behavior unchanged (`?connected=true` / `?error=etsy_connect_failed`). No OAuth retried in this task.
+
+## Blocked Externally (infra, not Etsy or owner)
+
+- **DigitalOcean log access (`doctl`)** — auth token expired/invalid (`401 Unable to authenticate you`), confirmed via `doctl account get`. Blocks pulling `bulk-edit-prod-api` logs to see the new categorized OAuth failure line from the next attempt. Owner needs to re-run `doctl auth init` (or equivalent) with a valid token; not something this session can fix from an API credential.
 
 ## Blocked Externally (owner approval, not Etsy)
 

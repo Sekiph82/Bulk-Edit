@@ -1,3 +1,4 @@
+import logging
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone, timedelta
@@ -108,22 +109,254 @@ async def test_authorize_returns_url_when_configured(client):
 # GET /etsy/callback
 # ---------------------------------------------------------------------------
 
-async def test_callback_redirects_on_error_param(client):
-    r = await client.get(f"{CALLBACK_URL}?error=access_denied", follow_redirects=False)
+async def test_callback_redirects_on_error_param(client, caplog):
+    with caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"):
+        r = await client.get(f"{CALLBACK_URL}?error=access_denied", follow_redirects=False)
     assert r.status_code == 302
     assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_provider_error_param" in caplog.text
+    assert "access_denied" not in caplog.text
 
 
-async def test_callback_redirects_on_missing_code(client):
-    r = await client.get(f"{CALLBACK_URL}?state=somestate", follow_redirects=False)
+async def test_callback_redirects_on_missing_code(client, caplog):
+    with caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"):
+        r = await client.get(f"{CALLBACK_URL}?state=somestate_never_logged", follow_redirects=False)
     assert r.status_code == 302
     assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_missing_params" in caplog.text
+    assert "somestate_never_logged" not in caplog.text
 
 
-async def test_callback_redirects_on_invalid_state(client):
-    r = await client.get(f"{CALLBACK_URL}?code=abc&state=nonexistent_state", follow_redirects=False)
+async def test_callback_redirects_on_invalid_state(client, caplog):
+    with caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"):
+        r = await client.get(f"{CALLBACK_URL}?code=abc_code_never_logged&state=nonexistent_state", follow_redirects=False)
     assert r.status_code == 302
     assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_state_not_found" in caplog.text
+    assert "abc_code_never_logged" not in caplog.text
+    assert "nonexistent_state" not in caplog.text
+
+
+async def test_callback_state_consumed_logs_category(client, db_session, caplog):
+    from app.models.etsy_oauth_state import EtsyOAuthState
+    from app.services.etsy import generate_code_verifier
+    import uuid
+
+    state_val = "already_consumed_state"
+    record = EtsyOAuthState(
+        state=state_val,
+        code_verifier=generate_code_verifier(),
+        organization_id=str(uuid.uuid4()),
+        user_id=str(uuid.uuid4()),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+        consumed_at=datetime.now(timezone.utc),
+    )
+    db_session.add(record)
+    await db_session.commit()
+
+    with caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"):
+        r = await client.get(f"{CALLBACK_URL}?code=somecode&state={state_val}", follow_redirects=False)
+    assert r.status_code == 302
+    assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_state_consumed" in caplog.text
+
+
+async def test_callback_state_expired_logs_category(client, db_session, caplog):
+    from app.models.etsy_oauth_state import EtsyOAuthState
+    from app.services.etsy import generate_code_verifier
+    import uuid
+
+    state_val = "expired_state"
+    record = EtsyOAuthState(
+        state=state_val,
+        code_verifier=generate_code_verifier(),
+        organization_id=str(uuid.uuid4()),
+        user_id=str(uuid.uuid4()),
+        expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+    db_session.add(record)
+    await db_session.commit()
+
+    with caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"):
+        r = await client.get(f"{CALLBACK_URL}?code=somecode&state={state_val}", follow_redirects=False)
+    assert r.status_code == 302
+    assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_state_expired" in caplog.text
+
+
+async def _seed_valid_state(db_session) -> str:
+    from app.models.etsy_oauth_state import EtsyOAuthState
+    from app.services.etsy import generate_code_verifier
+    import uuid
+
+    state_val = f"valid_state_{uuid.uuid4().hex[:8]}"
+    db_session.add(EtsyOAuthState(
+        state=state_val,
+        code_verifier=generate_code_verifier(),
+        organization_id=str(uuid.uuid4()),
+        user_id=str(uuid.uuid4()),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+    ))
+    await db_session.commit()
+    return state_val
+
+
+async def test_callback_token_exchange_http_error_logs_category(client, db_session, caplog):
+    import httpx as httpx_module
+
+    state_val = await _seed_valid_state(db_session)
+
+    error_resp = MagicMock()
+    error_resp.status_code = 400
+    error_resp.raise_for_status = MagicMock(
+        side_effect=httpx_module.HTTPStatusError("bad request", request=MagicMock(), response=error_resp)
+    )
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = AsyncMock(return_value=error_resp)
+
+    with (
+        patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"),
+    ):
+        r = await client.get(f"{CALLBACK_URL}?code=secret_auth_code&state={state_val}", follow_redirects=False)
+
+    assert r.status_code == 302
+    assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_token_exchange_failed" in caplog.text
+    assert "status_code=400" in caplog.text
+    assert "secret_auth_code" not in caplog.text
+
+
+async def test_callback_token_response_invalid_logs_category(client, db_session, caplog):
+    state_val = await _seed_valid_state(db_session)
+
+    mock_token_resp = MagicMock()
+    mock_token_resp.raise_for_status = MagicMock()
+    mock_token_resp.json.return_value = {"expires_in": 3600}  # missing access_token/refresh_token
+
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = AsyncMock(return_value=mock_token_resp)
+
+    with (
+        patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"),
+    ):
+        r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
+
+    assert r.status_code == 302
+    assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_token_response_invalid" in caplog.text
+
+
+async def test_callback_shop_lookup_http_error_logs_category(client, db_session, caplog):
+    import httpx as httpx_module
+
+    state_val = await _seed_valid_state(db_session)
+
+    mock_token_resp = MagicMock()
+    mock_token_resp.raise_for_status = MagicMock()
+    mock_token_resp.json.return_value = {
+        "access_token": "etsy_access_token_value",
+        "refresh_token": "etsy_refresh_token_value",
+        "expires_in": 3600,
+        "user_id": "12345",
+    }
+    shop_error_resp = MagicMock()
+    shop_error_resp.status_code = 500
+    shop_error_resp.raise_for_status = MagicMock(
+        side_effect=httpx_module.HTTPStatusError("server error", request=MagicMock(), response=shop_error_resp)
+    )
+
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = AsyncMock(return_value=mock_token_resp)
+    mock_http.get = AsyncMock(return_value=shop_error_resp)
+
+    with (
+        patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"),
+    ):
+        r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
+
+    assert r.status_code == 302
+    assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_shop_lookup_failed" in caplog.text
+    assert "status_code=500" in caplog.text
+    assert "etsy_access_token_value" not in caplog.text
+
+
+async def test_callback_shop_not_found_logs_category(client, db_session, caplog):
+    state_val = await _seed_valid_state(db_session)
+
+    mock_token_resp = MagicMock()
+    mock_token_resp.raise_for_status = MagicMock()
+    mock_token_resp.json.return_value = {
+        "access_token": "etsy_access_token_value",
+        "refresh_token": "etsy_refresh_token_value",
+        "expires_in": 3600,
+        "user_id": "12345",
+    }
+    mock_shop_resp = MagicMock()
+    mock_shop_resp.raise_for_status = MagicMock()
+    mock_shop_resp.json.return_value = {"count": 0, "results": []}
+
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = AsyncMock(return_value=mock_token_resp)
+    mock_http.get = AsyncMock(return_value=mock_shop_resp)
+
+    with (
+        patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"),
+    ):
+        r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
+
+    assert r.status_code == 302
+    assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_shop_not_found" in caplog.text
+    assert "etsy_access_token_value" not in caplog.text
+
+
+async def test_callback_unknown_exception_logs_category(client, db_session, caplog):
+    state_val = await _seed_valid_state(db_session)
+
+    mock_token_resp = MagicMock()
+    mock_token_resp.raise_for_status = MagicMock()
+    mock_token_resp.json.return_value = {
+        "access_token": "etsy_access_token_value",
+        "refresh_token": "etsy_refresh_token_value",
+        "expires_in": 3600,
+        "user_id": "12345",
+    }
+    mock_shop_resp = MagicMock()
+    mock_shop_resp.raise_for_status = MagicMock()
+    mock_shop_resp.json.return_value = {
+        "count": 1,
+        "results": [{"shop_id": 77777, "shop_name": "Unknown Failure Shop"}],
+    }
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = AsyncMock(return_value=mock_token_resp)
+    mock_http.get = AsyncMock(return_value=mock_shop_resp)
+
+    with (
+        patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        patch("app.services.etsy.encrypt_token", side_effect=RuntimeError("unexpected encryption failure")),
+        caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"),
+    ):
+        r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
+
+    assert r.status_code == 302
+    assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_unknown" in caplog.text
+    assert "RuntimeError" in caplog.text
 
 
 async def test_callback_success_flow(client, db_session):
