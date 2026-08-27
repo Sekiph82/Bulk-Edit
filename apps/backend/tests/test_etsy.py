@@ -1,5 +1,6 @@
 import logging
 import pytest
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone, timedelta
 
@@ -308,6 +309,24 @@ async def _seed_valid_state(db_session) -> str:
     return state_val
 
 
+@contextmanager
+def _valid_etsy_credentials():
+    """Fake, non-placeholder ETSY_CLIENT_ID/SECRET for tests that need shop
+    lookup's x-api-key header to build successfully. Not real credentials --
+    the shop-lookup HTTP call itself is always mocked in these tests. Needed
+    because the real settings.ETSY_CLIENT_ID/SECRET are ambient (env-file or
+    CI env, deliberately blank in CI so the *other* is_etsy_configured()
+    gating tests exercise the 503 path) rather than test-controlled.
+    Patches only these two attributes (not the whole settings object) so
+    every other real setting -- e.g. ETSY_RETRY_MAX_ATTEMPTS, read by
+    etsy_http.etsy_get() -- stays intact."""
+    with (
+        patch("app.services.etsy_http.settings.ETSY_CLIENT_ID", "test_keystring_never_logged"),
+        patch("app.services.etsy_http.settings.ETSY_CLIENT_SECRET", "test_shared_secret_never_logged"),
+    ):
+        yield
+
+
 async def test_callback_token_exchange_http_error_logs_category(client, db_session, caplog):
     import httpx as httpx_module
 
@@ -447,7 +466,10 @@ async def test_callback_user_id_from_numeric_access_token_prefix_proceeds_to_sho
     mock_http.post = AsyncMock(return_value=mock_token_resp)
     mock_http.get = AsyncMock(return_value=mock_shop_resp)
 
-    with patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http):
+    with (
+        patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        _valid_etsy_credentials(),
+    ):
         r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
 
     assert r.status_code == 302
@@ -484,6 +506,7 @@ async def test_callback_shop_lookup_http_error_logs_category(client, db_session,
 
     with (
         patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        _valid_etsy_credentials(),
         caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"),
     ):
         r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
@@ -518,6 +541,7 @@ async def test_callback_shop_not_found_logs_category(client, db_session, caplog)
 
     with (
         patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        _valid_etsy_credentials(),
         caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"),
     ):
         r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
@@ -553,6 +577,7 @@ async def test_callback_unknown_exception_logs_category(client, db_session, capl
 
     with (
         patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        _valid_etsy_credentials(),
         patch("app.services.etsy.encrypt_token", side_effect=RuntimeError("unexpected encryption failure")),
         caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"),
     ):
@@ -607,7 +632,10 @@ async def test_callback_success_flow(client, db_session):
     mock_http.post = AsyncMock(return_value=mock_token_resp)
     mock_http.get = AsyncMock(return_value=mock_shop_resp)
 
-    with patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http):
+    with (
+        patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        _valid_etsy_credentials(),
+    ):
         r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
 
     assert r.status_code == 302
@@ -660,7 +688,10 @@ async def test_callback_stores_real_granted_scope_not_token_type(client, db_sess
     mock_http.post = AsyncMock(return_value=mock_token_resp)
     mock_http.get = AsyncMock(return_value=mock_shop_resp)
 
-    with patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http):
+    with (
+        patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        _valid_etsy_credentials(),
+    ):
         r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
     assert r.status_code == 302
 
@@ -788,7 +819,10 @@ async def test_sync_auto_refreshes_near_expiry_token(client, db_session):
     shop, _ = await _setup_shop_with_token(db_session, org_id, near_expiry)
     shop_id = shop.id  # capture as plain str before expire_all() below
 
-    with patch("app.services.etsy.httpx.AsyncClient", return_value=_mock_combined_http_client()):
+    with (
+        patch("app.services.etsy.httpx.AsyncClient", return_value=_mock_combined_http_client()),
+        _valid_etsy_credentials(),
+    ):
         r = await client.post(f"/api/v1/shops/{shop_id}/sync", headers={"Authorization": f"Bearer {reg_token}"})
 
     assert r.status_code == 200

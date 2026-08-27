@@ -45,12 +45,8 @@ jobs:
       ENCRYPTION_KEY: uOv7K6PYL6v4G77O0WqJrA5BrM42x3NCAQZUSO2rTio=
       AI_PROVIDER: mock
       STRIPE_SECRET_KEY: ""
-      # Non-empty fake values (not real credentials) -- tests that exercise
-      # the shop-lookup x-api-key header (built as "<id>:<secret>") need a
-      # non-empty, non-"placeholder" value here or they'd all fail on the
-      # configuration check before ever reaching the mocked Etsy HTTP client.
-      ETSY_CLIENT_ID: ci-test-etsy-client-id-not-real
-      ETSY_CLIENT_SECRET: ci-test-etsy-client-secret-not-real
+      ETSY_CLIENT_ID: ""
+      ETSY_CLIENT_SECRET: ""
       RATE_LIMIT_ENABLED: "false"
       DEBUG: "false"
 
