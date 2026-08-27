@@ -455,10 +455,7 @@ async def test_callback_user_id_from_numeric_access_token_prefix_proceeds_to_sho
     }
     mock_shop_resp = MagicMock()
     mock_shop_resp.raise_for_status = MagicMock()
-    mock_shop_resp.json.return_value = {
-        "count": 1,
-        "results": [{"shop_id": 55512345, "shop_name": "Numeric Prefix Shop"}],
-    }
+    mock_shop_resp.json.return_value = {"shop_id": 55512345, "shop_name": "Numeric Prefix Shop"}
 
     mock_http = AsyncMock()
     mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -531,7 +528,7 @@ async def test_callback_shop_not_found_logs_category(client, db_session, caplog)
     }
     mock_shop_resp = MagicMock()
     mock_shop_resp.raise_for_status = MagicMock()
-    mock_shop_resp.json.return_value = {"count": 0, "results": []}
+    mock_shop_resp.json.return_value = {}  # Etsy returns an empty object, not {count: 0, results: []}
 
     mock_http = AsyncMock()
     mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -565,10 +562,7 @@ async def test_callback_unknown_exception_logs_category(client, db_session, capl
     }
     mock_shop_resp = MagicMock()
     mock_shop_resp.raise_for_status = MagicMock()
-    mock_shop_resp.json.return_value = {
-        "count": 1,
-        "results": [{"shop_id": 77777, "shop_name": "Unknown Failure Shop"}],
-    }
+    mock_shop_resp.json.return_value = {"shop_id": 77777, "shop_name": "Unknown Failure Shop"}
     mock_http = AsyncMock()
     mock_http.__aenter__ = AsyncMock(return_value=mock_http)
     mock_http.__aexit__ = AsyncMock(return_value=False)
@@ -621,10 +615,7 @@ async def test_callback_success_flow(client, db_session):
     }
     mock_shop_resp = MagicMock()
     mock_shop_resp.raise_for_status = MagicMock()
-    mock_shop_resp.json.return_value = {
-        "count": 1,
-        "results": [{"shop_id": 99999, "shop_name": "My Test Shop"}],
-    }
+    mock_shop_resp.json.return_value = {"shop_id": 99999, "shop_name": "My Test Shop"}
 
     mock_http = AsyncMock()
     mock_http.__aenter__ = AsyncMock(return_value=mock_http)
@@ -640,6 +631,65 @@ async def test_callback_success_flow(client, db_session):
 
     assert r.status_code == 302
     assert "connected=true" in r.headers["location"]
+
+    from app.models.etsy_shop import EtsyShop
+    from app.models.etsy_token import EtsyToken
+    from sqlalchemy import select
+
+    shop_result = await db_session.execute(select(EtsyShop).where(EtsyShop.etsy_shop_id == "99999"))
+    shop = shop_result.scalar_one()
+    assert shop.shop_name == "My Test Shop"
+    assert shop.is_connected is True
+
+    token_result = await db_session.execute(select(EtsyToken).where(EtsyToken.etsy_shop_id == shop.id))
+    assert token_result.scalar_one_or_none() is not None
+
+
+async def test_callback_shop_lookup_list_wrapped_response_is_not_a_valid_shop(client, db_session, caplog):
+    """
+    Regression guard: if Etsy (or a future misconfiguration) ever returns
+    the list-wrapped {count, results} shape from this endpoint instead of a
+    single Shop object, it must NOT be treated as a shop -- there is no
+    top-level "shop_id" on that wrapper, so it correctly falls through to
+    etsy_oauth_shop_not_found rather than silently connecting a bogus shop.
+    """
+    state_val = await _seed_valid_state(db_session)
+
+    mock_token_resp = MagicMock()
+    mock_token_resp.raise_for_status = MagicMock()
+    mock_token_resp.json.return_value = {
+        "access_token": "13579.opaque_never_logged",
+        "refresh_token": "etsy_refresh_token_value",
+        "expires_in": 3600,
+    }
+    mock_shop_resp = MagicMock()
+    mock_shop_resp.raise_for_status = MagicMock()
+    mock_shop_resp.json.return_value = {
+        "count": 1,
+        "results": [{"shop_id": 13579, "shop_name": "Should Not Connect"}],
+    }
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = AsyncMock(return_value=mock_token_resp)
+    mock_http.get = AsyncMock(return_value=mock_shop_resp)
+
+    with (
+        patch("app.services.etsy.httpx.AsyncClient", return_value=mock_http),
+        _valid_etsy_credentials(),
+        caplog.at_level(logging.WARNING, logger="app.api.v1.etsy"),
+    ):
+        r = await client.get(f"{CALLBACK_URL}?code=authcode&state={state_val}", follow_redirects=False)
+
+    assert r.status_code == 302
+    assert "error=etsy_connect_failed" in r.headers["location"]
+    assert "etsy_oauth_shop_not_found" in caplog.text
+
+    from app.models.etsy_shop import EtsyShop
+    from sqlalchemy import select
+
+    result = await db_session.execute(select(EtsyShop).where(EtsyShop.etsy_shop_id == "13579"))
+    assert result.scalar_one_or_none() is None
 
 
 async def test_callback_stores_real_granted_scope_not_token_type(client, db_session):
@@ -678,10 +728,7 @@ async def test_callback_stores_real_granted_scope_not_token_type(client, db_sess
     }
     mock_shop_resp = MagicMock()
     mock_shop_resp.raise_for_status = MagicMock()
-    mock_shop_resp.json.return_value = {
-        "count": 1,
-        "results": [{"shop_id": 88888, "shop_name": "Scope Test Shop"}],
-    }
+    mock_shop_resp.json.return_value = {"shop_id": 88888, "shop_name": "Scope Test Shop"}
     mock_http = AsyncMock()
     mock_http.__aenter__ = AsyncMock(return_value=mock_http)
     mock_http.__aexit__ = AsyncMock(return_value=False)
