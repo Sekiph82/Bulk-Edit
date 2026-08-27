@@ -34,6 +34,7 @@ import importlib
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core.config import settings  # noqa: E402
 from app.models.user import User  # noqa: E402
 
 importlib.import_module("app.models")
@@ -88,7 +89,13 @@ async def main() -> None:
     if not database_url:
         _fail("DATABASE_URL env var is required (never printed by this script).")
 
-    engine = create_async_engine(database_url, echo=False)
+    # Use settings.DATABASE_URL (same env var, but pydantic-settings applies
+    # the app's own postgresql:// -> postgresql+asyncpg:// rewrite and strips
+    # the libpq-style sslmode param asyncpg can't parse -- see
+    # app.core.config.Settings._force_asyncpg_driver). The raw env value
+    # alone made SQLAlchemy default to the psycopg2 dialect, which isn't
+    # installed in this async-only app.
+    engine = create_async_engine(settings.DATABASE_URL, echo=False)
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with session_factory() as db:
