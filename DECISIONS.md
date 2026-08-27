@@ -4,6 +4,14 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-27 (Etsy OAuth user_id defensive validation, issue #80)
+
+### [OPS] Ship defensive validation now, even though it's not expected to fix the current 403
+The diagnosis (`docs finding` in the code-review conversation, cross-referenced against Etsy's own token-format docs) concluded the derivation is *already correct* for the real production case — the 403 is most likely Etsy's Personal Use access tier rejecting the endpoint outright, not a bad `user_id`. Shipping the validation anyway is still worthwhile: it converts a class of failure (malformed/missing id reaching Etsy as a raw request, silently producing a confusing 403 or 404 body we can't safely log) into an explicit, immediately-diagnosable category (`etsy_oauth_user_id_missing_or_invalid`) *before* any network call — cheap insurance for a code path that had never been exercised against a real Etsy response until this week, and a genuine gap independent of whatever resolves the access-tier question.
+
+### [BUGFIX] Existing test fixture had an unrealistic access_token that only worked by accident
+`test_callback_stores_real_granted_scope_not_token_type` used `"etsy_access_token_value"` (no dot) as its mocked access token. Under the pre-fix code, `"etsy_access_token_value".split(".")[0]` returns the whole string unchanged (splitting on an absent separator), which the test's mocked, URL-agnostic shop-lookup HTTP client never validated — so the test passed despite feeding a nonsense value through the exact same code path the new validation now correctly rejects. Fixed by making the fixture's access token realistic (`"88888.etsy_access_token_value"`, matching the mocked shop response's `shop_id: 88888`) rather than loosening the new validation to tolerate it — the validation was correct; the fixture wasn't representative of a real Etsy token.
+
 ## 2026-08-27 (Etsy OAuth callback safe categorized logging)
 
 ### [OPS] Categorize via a typed exception (`EtsyOAuthError`), not string-matching or re-parsing generic exceptions in the router

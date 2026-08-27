@@ -17,11 +17,13 @@ None.
 ## Recently Completed
 
 - **Private Beta allows sign-in (2026-08-27)** — `fix/private-beta-allow-signin`: Private Beta now blocks only registration (`/register`, `/signup`, `/get-started`); sign-in and the authenticated app pass through, and the Etsy OAuth callback's `/shops?connected=true`/`?error=...` result is no longer masked by the beta gate. See `CHANGELOG_AI.md` for full detail.
-- **Etsy OAuth callback safe categorized logging (2026-08-27)** — `fix/etsy-oauth-safe-callback-logging`: the previously-bare `except Exception` in `/etsy/callback` now logs one of 11 safe categories (`etsy_oauth_state_not_found`, `_token_exchange_failed`, `_shop_not_found`, etc.) with no code/state/token values. Browser-visible behavior unchanged (`?connected=true` / `?error=etsy_connect_failed`). No OAuth retried in this task.
+- **Etsy OAuth callback safe categorized logging (2026-08-27)** — `fix/etsy-oauth-safe-callback-logging`: the previously-bare `except Exception` in `/etsy/callback` now logs one of 11 safe categories (`etsy_oauth_state_not_found`, `_token_exchange_failed`, `_shop_not_found`, etc.) with no code/state/token values. Browser-visible behavior unchanged (`?connected=true` / `?error=etsy_connect_failed`).
+- **doctl auth restored (2026-08-27)** — token re-supplied from `deploy-production.local.env` directly into doctl's local config, never printed/argv'd. `doctl account get` confirmed working.
+- **Etsy OAuth root cause found + defensive hardening shipped (2026-08-27)** — production logs showed `etsy_oauth_shop_lookup_failed`, Etsy's shop-lookup endpoint returning 403 after a successful token exchange. Diagnosed as likely a Personal Use access-tier restriction (issue #80), not a code bug — `user_id` derivation confirmed correct against Etsy's own docs. Shipped `fix/etsy-oauth-user-id-validation` anyway: validates `user_id` is present/numeric before calling Etsy, new category `etsy_oauth_user_id_missing_or_invalid`. Does not resolve the 403.
 
-## Blocked Externally (infra, not Etsy or owner)
+## Blocked Externally (Etsy, not owner or engineering)
 
-- **DigitalOcean log access (`doctl`)** — auth token expired/invalid (`401 Unable to authenticate you`), confirmed via `doctl account get`. Blocks pulling `bulk-edit-prod-api` logs to see the new categorized OAuth failure line from the next attempt. Owner needs to re-run `doctl auth init` (or equivalent) with a valid token; not something this session can fix from an API credential.
+- **Etsy OAuth shop lookup 403 (issue #80)** — `GET /v3/application/users/{user_id}/shops` returns 403 after a successful token exchange. Code confirmed correct (user_id derivation matches Etsy's documented token format); most likely cause is the app's Personal Use access tier not covering this endpoint. Needs either an Etsy Developer Support answer (message drafted, see issue #80 / `CHANGELOG_AI.md`) or a retry with an Etsy account confirmed to own an active shop. **Do not retry OAuth blind again** — will very likely reproduce the same 403.
 
 ## Blocked Externally (owner approval, not Etsy)
 

@@ -6,6 +6,23 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-27 Etsy OAuth: defensive user_id validation before shop lookup (issue #80)
+
+**Branch:** `fix/etsy-oauth-user-id-validation` (off `main`).
+
+**Why:** the categorized logging from the previous session's fix identified the real production failure: `etsy_oauth_shop_lookup_failed`, Etsy's `GET /v3/application/users/{user_id}/shops` returning `403`, twice, after token exchange succeeded. Diagnosis work (docs research against `developers.etsy.com` + a generated mirror of Etsy's own OpenAPI spec) confirmed the app's `access_token.split(".")[0]` derivation matches Etsy's documented `{numeric_user_id}.{opaque_token}` token format — so the 403 is most likely an access-tier restriction on the Personal Use app tier, not a code bug, and needs an Etsy Support / access-level answer (issue #80) to actually resolve. This fix does **not** attempt to fix the 403 — it's defensive hardening only, per explicit instruction: never let a missing or malformed `user_id` reach Etsy as a raw request in the first place.
+
+**Added:**
+- `apps/backend/app/services/etsy.py` — `_derive_etsy_user_id(token_data)`: extracted the inline derivation into its own function, added validation that the result is present and all-digits before it's ever used in a URL. Raises `EtsyOAuthError("etsy_oauth_user_id_missing_or_invalid", stage="user_id_derivation")` on failure — a 12th category alongside the 11 from the prior logging fix. No router change needed: `callback()` already handles `EtsyOAuthError` generically by reading `.category`/`.stage`/`.status_code`, so this new category flows through the exact same path with zero extra code.
+- `apps/backend/tests/test_etsy.py` — 3 new tests: missing user_id (access_token has no dot, no explicit `user_id` key) and non-numeric prefix both assert the new category is logged **and** that the mocked shop-lookup HTTP client's `.get` is never called (`AsyncMock(side_effect=AssertionError(...))` — a call would fail the test outright, not just go unasserted); a third confirms the realistic Etsy-format case (`"{numeric}.{opaque}"` access token, no explicit `user_id` key) still proceeds to shop lookup with the correct numeric ID in the URL.
+- **Regression caught and fixed in an existing test**, not new code: `test_callback_stores_real_granted_scope_not_token_type` used a fixture access token (`"etsy_access_token_value"`) with no dot at all — under the *old* unvalidated code this produced a nonsense-but-unused `user_id` (the whole string, since `.split(".")` on a dot-less string returns it unchanged) that worked only because the shop-lookup HTTP call was mocked and didn't care what URL it was given. The new validation correctly rejects that same nonsense value now. Fixed by changing the fixture to a realistic `"88888.etsy_access_token_value"` (matching the shop response's `shop_id: 88888` already in that test) — the test's actual subject (granted-scope storage, not user_id derivation) is unaffected.
+
+**Verified locally:** `tests/test_etsy.py` — 27 passed, 2 pre-existing unrelated failures (401-vs-403 environment drift, same as prior sessions). Full backend suite run for broader regression coverage. `git diff --check` clean; diff scanned for `access_token=`/`refresh_token=`/`client_secret=`/`EV[`/the real masked keystring — none found.
+
+**Not done:** does not resolve the underlying Etsy 403 — that remains blocked on issue #80 (Etsy Support / access-tier confirmation, or retrying with an account confirmed to own an active shop). No OAuth retried. No Etsy write. No frontend change — `/shops?error=etsy_connect_failed` is unchanged for every category, including this new one.
+
+---
+
 ## 2026-08-27 Etsy OAuth callback: safe categorized failure logging (no retry performed)
 
 **Branch:** `fix/etsy-oauth-safe-callback-logging` (off `main`).
