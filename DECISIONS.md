@@ -4,6 +4,17 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-27 (Private Beta allows sign-in)
+
+### [PRODUCT] Private Beta narrowed from "block every app route" to "block registration only"
+Owner decision: Private Beta exists to pause public account creation while Etsy/Stripe/email integrations were pending — it was never meant to lock out invited/beta users, but the original `middleware.ts` gate redirected *every* `APP_PREFIXES` path (including `/login`) to `/private-beta`. Fixed by gating only `/register`, `/signup`, `/get-started` (`REGISTRATION_PREFIXES`); everything else in `APP_PREFIXES` (sign-in, dashboard, shops, billing, media, etc.) now passes the middleware. Auth itself is still enforced per-page (see below), unchanged by this decision.
+
+### [BUGFIX] Etsy OAuth callback result was being silently masked by the old blanket Private Beta gate
+The backend's `/etsy/callback` redirects to `${FRONTEND_URL}/shops?connected=true` or `?error=etsy_connect_failed` regardless of outcome. Under the old gate, `app.bulkeditapp.com/shops?...` was unconditionally rewritten to `/private-beta?...` (query preserved by `req.nextUrl.clone()`, host/path replaced) before a user — authenticated or not — ever saw the real result. This was the direct cause of the `/private-beta?error=etsy_connect_failed` outcome observed in the live OAuth debug session immediately prior to this fix. Narrowing the gate to registration-only (above) resolves it as a side effect, since `/shops` was never itself the problem.
+
+### [ARCH] Rejected a shared AppShell-level auth guard; kept per-page `router.push("/login")` checks
+Considered adding one auth-redirect effect to `components/ui/AppShell.tsx` (the layout wrapping every `(app)` page) so a single place would own "no token → go to `/login?next=...`" for all pages. Reverted: ~14 of the ~15 `(app)` pages already have their own inline guard (`if (!token) { router.push("/login"); return; }`, some checking on 401 responses too), and a second guard at the layout level raced them — both fire on mount, and whichever `router.push`/`replace` call is issued last in the same commit wins, non-deterministically overriding the other. Reproduced concretely on `/shops`: the page's own query-stripping effect (`router.replace("/shops")`, unconditional on auth) beat the layout guard's `next`-preserving push, dropping `?connected=true`/`?error=...` before login. Fixed at the single point that actually needed `next`-preservation (`shops/page.tsx`, merged into one auth-first effect) and added the one missing guard (`dashboard/page.tsx`, which uniquely had no redirect at all) using the existing per-page pattern instead of introducing a second mechanism — smaller diff, no new race class, consistent with the other ~13 pages already doing this.
+
 ## 2026-07-31 (Etsy production credential configuration)
 
 ### [OPS] Reused `ops/app-specs/bulk-edit-prod-api.yaml` structure via `doctl apps spec get`/`update`, not a hand-authored partial spec

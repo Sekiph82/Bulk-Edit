@@ -1,13 +1,30 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8100";
 
+// Only accept a same-origin relative path as the post-login destination —
+// never an absolute/protocol-relative URL (open-redirect guard).
+function safeNextPath(raw: string | null): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+}
+
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,7 +57,7 @@ export default function LoginPage() {
         window.location.href = "/";
         return;
       }
-      router.push("/dashboard");
+      router.push(safeNextPath(searchParams.get("next")) || "/dashboard");
     } catch {
       setError("Network error. Please try again.");
     } finally {

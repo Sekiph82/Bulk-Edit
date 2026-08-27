@@ -15,7 +15,7 @@ Post-credential-issuance / Private Beta operations. Production is **LIVE** under
 | PostgreSQL | Connected |
 | Redis | Connected |
 | Alembic revision | `0025` (single head) — reconfirmed after PR #64 (no migration files changed; pre-deploy `migrate` job applied no pending upgrades) |
-| Private Beta (`app.bulkeditapp.com`) | **Enabled** — new sign-ups paused, 307 → `/private-beta` on all app routes |
+| Private Beta (`app.bulkeditapp.com`) | **Enabled** — registration paused (`/register`, `/signup`, `/get-started` → `/private-beta`). Sign-in and the rest of the authenticated app pass through as of `fix/private-beta-allow-signin` (2026-08-27) — see `CHANGELOG_AI.md`. |
 | Retention cleanup | **Option A live** — DO Scheduled Job `retention-cleanup`, `30 3 * * *` (03:30 UTC daily). First run succeeded 2026-07-15; **second consecutive run succeeded 2026-07-16** (03:31:12–03:31:33 UTC, invocation `ad207ee4-f05c-4038-b244-6e54bf9fd13a`). |
 | Stripe | Live products/prices/env configured, validated end-to-end 2026-07-10 (controlled test account, zero real charges) |
 | Etsy developer app | **Credentials received from Etsy 2026-07-31** (`bulk-edit-app`, rate limit 5 QPS / 5000 QPD — matches existing `ETSY_API_REQUESTS_PER_SECOND`/`ETSY_API_DAILY_LIMIT` defaults, no code change needed) and configured on `bulk-edit-prod-api` as encrypted `SECRET` env vars. Production OAuth URL generation verified (masked keystring `qvmj...fh33`, callback/scopes/PKCE all correct). Live OAuth completion (connecting a real shop) not yet performed — pending explicit owner approval. |

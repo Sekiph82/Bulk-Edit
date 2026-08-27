@@ -14,6 +14,10 @@ Post-credential-issuance / Private Beta operations. All planned feature sprints 
 
 None.
 
+## Recently Completed
+
+- **Private Beta allows sign-in (2026-08-27)** — `fix/private-beta-allow-signin`: Private Beta now blocks only registration (`/register`, `/signup`, `/get-started`); sign-in and the authenticated app pass through, and the Etsy OAuth callback's `/shops?connected=true`/`?error=...` result is no longer masked by the beta gate. See `CHANGELOG_AI.md` for full detail.
+
 ## Blocked Externally (owner approval, not Etsy)
 
 - **Live Etsy OAuth completion** — credentials configured and authorize-URL generation verified in production 2026-07-31; connecting a real shop needs explicit owner go-ahead (see Owner Action below), not another Etsy response.
