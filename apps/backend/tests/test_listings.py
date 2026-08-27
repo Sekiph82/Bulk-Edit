@@ -5,11 +5,26 @@ No live Etsy credentials required.
 """
 import pytest
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 REGISTER_URL = "/api/v1/auth/register"
 LOGIN_URL = "/api/v1/auth/login"
+
+
+@contextmanager
+def _valid_etsy_credentials():
+    """Fake, non-placeholder ETSY_CLIENT_ID/SECRET so etsy_sync's x-api-key
+    header builds successfully -- the Etsy HTTP call itself is still always
+    mocked. Real settings.ETSY_CLIENT_ID/SECRET are ambient and deliberately
+    blank in CI so other tests can exercise the "not configured" gate."""
+    with (
+        patch("app.services.etsy_http.settings.ETSY_CLIENT_ID", "test_keystring_never_logged"),
+        patch("app.services.etsy_http.settings.ETSY_CLIENT_SECRET", "test_shared_secret_never_logged"),
+    ):
+        yield
+
 
 USER_A = {
     "email": "listings_a@example.com",
@@ -178,7 +193,10 @@ async def test_sync_creates_listings_from_mocked_etsy(client, db_session):
     listings_data = _mock_listings_response(2)
     mock_http = _make_mock_http_client(listings_data)
 
-    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_http):
+    with (
+        patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_http),
+        _valid_etsy_credentials(),
+    ):
         r = await client.post(
             f"/api/v1/shops/{shop.id}/sync",
             headers={"Authorization": f"Bearer {token}"},
@@ -212,7 +230,10 @@ async def test_sync_creates_listing_images(client, db_session):
     listings_data = _mock_listings_response(1)
     mock_http = _make_mock_http_client(listings_data)
 
-    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_http):
+    with (
+        patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_http),
+        _valid_etsy_credentials(),
+    ):
         r = await client.post(
             f"/api/v1/shops/{shop.id}/sync",
             headers={"Authorization": f"Bearer {token}"},
@@ -246,7 +267,10 @@ async def test_sync_creates_sync_job_completed(client, db_session):
     shop, _ = await _setup_connected_shop(db_session, org_id)
 
     mock_http = _make_mock_http_client(_mock_listings_response(1))
-    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_http):
+    with (
+        patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_http),
+        _valid_etsy_credentials(),
+    ):
         r = await client.post(
             f"/api/v1/shops/{shop.id}/sync",
             headers={"Authorization": f"Bearer {token}"},
@@ -283,7 +307,10 @@ async def test_sync_fails_on_etsy_api_error(client, db_session):
     mock_http.__aexit__ = AsyncMock(return_value=False)
     mock_http.get = AsyncMock(return_value=mock_resp)
 
-    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_http):
+    with (
+        patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_http),
+        _valid_etsy_credentials(),
+    ):
         r = await client.post(
             f"/api/v1/shops/{shop.id}/sync",
             headers={"Authorization": f"Bearer {token}"},
@@ -543,7 +570,10 @@ async def test_max_listings_plan_gate(client, db_session):
     }
     mock_http = _make_mock_http_client(big_response)
 
-    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_http):
+    with (
+        patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_http),
+        _valid_etsy_credentials(),
+    ):
         r = await client.post(
             f"/api/v1/shops/{shop.id}/sync",
             headers={"Authorization": f"Bearer {token}"},
