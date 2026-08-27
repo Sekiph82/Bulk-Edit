@@ -8,13 +8,15 @@ Full sprint-by-sprint build history (Sprint 0 through Sprint 27, all DevOps fixe
 
 ## Current Phase
 
-Post-credential-issuance / Private Beta operations. All planned feature sprints are complete. Etsy issued new developer-app credentials 2026-07-31; they are configured in production and OAuth URL generation is verified. Current focus: awaiting owner approval for a live OAuth test.
+Post-credential-issuance / Private Beta operations. All planned feature sprints are complete. **Etsy OAuth shop connection confirmed working end-to-end 2026-08-27** (WearYourStoriesCom, shop ID `44263504`; issue #80 closed — see PR #84, `docs/etsy-oauth-success-handoff`, for the full write-up, not yet merged as of 2026-08-28). Current focus: owner-side plan/comp-grant action for the internal test account (see below), then a re-sync validation.
 
 ## In Progress
 
 None.
 
 ## Recently Completed
+
+- **Etsy listing sync "25 of 210" investigated — not a bug (2026-08-28)** — pagination loop in `sync_shop_listings()` already correct; the cap is `PLAN_LIMITS["free"]["max_listings"]=25`, a deliberate feature gate, confirmed the test account is on the Free plan. Declined to implement the originally-requested "pagination fix" — it would have bypassed a paid-plan gate (`CLAUDE.md` rule 8). Owner chose to upgrade the test account's plan via the existing admin comp-grant mechanism instead of a code change. No code changed, no new GitHub issue filed (would have been factually wrong). See `CHANGELOG_AI.md` / `DECISIONS.md`, `2026-08-28` entries.
 
 - **Private Beta allows sign-in (2026-08-27)** — `fix/private-beta-allow-signin`: Private Beta now blocks only registration (`/register`, `/signup`, `/get-started`); sign-in and the authenticated app pass through, and the Etsy OAuth callback's `/shops?connected=true`/`?error=...` result is no longer masked by the beta gate. See `CHANGELOG_AI.md` for full detail.
 - **Etsy OAuth callback safe categorized logging (2026-08-27)** — `fix/etsy-oauth-safe-callback-logging`: the previously-bare `except Exception` in `/etsy/callback` now logs one of 11 safe categories (`etsy_oauth_state_not_found`, `_token_exchange_failed`, `_shop_not_found`, etc.) with no code/state/token values. Browser-visible behavior unchanged (`?connected=true` / `?error=etsy_connect_failed`).
@@ -37,7 +39,7 @@ None.
 
 ## Owner Action
 
-- **Approve a live OAuth test** when ready: confirm the callback URL registered in the Etsy Developer Console exactly matches `https://api.bulkeditapp.com/api/v1/etsy/callback`, confirm a test shop is available, confirm no write action will run — then give explicit go-ahead to connect it (read-only verification only).
+- **Grant the internal test account a comp plan** (Owner Console → Organizations → org detail → comp grant), so its listing sync isn't capped at the Free plan's 25 — needs a superuser login, which this session doesn't have. After granting, an owner-approved read-only re-sync should show ~210 listings.
 
 ## Deferred
 
