@@ -6,6 +6,22 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-28 Etsy listing sync: "25 of 210" investigated — not a pagination bug, Free plan cap working as designed
+
+**Context:** first production listing sync after the OAuth connection succeeded. Owner clicked "Sync Listings" for WearYourStoriesCom; Bulk Edit reported 25 synced, Etsy Shop Manager shows 210 active listings. Assumed cause going in: missing/broken pagination (limit=25, offset=0, no loop).
+
+**Investigation (read-only, no code assumed-correct until verified):** `sync_shop_listings()` in `apps/backend/app/services/etsy_sync.py` already has a complete pagination loop — `while True: page_limit = min(PAGE_LIMIT=100, remaining); fetch page; break when remaining<=0 or a short page comes back`. This is not missing or broken; it already handles multi-page fetches correctly. What actually caps the sync at 25 is `max_listings` from `app/core/plans.py`'s `PLAN_LIMITS["free"]` — a deliberate, already-tested subscription feature gate (`test_max_listings_plan_gate` predates this session). Confirmed the internal test account is on `plan=free` via a read-only `/billing/subscription` check (no secrets).
+
+**Decision point:** implementing the task's literal instructions (paginate past the cap) would mean bypassing a paid-plan feature gate — directly against `CLAUDE.md` non-negotiable rule 8 ("Never skip subscription feature gate checks on any paid feature"). Stopped before writing any code and asked the owner how to proceed (`AskUserQuestion`) rather than guessing. **Owner chose:** upgrade the internal test account's plan via the existing admin comp-grant mechanism (`POST /admin/organizations/{org_id}/comp`, Owner Console → Organizations → org detail page) — a data change, not a code change.
+
+**Blocked on:** granting the comp requires a superuser account. The internal test account itself is not a superuser (confirmed, `is_superuser=false`), and no superuser credentials exist in `deploy-production.local.env` — this session has no safe way to call the comp-grant endpoint itself. **This needs the owner to do it directly** in the Owner Console (their own login, 2-3 clicks) — not something to hand a credential over for.
+
+**No code changed. No PR. No new GitHub issue** — the originally-planned issue title ("imports only first page") would have been factually wrong; filing it would have misdirected future work at a bug that doesn't exist.
+
+**Not done:** the comp grant itself (owner action, pending). Re-sync after the grant, to confirm ~210 listings import correctly under a higher-limit plan (also pending, owner-approved, read-only).
+
+---
+
 ## 2026-08-27 Etsy OAuth: fix shop-lookup response parsing (issue #80, confirmed root cause after PR #82)
 
 **Branch:** `fix/etsy-shop-lookup-single-shop-response` (off `main`).

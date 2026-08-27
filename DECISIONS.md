@@ -4,6 +4,14 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-28 (Etsy listing sync cap: verified working-as-designed, declined to bypass)
+
+### [PRODUCT] Refused to implement the requested pagination "fix" once investigation showed it would bypass a paid-plan gate
+The task described the 25-vs-210 gap as a pagination bug and gave a specific implementation to add. Code inspection showed the pagination loop already exists and is correct — what actually limits the sync is `PLAN_LIMITS["free"]["max_listings"] = 25`, a deliberate, already-tested feature gate. Implementing the described fix would have meant making the sync ignore or bypass that gate for every account, not just this one test account — silently removing a monetization control. `CLAUDE.md` rule 8 is explicit: never skip a subscription feature gate check on any paid feature. Stopped and asked the owner rather than either (a) silently complying with a request whose premise was wrong, or (b) silently doing nothing. This is the kind of product-policy fork "reasonable technical decision" latitude doesn't cover — only the owner can decide whether the cap itself, or just this one account's plan, should change.
+
+### [OPS] Used the existing comp-grant admin mechanism instead of a direct DB write for the plan upgrade
+The owner chose to upgrade the internal test account's plan rather than touch the cap logic. The safe, existing path for "give an account elevated limits without a real Stripe subscription" is `POST /admin/organizations/{org_id}/comp` (Owner Console → Organizations), not a direct database UPDATE — the latter was already flagged as blocked/unsafe in an earlier session (`HANDOFF.md`, "a prior session attempt to install a DB driver for a direct query was correctly blocked"). This session has no superuser credentials available (confirmed: the internal test account itself is not a superuser, and none exist in `deploy-production.local.env`), so the actual grant is an owner action, not something this session could complete itself — correctly left for the owner rather than working around the missing credential.
+
 ## 2026-08-27 (Etsy shop-lookup single-object parsing fix, issue #80)
 
 ### [BUGFIX] Kept `etsy_oauth_shop_not_found` as the category for this fix, did not add a new one
