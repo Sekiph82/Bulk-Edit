@@ -24,13 +24,19 @@ const OWNER = "owner.bulkeditapp.com";
 const OWNER_STAGING = "owner-staging.bulkeditapp.com";
 const OWNER_HOSTS = new Set([OWNER, OWNER_STAGING]);
 
-// Private beta gate: when true, every app-path request (login, register,
-// dashboard, billing, media, etc. — anything in APP_PREFIXES) is redirected
-// to /private-beta instead of reaching the real (unconfigured-integrations)
-// SaaS app. Off by default; only set NEXT_PUBLIC_PRIVATE_BETA_MODE=true on
-// the production frontend app while Etsy/Stripe/email secrets are pending.
+// Private beta gate: when true, registration/account-creation paths are
+// redirected to /private-beta. Sign-in and the rest of the authenticated app
+// (dashboard, shops, billing, media, etc. — anything in APP_PREFIXES other
+// than registration) pass through normally; auth itself is still enforced
+// client-side by AppShell (see components/ui/AppShell.tsx), which sends
+// unauthenticated visitors to /login. Off by default; only set
+// NEXT_PUBLIC_PRIVATE_BETA_MODE=true on the production frontend app while
+// public registration stays paused (no invite/allowlist system yet).
 const PRIVATE_BETA_MODE = process.env.NEXT_PUBLIC_PRIVATE_BETA_MODE === "true";
 const PRIVATE_BETA_PATH = "/private-beta";
+
+// Account-creation paths: the only thing Private Beta actually blocks.
+const REGISTRATION_PREFIXES = ["/register", "/signup", "/get-started"];
 
 // Authenticated product routes (the app/(app) group + auth pages).
 // Requests for these on the apex marketing host are sent to the app subdomain.
@@ -59,6 +65,10 @@ function isAppPath(pathname: string): boolean {
   return APP_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
+function isRegistrationPath(pathname: string): boolean {
+  return REGISTRATION_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
 export function middleware(req: NextRequest) {
   const host = hostname(req);
   const { pathname } = req.nextUrl;
@@ -78,11 +88,13 @@ export function middleware(req: NextRequest) {
   }
 
   // Apex marketing host: bounce app routes to the app subdomain — or, during
-  // private beta, straight to the beta gate page on the same host, so a
-  // visitor never even reaches app.bulkeditapp.com.
+  // private beta, straight to the beta gate page on the same host (for
+  // registration paths only), so an anonymous visitor can't create an
+  // account without ever reaching app.bulkeditapp.com. Sign-in and the rest
+  // of the app bounce to the app subdomain as usual.
   if (host === APEX && isAppPath(pathname)) {
     const url = new URL(req.url);
-    if (PRIVATE_BETA_MODE) {
+    if (PRIVATE_BETA_MODE && isRegistrationPath(pathname)) {
       url.pathname = PRIVATE_BETA_PATH;
       return NextResponse.redirect(url, 307);
     }
@@ -92,10 +104,13 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url, 307);
   }
 
-  // App host directly requested during private beta (e.g. a stale bookmark
-  // or someone typing the URL): redirect everything except the gate page
-  // itself to /private-beta, before any real app page ever renders.
-  if (PRIVATE_BETA_MODE && host === APP && pathname !== PRIVATE_BETA_PATH) {
+  // App host directly requested during private beta: only registration
+  // paths get redirected to the gate page. Sign-in and the authenticated
+  // app pass through — AppShell enforces auth client-side and sends
+  // unauthenticated visitors to /login, preserving the intended destination
+  // (e.g. an Etsy OAuth callback redirect to /shops?connected=true) so it
+  // isn't lost or masked behind the beta gate.
+  if (PRIVATE_BETA_MODE && host === APP && isRegistrationPath(pathname)) {
     const url = req.nextUrl.clone();
     url.pathname = PRIVATE_BETA_PATH;
     return NextResponse.redirect(url, 307);

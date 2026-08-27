@@ -26,7 +26,23 @@ function ShopsContent() {
   const connected = searchParams.get("connected");
   const connectError = searchParams.get("error");
 
+  // Preserve the OAuth callback query (?connected=true / ?error=...) as the
+  // post-login destination, so an unauthenticated visitor who lands here via
+  // an Etsy redirect sees the real result after signing in instead of it
+  // being lost.
+  const loginRedirect = `/login?next=${encodeURIComponent(
+    `/shops${searchParams.toString() ? `?${searchParams.toString()}` : ""}`
+  )}`;
+
   useEffect(() => {
+    // Unauthenticated: go straight to login (preserving ?connected=/?error=
+    // as the post-login destination) instead of stripping the query first —
+    // otherwise the OAuth callback result would be lost before the user
+    // ever gets to see it.
+    if (!localStorage.getItem("access_token")) {
+      router.push(loginRedirect);
+      return;
+    }
     if (connected === "true") {
       setSuccessMsg("Etsy shop connected successfully!");
       router.replace("/shops");
@@ -35,16 +51,14 @@ function ShopsContent() {
       setError("Failed to connect Etsy shop. Please try again.");
       router.replace("/shops");
     }
-  }, [connected, connectError, router]);
-
-  useEffect(() => {
     fetchShops();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchShops() {
     const token = localStorage.getItem("access_token");
     if (!token) {
-      router.push("/login");
+      router.push(loginRedirect);
       return;
     }
     try {
@@ -52,7 +66,7 @@ function ShopsContent() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (r.status === 401) {
-        router.push("/login");
+        router.push(loginRedirect);
         return;
       }
       const data = await r.json();

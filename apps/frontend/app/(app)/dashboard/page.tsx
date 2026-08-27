@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import OnboardingChecklist from "@/components/onboarding/OnboardingChecklist";
 import { getListingHealthSummary, getProfitSummary, type ListingHealthSummary, type ProfitSummary } from "@/lib/api";
@@ -31,6 +32,7 @@ const activeFeatures = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [shopCount, setShopCount] = useState<number | null>(null);
   const [listingCount, setListingCount] = useState<number | null>(null);
@@ -40,7 +42,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
-    if (!token) return;
+    if (!token) { router.push("/login"); return; }
 
     fetch(`${BACKEND_URL}/api/v1/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
