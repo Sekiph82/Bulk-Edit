@@ -329,10 +329,11 @@ async def apply_bulk_edit_session(
 
         # 8c. Write text/bool fields (listing PATCH)
         listing_resp: Any = None
-        if listing_payload:
+        if listing_payload and shop:
             try:
                 listing_resp = await patch_etsy_listing(
                     access_token=access_token,
+                    shop_etsy_id=shop.etsy_shop_id,
                     etsy_listing_id=listing.etsy_listing_id,
                     payload=listing_payload,
                 )
