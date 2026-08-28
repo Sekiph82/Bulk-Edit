@@ -256,6 +256,55 @@ async def patch_etsy_listing_inventory(
     return resp.json()
 
 
+async def apply_single_listing_price_quantity(
+    access_token: str,
+    shop_etsy_id: str,
+    listing_etsy_id: str,
+    price_amount: int | None,
+    quantity: int | None,
+) -> dict[str, Any]:
+    """
+    Fetch-patch-put price/quantity update for a non-variation (single-SKU)
+    listing. Mirrors etsy_variation_write.py's proven strategy instead of
+    reconstructing a minimal inventory payload from local Listing fields:
+    GET the live inventory tree, mutate only price_amount/quantity on every
+    offering (a non-variation listing normalizes to exactly one product),
+    and PUT the full tree back — preserving product_id/offering_id/
+    property_values/currency_code/divisor exactly as Etsy has them, none of
+    which the local Listing model stores.
+
+    Pass None for a field that didn't change — only non-None fields are
+    mutated; everything else in the fetched tree is preserved untouched.
+
+    Raises EtsyWriteError (not EtsyVariationWriteError) on any GET/PUT
+    failure, so callers can keep a single except clause.
+    """
+    from app.services.etsy_variation_write import (
+        EtsyVariationWriteError,
+        fetch_etsy_listing_inventory,
+        normalize_etsy_inventory_tree,
+        put_etsy_listing_inventory,
+    )
+
+    try:
+        raw_tree = await fetch_etsy_listing_inventory(access_token, shop_etsy_id, listing_etsy_id)
+    except EtsyVariationWriteError as e:
+        raise EtsyWriteError(f"Inventory fetch failed: {e.message}", e.status_code, e.response_body) from e
+
+    tree = normalize_etsy_inventory_tree(raw_tree)
+    for product in tree.get("products", []):
+        for offering in product.get("offerings", []):
+            if price_amount is not None:
+                offering["price"]["amount"] = price_amount
+            if quantity is not None:
+                offering["quantity"] = quantity
+
+    try:
+        return await put_etsy_listing_inventory(access_token, shop_etsy_id, listing_etsy_id, tree)
+    except EtsyVariationWriteError as e:
+        raise EtsyWriteError(f"Inventory PUT failed: {e.message}", e.status_code, e.response_body) from e
+
+
 def _flatten_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """
     Etsy v3 PATCH expects application/x-www-form-urlencoded.

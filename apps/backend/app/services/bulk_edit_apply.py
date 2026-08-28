@@ -11,10 +11,12 @@ Safety contract enforced before any Etsy write:
   7. Audit log written for every apply job start/finish
 
 Write flow per listing:
-  a. Build listing PATCH payload (text/bool fields via PATCH /listings/{id})
-  b. Build inventory PUT payload (price/quantity via PUT /shops/{s}/listings/{l}/inventory)
+  a. Build listing PATCH payload (text/bool fields via PATCH /shops/{s}/listings/{l})
+  b. If price/quantity changed: fetch-patch-put the full Etsy inventory tree
+     (GET /listings/{l}/inventory, mutate only the changed field(s), PUT the
+     full tree back) — see etsy_write.apply_single_listing_price_quantity()
   c. If listing PATCH exists: execute first; on failure → mark failed, skip inventory
-  d. If inventory PUT exists: execute after listing PATCH; on failure → mark failed
+  d. If inventory write needed: execute after listing PATCH; on failure → mark failed
      (listing PATCH already happened externally — documented partial write caveat)
   e. Local Listing updated only after ALL writes succeed
 
@@ -49,7 +51,7 @@ from app.services.etsy_write import (
     build_etsy_patch_payload,
     build_etsy_inventory_payload,
     patch_etsy_listing,
-    patch_etsy_listing_inventory,
+    apply_single_listing_price_quantity,
     EtsyWriteError,
 )
 
@@ -355,15 +357,16 @@ async def apply_bulk_edit_session(
                 await db.flush()
                 continue
 
-        # 8d. Write price/quantity (inventory PUT)
+        # 8d. Write price/quantity (fetch-patch-put inventory tree)
         inventory_resp: Any = None
         if inventory_payload and shop:
             try:
-                inventory_resp = await patch_etsy_listing_inventory(
+                inventory_resp = await apply_single_listing_price_quantity(
                     access_token=access_token,
                     shop_etsy_id=shop.etsy_shop_id,
                     listing_etsy_id=listing.etsy_listing_id,
-                    payload=inventory_payload,
+                    price_amount=after_data.get("price_amount") if "price_amount" in diff else None,
+                    quantity=after_data.get("quantity") if "quantity" in diff else None,
                 )
             except EtsyWriteError as e:
                 result.status = "failed"
