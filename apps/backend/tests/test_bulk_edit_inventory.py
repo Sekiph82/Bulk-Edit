@@ -597,12 +597,17 @@ async def test_patch_etsy_listing_inventory_uses_listing_scoped_url():
     assert "shops" not in called_url
 
 
-# ── fetch-patch-put inventory update (root cause of the live HTTP 400) ────────
-# Third follow-up: build_etsy_inventory_payload() reconstructed a minimal
-# payload from local Listing fields and couldn't preserve product_id/
-# offering_id, which Etsy's schema needs on an update. apply_single_listing_price_quantity()
-# fetches the live tree, mutates only the changed field(s), and PUTs the
-# full tree back — proven-correct pattern already used for variations.
+# ── writable inventory PUT payload shape (root cause of the post-URL-fix 400) ──
+# Fourth follow-up: PR #94's apply_single_listing_price_quantity() PUT the
+# normalized GET tree essentially unchanged — still carrying Money-object
+# prices ({"amount","divisor","currency_code"}) and response-only IDs
+# (product_id, offering_id). Etsy's official docs (Third Variation Tutorial)
+# and a community reference implementation both confirm the writable
+# updateListingInventory body is NOT the same shape as the GET response:
+# offering.price is a plain decimal number, and product_id/offering_id/
+# listing_id never appear in the request body. This section tests the new
+# build_writable_inventory_payload_from_tree() conversion and the updated
+# apply_single_listing_price_quantity() that now uses it.
 
 _FAKE_LIVE_INVENTORY = {
     "products": [
@@ -625,6 +630,195 @@ _FAKE_LIVE_INVENTORY = {
     "sku_on_property": [],
 }
 
+_FAKE_LIVE_INVENTORY_WITH_VARIATION_PROPERTIES = {
+    "products": [
+        {
+            "product_id": 555111222,
+            "sku": "SKU-LIVE",
+            "property_values": [
+                {
+                    "property_id": 513,
+                    "property_name": "Color",
+                    "scale_id": None,
+                    "value_ids": [1],
+                    "values": ["Red"],
+                },
+                {
+                    "property_id": 514,
+                    "property_name": "Size",
+                    "scale_id": 7,
+                    "value_ids": [2],
+                    "values": ["Medium"],
+                },
+            ],
+            "offerings": [
+                {
+                    "offering_id": 999888777,
+                    "quantity": 5,
+                    "is_enabled": True,
+                    "readiness_state_id": 1020304051823,
+                    "price": {"amount": 2000, "divisor": 100, "currency_code": "USD"},
+                }
+            ],
+        }
+    ],
+    "price_on_property": [513],
+    "quantity_on_property": [],
+    "sku_on_property": [],
+}
+
+
+def test_build_writable_inventory_payload_converts_money_object_to_decimal():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY)
+    offering = payload["products"][0]["offerings"][0]
+    assert offering["price"] == 20.0
+    assert not isinstance(offering["price"], dict)
+
+
+def test_build_writable_inventory_payload_converts_6288_cents_to_62_88():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    tree = {
+        "products": [{
+            "sku": "S", "property_values": [],
+            "offerings": [{"quantity": 1, "is_enabled": True, "price": {"amount": 6288, "divisor": 100, "currency_code": "USD"}}],
+        }],
+        "price_on_property": [], "quantity_on_property": [], "sku_on_property": [],
+    }
+    payload = build_writable_inventory_payload_from_tree(tree)
+    assert payload["products"][0]["offerings"][0]["price"] == 62.88
+
+
+def test_build_writable_inventory_payload_omits_product_id():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY)
+    assert "product_id" not in payload["products"][0]
+
+
+def test_build_writable_inventory_payload_omits_offering_id():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY)
+    assert "offering_id" not in payload["products"][0]["offerings"][0]
+
+
+def test_build_writable_inventory_payload_omits_listing_id():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY)
+    assert "listing_id" not in payload
+    for product in payload["products"]:
+        assert "listing_id" not in product
+
+
+def test_build_writable_inventory_payload_preserves_sku_quantity_enabled_property_values():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY_WITH_VARIATION_PROPERTIES)
+    product = payload["products"][0]
+    offering = product["offerings"][0]
+    assert product["sku"] == "SKU-LIVE"
+    assert offering["quantity"] == 5
+    assert offering["is_enabled"] is True
+    assert len(product["property_values"]) == 2
+
+
+def test_build_writable_inventory_payload_preserves_readiness_state_id():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY_WITH_VARIATION_PROPERTIES)
+    assert payload["products"][0]["offerings"][0]["readiness_state_id"] == 1020304051823
+
+
+def test_build_writable_inventory_payload_preserves_readiness_state_on_property_if_present():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    tree = dict(_FAKE_LIVE_INVENTORY)
+    tree["readiness_state_on_property"] = [513]
+    payload = build_writable_inventory_payload_from_tree(tree)
+    assert payload["readiness_state_on_property"] == [513]
+
+
+def test_build_writable_inventory_payload_readiness_state_on_property_defaults_empty():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY)
+    assert payload["readiness_state_on_property"] == []
+
+
+def test_build_writable_inventory_payload_preserves_price_quantity_sku_on_property():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY_WITH_VARIATION_PROPERTIES)
+    assert payload["price_on_property"] == [513]
+    assert payload["quantity_on_property"] == []
+    assert payload["sku_on_property"] == []
+
+
+def test_build_writable_inventory_payload_omits_none_scale_id():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY_WITH_VARIATION_PROPERTIES)
+    color_pv = next(pv for pv in payload["products"][0]["property_values"] if pv["property_name"] == "Color")
+    assert "scale_id" not in color_pv
+
+
+def test_build_writable_inventory_payload_preserves_real_scale_id():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY_WITH_VARIATION_PROPERTIES)
+    size_pv = next(pv for pv in payload["products"][0]["property_values"] if pv["property_name"] == "Size")
+    assert size_pv["scale_id"] == 7
+
+
+def test_build_writable_inventory_payload_preserves_property_id_and_values():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY_WITH_VARIATION_PROPERTIES)
+    size_pv = next(pv for pv in payload["products"][0]["property_values"] if pv["property_name"] == "Size")
+    assert size_pv["property_id"] == 514
+    assert size_pv["value_ids"] == [2]
+    assert size_pv["values"] == ["Medium"]
+
+
+def test_build_writable_inventory_payload_non_variation_produces_empty_property_values():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY)
+    assert payload["products"][0]["property_values"] == []
+
+
+def test_build_writable_inventory_payload_raises_on_missing_divisor():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree, EtsyWriteError
+
+    tree = {
+        "products": [{
+            "sku": "S", "property_values": [],
+            "offerings": [{"quantity": 1, "is_enabled": True, "price": {"amount": 2000, "divisor": 0, "currency_code": "USD"}}],
+        }],
+        "price_on_property": [], "quantity_on_property": [], "sku_on_property": [],
+    }
+    with pytest.raises(EtsyWriteError) as exc_info:
+        build_writable_inventory_payload_from_tree(tree)
+    assert exc_info.value.status_code == 400
+
+
+def test_build_writable_inventory_payload_raises_on_missing_amount():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree, EtsyWriteError
+
+    tree = {
+        "products": [{
+            "sku": "S", "property_values": [],
+            "offerings": [{"quantity": 1, "is_enabled": True, "price": {"divisor": 100, "currency_code": "USD"}}],
+        }],
+        "price_on_property": [], "quantity_on_property": [], "sku_on_property": [],
+    }
+    with pytest.raises(EtsyWriteError):
+        build_writable_inventory_payload_from_tree(tree)
+
 
 async def test_apply_single_listing_price_quantity_mutates_only_price():
     from app.services.etsy_write import apply_single_listing_price_quantity
@@ -643,15 +837,15 @@ async def test_apply_single_listing_price_quantity_mutates_only_price():
         )
 
     mock_put.assert_called_once()
-    put_tree = mock_put.call_args.args[3]
-    offering = put_tree["products"][0]["offerings"][0]
-    assert offering["price"]["amount"] == 6288
+    put_payload = mock_put.call_args.args[3]
+    offering = put_payload["products"][0]["offerings"][0]
+    assert offering["price"] == 62.88
+    assert not isinstance(offering["price"], dict)
     assert offering["quantity"] == 5  # untouched — quantity was not part of this change
-    assert offering["price"]["divisor"] == 100  # preserved from the live fetch
-    assert offering["price"]["currency_code"] == "USD"  # preserved from the live fetch
 
 
 async def test_apply_single_listing_price_quantity_mutates_only_quantity():
+    """Quantity-only update still converts price to writable decimal (requirement #12)."""
     from app.services.etsy_write import apply_single_listing_price_quantity
 
     with patch("app.services.etsy_variation_write.fetch_etsy_listing_inventory", new_callable=AsyncMock) as mock_fetch, \
@@ -667,18 +861,17 @@ async def test_apply_single_listing_price_quantity_mutates_only_quantity():
             quantity=12,
         )
 
-    put_tree = mock_put.call_args.args[3]
-    offering = put_tree["products"][0]["offerings"][0]
+    put_payload = mock_put.call_args.args[3]
+    offering = put_payload["products"][0]["offerings"][0]
     assert offering["quantity"] == 12
-    assert offering["price"]["amount"] == 2000  # untouched — price was not part of this change
+    assert offering["price"] == 20.0  # unchanged fetched price, but still converted to writable decimal
 
 
-async def test_apply_single_listing_price_quantity_preserves_product_and_offering_ids():
+async def test_apply_single_listing_price_quantity_omits_product_and_offering_ids_from_put():
     """
-    This is the exact gap the local-field payload builder couldn't cover:
-    Etsy assigns product_id/offering_id on an existing listing's inventory,
-    and the local Listing model never stored them. Fetch-patch-put preserves
-    them by construction since they come from the live GET.
+    Inverts the prior round's (now-known-wrong) assumption that product_id/
+    offering_id belong in the writable PUT body — Etsy's docs confirm they
+    are response-only.
     """
     from app.services.etsy_write import apply_single_listing_price_quantity
 
@@ -695,16 +888,17 @@ async def test_apply_single_listing_price_quantity_preserves_product_and_offerin
             quantity=None,
         )
 
-    put_tree = mock_put.call_args.args[3]
-    product = put_tree["products"][0]
+    put_payload = mock_put.call_args.args[3]
+    product = put_payload["products"][0]
     offering = product["offerings"][0]
-    assert product["product_id"] == 555111222
+    assert "product_id" not in product
+    assert "offering_id" not in offering
     assert product["sku"] == "SKU-LIVE"
-    assert offering["offering_id"] == 999888777
-    # top-level schema keys still present (same fix as the minimal-payload round)
-    assert put_tree["price_on_property"] == []
-    assert put_tree["quantity_on_property"] == []
-    assert put_tree["sku_on_property"] == []
+    # top-level schema keys still present
+    assert put_payload["price_on_property"] == []
+    assert put_payload["quantity_on_property"] == []
+    assert put_payload["sku_on_property"] == []
+    assert put_payload["readiness_state_on_property"] == []
 
 
 async def test_apply_single_listing_price_quantity_raises_etsy_write_error_on_fetch_failure():

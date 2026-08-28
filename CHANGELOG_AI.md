@@ -110,6 +110,44 @@ Also extended the item-level failure categorization (`apps/frontend/app/(app)/bu
 
 ---
 
+## 2026-08-28 Bulk Edit price write — writable inventory PUT payload shape fix (Etsy docs confirmed, no live Etsy calls)
+
+**Context:** PR #94 deployed, merge `b0bc144`. Owner retested: title write still succeeds live; price write **still** failed with `HTTP 400`, this time on a different listing (`1875042167`, 6000→6288, error `Inventory PUT failed for listing 1875042167: HTTP 400`). The prior round's fetch-patch-put refactor didn't resolve it — a second code-level fix attempt was needed. Owner, again on VPN and explicitly ruling out Claude/Codex Etsy calls, supplied a historical (5-year-old) Etsy API v3 reference implementation (a gist) demonstrating that Etsy's *writable* `updateListingInventory` request body is a genuinely different shape from what the GET endpoint returns — not just a subset, a different price representation entirely.
+
+**Confirmed against Etsy's own current official documentation**, not just the historical gist: `WebFetch` against `developers.etsy.com/documentation/tutorials/third-variation/` (a documentation page fetch, not an Etsy API call — no listing data touched, no auth involved) returned the full example writable request body Etsy publishes for this exact endpoint:
+```json
+{
+  "products": [{
+    "sku": "",
+    "property_values": [{"property_id": 513, "property_name": "My custom variation", "value_ids": [], "values": ["Custom value 1"], "scale_id": null}],
+    "offerings": [{"price": 10.0, "quantity": 1, "is_enabled": true, "readiness_state_id": 1020304051823}]
+  }],
+  "price_on_property": [], "quantity_on_property": [], "readiness_state_on_property": [], "sku_on_property": []
+}
+```
+This independently confirms every claim in the owner's gist: `offering.price` is a **plain decimal number**, not a Money object; top-level keys include `readiness_state_on_property` (a field this codebase never tracked at all); `product_id`, `offering_id`, and `listing_id` do not appear anywhere in the writable body. PR #94's `apply_single_listing_price_quantity()` PUT `normalize_etsy_inventory_tree()`'s output essentially unchanged — still a Money-object price (`{"amount": 6288, "divisor": 100, "currency_code": "USD"}` after the price mutation) and still carrying `product_id`/`offering_id` from the GET response. This is the exact, docs-confirmed mismatch that explains the continued 400 after the endpoint-path fix.
+
+**Fix — `build_writable_inventory_payload_from_tree()`, new function in `apps/backend/app/services/etsy_write.py`:** converts a `normalize_etsy_inventory_tree()`-shaped tree into Etsy's actual writable PUT body:
+- `offering.price`: if the input is a Money object, converts via `(Decimal(amount) / Decimal(divisor)).quantize(Decimal("0.01"))`, then to `float` only at the very end (so the JSON serializer — which can't handle `Decimal` natively — gets a clean, round-trip-safe two-decimal number; `Decimal` arithmetic throughout avoids the float-rounding errors a naive `amount/divisor` would risk). `6288` cents at divisor `100` → `62.88` exactly, not `{"amount": 6288, ...}`.
+- Omits `product_id`, `offering_id`, and `listing_id` entirely — never emitted anywhere in the returned structure.
+- Adds `readiness_state_on_property` at the top level (defaults to `[]` if the fetched tree doesn't carry one — older/simpler listings likely won't) and preserves `readiness_state_id` per-offering only when Etsy actually returned one.
+- Preserves `property_values` (`property_id`, `property_name`, `value_ids`, `values`) as-is, but omits `scale_id` from a property_value when it's `None` or the literal string `"None"` — sent only when a real value exists. (Etsy's own official example shows `scale_id: null` accepted for a non-scaled custom property, but the owner's more specific reference implementation and task instructions call for omitting the key entirely rather than sending an explicit null; since omitting an optional key and sending it as null are equivalent for how JSON schemas typically treat optional fields, following the more conservative omit-when-absent behavior carries no real risk and matches what was explicitly asked for.)
+- Raises `EtsyWriteError` (status 400) before any write if a fetched offering's price is missing `amount` or has a falsy `divisor` — fails safe rather than emitting a malformed payload.
+
+**`apply_single_listing_price_quantity()` updated:** now mutates `price_amount`/`quantity` on the tree *while prices are still Money objects* (so the real live-fetched `divisor` is available for an accurate conversion — using the just-changed value directly in decimal form would require carrying the divisor separately, which the Money-object-first approach avoids), then converts the whole tree through `build_writable_inventory_payload_from_tree()` immediately before the `PUT` call. This sequencing achieves the same end result as "mutate the already-writable payload" while sidestepping a divisor-tracking complication — documented as a deliberate, reasoned ordering choice in `DECISIONS.md`, not a deviation from the task's intent.
+
+**Test inversion:** the prior round's `test_apply_single_listing_price_quantity_preserves_product_and_offering_ids` explicitly asserted `product_id`/`offering_id` *should* appear in the PUT payload — that was the best evidence available before this round's docs lookup, and is now known wrong. Replaced with `test_apply_single_listing_price_quantity_omits_product_and_offering_ids_from_put`, asserting the opposite. This is a deliberate correction, not silently discarding coverage — the old assumption is called out explicitly in the new test's docstring.
+
+**Tests:** 16 new tests for `build_writable_inventory_payload_from_tree()` directly (Money→decimal conversion, the exact `6288`→`62.88` case from the owner's report, `product_id`/`offering_id`/`listing_id` omission, `sku`/`quantity`/`is_enabled`/`property_values` preservation, `readiness_state_id` and `readiness_state_on_property` preservation, `scale_id` omitted-when-`None` vs preserved-when-real, non-variation listing → empty `property_values`, `EtsyWriteError` raised on missing `amount`/invalid `divisor`), plus 2 updated `apply_single_listing_price_quantity()` integration tests (decimal price in the final PUT call, product/offering ID omission) replacing the now-inverted prior-round assertions. Fetch/PUT-failure tests from the prior round are unchanged and still pass — payload-shape changes don't affect exception-path behavior.
+
+**Verification:** `test_bulk_edit_inventory.py`: 47/47 passed (up from 31 — 16 net new tests, 2 rewritten in place). `test_bulk_edit_variation.py` + `test_bulk_edit_apply.py` + `test_bulk_edit_revert.py` + `test_bulk_edit.py`: 133 passed, 6 pre-existing 401-vs-403 baseline failures, zero regressions. No frontend files touched, so frontend checks weren't re-run. `git diff --check` clean. Secret scan: zero matches on the tracked diff (cleanest scan of any round this session — no test even needed a fake-token placeholder this time, since none of the new tests exercise the auth-header path directly).
+
+**Not done this round (by design):** commit/PR/CI/merge/deploy (next actions — see `HANDOFF.md`); **no Etsy GET, PUT, or PATCH performed** — the only external network access this round was `WebFetch`/`WebSearch` against Etsy's public documentation pages, which serve static docs content, not the authenticated Open API; no Bulk Edit apply retried. This is now the third distinct code-level fix attempt on the price write path (PR #89's `property_values` fix, PR #91/#93's URL-scope fixes, PR #94's fetch-patch-put refactor, and this round's writable-shape conversion) — the strongest yet, backed by Etsy's own current official documentation rather than only internal pattern-matching, but still unproven against a live Etsy response. A controlled single-listing live price retest remains the explicit next step, owner-approved only.
+
+**GitHub:** issue #95 opened (issue #92 had auto-closed via PR #94's merge).
+
+---
+
 ## 2026-08-27 Etsy OAuth: fix shop-lookup response parsing (issue #80, confirmed root cause after PR #82)
 
 **Branch:** `fix/etsy-shop-lookup-single-shop-response` (off `main`).

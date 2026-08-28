@@ -31,6 +31,7 @@ Photo/video writes are deferred to Sprint 11.
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -256,6 +257,91 @@ async def patch_etsy_listing_inventory(
     return resp.json()
 
 
+def build_writable_inventory_payload_from_tree(tree: dict[str, Any]) -> dict[str, Any]:
+    """
+    Convert a normalized inventory tree (normalize_etsy_inventory_tree()'s
+    output — Money-object prices, product_id/offering_id preserved) into
+    Etsy's actual writable updateListingInventory request body.
+
+    The GET response shape and the writable PUT shape are NOT the same —
+    confirmed against Etsy's official docs (Third Variation Tutorial,
+    developers.etsy.com/documentation/tutorials/third-variation/) and a
+    community reference implementation. Differences the PR #94 fetch-patch-put
+    flow missed (it PUT the normalized tree essentially unchanged, still
+    carrying Money-object prices and response-only IDs — the likely cause of
+    a live HTTP 400 even after the endpoint-path fix):
+      - offering.price is a plain decimal number (e.g. 62.88), NOT the
+        {"amount", "divisor", "currency_code"} Money object GET returns.
+      - product_id, offering_id, and listing_id are response-only and must
+        NOT appear in the request body.
+      - readiness_state_on_property is a top-level key (empty list when no
+        property drives it) the GET response and normalize_etsy_inventory_tree()
+        never carried; readiness_state_id is preserved per-offering when Etsy
+        returned one.
+      - scale_id is included per property_value only when it's a real value —
+        omitted (not sent as null) when absent/None, per this session's
+        owner-supplied reference implementation.
+
+    Raises EtsyWriteError before any write if a fetched offering's price is
+    missing or has an invalid (zero/absent) divisor — fails safe rather than
+    sending a malformed payload.
+    """
+    products: list[dict[str, Any]] = []
+    for product in tree.get("products", []):
+        offerings: list[dict[str, Any]] = []
+        for offering in product.get("offerings", []):
+            price = offering.get("price")
+            if isinstance(price, dict):
+                amount = price.get("amount")
+                divisor = price.get("divisor")
+                if amount is None or not divisor:
+                    raise EtsyWriteError(
+                        "Etsy inventory fetch returned an invalid or missing price — refusing to write.",
+                        status_code=400,
+                    )
+                price_value: Any = float(
+                    (Decimal(str(amount)) / Decimal(str(divisor))).quantize(Decimal("0.01"))
+                )
+            else:
+                price_value = price
+
+            writable_offering: dict[str, Any] = {
+                "price": price_value,
+                "quantity": offering.get("quantity", 0),
+                "is_enabled": offering.get("is_enabled", True),
+            }
+            if offering.get("readiness_state_id"):
+                writable_offering["readiness_state_id"] = offering["readiness_state_id"]
+            offerings.append(writable_offering)
+
+        property_values: list[dict[str, Any]] = []
+        for pv in product.get("property_values", []):
+            writable_pv: dict[str, Any] = {
+                "property_id": pv.get("property_id"),
+                "property_name": pv.get("property_name"),
+                "value_ids": pv.get("value_ids", []),
+                "values": pv.get("values", []),
+            }
+            scale_id = pv.get("scale_id")
+            if scale_id is not None and scale_id != "None":
+                writable_pv["scale_id"] = scale_id
+            property_values.append(writable_pv)
+
+        products.append({
+            "sku": product.get("sku", ""),
+            "property_values": property_values,
+            "offerings": offerings,
+        })
+
+    return {
+        "products": products,
+        "price_on_property": tree.get("price_on_property", []),
+        "quantity_on_property": tree.get("quantity_on_property", []),
+        "sku_on_property": tree.get("sku_on_property", []),
+        "readiness_state_on_property": tree.get("readiness_state_on_property", []),
+    }
+
+
 async def apply_single_listing_price_quantity(
     access_token: str,
     shop_etsy_id: str,
@@ -265,13 +351,11 @@ async def apply_single_listing_price_quantity(
 ) -> dict[str, Any]:
     """
     Fetch-patch-put price/quantity update for a non-variation (single-SKU)
-    listing. Mirrors etsy_variation_write.py's proven strategy instead of
-    reconstructing a minimal inventory payload from local Listing fields:
-    GET the live inventory tree, mutate only price_amount/quantity on every
-    offering (a non-variation listing normalizes to exactly one product),
-    and PUT the full tree back — preserving product_id/offering_id/
-    property_values/currency_code/divisor exactly as Etsy has them, none of
-    which the local Listing model stores.
+    listing. GETs the live inventory tree, mutates only price_amount/quantity
+    on every offering (a non-variation listing normalizes to exactly one
+    product) while prices are still Money objects (so the real Etsy divisor
+    is available for the conversion), converts the result to Etsy's writable
+    PUT shape via build_writable_inventory_payload_from_tree(), and PUTs that.
 
     Pass None for a field that didn't change — only non-None fields are
     mutated; everything else in the fetched tree is preserved untouched.
@@ -299,8 +383,10 @@ async def apply_single_listing_price_quantity(
             if quantity is not None:
                 offering["quantity"] = quantity
 
+    writable_payload = build_writable_inventory_payload_from_tree(tree)
+
     try:
-        return await put_etsy_listing_inventory(access_token, shop_etsy_id, listing_etsy_id, tree)
+        return await put_etsy_listing_inventory(access_token, shop_etsy_id, listing_etsy_id, writable_payload)
     except EtsyVariationWriteError as e:
         raise EtsyWriteError(f"Inventory PUT failed: {e.message}", e.status_code, e.response_body) from e
 
