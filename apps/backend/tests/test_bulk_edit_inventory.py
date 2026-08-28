@@ -1375,6 +1375,7 @@ async def test_fetch_etsy_listing_inventory_paces_the_get():
 
     with patch("app.services.etsy_variation_write.httpx.AsyncClient", return_value=mock_client), \
          patch("app.services.etsy_variation_write.etsy_get", new_callable=AsyncMock, return_value=mock_resp), \
+         patch("app.services.etsy_variation_write.etsy_api_key_header", return_value="fake_key:fake_secret"), \
          patch("app.services.etsy_variation_write.sleep_before_etsy_write", new_callable=AsyncMock) as mock_pace:
         await fetch_etsy_listing_inventory("fake_token", "44263504", "1874506717")
 
@@ -1394,6 +1395,7 @@ async def test_put_etsy_listing_inventory_paces_the_put():
 
     with patch("app.services.etsy_variation_write.httpx.AsyncClient", return_value=mock_client), \
          patch("app.services.etsy_variation_write.etsy_put", new_callable=AsyncMock, return_value=mock_resp), \
+         patch("app.services.etsy_variation_write.etsy_api_key_header", return_value="fake_key:fake_secret"), \
          patch("app.services.etsy_variation_write.sleep_before_etsy_write", new_callable=AsyncMock) as mock_pace:
         await put_etsy_listing_inventory("fake_token", "44263504", "1874506717", {"products": []})
 
