@@ -14,6 +14,7 @@ import {
 import { decodeEntities } from "@/lib/decodeEntities";
 
 const FAILURE_REASON_CATEGORY: Array<{ match: (msg: string) => boolean; category: string }> = [
+  { match: (m) => /429/.test(m), category: "Etsy rate limit exceeded" },
   { match: (m) => /inventory/i.test(m) && /404/.test(m), category: "Etsy inventory endpoint not found or listing not accessible" },
   { match: (m) => /listing patch|patch failed/i.test(m) && /404/.test(m), category: "Etsy listing endpoint not found or listing not accessible" },
   { match: (m) => /inventory/i.test(m) && /400/.test(m), category: "Etsy rejected the price/quantity payload (invalid or incomplete data)" },
@@ -30,8 +31,18 @@ function extractSafeEtsyDetail(responsePayload: unknown): string | null {
   const errorNode = (rp.inventory_patch_error ?? rp.listing_patch_error) as Record<string, unknown> | undefined;
   const response = errorNode?.response as Record<string, unknown> | undefined;
   if (!response) return null;
+
   const code = typeof response.safe_etsy_error_code === "string" ? response.safe_etsy_error_code : null;
   const message = typeof response.safe_etsy_error_message === "string" ? response.safe_etsy_error_message : null;
+
+  if (response.rate_limited === true) {
+    const attempts = typeof response.retry_attempt === "number" ? response.retry_attempt : null;
+    const maxAttempts = typeof response.max_attempts === "number" ? response.max_attempts : null;
+    const retriedText = attempts && maxAttempts ? `Retried ${attempts}/${maxAttempts} times; try again later.` : "Try again later.";
+    const reasonText = message ?? "Exceeded per second rate limit";
+    return `Etsy returned HTTP 429: ${reasonText}. ${retriedText}`;
+  }
+
   if (!code && !message) return null;
   return [code, message].filter(Boolean).join(": ");
 }

@@ -22,7 +22,13 @@ from typing import Any
 
 import httpx
 
-from app.services.etsy_http import etsy_api_key_header, etsy_get
+from app.services.etsy_http import (
+    etsy_api_key_header,
+    etsy_get,
+    etsy_put,
+    parse_retry_after_seconds,
+    sleep_before_etsy_write,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +38,17 @@ MAX_SKU_LENGTH = 32  # Conservative Etsy-safe limit
 
 
 class EtsyVariationWriteError(Exception):
-    def __init__(self, message: str, status_code: int = 500, response_body: Any = None):
+    def __init__(
+        self,
+        message: str,
+        status_code: int = 500,
+        response_body: Any = None,
+        retry_after_seconds: float | None = None,
+    ):
         self.message = message
         self.status_code = status_code
         self.response_body = response_body
+        self.retry_after_seconds = retry_after_seconds
         super().__init__(message)
 
 
@@ -58,8 +71,12 @@ async def fetch_etsy_listing_inventory(
     GET /v3/application/listings/{listing_id}/inventory (listing-scoped, not shop-scoped
     — matches etsy_sync.fetch_listing_inventory, the already-working read path).
     Returns the full Etsy inventory tree.
+    Paced via sleep_before_etsy_write() — this is the GET half of the
+    fetch-patch-put write flow, not a general listing-sync read, so it's
+    subject to the same write pacing as the PUT that follows it.
     Raises EtsyVariationWriteError on HTTP error.
     """
+    await sleep_before_etsy_write(shop_etsy_id)
     async with httpx.AsyncClient(timeout=20.0) as client:
         resp = await etsy_get(
             client,
@@ -77,6 +94,7 @@ async def fetch_etsy_listing_inventory(
             f"Fetch inventory failed for listing {listing_etsy_id}: HTTP {resp.status_code}",
             status_code=resp.status_code,
             response_body=body,
+            retry_after_seconds=parse_retry_after_seconds(resp.headers.get("Retry-After")),
         )
     return resp.json()
 
@@ -91,10 +109,15 @@ async def put_etsy_listing_inventory(
 ) -> dict[str, Any]:
     """
     PUT /v3/application/listings/{listing_id}/inventory (listing-scoped, not shop-scoped).
-    Sends full inventory tree. Raises EtsyVariationWriteError on HTTP error.
+    Sends full inventory tree. Retries on 429/5xx via etsy_put(), and paced
+    via sleep_before_etsy_write() against the write attempted just before it
+    (the GET in fetch_etsy_listing_inventory, or another listing's write).
+    Raises EtsyVariationWriteError on HTTP error.
     """
+    await sleep_before_etsy_write(shop_etsy_id)
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.put(
+        resp = await etsy_put(
+            client,
             f"{ETSY_API_BASE}/application/listings/{listing_etsy_id}/inventory",
             headers=_auth_headers(access_token),
             json=payload,
@@ -110,6 +133,7 @@ async def put_etsy_listing_inventory(
             f"Inventory PUT failed for listing {listing_etsy_id}: HTTP {resp.status_code}",
             status_code=resp.status_code,
             response_body=body,
+            retry_after_seconds=parse_retry_after_seconds(resp.headers.get("Retry-After")),
         )
     return resp.json()
 

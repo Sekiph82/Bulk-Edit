@@ -36,7 +36,14 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from app.services.etsy_http import etsy_api_key_header
+from app.core.config import settings
+from app.services.etsy_http import (
+    etsy_api_key_header,
+    etsy_patch,
+    etsy_put,
+    parse_retry_after_seconds,
+    sleep_before_etsy_write,
+)
 
 if TYPE_CHECKING:
     from app.models.listing import Listing
@@ -243,21 +250,42 @@ def _inventory_payload_shape_summary(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _inventory_write_diagnostics(
+def _write_diagnostics(
     operation: str,
+    endpoint_category: str,
+    method: str,
     listing_etsy_id: str,
     status_code: int,
     response_body: Any,
+    retry_after_seconds: float | None = None,
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build the full safe diagnostics dict stored as EtsyWriteError.response_body for an inventory GET/PUT failure."""
+    """
+    Build the full safe diagnostics dict stored as EtsyWriteError.response_body
+    for any Etsy write failure (listing PATCH, inventory GET/PUT). Shared by
+    every write path so a 429 always carries the same safe shape regardless
+    of which endpoint hit it.
+
+    rate_limited/retry_recommended/final_rate_limit_exhausted are all True
+    only for status_code == 429 — every other status (400/401/403/404/5xx)
+    is treated as non-retryable here on purpose, since etsy_patch()/etsy_put()
+    already exhausted the configured retry attempts before this diagnostics
+    object is ever built (this function only runs on the FINAL failure).
+    """
+    rate_limited = status_code == 429
+    max_attempts = max(1, settings.ETSY_RETRY_MAX_ATTEMPTS)
     diagnostics: dict[str, Any] = {
         "operation": operation,
-        "endpoint_category": "inventory",
-        "method": "GET" if operation == "inventory_get" else "PUT",
+        "endpoint_category": endpoint_category,
+        "method": method,
         "listing_id": listing_etsy_id,
         "status_code": status_code,
-        "retry_recommended": False,
+        "rate_limited": rate_limited,
+        "retry_attempt": max_attempts if rate_limited else 1,
+        "max_attempts": max_attempts,
+        "retry_after_seconds": retry_after_seconds,
+        "final_rate_limit_exhausted": rate_limited,
+        "retry_recommended": rate_limited,
         **_sanitize_etsy_response_body(response_body),
     }
     if payload is not None:
@@ -265,11 +293,33 @@ def _inventory_write_diagnostics(
     return diagnostics
 
 
+def _inventory_write_diagnostics(
+    operation: str,
+    listing_etsy_id: str,
+    status_code: int,
+    response_body: Any,
+    payload: dict[str, Any] | None = None,
+    retry_after_seconds: float | None = None,
+) -> dict[str, Any]:
+    """Thin compatibility wrapper over _write_diagnostics() for inventory GET/PUT callers."""
+    return _write_diagnostics(
+        operation, "inventory", "GET" if operation == "inventory_get" else "PUT",
+        listing_etsy_id, status_code, response_body, retry_after_seconds, payload,
+    )
+
+
 class EtsyWriteError(Exception):
-    def __init__(self, message: str, status_code: int = 500, response_body: Any = None):
+    def __init__(
+        self,
+        message: str,
+        status_code: int = 500,
+        response_body: Any = None,
+        retry_after_seconds: float | None = None,
+    ):
         self.message = message
         self.status_code = status_code
         self.response_body = response_body
+        self.retry_after_seconds = retry_after_seconds
         super().__init__(message)
 
 
@@ -297,8 +347,10 @@ async def patch_etsy_listing(
         "Content-Type": "application/x-www-form-urlencoded",
     }
 
+    await sleep_before_etsy_write(shop_etsy_id)
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.patch(
+        resp = await etsy_patch(
+            client,
             f"{ETSY_API_BASE}/application/shops/{shop_etsy_id}/listings/{etsy_listing_id}",
             headers=headers,
             data=_flatten_payload(payload),
@@ -310,10 +362,15 @@ async def patch_etsy_listing(
             body = resp.json()
         except Exception:
             body = resp.text
+        retry_after = parse_retry_after_seconds(resp.headers.get("Retry-After"))
+        diagnostics = _write_diagnostics(
+            "listing_patch", "listing", "PATCH", etsy_listing_id, resp.status_code, body, retry_after,
+        )
         raise EtsyWriteError(
             f"Etsy PATCH {etsy_listing_id} failed: HTTP {resp.status_code}",
             status_code=resp.status_code,
-            response_body=body,
+            response_body=diagnostics,
+            retry_after_seconds=retry_after,
         )
 
     return resp.json()
@@ -331,6 +388,11 @@ async def patch_etsy_listing_inventory(
     (listing-scoped, not shop-scoped — shop_etsy_id is accepted for call-site
     consistency with the other write helpers but is not part of this path).
     Returns Etsy response JSON on success. Raises EtsyWriteError on HTTP error.
+
+    Not currently called by the live apply/revert flow (superseded by
+    apply_single_listing_price_quantity()'s fetch-patch-put) — kept in place,
+    still correct and tested, and still gets the retry/pacing treatment for
+    consistency with every other write path in this file.
     """
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -338,8 +400,10 @@ async def patch_etsy_listing_inventory(
         "Content-Type": "application/json",
     }
 
+    await sleep_before_etsy_write(shop_etsy_id)
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.put(
+        resp = await etsy_put(
+            client,
             f"{ETSY_API_BASE}/application/listings/{listing_etsy_id}/inventory",
             headers=headers,
             json=payload,
@@ -351,10 +415,15 @@ async def patch_etsy_listing_inventory(
             body = resp.json()
         except Exception:
             body = resp.text
+        retry_after = parse_retry_after_seconds(resp.headers.get("Retry-After"))
+        diagnostics = _write_diagnostics(
+            "inventory_put", "inventory", "PUT", listing_etsy_id, resp.status_code, body, retry_after,
+        )
         raise EtsyWriteError(
             f"Etsy inventory PUT {listing_etsy_id} failed: HTTP {resp.status_code}",
             status_code=resp.status_code,
-            response_body=body,
+            response_body=diagnostics,
+            retry_after_seconds=retry_after,
         )
 
     return resp.json()
@@ -484,8 +553,11 @@ async def apply_single_listing_price_quantity(
     try:
         raw_tree = await fetch_etsy_listing_inventory(access_token, shop_etsy_id, listing_etsy_id)
     except EtsyVariationWriteError as e:
-        diagnostics = _inventory_write_diagnostics("inventory_get", listing_etsy_id, e.status_code, e.response_body)
-        raise EtsyWriteError(f"Inventory fetch failed: {e.message}", e.status_code, diagnostics) from e
+        diagnostics = _inventory_write_diagnostics(
+            "inventory_get", listing_etsy_id, e.status_code, e.response_body,
+            retry_after_seconds=e.retry_after_seconds,
+        )
+        raise EtsyWriteError(f"Inventory fetch failed: {e.message}", e.status_code, diagnostics, e.retry_after_seconds) from e
 
     tree = normalize_etsy_inventory_tree(raw_tree)
     for product in tree.get("products", []):
@@ -500,8 +572,11 @@ async def apply_single_listing_price_quantity(
     try:
         return await put_etsy_listing_inventory(access_token, shop_etsy_id, listing_etsy_id, writable_payload)
     except EtsyVariationWriteError as e:
-        diagnostics = _inventory_write_diagnostics("inventory_put", listing_etsy_id, e.status_code, e.response_body, writable_payload)
-        raise EtsyWriteError(f"Inventory PUT failed: {e.message}", e.status_code, diagnostics) from e
+        diagnostics = _inventory_write_diagnostics(
+            "inventory_put", listing_etsy_id, e.status_code, e.response_body, writable_payload,
+            retry_after_seconds=e.retry_after_seconds,
+        )
+        raise EtsyWriteError(f"Inventory PUT failed: {e.message}", e.status_code, diagnostics, e.retry_after_seconds) from e
 
 
 def _flatten_payload(payload: dict[str, Any]) -> dict[str, Any]:

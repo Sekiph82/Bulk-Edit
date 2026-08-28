@@ -4,6 +4,17 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-28 (Etsy rate-limit guard/backoff)
+
+### [ARCH] Split per-call retry from cross-item write pacing into two separate mechanisms, not one
+The task explicitly warned against "guessing Etsy limits blindly as a magic hammer." Etsy 429s can happen in two different ways: a single call gets throttled mid-flight (needs retry-with-backoff on that call), or a fast loop over many listings outruns the limit before any single call is even throttled (needs spacing BETWEEN calls). One mechanism can't fix both — a retry loop alone still bursts write N+1 immediately after write N succeeds; a spacing gate alone doesn't help a single write that gets 429'd once. `_request_with_retry()` (per-call, honors `Retry-After`, capped at `ETSY_RETRY_MAX_ATTEMPTS`) and `sleep_before_etsy_write()` (per-shop minimum spacing, called explicitly at write-flow entry points only) are deliberately independent so each can be reasoned about and tested separately, and so future write endpoints only need to call both, not reimplement either.
+
+### [ARCH] Write pacing is scoped to write-flow entry points only, never built into the shared `etsy_get`/`etsy_patch`/`etsy_put` transport wrappers
+`etsy_get` also backs plain listing-sync reads (`etsy_sync.py`), which the task explicitly said must stay fast and unthrottled ("avoid slowing all read-only listing sync unless intentionally designed"). Building `sleep_before_etsy_write()` into the shared transport wrapper would have throttled every read too. Instead it's called explicitly inside the write functions themselves (`patch_etsy_listing`, `patch_etsy_listing_inventory`, `fetch_etsy_listing_inventory`, `put_etsy_listing_inventory`) — the GET inside the fetch-patch-put flow is paced because it's part of a write operation, not because it's a GET.
+
+### [POLICY] Only HTTP 429 is treated as retryable/rate-limited in the write-diagnostics shape; 400/401/403/404/5xx stay terminal and distinct
+The task required 400 to "remain distinct" from 429 in both diagnostics and UI, and explicitly said only 429 retries with backoff. `classify_etsy_write_status()` and `_write_diagnostics()`'s `rate_limited`/`retry_recommended`/`final_rate_limit_exhausted` fields all key off `status_code == 429` specifically — a 5xx server error is retried by `_request_with_retry()` (same mechanism, since a transient server error is also safe to retry) but is NOT reported as `rate_limited` in the final diagnostics, so the UI/logs never conflate "Etsy is overloaded" with "we're sending too fast," which would mislead whoever reads the failure later.
+
 ## 2026-08-28 (Etsy listing sync cap: verified working-as-designed, declined to bypass)
 
 ### [PRODUCT] Refused to implement the requested pagination "fix" once investigation showed it would bypass a paid-plan gate
