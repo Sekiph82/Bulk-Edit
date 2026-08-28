@@ -11,8 +11,12 @@ import {
   type BulkEditChange, type BulkEditPreviewItem, type BulkEditPreviewGenerateResponse,
   type ApplyJob, type RevertJob, type ApplyResult,
 } from "@/lib/api";
+import { decodeEntities } from "@/lib/decodeEntities";
 
 const FAILURE_REASON_CATEGORY: Array<{ match: (msg: string) => boolean; category: string }> = [
+  { match: (m) => /inventory/i.test(m) && /404/.test(m), category: "Etsy inventory endpoint not found or listing not accessible" },
+  { match: (m) => /listing patch|patch failed/i.test(m) && /404/.test(m), category: "Etsy listing endpoint not found or listing not accessible" },
+  { match: (m) => /403/.test(m), category: "Etsy denied access (permissions or shop mismatch)" },
   { match: (m) => /inventory/i.test(m), category: "Price/quantity update rejected by Etsy" },
   { match: (m) => /listing patch|patch failed/i.test(m), category: "Listing field update rejected by Etsy" },
   { match: () => true, category: "Write failed" },
@@ -158,7 +162,7 @@ function ListingSelector({
                     <input type="checkbox" readOnly checked={selected.has(l.id)} className="rounded" />
                   </td>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900 truncate max-w-xs">{l.title ?? "—"}</p>
+                    <p className="font-medium text-gray-900 truncate max-w-xs">{l.title ? decodeEntities(l.title) : "—"}</p>
                     <p className="text-xs text-gray-400">#{l.etsy_listing_id}</p>
                   </td>
                   <td className="px-4 py-3 text-gray-500">{l.state ?? "—"}</td>
@@ -355,7 +359,7 @@ function PreviewTable({ items }: { items: BulkEditPreviewItem[] }) {
             if (diffKeys.length === 0) {
               return (
                 <tr key={item.id}>
-                  <td className="px-4 py-3 text-gray-700 font-medium">{item.listing_title ?? item.listing_id}</td>
+                  <td className="px-4 py-3 text-gray-700 font-medium">{item.listing_title ? decodeEntities(item.listing_title) : item.listing_id}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${VALIDATION_BADGE[item.validation_status] ?? "bg-gray-100 text-gray-500"}`}>
                       {item.validation_status}
@@ -370,7 +374,7 @@ function PreviewTable({ items }: { items: BulkEditPreviewItem[] }) {
                 {fi === 0 && (
                   <>
                     <td className="px-4 py-3 text-gray-700 font-medium align-top" rowSpan={diffKeys.length}>
-                      <p className="truncate max-w-[180px]">{item.listing_title ?? item.listing_id}</p>
+                      <p className="truncate max-w-[180px]">{item.listing_title ? decodeEntities(item.listing_title) : item.listing_id}</p>
                     </td>
                     <td className="px-4 py-3 align-top" rowSpan={diffKeys.length}>
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${VALIDATION_BADGE[item.validation_status] ?? "bg-gray-100 text-gray-500"}`}>
@@ -732,7 +736,7 @@ function BulkEditContent() {
                     {applyResults.map((r) => (
                       <tr key={r.id} className="border-b border-gray-50 last:border-0">
                         <td className="py-1.5 pr-4 text-gray-700">
-                          {listingTitleById[r.listing_id] || `Listing ${r.etsy_listing_id}`}
+                          {listingTitleById[r.listing_id] ? decodeEntities(listingTitleById[r.listing_id]) : `Listing ${r.etsy_listing_id}`}
                         </td>
                         <td className="py-1.5 pr-4 text-red-700 font-medium whitespace-nowrap">
                           {categorizeFailure(r.error_message)}

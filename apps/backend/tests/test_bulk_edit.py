@@ -371,6 +371,58 @@ async def test_add_change_rejects_incompatible_operation(client, db_session):
     assert r2.status_code == 400
 
 
+async def test_remove_change_succeeds_for_price_amount(client, db_session):
+    token = await _register_and_login(client, {
+        "email": "be_rm_ok@example.com", "password": "password123",
+        "full_name": "R", "organization_name": "Remove OK Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing = await _setup_listing(db_session, org_id, "rm_ok_01")
+
+    r = await client.post(SESSIONS_URL, json={"listing_ids": [listing.id]}, headers={"Authorization": f"Bearer {token}"})
+    session_id = r.json()["id"]
+
+    r2 = await client.post(
+        f"{SESSIONS_URL}/{session_id}/changes",
+        json={"field_name": "price_amount", "operation": "set", "operation_value": 3000},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r2.status_code == 201
+    change_id = r2.json()["id"]
+
+    r3 = await client.delete(
+        f"{SESSIONS_URL}/{session_id}/changes/{change_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r3.status_code == 204
+
+    r4 = await client.get(f"{SESSIONS_URL}/{session_id}", headers={"Authorization": f"Bearer {token}"})
+    assert r4.status_code == 200
+    assert r4.json()["id"] == session_id
+    assert all(c["id"] != change_id for c in r4.json().get("changes", []))
+
+
+async def test_remove_change_rejects_unknown_change_id(client, db_session):
+    token = await _register_and_login(client, {
+        "email": "be_rm_bad@example.com", "password": "password123",
+        "full_name": "R", "organization_name": "Remove Bad Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing = await _setup_listing(db_session, org_id, "rm_bad_01")
+
+    r = await client.post(SESSIONS_URL, json={"listing_ids": [listing.id]}, headers={"Authorization": f"Bearer {token}"})
+    session_id = r.json()["id"]
+
+    r2 = await client.delete(
+        f"{SESSIONS_URL}/{session_id}/changes/nonexistent-change-id",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r2.status_code == 404
+
+    r3 = await client.get(f"{SESSIONS_URL}/{session_id}", headers={"Authorization": f"Bearer {token}"})
+    assert r3.status_code == 200
+
+
 async def test_generate_preview_creates_one_per_listing(client, db_session):
     token = await _register_and_login(client, {
         "email": "be_prev@example.com", "password": "password123",

@@ -549,6 +549,38 @@ async def test_revert_does_not_update_local_price_if_inventory_revert_fails(clie
     assert listing.price_amount == 3000  # not reverted
 
 
+# ── inventory PUT URL shape (Etsy v3 endpoint regression guard) ───────────────
+# Sprint 1 follow-up: the endpoint incorrectly included /shops/{shop_id} in the
+# path (copy-pasted from the shop-scoped listing endpoints), which 404s on
+# Etsy's real API since getListingInventory/updateListingInventory are
+# listing-scoped only. This guards against that regressing.
+
+async def test_patch_etsy_listing_inventory_uses_listing_scoped_url():
+    from app.services.etsy_write import patch_etsy_listing_inventory
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"products": []}
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.put = AsyncMock(return_value=mock_resp)
+
+    with patch("app.services.etsy_write.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.services.etsy_write.etsy_api_key_header", return_value="fake_key:fake_secret"):
+        await patch_etsy_listing_inventory(
+            access_token="fake_token",
+            shop_etsy_id="99999999",
+            listing_etsy_id="1234567890",
+            payload={"products": []},
+        )
+
+    called_url = mock_client.put.call_args.args[0]
+    assert called_url == "https://openapi.etsy.com/v3/application/listings/1234567890/inventory"
+    assert "shops" not in called_url
+
+
 # ── item-level failure reason surfaced via apply-job detail ───────────────────
 
 async def test_apply_job_detail_exposes_item_level_failure_reason(client, db_session):

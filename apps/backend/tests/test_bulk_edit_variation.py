@@ -951,3 +951,61 @@ async def test_apply_writes_audit_logs(client, db_session):
     event_types = [l.event_type for l in logs_q.scalars().all()]
     assert "bulk_edit_variation_job_started" in event_types
     assert "bulk_edit_variation_job_finished" in event_types
+
+
+# ── inventory GET/PUT URL shape (Etsy v3 endpoint regression guard) ───────────
+# Sprint 1 follow-up: both functions incorrectly included /shops/{shop_id} in
+# the path, matching the same bug found and fixed in etsy_write.py's
+# patch_etsy_listing_inventory(). Etsy's inventory endpoints are listing-scoped
+# only. Guards against that regressing.
+
+async def test_fetch_etsy_listing_inventory_uses_listing_scoped_url():
+    from app.services.etsy_variation_write import fetch_etsy_listing_inventory
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = FAKE_INVENTORY
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("app.services.etsy_variation_write.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.services.etsy_variation_write.etsy_get", new_callable=AsyncMock) as mock_get, \
+         patch("app.services.etsy_variation_write.etsy_api_key_header", return_value="fake_key:fake_secret"):
+        mock_get.return_value = mock_resp
+        await fetch_etsy_listing_inventory(
+            access_token="fake_token",
+            shop_etsy_id="99999999",
+            listing_etsy_id="1234567890",
+        )
+
+    called_url = mock_get.call_args.args[1]
+    assert called_url == "https://openapi.etsy.com/v3/application/listings/1234567890/inventory"
+    assert "shops" not in called_url
+
+
+async def test_put_etsy_listing_inventory_uses_listing_scoped_url():
+    from app.services.etsy_variation_write import put_etsy_listing_inventory
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = FAKE_INVENTORY
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.put = AsyncMock(return_value=mock_resp)
+
+    with patch("app.services.etsy_variation_write.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.services.etsy_variation_write.etsy_api_key_header", return_value="fake_key:fake_secret"):
+        await put_etsy_listing_inventory(
+            access_token="fake_token",
+            shop_etsy_id="99999999",
+            listing_etsy_id="1234567890",
+            payload=FAKE_INVENTORY,
+        )
+
+    called_url = mock_client.put.call_args.args[0]
+    assert called_url == "https://openapi.etsy.com/v3/application/listings/1234567890/inventory"
+    assert "shops" not in called_url
