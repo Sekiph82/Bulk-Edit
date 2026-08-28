@@ -1,4 +1,8 @@
+from datetime import datetime, timezone
 from typing import Any
+
+from sqlalchemy import desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 PLAN_LIMITS: dict[str, dict[str, Any]] = {
     "free": {
@@ -63,3 +67,37 @@ PLAN_DISPLAY_NAMES = {
 
 def get_plan_limits(plan: str) -> dict[str, Any]:
     return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+
+
+async def get_effective_plan(db: AsyncSession, org_id: str) -> str:
+    """
+    The plan that should actually gate features for this org: an active
+    (non-revoked, non-expired) comp grant overrides the real subscription
+    plan, else the subscription plan, else "free". Mirrors
+    app.services.admin.get_effective_access's resolution exactly -- that
+    function returns the full admin-facing view (comp details, Stripe
+    status); this returns just the plan string for feature-gating call
+    sites that only need to know which limits apply (e.g. etsy_sync).
+    """
+    from app.models.comp_access_grant import CompAccessGrant
+    from app.models.subscription import Subscription
+
+    sub = (await db.execute(
+        select(Subscription).where(Subscription.organization_id == org_id)
+    )).scalar_one_or_none()
+
+    comp = (await db.execute(
+        select(CompAccessGrant).where(
+            CompAccessGrant.organization_id == org_id,
+            CompAccessGrant.revoked_at.is_(None),
+        ).order_by(desc(CompAccessGrant.created_at))
+    )).scalars().first()
+
+    if comp:
+        ends_at = comp.ends_at
+        if ends_at and ends_at.tzinfo is None:
+            ends_at = ends_at.replace(tzinfo=timezone.utc)
+        if not ends_at or ends_at > datetime.now(timezone.utc):
+            return comp.comp_plan
+
+    return sub.plan if sub else "free"
