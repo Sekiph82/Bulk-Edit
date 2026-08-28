@@ -310,7 +310,7 @@ async def test_apply_calls_inventory_endpoint_when_price_changed(client, db_sess
 
     with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
          patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock) as mock_patch, \
-         patch("app.services.bulk_edit_apply.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+         patch("app.services.bulk_edit_apply.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
         mock_patch.return_value = {"state": "active"}
         mock_inv.return_value = {"products": []}
         r = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
@@ -331,7 +331,7 @@ async def test_apply_calls_inventory_endpoint_when_quantity_changed(client, db_s
 
     with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
          patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock) as mock_patch, \
-         patch("app.services.bulk_edit_apply.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+         patch("app.services.bulk_edit_apply.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
         mock_patch.return_value = {"state": "active"}
         mock_inv.return_value = {"products": []}
         r = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
@@ -351,7 +351,7 @@ async def test_apply_calls_both_endpoints_when_title_and_price_changed(client, d
 
     with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
          patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock) as mock_patch, \
-         patch("app.services.bulk_edit_apply.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+         patch("app.services.bulk_edit_apply.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
         mock_patch.return_value = {"state": "active"}
         mock_inv.return_value = {"products": []}
         r = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
@@ -377,7 +377,7 @@ async def test_apply_updates_local_price_after_inventory_success(client, db_sess
 
     with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
          patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock), \
-         patch("app.services.bulk_edit_apply.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+         patch("app.services.bulk_edit_apply.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
         mock_inv.return_value = {"products": []}
         r = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
 
@@ -403,7 +403,7 @@ async def test_apply_does_not_update_local_price_if_inventory_fails(client, db_s
 
     with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
          patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock), \
-         patch("app.services.bulk_edit_apply.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+         patch("app.services.bulk_edit_apply.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
         mock_inv.side_effect = EtsyWriteError("Inventory update failed", 422)
         r = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
 
@@ -446,7 +446,7 @@ async def test_apply_skips_inventory_for_variation_listing(client, db_session):
 
     with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
          patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock) as mock_patch, \
-         patch("app.services.bulk_edit_apply.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+         patch("app.services.bulk_edit_apply.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
         mock_patch.return_value = {"state": "active"}
         mock_inv.return_value = {"products": []}
         r = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
@@ -473,7 +473,7 @@ async def _setup_apply_with_price_change(client, db_session, email, org_name, et
 
     with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
          patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock), \
-         patch("app.services.bulk_edit_apply.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+         patch("app.services.bulk_edit_apply.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
         mock_inv.return_value = {"products": []}
         r_apply = await client.post(
             f"{SESSIONS_URL}/{session_id}/apply",
@@ -500,7 +500,7 @@ async def test_revert_calls_inventory_endpoint_when_snapshot_has_price(client, d
 
     with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()), \
          patch("app.services.bulk_edit_revert.patch_etsy_listing", new_callable=AsyncMock) as mock_patch, \
-         patch("app.services.bulk_edit_revert.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+         patch("app.services.bulk_edit_revert.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
         mock_patch.return_value = {"state": "active"}
         mock_inv.return_value = {"products": []}
         r = await client.post(
@@ -522,7 +522,7 @@ async def test_revert_updates_local_price_after_inventory_revert_success(client,
 
     with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()), \
          patch("app.services.bulk_edit_revert.patch_etsy_listing", new_callable=AsyncMock) as mock_patch, \
-         patch("app.services.bulk_edit_revert.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+         patch("app.services.bulk_edit_revert.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
         mock_patch.return_value = {"state": "active"}
         mock_inv.return_value = {"products": []}
         r = await client.post(
@@ -549,7 +549,7 @@ async def test_revert_does_not_update_local_price_if_inventory_revert_fails(clie
 
     with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()), \
          patch("app.services.bulk_edit_revert.patch_etsy_listing", new_callable=AsyncMock) as mock_patch, \
-         patch("app.services.bulk_edit_revert.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+         patch("app.services.bulk_edit_revert.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
         mock_patch.return_value = {"state": "active"}
         mock_inv.side_effect = EtsyWriteError("Inventory revert rejected", 422)
         r = await client.post(
@@ -595,6 +595,160 @@ async def test_patch_etsy_listing_inventory_uses_listing_scoped_url():
     called_url = mock_client.put.call_args.args[0]
     assert called_url == "https://openapi.etsy.com/v3/application/listings/1234567890/inventory"
     assert "shops" not in called_url
+
+
+# ── fetch-patch-put inventory update (root cause of the live HTTP 400) ────────
+# Third follow-up: build_etsy_inventory_payload() reconstructed a minimal
+# payload from local Listing fields and couldn't preserve product_id/
+# offering_id, which Etsy's schema needs on an update. apply_single_listing_price_quantity()
+# fetches the live tree, mutates only the changed field(s), and PUTs the
+# full tree back — proven-correct pattern already used for variations.
+
+_FAKE_LIVE_INVENTORY = {
+    "products": [
+        {
+            "product_id": 555111222,
+            "sku": "SKU-LIVE",
+            "property_values": [],
+            "offerings": [
+                {
+                    "offering_id": 999888777,
+                    "quantity": 5,
+                    "is_enabled": True,
+                    "price": {"amount": 2000, "divisor": 100, "currency_code": "USD"},
+                }
+            ],
+        }
+    ],
+    "price_on_property": [],
+    "quantity_on_property": [],
+    "sku_on_property": [],
+}
+
+
+async def test_apply_single_listing_price_quantity_mutates_only_price():
+    from app.services.etsy_write import apply_single_listing_price_quantity
+
+    with patch("app.services.etsy_variation_write.fetch_etsy_listing_inventory", new_callable=AsyncMock) as mock_fetch, \
+         patch("app.services.etsy_variation_write.put_etsy_listing_inventory", new_callable=AsyncMock) as mock_put:
+        mock_fetch.return_value = _FAKE_LIVE_INVENTORY
+        mock_put.return_value = {"products": []}
+
+        await apply_single_listing_price_quantity(
+            access_token="fake_token",
+            shop_etsy_id="44263504",
+            listing_etsy_id="1874506717",
+            price_amount=6288,
+            quantity=None,
+        )
+
+    mock_put.assert_called_once()
+    put_tree = mock_put.call_args.args[3]
+    offering = put_tree["products"][0]["offerings"][0]
+    assert offering["price"]["amount"] == 6288
+    assert offering["quantity"] == 5  # untouched — quantity was not part of this change
+    assert offering["price"]["divisor"] == 100  # preserved from the live fetch
+    assert offering["price"]["currency_code"] == "USD"  # preserved from the live fetch
+
+
+async def test_apply_single_listing_price_quantity_mutates_only_quantity():
+    from app.services.etsy_write import apply_single_listing_price_quantity
+
+    with patch("app.services.etsy_variation_write.fetch_etsy_listing_inventory", new_callable=AsyncMock) as mock_fetch, \
+         patch("app.services.etsy_variation_write.put_etsy_listing_inventory", new_callable=AsyncMock) as mock_put:
+        mock_fetch.return_value = _FAKE_LIVE_INVENTORY
+        mock_put.return_value = {"products": []}
+
+        await apply_single_listing_price_quantity(
+            access_token="fake_token",
+            shop_etsy_id="44263504",
+            listing_etsy_id="1874506717",
+            price_amount=None,
+            quantity=12,
+        )
+
+    put_tree = mock_put.call_args.args[3]
+    offering = put_tree["products"][0]["offerings"][0]
+    assert offering["quantity"] == 12
+    assert offering["price"]["amount"] == 2000  # untouched — price was not part of this change
+
+
+async def test_apply_single_listing_price_quantity_preserves_product_and_offering_ids():
+    """
+    This is the exact gap the local-field payload builder couldn't cover:
+    Etsy assigns product_id/offering_id on an existing listing's inventory,
+    and the local Listing model never stored them. Fetch-patch-put preserves
+    them by construction since they come from the live GET.
+    """
+    from app.services.etsy_write import apply_single_listing_price_quantity
+
+    with patch("app.services.etsy_variation_write.fetch_etsy_listing_inventory", new_callable=AsyncMock) as mock_fetch, \
+         patch("app.services.etsy_variation_write.put_etsy_listing_inventory", new_callable=AsyncMock) as mock_put:
+        mock_fetch.return_value = _FAKE_LIVE_INVENTORY
+        mock_put.return_value = {"products": []}
+
+        await apply_single_listing_price_quantity(
+            access_token="fake_token",
+            shop_etsy_id="44263504",
+            listing_etsy_id="1874506717",
+            price_amount=6288,
+            quantity=None,
+        )
+
+    put_tree = mock_put.call_args.args[3]
+    product = put_tree["products"][0]
+    offering = product["offerings"][0]
+    assert product["product_id"] == 555111222
+    assert product["sku"] == "SKU-LIVE"
+    assert offering["offering_id"] == 999888777
+    # top-level schema keys still present (same fix as the minimal-payload round)
+    assert put_tree["price_on_property"] == []
+    assert put_tree["quantity_on_property"] == []
+    assert put_tree["sku_on_property"] == []
+
+
+async def test_apply_single_listing_price_quantity_raises_etsy_write_error_on_fetch_failure():
+    from app.services.etsy_write import apply_single_listing_price_quantity, EtsyWriteError
+    from app.services.etsy_variation_write import EtsyVariationWriteError
+
+    with patch("app.services.etsy_variation_write.fetch_etsy_listing_inventory", new_callable=AsyncMock) as mock_fetch, \
+         patch("app.services.etsy_variation_write.put_etsy_listing_inventory", new_callable=AsyncMock) as mock_put:
+        mock_fetch.side_effect = EtsyVariationWriteError("Fetch inventory failed for listing 1874506717: HTTP 404", 404)
+
+        with pytest.raises(EtsyWriteError) as exc_info:
+            await apply_single_listing_price_quantity(
+                access_token="fake_token",
+                shop_etsy_id="44263504",
+                listing_etsy_id="1874506717",
+                price_amount=6288,
+                quantity=None,
+            )
+
+    assert exc_info.value.status_code == 404
+    mock_put.assert_not_called()  # never reached the write step
+
+
+async def test_apply_single_listing_price_quantity_raises_etsy_write_error_on_put_failure():
+    from app.services.etsy_write import apply_single_listing_price_quantity, EtsyWriteError
+    from app.services.etsy_variation_write import EtsyVariationWriteError
+
+    with patch("app.services.etsy_variation_write.fetch_etsy_listing_inventory", new_callable=AsyncMock) as mock_fetch, \
+         patch("app.services.etsy_variation_write.put_etsy_listing_inventory", new_callable=AsyncMock) as mock_put:
+        mock_fetch.return_value = _FAKE_LIVE_INVENTORY
+        mock_put.side_effect = EtsyVariationWriteError(
+            "Inventory PUT failed for listing 1874506717: HTTP 400", 400, response_body={"error": "invalid request"}
+        )
+
+        with pytest.raises(EtsyWriteError) as exc_info:
+            await apply_single_listing_price_quantity(
+                access_token="fake_token",
+                shop_etsy_id="44263504",
+                listing_etsy_id="1874506717",
+                price_amount=6288,
+                quantity=None,
+            )
+
+    assert exc_info.value.status_code == 400
 
 
 # ── listing PATCH URL shape (Etsy v3 endpoint regression guard) ───────────────
@@ -675,7 +829,7 @@ async def test_apply_job_detail_exposes_item_level_failure_reason(client, db_ses
 
     with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
          patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock), \
-         patch("app.services.bulk_edit_apply.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+         patch("app.services.bulk_edit_apply.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
         mock_inv.side_effect = EtsyWriteError("missing property_values", 400, response_body={"error": "bad request"})
         r = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
 
@@ -712,7 +866,7 @@ async def test_apply_calls_listing_patch_with_shop_and_etsy_listing_id(client, d
 
     with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
          patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock) as mock_patch, \
-         patch("app.services.bulk_edit_apply.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+         patch("app.services.bulk_edit_apply.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
         mock_patch.return_value = {"listing_id": listing.etsy_listing_id}
         mock_inv.return_value = {"products": []}
         r = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
@@ -783,7 +937,7 @@ async def test_apply_result_has_structured_payload_when_inventory_involved(clien
 
     with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
          patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock) as mock_patch, \
-         patch("app.services.bulk_edit_apply.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+         patch("app.services.bulk_edit_apply.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
         mock_patch.return_value = {"listing_id": listing.etsy_listing_id, "state": "active"}
         mock_inv.return_value = {"products": []}
         r = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})

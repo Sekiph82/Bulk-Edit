@@ -13,7 +13,8 @@ Safety contract:
   6. Local Listing row updated ONLY after ALL required Etsy revert writes succeed
   7. Audit log written on revert start and completion
   8. Backup snapshots are never deleted
-  9. Price/quantity reverted via inventory endpoint (PUT /shops/{s}/listings/{l}/inventory)
+  9. Price/quantity reverted via fetch-patch-put on the inventory endpoint
+     (GET+PUT /listings/{l}/inventory — listing-scoped, full tree preserved)
      Variation listings: inventory revert skipped (Sprint 11); text fields still reverted.
  10. Photo/video not reverted (deferred to Sprint 11)
 
@@ -42,7 +43,7 @@ from app.services.etsy_write import (
     build_etsy_patch_payload,
     build_etsy_inventory_payload,
     patch_etsy_listing,
-    patch_etsy_listing_inventory,
+    apply_single_listing_price_quantity,
     EtsyWriteError,
 )
 
@@ -422,15 +423,16 @@ async def revert_apply_job(
                 await db.flush()
                 continue
 
-        # Step 2: revert price/quantity (inventory PUT)
+        # Step 2: revert price/quantity (fetch-patch-put inventory tree)
         inventory_resp: Any = None
         if inventory_payload and shop:
             try:
-                inventory_resp = await patch_etsy_listing_inventory(
+                inventory_resp = await apply_single_listing_price_quantity(
                     access_token=access_token,
                     shop_etsy_id=shop.etsy_shop_id,
                     listing_etsy_id=listing.etsy_listing_id,
-                    payload=inventory_payload,
+                    price_amount=snapshot_data.get("price_amount") if "price_amount" in snapshot_data else None,
+                    quantity=snapshot_data.get("quantity") if "quantity" in snapshot_data else None,
                 )
             except EtsyWriteError as e:
                 rr.status = "failed"
