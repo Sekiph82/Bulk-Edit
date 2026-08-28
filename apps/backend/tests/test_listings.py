@@ -589,6 +589,72 @@ async def test_max_listings_plan_gate(client, db_session):
     assert len(listings) <= 25
 
 
+async def test_comp_grant_overrides_max_listings_plan_gate(client, db_session):
+    """
+    Regression test: an active comp grant (e.g. owner-granted Pro access
+    without a real Stripe subscription) must raise the sync cap, not just
+    the raw Subscription.plan. Same 30-listing mock as
+    test_max_listings_plan_gate, but with a pro_monthly comp grant -- all
+    30 should sync, not cap at the Free plan's 25.
+    """
+    user = {"email": "compgrant@example.com", "password": "password123", "full_name": "C", "organization_name": "Comp Org"}
+    token = await _register_and_login(client, user)
+
+    from app.models.organization_member import OrganizationMember
+    from app.models.listing import Listing
+    from app.models.comp_access_grant import CompAccessGrant
+    from sqlalchemy import select
+
+    result = await db_session.execute(
+        select(OrganizationMember).order_by(OrganizationMember.created_at.desc()).limit(1)
+    )
+    member = result.scalar_one()
+    org_id = member.organization_id
+    shop, _ = await _setup_connected_shop(db_session, org_id)
+
+    db_session.add(CompAccessGrant(
+        organization_id=org_id,
+        comp_plan="pro_monthly",
+        reason="test",
+        starts_at=datetime.now(timezone.utc),
+        ends_at=None,
+    ))
+    await db_session.commit()
+
+    big_response = {
+        "count": 30,
+        "results": [
+            {
+                "listing_id": 910000 + i,
+                "title": f"Comp Listing {i}",
+                "state": "active",
+                "price": {"amount": 1000, "divisor": 100, "currency_code": "USD"},
+                "quantity": 1,
+                "has_variations": False,
+            }
+            for i in range(30)
+        ],
+    }
+    mock_http = _make_mock_http_client(big_response)
+
+    with (
+        patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_http),
+        _valid_etsy_credentials(),
+    ):
+        r = await client.post(
+            f"/api/v1/shops/{shop.id}/sync",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert r.status_code == 200
+    assert r.json()["status"] == "completed"
+
+    result = await db_session.execute(select(Listing).where(Listing.etsy_shop_id == shop.id))
+    listings = result.scalars().all()
+    # pro_monthly comp grant raises the cap well past 30 -- all 30 should sync
+    assert len(listings) == 30
+
+
 # ---------------------------------------------------------------------------
 # Sprint 6: new filter tests
 # ---------------------------------------------------------------------------

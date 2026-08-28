@@ -15,14 +15,13 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.encryption import decrypt_token
-from app.core.plans import get_plan_limits
+from app.core.plans import get_effective_plan, get_plan_limits
 from app.models.etsy_shop import EtsyShop
 from app.models.etsy_token import EtsyToken
 from app.models.listing import Listing
 from app.models.listing_image import ListingImage
 from app.models.listing_video import ListingVideo
 from app.models.listing_variation import ListingVariation
-from app.models.subscription import Subscription
 from app.models.sync_job import SyncJob
 from app.services.etsy_http import etsy_api_key_header, etsy_get
 
@@ -342,12 +341,9 @@ async def sync_shop_listings(
     if not shop.is_connected:
         raise SyncError("Shop is disconnected. Please reconnect your Etsy shop.", 400)
 
-    # Determine max_listings from subscription plan
-    sub_result = await db.execute(
-        select(Subscription).where(Subscription.organization_id == org_id)
-    )
-    subscription = sub_result.scalar_one_or_none()
-    plan = subscription.plan if subscription else "free"
+    # Determine max_listings from the org's effective plan (an active comp
+    # grant overrides the real subscription -- see get_effective_plan).
+    plan = await get_effective_plan(db, org_id)
     limits = get_plan_limits(plan)
     max_listings: int = limits.get("max_listings", 25)
 
