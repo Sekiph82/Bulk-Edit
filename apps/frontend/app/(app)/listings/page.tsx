@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   getShops, getListings, getListing, syncShop, getAccessToken, ApiError,
   type Shop, type ListingListItem, type ListingDetail, type ListingsParams,
 } from "@/lib/api";
+import { decodeEntities } from "@/lib/decodeEntities";
 
 // ---- constants ----
 
@@ -36,22 +38,56 @@ const COL_LABELS: Record<string, string> = {
 const ALL_COLS = Object.keys(COL_LABELS);
 const DEFAULT_VISIBLE = new Set(ALL_COLS);
 
+const PREVIEW_SIZE = 240;
+const PREVIEW_GAP = 8;
+
 function ListingThumbnail({ url, alt }: { url: string | null; alt: string }) {
+  const [previewPos, setPreviewPos] = useState<{ top: number; left: number } | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+
   if (!url) {
     return <div className="w-20 h-20 bg-gray-100 rounded-lg border border-gray-100" />;
   }
+
+  function showPreview() {
+    const rect = imgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    let left = rect.right + PREVIEW_GAP;
+    if (left + PREVIEW_SIZE > window.innerWidth) {
+      left = Math.max(PREVIEW_GAP, rect.left - PREVIEW_SIZE - PREVIEW_GAP);
+    }
+    let top = rect.top + rect.height / 2 - PREVIEW_SIZE / 2;
+    top = Math.max(PREVIEW_GAP, Math.min(top, window.innerHeight - PREVIEW_SIZE - PREVIEW_GAP));
+    setPreviewPos({ top, left });
+  }
+
   return (
-    <div className="relative group inline-block">
+    <>
       <img
+        ref={imgRef}
         src={url}
         alt={alt}
         loading="lazy"
+        onMouseEnter={showPreview}
+        onMouseLeave={() => setPreviewPos(null)}
         className="w-20 h-20 object-contain bg-gray-50 rounded-lg border border-gray-100"
       />
-      <div className="hidden group-hover:block absolute z-30 left-full top-1/2 -translate-y-1/2 ml-2 p-1 bg-white border border-gray-200 rounded-lg shadow-lg pointer-events-none">
-        <img src={url} alt={alt} className="w-60 h-60 object-contain bg-gray-50 rounded-md" />
-      </div>
-    </div>
+      {previewPos &&
+        createPortal(
+          <div
+            className="fixed z-[999] p-1 bg-white border border-gray-200 rounded-lg shadow-xl pointer-events-none"
+            style={{ top: previewPos.top, left: previewPos.left }}
+          >
+            <img
+              src={url}
+              alt={alt}
+              className="block"
+              style={{ width: PREVIEW_SIZE, height: PREVIEW_SIZE, objectFit: "contain", background: "#f9fafb", borderRadius: 6 }}
+            />
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -118,7 +154,7 @@ function DetailSidebar({ listingId, onClose }: { listingId: string; onClose: () 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
-          <h2 className="text-base font-semibold text-gray-900 truncate">{detail?.title ?? "Listing Detail"}</h2>
+          <h2 className="text-base font-semibold text-gray-900 truncate">{detail?.title ? decodeEntities(detail.title) : "Listing Detail"}</h2>
           <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600 text-xl leading-none ml-4">&times;</button>
         </div>
 
@@ -133,7 +169,7 @@ function DetailSidebar({ listingId, onClose }: { listingId: string; onClose: () 
         {detail && (
           <div className="px-6 py-5 space-y-5 text-sm">
             {detail.thumbnail_url && (
-              <img src={detail.thumbnail_url} alt={detail.title ?? ""} loading="lazy" className="w-full aspect-square object-cover rounded-lg border border-gray-100" />
+              <img src={detail.thumbnail_url} alt={detail.title ? decodeEntities(detail.title) : ""} loading="lazy" className="w-full aspect-square object-cover rounded-lg border border-gray-100" />
             )}
 
             <div className="grid grid-cols-2 gap-x-4 gap-y-3">
@@ -190,7 +226,7 @@ function DetailSidebar({ listingId, onClose }: { listingId: string; onClose: () 
                 <p className="text-xs text-gray-400 uppercase tracking-wide mb-1.5">Tags</p>
                 <div className="flex flex-wrap gap-1.5">
                   {detail.tags.map((t, i) => (
-                    <span key={i} className="bg-indigo-50 text-indigo-700 text-xs px-2 py-0.5 rounded-full">{t}</span>
+                    <span key={i} className="bg-indigo-50 text-indigo-700 text-xs px-2 py-0.5 rounded-full">{decodeEntities(t)}</span>
                   ))}
                 </div>
               </div>
@@ -199,7 +235,7 @@ function DetailSidebar({ listingId, onClose }: { listingId: string; onClose: () 
             {detail.description && (
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide mb-1.5">Description</p>
-                <p className="text-gray-700 text-sm leading-relaxed line-clamp-6">{detail.description}</p>
+                <p className="text-gray-700 text-sm leading-relaxed line-clamp-6">{decodeEntities(detail.description)}</p>
               </div>
             )}
 
@@ -719,12 +755,12 @@ function ListingsContent() {
                       </td>
                       {colVisible("thumbnail") && (
                         <td className="px-2 py-2">
-                          <ListingThumbnail url={listing.thumbnail_url} alt={listing.title ?? ""} />
+                          <ListingThumbnail url={listing.thumbnail_url} alt={listing.title ? decodeEntities(listing.title) : ""} />
                         </td>
                       )}
                       {colVisible("title") && (
                         <td className="px-4 py-3 max-w-xs">
-                          <p className="font-medium text-gray-900 truncate">{listing.title ?? "—"}</p>
+                          <p className="font-medium text-gray-900 truncate">{listing.title ? decodeEntities(listing.title) : "—"}</p>
                           <p className="text-xs text-gray-400">#{listing.etsy_listing_id}</p>
                         </td>
                       )}

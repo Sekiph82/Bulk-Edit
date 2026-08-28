@@ -18,6 +18,7 @@ import {
   type MediaResult,
   type VideoRenderSummary,
 } from "@/lib/api";
+import { decodeEntities } from "@/lib/decodeEntities";
 
 // ── Local upload types & constants ──────────────────────────────────────────
 const IMAGE_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -506,7 +507,7 @@ export default function MediaPage() {
                     onChange={() => toggleListing(l.id)}
                     className="accent-indigo-600"
                   />
-                  <span className="text-sm text-gray-800 truncate flex-1">{l.title ?? l.etsy_listing_id}</span>
+                  <span className="text-sm text-gray-800 truncate flex-1">{l.title ? decodeEntities(l.title) : l.etsy_listing_id}</span>
                   <span className="text-xs text-gray-400 shrink-0">{l.etsy_listing_id}</span>
                 </label>
               ))}

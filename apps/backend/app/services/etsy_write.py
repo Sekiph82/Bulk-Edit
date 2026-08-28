@@ -2,9 +2,15 @@
 Etsy API write service.
 
 Endpoints used:
-  PATCH /v3/application/listings/{listing_id}       — text/bool fields
-  PUT   /v3/application/shops/{shop_id}/listings/{listing_id}/inventory
-                                                     — price + quantity (Sprint 10)
+  PATCH /v3/application/listings/{listing_id}          — text/bool fields
+  PUT   /v3/application/listings/{listing_id}/inventory — price + quantity (Sprint 10)
+
+Etsy's inventory endpoints (get and update) are listing-scoped, not
+shop-scoped — same path shape as the working read side
+(etsy_sync.fetch_listing_inventory: GET /application/listings/{listing_id}/inventory).
+An earlier version of patch_etsy_listing_inventory() incorrectly prefixed the
+path with /shops/{shop_id}, which doesn't exist on Etsy's side and 404s
+uniformly regardless of listing data — see DECISIONS.md, 2026-08-28 follow-up.
 
 Safety contract: callers must have:
   1. Generated preview
@@ -189,7 +195,9 @@ async def patch_etsy_listing_inventory(
 ) -> dict[str, Any]:
     """
     PUT inventory for a single Etsy listing (price + quantity).
-    Endpoint: PUT /v3/application/shops/{shop_id}/listings/{listing_id}/inventory
+    Endpoint: PUT /v3/application/listings/{listing_id}/inventory
+    (listing-scoped, not shop-scoped — shop_etsy_id is accepted for call-site
+    consistency with the other write helpers but is not part of this path).
     Returns Etsy response JSON on success. Raises EtsyWriteError on HTTP error.
     """
     headers = {
@@ -200,7 +208,7 @@ async def patch_etsy_listing_inventory(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.put(
-            f"{ETSY_API_BASE}/application/shops/{shop_etsy_id}/listings/{listing_etsy_id}/inventory",
+            f"{ETSY_API_BASE}/application/listings/{listing_etsy_id}/inventory",
             headers=headers,
             json=payload,
         )

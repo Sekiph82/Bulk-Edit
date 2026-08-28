@@ -55,14 +55,15 @@ async def fetch_etsy_listing_inventory(
     listing_etsy_id: str,
 ) -> dict[str, Any]:
     """
-    GET /v3/application/shops/{shop_id}/listings/{listing_id}/inventory
+    GET /v3/application/listings/{listing_id}/inventory (listing-scoped, not shop-scoped
+    — matches etsy_sync.fetch_listing_inventory, the already-working read path).
     Returns the full Etsy inventory tree.
     Raises EtsyVariationWriteError on HTTP error.
     """
     async with httpx.AsyncClient(timeout=20.0) as client:
         resp = await etsy_get(
             client,
-            f"{ETSY_API_BASE}/application/shops/{shop_etsy_id}/listings/{listing_etsy_id}/inventory",
+            f"{ETSY_API_BASE}/application/listings/{listing_etsy_id}/inventory",
             headers=_auth_headers(access_token),
         )
 
@@ -89,12 +90,12 @@ async def put_etsy_listing_inventory(
     payload: dict[str, Any],
 ) -> dict[str, Any]:
     """
-    PUT /v3/application/shops/{shop_id}/listings/{listing_id}/inventory
+    PUT /v3/application/listings/{listing_id}/inventory (listing-scoped, not shop-scoped).
     Sends full inventory tree. Raises EtsyVariationWriteError on HTTP error.
     """
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.put(
-            f"{ETSY_API_BASE}/application/shops/{shop_etsy_id}/listings/{listing_etsy_id}/inventory",
+            f"{ETSY_API_BASE}/application/listings/{listing_etsy_id}/inventory",
             headers=_auth_headers(access_token),
             json=payload,
         )

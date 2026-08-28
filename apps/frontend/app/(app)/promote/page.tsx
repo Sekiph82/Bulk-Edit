@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getAccessToken } from "@/lib/api";
+import { decodeEntities } from "@/lib/decodeEntities";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
 
@@ -357,7 +358,7 @@ function PromoteListingCard({
         {listing.primary_image_url ? (
           <img
             src={listing.primary_image_url}
-            alt={listing.title}
+            alt={decodeEntities(listing.title)}
             className="w-full h-full object-cover"
           />
         ) : (
@@ -369,8 +370,8 @@ function PromoteListingCard({
         )}
       </div>
       <div className="p-3 space-y-2">
-        <p className="text-sm font-medium text-gray-900 truncate" title={listing.title}>
-          {listing.title}
+        <p className="text-sm font-medium text-gray-900 truncate" title={decodeEntities(listing.title)}>
+          {decodeEntities(listing.title)}
         </p>
         {listing.price && (
           <p className="text-xs text-gray-500">
@@ -432,7 +433,7 @@ function ShareModal({
 
   useEffect(() => {
     if (listing) {
-      const base = listing.title || "";
+      const base = decodeEntities(listing.title) || "";
       const suffix = listing.etsy_listing_url ? ` ${listing.etsy_listing_url}` : "";
       setCaption(`${base} #etsy #handmade${suffix}`);
     }
@@ -504,11 +505,11 @@ function ShareModal({
           {listing.primary_image_url && (
             <img
               src={listing.primary_image_url}
-              alt={listing.title}
+              alt={decodeEntities(listing.title)}
               className="w-full h-40 object-cover rounded-xl"
             />
           )}
-          <p className="text-sm font-medium text-gray-900">{listing.title}</p>
+          <p className="text-sm font-medium text-gray-900">{decodeEntities(listing.title)}</p>
 
           {platform === "instagram" && (
             <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
