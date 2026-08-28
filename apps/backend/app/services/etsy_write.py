@@ -2,15 +2,20 @@
 Etsy API write service.
 
 Endpoints used:
-  PATCH /v3/application/listings/{listing_id}          — text/bool fields
-  PUT   /v3/application/listings/{listing_id}/inventory — price + quantity (Sprint 10)
+  PATCH /v3/application/shops/{shop_id}/listings/{listing_id}          — text/bool fields (shop-scoped)
+  PUT   /v3/application/listings/{listing_id}/inventory                — price + quantity (listing-scoped, Sprint 10)
 
-Etsy's inventory endpoints (get and update) are listing-scoped, not
-shop-scoped — same path shape as the working read side
-(etsy_sync.fetch_listing_inventory: GET /application/listings/{listing_id}/inventory).
-An earlier version of patch_etsy_listing_inventory() incorrectly prefixed the
-path with /shops/{shop_id}, which doesn't exist on Etsy's side and 404s
-uniformly regardless of listing data — see DECISIONS.md, 2026-08-28 follow-up.
+These two are scoped differently on Etsy's side, and this file previously
+had both wrong in opposite directions:
+- updateListingInventory is listing-scoped only — no /shops/{shop_id} in
+  the path — matching the working read side (etsy_sync.fetch_listing_inventory:
+  GET /application/listings/{listing_id}/inventory). patch_etsy_listing_inventory()
+  incorrectly included /shops/{shop_id} and 404d uniformly; fixed 2026-08-28.
+- updateListing (title/description/etc.) IS shop-scoped — same pattern as
+  this codebase's other shop-owned listing mutations, the image/video
+  writes in etsy_media_write.py. patch_etsy_listing() was missing
+  /shops/{shop_id} and 404d; fixed 2026-08-28 (second follow-up round) —
+  see DECISIONS.md.
 
 Safety contract: callers must have:
   1. Generated preview
@@ -97,6 +102,14 @@ def build_etsy_inventory_payload(
 
     For apply: pass preview_item.after_data as after_data (diff gates the call).
     For revert: pass snapshot_data as after_data (snapshot values are the target).
+
+    Known limitation: this reconstructs the product/offering from local
+    Listing fields rather than fetching Etsy's current inventory tree first,
+    so it cannot preserve product_id/offering_id (the Listing model doesn't
+    store them). etsy_variation_write.py's fetch-patch-put strategy avoids
+    this by GETting the live tree before every PUT; adopting the same
+    strategy here is the natural next step if Etsy's PUT still rejects a
+    write on grounds this function can't see locally.
     """
     if listing.has_variations:
         return None
@@ -135,7 +148,16 @@ def build_etsy_inventory_payload(
                     }
                 ],
             }
-        ]
+        ],
+        # Etsy's updateListingInventory schema requires these top-level keys
+        # even for a non-variation (single-SKU) listing — empty lists mean
+        # "no property drives price/quantity/sku". Confirmed against the
+        # sibling variation-write module (etsy_variation_write.normalize_etsy_inventory_tree),
+        # which round-trips these same keys from a live GET. Omitting them
+        # was the root cause of a uniform HTTP 400 — see DECISIONS.md.
+        "price_on_property": [],
+        "quantity_on_property": [],
+        "sku_on_property": [],
     }
 
 
@@ -149,11 +171,17 @@ class EtsyWriteError(Exception):
 
 async def patch_etsy_listing(
     access_token: str,
+    shop_etsy_id: str,
     etsy_listing_id: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
     """
     PATCH a single Etsy listing (text/bool fields).
+    Endpoint: PATCH /v3/application/shops/{shop_id}/listings/{listing_id}
+    (shop-scoped — updateListing is a shop-owned mutation, unlike the
+    inventory sub-resource endpoints, which are listing-scoped only; see
+    the shop-scoped image/video writes in etsy_media_write.py for the same
+    pattern on this codebase's other shop-owned listing mutations).
     Returns Etsy response JSON on success. Raises EtsyWriteError on HTTP error.
     """
     if not payload:
@@ -167,7 +195,7 @@ async def patch_etsy_listing(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.patch(
-            f"{ETSY_API_BASE}/application/listings/{etsy_listing_id}",
+            f"{ETSY_API_BASE}/application/shops/{shop_etsy_id}/listings/{etsy_listing_id}",
             headers=headers,
             data=_flatten_payload(payload),
         )

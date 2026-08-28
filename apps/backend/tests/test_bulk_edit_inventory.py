@@ -282,6 +282,22 @@ def test_build_inventory_payload_structure():
     assert "price" in offering
 
 
+def test_build_inventory_payload_includes_required_top_level_property_keys():
+    """
+    Regression guard: Etsy's updateListingInventory schema requires
+    price_on_property/quantity_on_property/sku_on_property at the top level
+    even for a non-variation listing (empty lists). Omitting them caused a
+    uniform HTTP 400 on the live price-apply attempt after the URL fix —
+    see DECISIONS.md, 2026-08-28 second follow-up.
+    """
+    listing = _MockListing(price_amount=2000, quantity=5, sku="SKU123")
+    after_data = {"price_amount": 3500}
+    payload = build_etsy_inventory_payload(listing, after_data)
+    assert payload["price_on_property"] == []
+    assert payload["quantity_on_property"] == []
+    assert payload["sku_on_property"] == []
+
+
 # ── apply integration tests ────────────────────────────────────────────────────
 
 async def test_apply_calls_inventory_endpoint_when_price_changed(client, db_session):
@@ -581,6 +597,68 @@ async def test_patch_etsy_listing_inventory_uses_listing_scoped_url():
     assert "shops" not in called_url
 
 
+# ── listing PATCH URL shape (Etsy v3 endpoint regression guard) ───────────────
+# Second follow-up: patch_etsy_listing() (title/description PATCH) was
+# missing /shops/{shop_id} — the opposite bug from the inventory endpoint.
+# Etsy's updateListing is shop-scoped (matches this codebase's shop-scoped
+# image/video writes in etsy_media_write.py), unlike updateListingInventory
+# which is listing-scoped only. This guards against either regressing.
+
+async def test_patch_etsy_listing_uses_shop_scoped_url():
+    from app.services.etsy_write import patch_etsy_listing
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"listing_id": 1234567890}
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.patch = AsyncMock(return_value=mock_resp)
+
+    with patch("app.services.etsy_write.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.services.etsy_write.etsy_api_key_header", return_value="fake_key:fake_secret"):
+        await patch_etsy_listing(
+            access_token="fake_token",
+            shop_etsy_id="99999999",
+            etsy_listing_id="1234567890",
+            payload={"title": "New Title"},
+        )
+
+    called_url = mock_client.patch.call_args.args[0]
+    assert called_url == "https://openapi.etsy.com/v3/application/shops/99999999/listings/1234567890"
+
+    called_headers = mock_client.patch.call_args.kwargs["headers"]
+    assert called_headers["Authorization"] == "Bearer fake_token"
+    assert called_headers["x-api-key"] == "fake_key:fake_secret"
+
+
+async def test_patch_etsy_listing_raises_on_http_404_without_leaking_token():
+    from app.services.etsy_write import patch_etsy_listing, EtsyWriteError
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 404
+    mock_resp.json.return_value = {"error": "Listing not found"}
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.patch = AsyncMock(return_value=mock_resp)
+
+    with patch("app.services.etsy_write.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.services.etsy_write.etsy_api_key_header", return_value="fake_key:fake_secret"):
+        with pytest.raises(EtsyWriteError) as exc_info:
+            await patch_etsy_listing(
+                access_token="secret_token_value",
+                shop_etsy_id="99999999",
+                etsy_listing_id="1234567890",
+                payload={"title": "New Title"},
+            )
+
+    assert exc_info.value.status_code == 404
+    assert "secret_token_value" not in exc_info.value.message
+
+
 # ── item-level failure reason surfaced via apply-job detail ───────────────────
 
 async def test_apply_job_detail_exposes_item_level_failure_reason(client, db_session):
@@ -613,6 +691,78 @@ async def test_apply_job_detail_exposes_item_level_failure_reason(client, db_ses
     assert failed["error_message"] is not None
     assert "missing property_values" in failed["error_message"]
     # no auth/token material leaks through the safe error message field
+    assert "access_token" not in failed["error_message"]
+    assert "Authorization" not in failed["error_message"]
+
+
+async def test_apply_calls_listing_patch_with_shop_and_etsy_listing_id(client, db_session):
+    """
+    Confirms the apply loop passes shop_etsy_id (Etsy's real shop ID) and
+    etsy_listing_id (Etsy's real listing ID) to patch_etsy_listing() — not
+    the local DB UUID for either. Regression guard for the shop-scoped URL fix.
+    """
+    token = await _register_and_login(client, {
+        "email": "title_ap_ids@example.com", "password": "password123",
+        "full_name": "T1", "organization_name": "TitleApIds Org",
+    })
+    org_id = await _get_org_id_for_user(db_session, "title_ap_ids@example.com")
+    session_id, listing = await _create_title_and_price_session(
+        client, db_session, token, org_id, "title_ap_ids"
+    )
+
+    with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
+         patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock) as mock_patch, \
+         patch("app.services.bulk_edit_apply.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+        mock_patch.return_value = {"listing_id": listing.etsy_listing_id}
+        mock_inv.return_value = {"products": []}
+        r = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    assert r.status_code == 202
+    mock_patch.assert_called_once()
+    call_kwargs = mock_patch.call_args.kwargs
+    assert call_kwargs["etsy_listing_id"] == listing.etsy_listing_id
+    assert call_kwargs["etsy_listing_id"] != listing.id
+    assert "shop_etsy_id" in call_kwargs
+    assert call_kwargs["shop_etsy_id"] != listing.id
+
+
+async def test_apply_job_detail_exposes_title_patch_404_as_safe_item_level_error(client, db_session):
+    from app.services.etsy_write import EtsyWriteError
+
+    token = await _register_and_login(client, {
+        "email": "title_ap_404@example.com", "password": "password123",
+        "full_name": "T2", "organization_name": "TitleAp404 Org",
+    })
+    org_id = await _get_org_id_for_user(db_session, "title_ap_404@example.com")
+    listing = await _setup_listing(
+        db_session, org_id, "title_ap_404_01",
+        title="Original Title", currency_code="USD",
+    )
+    r = await client.post(SESSIONS_URL, json={"listing_ids": [listing.id]}, headers={"Authorization": f"Bearer {token}"})
+    session_id = r.json()["id"]
+    await client.post(
+        f"{SESSIONS_URL}/{session_id}/changes",
+        json={"field_name": "title", "operation": "set", "operation_value": "New Title"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    await client.post(f"{SESSIONS_URL}/{session_id}/preview", headers={"Authorization": f"Bearer {token}"})
+
+    with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
+         patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock) as mock_patch:
+        mock_patch.side_effect = EtsyWriteError(
+            f"Etsy PATCH {listing.etsy_listing_id} failed: HTTP 404", 404, response_body={"error": "not found"}
+        )
+        r = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    assert r.status_code == 202
+    job_id = r.json()["id"]
+    data = r.json()
+    assert data["failure_count"] == 1
+
+    detail = await client.get(f"{APPLY_JOBS_URL}/{job_id}", headers={"Authorization": f"Bearer {token}"})
+    failed = detail.json()["results"][0]
+    assert failed["status"] == "failed"
+    assert "404" in failed["error_message"]
     assert "access_token" not in failed["error_message"]
     assert "Authorization" not in failed["error_message"]
 

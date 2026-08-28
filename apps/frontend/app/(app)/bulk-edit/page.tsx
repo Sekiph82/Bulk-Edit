@@ -16,6 +16,8 @@ import { decodeEntities } from "@/lib/decodeEntities";
 const FAILURE_REASON_CATEGORY: Array<{ match: (msg: string) => boolean; category: string }> = [
   { match: (m) => /inventory/i.test(m) && /404/.test(m), category: "Etsy inventory endpoint not found or listing not accessible" },
   { match: (m) => /listing patch|patch failed/i.test(m) && /404/.test(m), category: "Etsy listing endpoint not found or listing not accessible" },
+  { match: (m) => /inventory/i.test(m) && /400/.test(m), category: "Etsy rejected the price/quantity payload (invalid or incomplete data)" },
+  { match: (m) => /listing patch|patch failed/i.test(m) && /400/.test(m), category: "Etsy rejected the listing field payload (invalid or incomplete data)" },
   { match: (m) => /403/.test(m), category: "Etsy denied access (permissions or shop mismatch)" },
   { match: (m) => /inventory/i.test(m), category: "Price/quantity update rejected by Etsy" },
   { match: (m) => /listing patch|patch failed/i.test(m), category: "Listing field update rejected by Etsy" },
@@ -76,8 +78,8 @@ const VALIDATION_BADGE: Record<string, string> = {
 
 function formatVal(v: unknown): string {
   if (v === null || v === undefined) return "—";
-  if (Array.isArray(v)) return v.join(", ") || "(empty)";
-  return String(v);
+  if (Array.isArray(v)) return decodeEntities(v.join(", ")) || "(empty)";
+  return decodeEntities(String(v));
 }
 
 // ---- Listing selector ----
