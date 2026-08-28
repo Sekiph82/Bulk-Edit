@@ -6,6 +6,7 @@ before use. If Etsy rejects the refresh (grant revoked by the seller, or the
 refresh token itself expired), the shop is marked disconnected and callers
 get a clear "reconnect your shop" error instead of an opaque failure.
 """
+import html
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any
@@ -28,6 +29,15 @@ from app.services.etsy_http import etsy_api_key_header, etsy_get
 logger = logging.getLogger(__name__)
 
 ETSY_API_BASE = "https://openapi.etsy.com/v3"
+
+
+def _decode_entities(value: Any) -> Any:
+    """Decode HTML entities (e.g. &#39; -> ') in Etsy text fields. Safe no-op on clean text or non-strings."""
+    if isinstance(value, str):
+        return html.unescape(value)
+    if isinstance(value, list):
+        return [html.unescape(v) if isinstance(v, str) else v for v in value]
+    return value
 PAGE_LIMIT = 100
 TOKEN_REFRESH_BUFFER_SECONDS = 300
 
@@ -154,17 +164,17 @@ def _parse_listing(listing_data: dict[str, Any], org_id: str, shop_db_id: str) -
         "organization_id": org_id,
         "etsy_shop_id": shop_db_id,
         "etsy_listing_id": str(listing_data.get("listing_id", "")),
-        "title": listing_data.get("title"),
-        "description": listing_data.get("description"),
+        "title": _decode_entities(listing_data.get("title")),
+        "description": _decode_entities(listing_data.get("description")),
         "state": listing_data.get("state"),
         "url": listing_data.get("url"),
         "price_amount": price.get("amount"),
         "price_divisor": price.get("divisor", 100),
         "currency_code": price.get("currency_code"),
         "quantity": listing_data.get("quantity"),
-        "sku": listing_data.get("sku"),
-        "tags": listing_data.get("tags"),
-        "materials": listing_data.get("materials"),
+        "sku": _decode_entities(listing_data.get("sku")),
+        "tags": _decode_entities(listing_data.get("tags")),
+        "materials": _decode_entities(listing_data.get("materials")),
         "taxonomy_id": str(listing_data["taxonomy_id"]) if listing_data.get("taxonomy_id") else None,
         "category_path": listing_data.get("taxonomy_path"),
         "section_id": str(listing_data["shop_section_id"]) if listing_data.get("shop_section_id") else None,
@@ -299,11 +309,11 @@ async def upsert_listing_variations(
         fields = {
             "listing_id": listing.id,
             "etsy_product_id": etsy_product_id,
-            "sku": product.get("sku"),
+            "sku": _decode_entities(product.get("sku")),
             "property_id": str(first_prop.get("property_id", "")) or None,
-            "property_name": first_prop.get("property_name"),
+            "property_name": _decode_entities(first_prop.get("property_name")),
             "value_id": str(first_prop.get("value_ids", [""])[0]) if first_prop.get("value_ids") else None,
-            "value_name": first_prop.get("values", [None])[0] if first_prop.get("values") else None,
+            "value_name": _decode_entities(first_prop.get("values", [None])[0] if first_prop.get("values") else None),
             "price_amount": price.get("amount"),
             "price_divisor": price.get("divisor", 100),
             "currency_code": price.get("currency_code"),

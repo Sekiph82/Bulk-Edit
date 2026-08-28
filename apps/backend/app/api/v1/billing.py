@@ -15,6 +15,7 @@ from app.schemas.billing import (
     SubscriptionResponse,
     UsageResponse,
 )
+from app.services.admin import get_effective_access
 from app.services.billing import (
     BillingError,
     create_checkout_session,
@@ -38,11 +39,19 @@ async def get_subscription(
     db: AsyncSession = Depends(get_db),
 ):
     sub = await ensure_subscription_exists(org_id, db)
-    limits = get_plan_limits(sub.plan)
+    access = await get_effective_access(db, org_id)
+    limits = get_plan_limits(access.effective_plan)
+    access_source = "comp_grant" if access.comp else ("subscription" if access.effective_plan != "free" else "free")
+    billing_charge_status = "charged" if access.stripe_managed else "no_charge"
     return SubscriptionResponse(
         id=sub.id,
         organization_id=sub.organization_id,
         plan=sub.plan,
+        subscription_plan=sub.plan,
+        effective_plan=access.effective_plan,
+        access_source=access_source,
+        comp_active=access.comp is not None,
+        billing_charge_status=billing_charge_status,
         status=sub.status,
         stripe_customer_id=sub.stripe_customer_id,
         stripe_subscription_id=sub.stripe_subscription_id,

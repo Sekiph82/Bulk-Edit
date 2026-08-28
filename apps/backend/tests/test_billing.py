@@ -87,6 +87,70 @@ async def test_get_subscription_idempotent(client, auth_headers):
     assert r.json()["plan"] == "free"
 
 
+# ─── Effective plan (comp grant) ───────────────────────────────────────────────
+
+async def _get_org_id(client, auth_headers) -> str:
+    r = await client.get(SUBSCRIPTION_URL, headers=auth_headers)
+    return r.json()["organization_id"]
+
+
+async def test_subscription_effective_plan_with_active_comp_grant(client, db_session, auth_headers):
+    from app.models.comp_access_grant import CompAccessGrant
+
+    org_id = await _get_org_id(client, auth_headers)
+    db_session.add(CompAccessGrant(
+        organization_id=org_id,
+        comp_plan="pro_monthly",
+        reason="test comp",
+        starts_at=datetime.now(timezone.utc),
+        ends_at=None,
+    ))
+    await db_session.commit()
+
+    r = await client.get(SUBSCRIPTION_URL, headers=auth_headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["subscription_plan"] == "free"
+    assert data["effective_plan"] == "pro_monthly"
+    assert data["access_source"] == "comp_grant"
+    assert data["comp_active"] is True
+    assert data["billing_charge_status"] == "no_charge"
+    assert data["limits"]["max_listings"] == 10000
+
+
+async def test_subscription_effective_plan_free_with_no_comp(client, auth_headers):
+    r = await client.get(SUBSCRIPTION_URL, headers=auth_headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["subscription_plan"] == "free"
+    assert data["effective_plan"] == "free"
+    assert data["access_source"] == "free"
+    assert data["comp_active"] is False
+    assert data["limits"]["max_listings"] == 25
+
+
+async def test_subscription_effective_plan_falls_back_when_comp_expired(client, db_session, auth_headers):
+    from datetime import timedelta
+    from app.models.comp_access_grant import CompAccessGrant
+
+    org_id = await _get_org_id(client, auth_headers)
+    db_session.add(CompAccessGrant(
+        organization_id=org_id,
+        comp_plan="pro_monthly",
+        reason="expired test comp",
+        starts_at=datetime.now(timezone.utc) - timedelta(days=30),
+        ends_at=datetime.now(timezone.utc) - timedelta(days=1),
+    ))
+    await db_session.commit()
+
+    r = await client.get(SUBSCRIPTION_URL, headers=auth_headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["effective_plan"] == "free"
+    assert data["comp_active"] is False
+    assert data["access_source"] == "free"
+
+
 # ─── Checkout ─────────────────────────────────────────────────────────────────
 
 async def test_checkout_requires_auth(client):

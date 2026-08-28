@@ -4,7 +4,7 @@ Single current-state source of truth. For history, see `CHANGELOG.md` (product/r
 
 ## Current Phase
 
-Post-credential-issuance / Private Beta operations. Production is **LIVE** under Private Beta (new sign-ups paused) since 2026-07-06. Etsy issued new developer-app credentials for `bulk-edit-app` on 2026-07-31 (owner received Keystring + Shared Secret directly, rate limit 5 QPS / 5000 QPD); credentials are now configured in production and OAuth URL generation is verified working. **Live OAuth completion (connecting a real shop) has not yet been performed** — pending explicit owner approval. All planned sprints (0-27) are complete — see `CHANGELOG_AI.md` for the full build history. Current work is credential configuration and verification, not feature development.
+Post-launch production QA. Production is **LIVE** under Private Beta (new sign-ups paused) since 2026-07-06. **Etsy OAuth is fully live and confirmed working end-to-end**: `sekiphayit1982@gmail.com` (superuser, `pro_monthly` comp grant) has shop WearYourStoriesCom (44263504) connected with all 210 active listings synced. All planned sprints (0-27) are complete. Current work: **Sprint 1 Core QA** (branch `fix/sprint-1-core-qa`, issue #88) — 5 UX/data-quality fixes code-complete and test-verified as of 2026-08-28, pending PR/CI/merge/deploy — see `HANDOFF.md` for exact resume steps.
 
 ## Production Status
 
@@ -18,26 +18,27 @@ Post-credential-issuance / Private Beta operations. Production is **LIVE** under
 | Private Beta (`app.bulkeditapp.com`) | **Enabled** — registration paused (`/register`, `/signup`, `/get-started` → `/private-beta`). Sign-in and the rest of the authenticated app pass through as of `fix/private-beta-allow-signin` (2026-08-27) — see `CHANGELOG_AI.md`. |
 | Retention cleanup | **Option A live** — DO Scheduled Job `retention-cleanup`, `30 3 * * *` (03:30 UTC daily). First run succeeded 2026-07-15; **second consecutive run succeeded 2026-07-16** (03:31:12–03:31:33 UTC, invocation `ad207ee4-f05c-4038-b244-6e54bf9fd13a`). |
 | Stripe | Live products/prices/env configured, validated end-to-end 2026-07-10 (controlled test account, zero real charges) |
-| Etsy developer app | **Credentials received from Etsy 2026-07-31**, configured on `bulk-edit-prod-api` as encrypted `SECRET` env vars. **OAuth shop connection confirmed working end-to-end (2026-08-27)** — WearYourStoriesCom, shop ID `44263504`, connected. Issue #80 closed. First listing sync (2026-08-27/28) imported 25 of 210 active listings — **investigated and confirmed not a bug**: the Free plan's `max_listings=25` feature gate, working as designed and already tested; the sync's pagination logic is already correct. Owner is granting the test account a comp plan (Owner Console) to sync all 210 for validation — pending, needs superuser login this session doesn't have. |
+| Etsy developer app | **Credentials received from Etsy 2026-07-31**, configured on `bulk-edit-prod-api` as encrypted `SECRET` env vars. **OAuth shop connection confirmed working end-to-end (2026-08-27)** — WearYourStoriesCom, shop ID `44263504`, connected. Issue #80 closed. **All 210 active listings now synced** (2026-08-28) under `sekiphayit1982@gmail.com` — the initial 25-listing cap was the Free plan's `max_listings` gate working as designed; fixed by granting a `pro_monthly` comp plan, which required two further bug fixes (PR #86: ops-script `DATABASE_URL` dialect; PR #87: comp grants weren't checked by the sync's plan-limit gate). |
+| Sprint 1 Core QA | **Code-complete, not yet merged (2026-08-28)** — branch `fix/sprint-1-core-qa`, issue #88. Billing effective-plan display, Bulk Edit price-apply failure root-caused and fixed (missing `property_values` field) plus item-level failure-reason UI, HTML entity decoding, 80×80/240×240 listing thumbnails, footer Akilta link. No live Etsy write performed. |
 | Public website | Aligned with the submitted appeal as of PR #64 (merge `6be4046`) — public AI/marketing wording neutralized, Privacy/Terms updated, feature/health public routes not exposed, sitemap clean. |
 
 ## Environment Status
 
-- Backend tests: **982 passed**, 0 failed (unchanged by PR #64 — no backend files touched).
-- Frontend: `tsc --noEmit` clean, `next lint` 0 errors, `next build` clean (verified again on PR #64).
+- Backend tests: **886 passed** on `fix/sprint-1-core-qa` (2026-08-28; count includes new Sprint 1 tests). 25 failures present locally are pre-existing and confirmed unrelated (reproduced against clean `main` via `git stash`): 23 are the known local-env 401-vs-403 Starlette-version-drift baseline (does not occur in CI), 2 are pre-existing `test_video_generator.py` flakes.
+- Frontend: `tsc --noEmit` clean, `next lint` 0 errors (pre-existing warnings only), `next build` clean (verified 2026-08-28 on `fix/sprint-1-core-qa`).
 - Hosting: DigitalOcean App Platform + Cloudflare (see `docs/operations/DIGITALOCEAN_DEPLOY.md`, `CLOUDFLARE_DNS.md`).
 - AI: `ALLOW_ETSY_DATA_TO_AI` defaults `false` (not overridden in production); `AI_PROVIDER=mock` in production, so no live AI provider call is possible right now regardless of the flag.
 - Pricing (live, confirmed correct): Free $0/mo · Basic $19/mo ($180/yr) · Pro $49/mo ($468/yr).
 
 ## Known Blockers
 
-- **Live Etsy OAuth completion not yet performed.** Credentials are configured and the authorize-URL step is verified in production, but no real shop has been connected — needs explicit owner approval per `TASKS.md` → Owner Action before the connect flow, live reads, or the never-tested-live video-upload endpoint can be exercised.
-- Email-delivery domain verification (Resend, `bulkeditapp.com`) status not re-checked this session — see `docs/operations/PRODUCTION_LAUNCH_FOLLOWUPS.md` if this becomes relevant again.
+- **Sprint 1 Core QA not yet merged/deployed** — code-complete on `fix/sprint-1-core-qa`, needs PR open → CI green → merge → prod deploy → browser verification. See `HANDOFF.md`.
+- **Bulk Edit price-apply fix (`property_values`) not yet proven against a live Etsy write** — diagnosed and fixed from code/schema comparison with mocked-test coverage only, per this sprint's no-live-write constraint. Needs an owner-approved controlled live write in a follow-up task to fully confirm.
+- Email-delivery domain verification (Resend, `bulkeditapp.com`) status not re-checked recently — see `docs/operations/PRODUCTION_LAUNCH_FOLLOWUPS.md` if this becomes relevant again.
 
 ## Manual Owner Actions Required
 
-1. **Approve a live OAuth test** (connect one real test Etsy shop, read-only — no writes) when ready, per `TASKS.md` → Owner Action. Confirm first that the callback URL registered in the Etsy Developer Console exactly matches `https://api.bulkeditapp.com/api/v1/etsy/callback`.
-2. Nothing else is currently blocking.
+Nothing currently blocking.
 
 ## Current Next Action
 

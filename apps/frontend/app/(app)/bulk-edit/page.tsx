@@ -6,10 +6,23 @@ import {
   getAccessToken, getListings, createBulkEditSession, getBulkEditSession,
   addBulkEditChange, removeBulkEditChange, generateBulkEditPreview,
   getBulkEditPreview, cancelBulkEditSession, applyBulkEditSession, revertApplyJob, ApiError,
+  getApplyJobDetail,
   type ListingListItem, type BulkEditSession, type BulkEditSessionDetail,
   type BulkEditChange, type BulkEditPreviewItem, type BulkEditPreviewGenerateResponse,
-  type ApplyJob, type RevertJob,
+  type ApplyJob, type RevertJob, type ApplyResult,
 } from "@/lib/api";
+
+const FAILURE_REASON_CATEGORY: Array<{ match: (msg: string) => boolean; category: string }> = [
+  { match: (m) => /inventory/i.test(m), category: "Price/quantity update rejected by Etsy" },
+  { match: (m) => /listing patch|patch failed/i.test(m), category: "Listing field update rejected by Etsy" },
+  { match: () => true, category: "Write failed" },
+];
+
+function categorizeFailure(msg: string | null): string {
+  if (!msg) return "Failed — no reason recorded";
+  const hit = FAILURE_REASON_CATEGORY.find((c) => c.match(msg));
+  return hit ? hit.category : "Write failed";
+}
 
 // ---- constants ----
 
@@ -404,6 +417,7 @@ function BulkEditContent() {
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applyJob, setApplyJob] = useState<ApplyJob | null>(null);
+  const [applyResults, setApplyResults] = useState<ApplyResult[]>([]);
   const [showRevertModal, setShowRevertModal] = useState(false);
   const [reverting, setReverting] = useState(false);
   const [revertJob, setRevertJob] = useState<RevertJob | null>(null);
@@ -528,6 +542,16 @@ function BulkEditContent() {
       const job = await applyBulkEditSession(session.id);
       setApplyJob(job);
       setShowApplyModal(false);
+      if (job.failure_count > 0) {
+        try {
+          const detail = await getApplyJobDetail(job.id);
+          setApplyResults(detail.results.filter((r) => r.status === "failed"));
+        } catch {
+          setApplyResults([]);
+        }
+      } else {
+        setApplyResults([]);
+      }
     } catch (e) {
       setApiError(e instanceof ApiError ? e.message : "Apply failed.");
       setShowApplyModal(false);
@@ -535,6 +559,9 @@ function BulkEditContent() {
       setApplying(false);
     }
   }
+
+  const listingTitleById: Record<string, string | null> = {};
+  for (const item of previewItems) listingTitleById[item.listing_id] = item.listing_title;
 
   const hasInvalid = (previewResp?.summary.invalid ?? 0) > 0;
 
@@ -686,6 +713,35 @@ function BulkEditContent() {
                 <p className="font-semibold mb-1">Apply complete — {applyJob.status}</p>
                 <p>Success: {applyJob.success_count} · Failed: {applyJob.failure_count} · Skipped: {applyJob.skipped_count}</p>
                 {applyJob.error_message && <p className="mt-1 text-xs">{applyJob.error_message}</p>}
+              </div>
+            )}
+
+            {/* Item-level failure reasons */}
+            {applyResults.length > 0 && (
+              <div className="bg-white border border-red-200 rounded-xl p-4 overflow-x-auto">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Failed items ({applyResults.length})</h3>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500 border-b border-gray-100">
+                      <th className="py-1.5 pr-4 font-medium">Listing</th>
+                      <th className="py-1.5 pr-4 font-medium">Reason</th>
+                      <th className="py-1.5 font-medium">Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {applyResults.map((r) => (
+                      <tr key={r.id} className="border-b border-gray-50 last:border-0">
+                        <td className="py-1.5 pr-4 text-gray-700">
+                          {listingTitleById[r.listing_id] || `Listing ${r.etsy_listing_id}`}
+                        </td>
+                        <td className="py-1.5 pr-4 text-red-700 font-medium whitespace-nowrap">
+                          {categorizeFailure(r.error_message)}
+                        </td>
+                        <td className="py-1.5 text-gray-500 text-xs">{r.error_message || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
 

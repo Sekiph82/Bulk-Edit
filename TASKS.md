@@ -8,14 +8,16 @@ Full sprint-by-sprint build history (Sprint 0 through Sprint 27, all DevOps fixe
 
 ## Current Phase
 
-Post-credential-issuance / Private Beta operations. All planned feature sprints are complete. **Etsy OAuth shop connection confirmed working end-to-end 2026-08-27** (WearYourStoriesCom, shop ID `44263504`; issue #80 closed — see PR #84, `docs/etsy-oauth-success-handoff`, for the full write-up, not yet merged as of 2026-08-28). Current focus: owner-side plan/comp-grant action for the internal test account (see below), then a re-sync validation.
+Post-launch production QA. All planned feature sprints are complete, Etsy OAuth is fully live and confirmed working (WearYourStoriesCom, 210/210 listings synced under `sekiphayit1982@gmail.com`, `pro_monthly` comp grant). Current focus: **Sprint 1 Core QA** (branch `fix/sprint-1-core-qa`, issue #88) — code-complete as of 2026-08-28, pending PR/CI/merge/deploy and post-deploy browser verification.
 
 ## In Progress
 
-None.
+- **Sprint 1 Core QA — PR/CI/merge/deploy** — 5 fixes code-complete and test-verified on `fix/sprint-1-core-qa` (see Recently Completed below and issue #88). Next: commit, push, open PR, wait for CI, merge, verify prod health, browser-check all 5 items. See `HANDOFF.md` for exact resume steps.
 
 ## Recently Completed
 
+- **Sprint 1 Core QA (2026-08-28)** — issue #88: (1) Billing page now shows effective plan (Pro via comp grant) instead of raw "Free"; (2) root-caused and fixed the 33/33 Bulk Edit price-apply failure (`build_etsy_inventory_payload()` was missing Etsy's required `property_values` field) and wired the previously-unused apply-job-detail endpoint into the UI so failed items show a reason; (3) HTML entities (`&#39;` etc.) now decoded at the Etsy sync layer; (4) listing table thumbnails 80×80 with a 240×240 hover preview; (5) footer now credits "Akilta" with a link to `https://www.akilta.com`. No live Etsy write performed. Full detail: `CHANGELOG_AI.md`, `DECISIONS.md`, `2026-08-28` Sprint 1 entries.
+- **Etsy listing sync "25 of 210" — root cause fixed (2026-08-28)** — was correctly diagnosed as a working-as-designed Free-plan cap, not a pagination bug (see below), but the owner's chosen fix (comp grant) didn't take effect until two further bugs were found and fixed: `promote_superuser.py`/`create_admin_user.py` used the raw `DATABASE_URL` instead of the app's asyncpg-rewritten `settings.DATABASE_URL` (PR #86), and `sync_shop_listings()` never actually checked comp grants — only raw `Subscription.plan` (PR #87, added `get_effective_plan()` to `app/core/plans.py`). Confirmed fixed: sekiphayit1982@gmail.com now syncs all 210 listings.
 - **Etsy listing sync "25 of 210" investigated — not a bug (2026-08-28)** — pagination loop in `sync_shop_listings()` already correct; the cap is `PLAN_LIMITS["free"]["max_listings"]=25`, a deliberate feature gate, confirmed the test account is on the Free plan. Declined to implement the originally-requested "pagination fix" — it would have bypassed a paid-plan gate (`CLAUDE.md` rule 8). Owner chose to upgrade the test account's plan via the existing admin comp-grant mechanism instead of a code change. No code changed, no new GitHub issue filed (would have been factually wrong). See `CHANGELOG_AI.md` / `DECISIONS.md`, `2026-08-28` entries.
 
 - **Private Beta allows sign-in (2026-08-27)** — `fix/private-beta-allow-signin`: Private Beta now blocks only registration (`/register`, `/signup`, `/get-started`); sign-in and the authenticated app pass through, and the Etsy OAuth callback's `/shops?connected=true`/`?error=...` result is no longer masked by the beta gate. See `CHANGELOG_AI.md` for full detail.
@@ -25,21 +27,16 @@ None.
 - **Etsy x-api-key header format fix (2026-08-27)** — `fix/etsy-oauth-shop-lookup-x-api-key`, merged `9336c53`, deployed, **confirmed working** (the 403 is gone on the next retry). Every `/v3/application/*` request now sends `x-api-key: "<keystring>:<shared_secret>"`. Used the already-configured `ETSY_CLIENT_SECRET` — no new production secret needed.
 - **Etsy shop-lookup response parsing fix (2026-08-27)** — `fix/etsy-shop-lookup-single-shop-response`, **PR open, not merged**: after the x-api-key fix, OAuth still failed with `etsy_oauth_shop_not_found` — owner confirmed an active shop exists (WearYourStoriesCom, 210 listings). Root cause: `fetch_etsy_shop()` parsed the response as `{count, results: [...]}`, but this endpoint (`getShopByOwnerUserId`) returns a single `Shop` object per Etsy's own OpenAPI spec — `results` was always empty regardless of whether a shop existed. Fixed to parse the single object directly. Do not retry OAuth until this PR is merged and deployed.
 
-## Blocked Externally (Etsy, not owner or engineering)
-
-- **Etsy OAuth shop connection (issue #80)** — three root causes found and fixed in sequence this session: (1) Private Beta masking the real result (fixed, confirmed), (2) malformed `x-api-key` header causing a 403 (fixed, confirmed — the 403 is gone), (3) shop-lookup response parsed as a list when Etsy returns a single object (fix above, PR open, not yet confirmed live). **Do not retry OAuth until the parsing-fix PR is merged and deployed.** If it still fails after that, treat it as a genuinely new category — the access-tier hypothesis is now less likely given the 403 is resolved, but don't assume without reading the fresh log line.
-
 ## Blocked Externally (owner approval, not Etsy)
 
-- **Live Etsy OAuth completion** — credentials configured and authorize-URL generation verified in production 2026-07-31; connecting a real shop needs explicit owner go-ahead (see Owner Action below), not another Etsy response.
-- **Live Etsy write verification** (bulk-edit apply, revert, media, variations) — code-verified only, blocked on the same live-OAuth approval above.
+- **Live Etsy write verification** (bulk-edit apply, revert, media, variations, including the Sprint 1 `property_values` fix) — code-verified and mocked-test-covered only; a live write against production Etsy needs explicit owner go-ahead per session, per `CLAUDE.md` rule 2.
 - **Etsy listing-video-upload endpoint** — implemented per documented endpoint shape, never tested against a live shop (see `DECISIONS.md`, "[MEDIA] Etsy listing video upload/delete implemented for real").
 - **Etsy-derived external AI processing guidance** — `ALLOW_ETSY_DATA_TO_AI` stays off by default; still pending explicit written Etsy confirmation, independent of the credential issuance (see `ETSY_FINAL_APPEAL_DRAFT.md` §F, question 1).
 - **Social republishing guidance** (Pinterest/Instagram auto-post) — deliberately stubbed pending the same confirmation (§F, question 4).
 
 ## Owner Action
 
-- **Grant the internal test account a comp plan** (Owner Console → Organizations → org detail → comp grant), so its listing sync isn't capped at the Free plan's 25 — needs a superuser login, which this session doesn't have. After granting, an owner-approved read-only re-sync should show ~210 listings.
+None pending.
 
 ## Deferred
 

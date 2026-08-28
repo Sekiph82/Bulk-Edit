@@ -36,6 +36,25 @@ const COL_LABELS: Record<string, string> = {
 const ALL_COLS = Object.keys(COL_LABELS);
 const DEFAULT_VISIBLE = new Set(ALL_COLS);
 
+function ListingThumbnail({ url, alt }: { url: string | null; alt: string }) {
+  if (!url) {
+    return <div className="w-20 h-20 bg-gray-100 rounded-lg border border-gray-100" />;
+  }
+  return (
+    <div className="relative group inline-block">
+      <img
+        src={url}
+        alt={alt}
+        loading="lazy"
+        className="w-20 h-20 object-contain bg-gray-50 rounded-lg border border-gray-100"
+      />
+      <div className="hidden group-hover:block absolute z-30 left-full top-1/2 -translate-y-1/2 ml-2 p-1 bg-white border border-gray-200 rounded-lg shadow-lg pointer-events-none">
+        <img src={url} alt={alt} className="w-60 h-60 object-contain bg-gray-50 rounded-md" />
+      </div>
+    </div>
+  );
+}
+
 function loadColVisibility(): Set<string> {
   try {
     const raw = localStorage.getItem("listings_col_visibility");
@@ -669,7 +688,7 @@ function ListingsContent() {
                         onChange={toggleSelectAll}
                         className="rounded" />
                     </th>
-                    {colVisible("thumbnail") && <th className="px-2 py-3 w-12" />}
+                    {colVisible("thumbnail") && <th className="px-2 py-3 w-24" />}
                     {(["title", "state", "price_amount", "quantity", "sku", "has_variations", "last_synced_at"] as const).map((col) => {
                       if (!colVisible(col === "price_amount" ? "price_amount" : col) && col !== "title") {
                         const colKey = col === "price_amount" ? "price_amount" : col;
@@ -700,9 +719,7 @@ function ListingsContent() {
                       </td>
                       {colVisible("thumbnail") && (
                         <td className="px-2 py-2">
-                          {listing.thumbnail_url
-                            ? <img src={listing.thumbnail_url} alt="" loading="lazy" className="w-9 h-9 object-cover rounded-lg border border-gray-100" />
-                            : <div className="w-9 h-9 bg-gray-100 rounded-lg" />}
+                          <ListingThumbnail url={listing.thumbnail_url} alt={listing.title ?? ""} />
                         </td>
                       )}
                       {colVisible("title") && (
