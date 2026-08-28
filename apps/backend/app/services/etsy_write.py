@@ -45,6 +45,24 @@ logger = logging.getLogger(__name__)
 
 ETSY_API_BASE = "https://openapi.etsy.com/v3"
 
+# Etsy's updateListingInventory rejects any PUT where an offering lacks a
+# readiness_state_id ("All offerings need readiness state") — confirmed live,
+# 2026-08-28. readiness_state_id is a shop-specific Processing Profile ID
+# (github.com/etsy/open-api/discussions/1491; developers.etsy.com docs), NOT
+# a universal constant — there is no value that's provably correct for every
+# shop/listing without a live Etsy call to read the shop's actual processing
+# profiles (createShopReadinessStateDefinition / equivalent read endpoint),
+# which this task explicitly forbids calling. The real fix is
+# normalize_etsy_inventory_tree() now correctly reading readiness_state_id
+# from Etsy's own GET response instead of silently dropping it (see that
+# function) — for any listing that already has a Processing Profile assigned
+# on Etsy's side, that alone should resolve this. This constant is only a
+# last-resort fallback for the rarer case where Etsy's GET response itself
+# has no readiness_state_id to preserve. It is NOT verified against this
+# shop's real Processing Profile IDs — flagged explicitly in DECISIONS.md as
+# needing owner confirmation after the next live test.
+DEFAULT_ETSY_READINESS_STATE_ID = 1
+
 # Fields supported by PATCH /v3/application/listings/{listing_id}
 # price/quantity require the inventory endpoint — excluded here
 PATCHABLE_TEXT_FIELDS = {
@@ -207,6 +225,7 @@ def _inventory_payload_shape_summary(payload: dict[str, Any]) -> dict[str, Any]:
         price_format = "decimal_number"
     else:
         price_format = "unknown"
+    readiness_state_on_property = payload.get("readiness_state_on_property") or []
     return {
         "products_count": len(products),
         "offerings_count": len(offerings),
@@ -215,7 +234,12 @@ def _inventory_payload_shape_summary(payload: dict[str, Any]) -> dict[str, Any]:
         "has_product_id_in_payload": any("product_id" in p for p in products),
         "has_offering_id_in_payload": any("offering_id" in o for o in offerings),
         "has_readiness_state_id": any("readiness_state_id" in o for o in offerings),
-        "has_readiness_state_on_property": bool(payload.get("readiness_state_on_property")),
+        "has_readiness_state_on_property": bool(readiness_state_on_property),
+        "readiness_state_on_property_count": len(readiness_state_on_property),
+        "offerings_missing_readiness_state_count": sum(1 for o in offerings if not o.get("readiness_state_id")),
+        "readiness_state_id_defaulted_count": sum(
+            1 for o in offerings if o.get("readiness_state_id") == DEFAULT_ETSY_READINESS_STATE_ID
+        ),
     }
 
 
@@ -389,8 +413,16 @@ def build_writable_inventory_payload_from_tree(tree: dict[str, Any]) -> dict[str
                 "quantity": offering.get("quantity", 0),
                 "is_enabled": offering.get("is_enabled", True),
             }
-            if offering.get("readiness_state_id"):
-                writable_offering["readiness_state_id"] = offering["readiness_state_id"]
+            # Every offering must carry a readiness_state_id or Etsy rejects
+            # the whole PUT with "All offerings need readiness state" —
+            # confirmed live, 2026-08-28. Preserve Etsy's own value when the
+            # fetched offering has a usable one; otherwise fall back to the
+            # documented placeholder default (see DEFAULT_ETSY_READINESS_STATE_ID).
+            fetched_readiness_state_id = offering.get("readiness_state_id")
+            if fetched_readiness_state_id is not None and fetched_readiness_state_id != "None" and fetched_readiness_state_id != "":
+                writable_offering["readiness_state_id"] = fetched_readiness_state_id
+            else:
+                writable_offering["readiness_state_id"] = DEFAULT_ETSY_READINESS_STATE_ID
             offerings.append(writable_offering)
 
         property_values: list[dict[str, Any]] = []

@@ -119,7 +119,8 @@ async def put_etsy_listing_inventory(
 def normalize_etsy_inventory_tree(inventory_response: dict[str, Any]) -> dict[str, Any]:
     """
     Normalize raw Etsy GET inventory response for safe PUT.
-    Returns a dict with: products, price_on_property, quantity_on_property, sku_on_property.
+    Returns a dict with: products, price_on_property, quantity_on_property,
+    sku_on_property, readiness_state_on_property.
     Strips read-only fields that Etsy rejects on PUT.
     """
     products = []
@@ -147,6 +148,13 @@ def normalize_etsy_inventory_tree(inventory_response: dict[str, Any]) -> dict[st
             }
             if o.get("offering_id"):
                 offering["offering_id"] = o["offering_id"]
+            # readiness_state_id (a shop-specific Processing Profile ID) was
+            # previously never read from the GET response here, so even a
+            # listing with one already assigned on Etsy's side always looked
+            # like it had none by the time the writable PUT payload was
+            # built — this was silently dropping data Etsy actually sent us.
+            if o.get("readiness_state_id"):
+                offering["readiness_state_id"] = o["readiness_state_id"]
             product["offerings"].append(offering)
 
         products.append(product)
@@ -156,6 +164,7 @@ def normalize_etsy_inventory_tree(inventory_response: dict[str, Any]) -> dict[st
         "price_on_property": inventory_response.get("price_on_property", []),
         "quantity_on_property": inventory_response.get("quantity_on_property", []),
         "sku_on_property": inventory_response.get("sku_on_property", []),
+        "readiness_state_on_property": inventory_response.get("readiness_state_on_property", []),
     }
 
 

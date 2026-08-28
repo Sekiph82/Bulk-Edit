@@ -733,6 +733,173 @@ def test_build_writable_inventory_payload_preserves_readiness_state_id():
     assert payload["products"][0]["offerings"][0]["readiness_state_id"] == 1020304051823
 
 
+# ── readiness_state_id required on every offering (root cause of "All ────────
+# offerings need readiness state" — confirmed live, 2026-08-28). Etsy rejects
+# an inventory PUT if any offering lacks readiness_state_id. Two bugs found:
+# normalize_etsy_inventory_tree() never read it from the GET response at all
+# (fixed in etsy_variation_write.py), and the writable builder only carried
+# it forward when present, never defaulting when Etsy's own GET response
+# genuinely lacked one.
+
+def test_build_writable_inventory_payload_every_offering_has_readiness_state_id():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY)
+    for product in payload["products"]:
+        for offering in product["offerings"]:
+            assert "readiness_state_id" in offering
+            assert offering["readiness_state_id"] is not None
+
+
+def test_build_writable_inventory_payload_missing_readiness_state_id_defaults():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree, DEFAULT_ETSY_READINESS_STATE_ID
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY)
+    assert payload["products"][0]["offerings"][0]["readiness_state_id"] == DEFAULT_ETSY_READINESS_STATE_ID
+
+
+def test_build_writable_inventory_payload_readiness_state_id_none_defaults():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree, DEFAULT_ETSY_READINESS_STATE_ID
+
+    tree = {
+        "products": [{
+            "sku": "S", "property_values": [],
+            "offerings": [{
+                "quantity": 1, "is_enabled": True, "readiness_state_id": None,
+                "price": {"amount": 2000, "divisor": 100, "currency_code": "USD"},
+            }],
+        }],
+        "price_on_property": [], "quantity_on_property": [], "sku_on_property": [],
+    }
+    payload = build_writable_inventory_payload_from_tree(tree)
+    assert payload["products"][0]["offerings"][0]["readiness_state_id"] == DEFAULT_ETSY_READINESS_STATE_ID
+
+
+def test_build_writable_inventory_payload_readiness_state_id_string_none_defaults():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree, DEFAULT_ETSY_READINESS_STATE_ID
+
+    tree = {
+        "products": [{
+            "sku": "S", "property_values": [],
+            "offerings": [{
+                "quantity": 1, "is_enabled": True, "readiness_state_id": "None",
+                "price": {"amount": 2000, "divisor": 100, "currency_code": "USD"},
+            }],
+        }],
+        "price_on_property": [], "quantity_on_property": [], "sku_on_property": [],
+    }
+    payload = build_writable_inventory_payload_from_tree(tree)
+    assert payload["products"][0]["offerings"][0]["readiness_state_id"] == DEFAULT_ETSY_READINESS_STATE_ID
+
+
+def test_build_writable_inventory_payload_readiness_state_id_empty_string_defaults():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree, DEFAULT_ETSY_READINESS_STATE_ID
+
+    tree = {
+        "products": [{
+            "sku": "S", "property_values": [],
+            "offerings": [{
+                "quantity": 1, "is_enabled": True, "readiness_state_id": "",
+                "price": {"amount": 2000, "divisor": 100, "currency_code": "USD"},
+            }],
+        }],
+        "price_on_property": [], "quantity_on_property": [], "sku_on_property": [],
+    }
+    payload = build_writable_inventory_payload_from_tree(tree)
+    assert payload["products"][0]["offerings"][0]["readiness_state_id"] == DEFAULT_ETSY_READINESS_STATE_ID
+
+
+def test_build_writable_inventory_payload_multiple_offerings_all_get_readiness_state():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree, DEFAULT_ETSY_READINESS_STATE_ID
+
+    tree = {
+        "products": [
+            {
+                "sku": "S1", "property_values": [],
+                "offerings": [
+                    {"quantity": 1, "is_enabled": True, "readiness_state_id": 999,
+                     "price": {"amount": 1000, "divisor": 100, "currency_code": "USD"}},
+                    {"quantity": 2, "is_enabled": True,
+                     "price": {"amount": 2000, "divisor": 100, "currency_code": "USD"}},
+                ],
+            },
+            {
+                "sku": "S2", "property_values": [],
+                "offerings": [
+                    {"quantity": 3, "is_enabled": True,
+                     "price": {"amount": 3000, "divisor": 100, "currency_code": "USD"}},
+                ],
+            },
+        ],
+        "price_on_property": [], "quantity_on_property": [], "sku_on_property": [],
+    }
+    payload = build_writable_inventory_payload_from_tree(tree)
+    all_offerings = [o for p in payload["products"] for o in p["offerings"]]
+    assert len(all_offerings) == 3
+    assert all_offerings[0]["readiness_state_id"] == 999  # preserved
+    assert all_offerings[1]["readiness_state_id"] == DEFAULT_ETSY_READINESS_STATE_ID  # defaulted
+    assert all_offerings[2]["readiness_state_id"] == DEFAULT_ETSY_READINESS_STATE_ID  # defaulted
+
+
+def test_build_writable_inventory_payload_non_variation_listing_still_gets_readiness_state():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree, DEFAULT_ETSY_READINESS_STATE_ID
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY)
+    assert payload["products"][0]["property_values"] == []
+    assert payload["products"][0]["offerings"][0]["readiness_state_id"] == DEFAULT_ETSY_READINESS_STATE_ID
+
+
+def test_inventory_payload_shape_summary_reports_zero_missing_readiness_after_fix():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree, _inventory_payload_shape_summary
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY)
+    summary = _inventory_payload_shape_summary(payload)
+    assert summary["offerings_missing_readiness_state_count"] == 0
+    assert summary["readiness_state_id_defaulted_count"] == 1  # this fixture has no fetched readiness_state_id
+
+
+def test_inventory_payload_shape_summary_reports_zero_defaulted_when_all_preserved():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree, _inventory_payload_shape_summary
+
+    payload = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY_WITH_VARIATION_PROPERTIES)
+    summary = _inventory_payload_shape_summary(payload)
+    assert summary["offerings_missing_readiness_state_count"] == 0
+    assert summary["readiness_state_id_defaulted_count"] == 0
+
+
+def test_normalize_inventory_tree_captures_readiness_state_id_from_raw_response():
+    """
+    Regression guard for the deeper bug: normalize_etsy_inventory_tree()
+    previously never read readiness_state_id from Etsy's own GET response at
+    all, so even a listing with a real Processing Profile already assigned
+    on Etsy's side always looked like it had none by the time the writable
+    payload was built.
+    """
+    from app.services.etsy_variation_write import normalize_etsy_inventory_tree
+
+    raw_get_response = {
+        "products": [{
+            "product_id": 111,
+            "sku": "S",
+            "property_values": [],
+            "offerings": [{
+                "offering_id": 222,
+                "quantity": 5,
+                "is_enabled": True,
+                "readiness_state_id": 777888999,
+                "price": {"amount": 2000, "divisor": 100, "currency_code": "USD"},
+            }],
+        }],
+        "price_on_property": [],
+        "quantity_on_property": [],
+        "sku_on_property": [],
+        "readiness_state_on_property": [513],
+    }
+    normalized = normalize_etsy_inventory_tree(raw_get_response)
+    assert normalized["products"][0]["offerings"][0]["readiness_state_id"] == 777888999
+    assert normalized["readiness_state_on_property"] == [513]
+
+
 def test_build_writable_inventory_payload_preserves_readiness_state_on_property_if_present():
     from app.services.etsy_write import build_writable_inventory_payload_from_tree
 
