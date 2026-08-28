@@ -945,6 +945,148 @@ async def test_apply_single_listing_price_quantity_raises_etsy_write_error_on_pu
     assert exc_info.value.status_code == 400
 
 
+# ── safe Etsy error-body diagnostics (post-PR96 failure audit) ────────────────
+# Fifth follow-up: PR #96's payload-shape fix still 400d live. The raw Etsy
+# error body was captured into response_payload but never sanitized, size-
+# limited, or surfaced anywhere — so nobody (owner or Claude) could see the
+# actual Etsy validation reason for a failure. These tests cover the new
+# sanitizer that replaces EtsyWriteError.response_body with a safe summary.
+
+def test_sanitize_etsy_response_body_extracts_dict_error_fields():
+    from app.services.etsy_write import _sanitize_etsy_response_body
+
+    result = _sanitize_etsy_response_body({"error": "bad_request", "error_description": "price is required"})
+    assert result["safe_etsy_error_code"] == "bad_request"
+    assert result["safe_etsy_error_message"] == "price is required"
+    assert set(result["safe_response_keys"]) == {"error", "error_description"}
+
+
+def test_sanitize_etsy_response_body_truncates_long_message():
+    from app.services.etsy_write import _sanitize_etsy_response_body, _MAX_SAFE_ERROR_LEN
+
+    long_msg = "x" * 2000
+    result = _sanitize_etsy_response_body({"message": long_msg})
+    assert len(result["safe_etsy_error_message"]) == _MAX_SAFE_ERROR_LEN
+
+
+def test_sanitize_etsy_response_body_never_includes_forbidden_keys():
+    from app.services.etsy_write import _sanitize_etsy_response_body
+
+    raw = {"error": "bad_request", "Authorization": "Bearer secret_should_never_appear", "access_token": "leaked_token_value"}
+    result = _sanitize_etsy_response_body(raw)
+    assert "Authorization" not in result["safe_response_keys"]
+    assert "access_token" not in result["safe_response_keys"]
+    result_str = str(result)
+    assert "secret_should_never_appear" not in result_str
+    assert "leaked_token_value" not in result_str
+
+
+def test_sanitize_etsy_response_body_handles_string_body():
+    from app.services.etsy_write import _sanitize_etsy_response_body
+
+    result = _sanitize_etsy_response_body("plain text error")
+    assert result["safe_etsy_error_message"] == "plain text error"
+    assert result["safe_response_keys"] == []
+
+
+def test_sanitize_etsy_response_body_handles_none():
+    from app.services.etsy_write import _sanitize_etsy_response_body
+
+    result = _sanitize_etsy_response_body(None)
+    assert result["safe_etsy_error_message"] is None
+    assert result["safe_etsy_error_code"] is None
+
+
+def test_inventory_payload_shape_summary_reports_decimal_price():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree, _inventory_payload_shape_summary
+
+    writable = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY)
+    summary = _inventory_payload_shape_summary(writable)
+    assert summary["price_format_sent"] == "decimal_number"
+    assert summary["products_count"] == 1
+    assert summary["offerings_count"] == 1
+    assert summary["has_product_id_in_payload"] is False
+    assert summary["has_offering_id_in_payload"] is False
+
+
+def test_inventory_payload_shape_summary_reports_readiness_state():
+    from app.services.etsy_write import build_writable_inventory_payload_from_tree, _inventory_payload_shape_summary
+
+    writable = build_writable_inventory_payload_from_tree(_FAKE_LIVE_INVENTORY_WITH_VARIATION_PROPERTIES)
+    summary = _inventory_payload_shape_summary(writable)
+    assert summary["has_readiness_state_id"] is True
+    assert summary["property_values_count"] == 2
+
+
+async def test_apply_single_listing_price_quantity_put_failure_diagnostics_are_sanitized():
+    """
+    response_body on the raised EtsyWriteError must be the safe diagnostics
+    dict, never the raw Etsy body or any token/header value.
+    """
+    from app.services.etsy_write import apply_single_listing_price_quantity, EtsyWriteError
+    from app.services.etsy_variation_write import EtsyVariationWriteError
+
+    with patch("app.services.etsy_variation_write.fetch_etsy_listing_inventory", new_callable=AsyncMock) as mock_fetch, \
+         patch("app.services.etsy_variation_write.put_etsy_listing_inventory", new_callable=AsyncMock) as mock_put:
+        mock_fetch.return_value = _FAKE_LIVE_INVENTORY
+        mock_put.side_effect = EtsyVariationWriteError(
+            "Inventory PUT failed for listing 1874506717: HTTP 400",
+            400,
+            response_body={"error": "invalid_price", "error_description": "offering.price must be a positive number"},
+        )
+
+        with pytest.raises(EtsyWriteError) as exc_info:
+            await apply_single_listing_price_quantity(
+                access_token="secret_token_value",
+                shop_etsy_id="44263504",
+                listing_etsy_id="1874506717",
+                price_amount=6288,
+                quantity=None,
+            )
+
+    diagnostics = exc_info.value.response_body
+    assert diagnostics["operation"] == "inventory_put"
+    assert diagnostics["endpoint_category"] == "inventory"
+    assert diagnostics["method"] == "PUT"
+    assert diagnostics["listing_id"] == "1874506717"
+    assert diagnostics["status_code"] == 400
+    assert diagnostics["safe_etsy_error_code"] == "invalid_price"
+    assert diagnostics["safe_etsy_error_message"] == "offering.price must be a positive number"
+    assert diagnostics["retry_recommended"] is False
+    assert diagnostics["payload_shape_summary"]["price_format_sent"] == "decimal_number"
+    assert diagnostics["payload_shape_summary"]["has_product_id_in_payload"] is False
+    # no token/header value anywhere in the diagnostics
+    assert "secret_token_value" not in str(diagnostics)
+
+
+async def test_apply_single_listing_price_quantity_fetch_failure_diagnostics_are_sanitized():
+    from app.services.etsy_write import apply_single_listing_price_quantity, EtsyWriteError
+    from app.services.etsy_variation_write import EtsyVariationWriteError
+
+    with patch("app.services.etsy_variation_write.fetch_etsy_listing_inventory", new_callable=AsyncMock) as mock_fetch, \
+         patch("app.services.etsy_variation_write.put_etsy_listing_inventory", new_callable=AsyncMock) as mock_put:
+        mock_fetch.side_effect = EtsyVariationWriteError(
+            "Fetch inventory failed for listing 1874506717: HTTP 404", 404, response_body={"error": "not_found"}
+        )
+
+        with pytest.raises(EtsyWriteError) as exc_info:
+            await apply_single_listing_price_quantity(
+                access_token="fake_token",
+                shop_etsy_id="44263504",
+                listing_etsy_id="1874506717",
+                price_amount=6288,
+                quantity=None,
+            )
+
+    diagnostics = exc_info.value.response_body
+    assert diagnostics["operation"] == "inventory_get"
+    assert diagnostics["method"] == "GET"
+    assert diagnostics["status_code"] == 404
+    # fetch failure has no payload to summarize — no write was attempted
+    assert "payload_shape_summary" not in diagnostics
+    mock_put.assert_not_called()
+
+
 # ── listing PATCH URL shape (Etsy v3 endpoint regression guard) ───────────────
 # Second follow-up: patch_etsy_listing() (title/description PATCH) was
 # missing /shops/{shop_id} — the opposite bug from the inventory endpoint.
@@ -1041,6 +1183,64 @@ async def test_apply_job_detail_exposes_item_level_failure_reason(client, db_ses
     # no auth/token material leaks through the safe error message field
     assert "access_token" not in failed["error_message"]
     assert "Authorization" not in failed["error_message"]
+
+
+async def test_apply_job_detail_exposes_sanitized_inventory_diagnostics_via_api(client, db_session):
+    """
+    End-to-end: the sanitized diagnostics dict apply_single_listing_price_quantity()
+    now raises survives the DB round-trip and comes back through
+    GET /apply-jobs/{id} intact, safe, and usable by the frontend's
+    extractSafeEtsyDetail() helper — proving the fix is actually wired up,
+    not just unit-tested in isolation.
+    """
+    from app.services.etsy_write import EtsyWriteError
+
+    token = await _register_and_login(client, {
+        "email": "inv_ap_diag@example.com", "password": "password123",
+        "full_name": "D1", "organization_name": "InvApDiag Org",
+    })
+    org_id = await _get_org_id_for_user(db_session, "inv_ap_diag@example.com")
+    session_id, listing = await _create_price_session(
+        client, db_session, token, org_id, "inv_ap_diag", new_price=6288
+    )
+
+    safe_diagnostics = {
+        "operation": "inventory_put",
+        "endpoint_category": "inventory",
+        "method": "PUT",
+        "listing_id": listing.etsy_listing_id,
+        "status_code": 400,
+        "safe_etsy_error_code": "invalid_price",
+        "safe_etsy_error_message": "offering.price must be a positive number",
+        "safe_response_keys": ["error", "error_description"],
+        "payload_shape_summary": {
+            "products_count": 1, "offerings_count": 1, "property_values_count": 0,
+            "price_format_sent": "decimal_number",
+            "has_product_id_in_payload": False, "has_offering_id_in_payload": False,
+            "has_readiness_state_id": False, "has_readiness_state_on_property": False,
+        },
+        "retry_recommended": False,
+    }
+
+    with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
+         patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock), \
+         patch("app.services.bulk_edit_apply.apply_single_listing_price_quantity", new_callable=AsyncMock) as mock_inv:
+        mock_inv.side_effect = EtsyWriteError("Inventory PUT failed: HTTP 400", 400, response_body=safe_diagnostics)
+        r = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    job_id = r.json()["id"]
+    detail = await client.get(f"{APPLY_JOBS_URL}/{job_id}", headers={"Authorization": f"Bearer {token}"})
+    failed = detail.json()["results"][0]
+
+    response_payload = failed["response_payload"]
+    inv_error = response_payload["inventory_patch_error"]["response"]
+    assert inv_error["safe_etsy_error_code"] == "invalid_price"
+    assert inv_error["safe_etsy_error_message"] == "offering.price must be a positive number"
+    assert inv_error["payload_shape_summary"]["price_format_sent"] == "decimal_number"
+    # never a raw/unsanitized body, never token-shaped keys
+    payload_str = str(response_payload)
+    assert "Authorization" not in payload_str
+    assert "access_token" not in payload_str
 
 
 async def test_apply_calls_listing_patch_with_shop_and_etsy_listing_id(client, db_session):

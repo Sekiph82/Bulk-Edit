@@ -162,6 +162,85 @@ def build_etsy_inventory_payload(
     }
 
 
+_MAX_SAFE_ERROR_LEN = 500
+_FORBIDDEN_KEY_SUBSTRINGS = ("token", "authorization", "secret", "cookie", "api_key", "apikey", "password")
+
+
+def _sanitize_etsy_response_body(raw: Any) -> dict[str, Any]:
+    """
+    Extract a safe, size-limited summary from an Etsy error response body.
+    Never returns the raw body — only a short error code/message (if Etsy's
+    own error shape has one) and the response's top-level key *names* (not
+    values), so a future failure's UI/log carries the real Etsy validation
+    reason without risking a token, header, or other sensitive value ever
+    being persisted or displayed.
+    """
+    if isinstance(raw, dict):
+        safe_keys = [k for k in raw.keys() if isinstance(k, str) and not any(f in k.lower() for f in _FORBIDDEN_KEY_SUBSTRINGS)]
+        error_code = None
+        for k in ("error", "error_code", "code"):
+            v = raw.get(k)
+            if isinstance(v, str) and not any(f in k.lower() for f in _FORBIDDEN_KEY_SUBSTRINGS):
+                error_code = v[:100]
+                break
+        error_message = None
+        for k in ("error_description", "message", "detail", "error"):
+            v = raw.get(k)
+            if isinstance(v, str) and not any(f in k.lower() for f in _FORBIDDEN_KEY_SUBSTRINGS):
+                error_message = v[:_MAX_SAFE_ERROR_LEN]
+                break
+        return {"safe_etsy_error_code": error_code, "safe_etsy_error_message": error_message, "safe_response_keys": safe_keys}
+    if isinstance(raw, str):
+        return {"safe_etsy_error_code": None, "safe_etsy_error_message": raw[:_MAX_SAFE_ERROR_LEN], "safe_response_keys": []}
+    return {"safe_etsy_error_code": None, "safe_etsy_error_message": None, "safe_response_keys": []}
+
+
+def _inventory_payload_shape_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    """Safe, secret-free summary of a built inventory PUT payload's shape — counts and booleans only, no values."""
+    products = payload.get("products", [])
+    offerings = [o for p in products for o in p.get("offerings", [])]
+    property_values = [pv for p in products for pv in p.get("property_values", [])]
+    first_price = offerings[0].get("price") if offerings else None
+    if isinstance(first_price, dict):
+        price_format = "money_object"
+    elif isinstance(first_price, (int, float)):
+        price_format = "decimal_number"
+    else:
+        price_format = "unknown"
+    return {
+        "products_count": len(products),
+        "offerings_count": len(offerings),
+        "property_values_count": len(property_values),
+        "price_format_sent": price_format,
+        "has_product_id_in_payload": any("product_id" in p for p in products),
+        "has_offering_id_in_payload": any("offering_id" in o for o in offerings),
+        "has_readiness_state_id": any("readiness_state_id" in o for o in offerings),
+        "has_readiness_state_on_property": bool(payload.get("readiness_state_on_property")),
+    }
+
+
+def _inventory_write_diagnostics(
+    operation: str,
+    listing_etsy_id: str,
+    status_code: int,
+    response_body: Any,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the full safe diagnostics dict stored as EtsyWriteError.response_body for an inventory GET/PUT failure."""
+    diagnostics: dict[str, Any] = {
+        "operation": operation,
+        "endpoint_category": "inventory",
+        "method": "GET" if operation == "inventory_get" else "PUT",
+        "listing_id": listing_etsy_id,
+        "status_code": status_code,
+        "retry_recommended": False,
+        **_sanitize_etsy_response_body(response_body),
+    }
+    if payload is not None:
+        diagnostics["payload_shape_summary"] = _inventory_payload_shape_summary(payload)
+    return diagnostics
+
+
 class EtsyWriteError(Exception):
     def __init__(self, message: str, status_code: int = 500, response_body: Any = None):
         self.message = message
@@ -373,7 +452,8 @@ async def apply_single_listing_price_quantity(
     try:
         raw_tree = await fetch_etsy_listing_inventory(access_token, shop_etsy_id, listing_etsy_id)
     except EtsyVariationWriteError as e:
-        raise EtsyWriteError(f"Inventory fetch failed: {e.message}", e.status_code, e.response_body) from e
+        diagnostics = _inventory_write_diagnostics("inventory_get", listing_etsy_id, e.status_code, e.response_body)
+        raise EtsyWriteError(f"Inventory fetch failed: {e.message}", e.status_code, diagnostics) from e
 
     tree = normalize_etsy_inventory_tree(raw_tree)
     for product in tree.get("products", []):
@@ -388,7 +468,8 @@ async def apply_single_listing_price_quantity(
     try:
         return await put_etsy_listing_inventory(access_token, shop_etsy_id, listing_etsy_id, writable_payload)
     except EtsyVariationWriteError as e:
-        raise EtsyWriteError(f"Inventory PUT failed: {e.message}", e.status_code, e.response_body) from e
+        diagnostics = _inventory_write_diagnostics("inventory_put", listing_etsy_id, e.status_code, e.response_body, writable_payload)
+        raise EtsyWriteError(f"Inventory PUT failed: {e.message}", e.status_code, diagnostics) from e
 
 
 def _flatten_payload(payload: dict[str, Any]) -> dict[str, Any]:
