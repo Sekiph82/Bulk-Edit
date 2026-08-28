@@ -9,12 +9,23 @@ const SUPPORT_EMAIL = "support@bulkeditapp.com";
 
 type Subscription = {
   plan: string;
+  subscription_plan: string;
+  effective_plan: string;
+  access_source: "comp_grant" | "subscription" | "free";
+  comp_active: boolean;
+  billing_charge_status: "charged" | "no_charge";
   status: string;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   limits: Record<string, number | boolean>;
+};
+
+const ACCESS_SOURCE_LABEL: Record<string, string> = {
+  comp_grant: "Comp grant",
+  subscription: "Subscription",
+  free: "Free plan",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -130,7 +141,7 @@ function BillingContent() {
     );
   }
 
-  const hasPaidPlan = sub != null && sub.plan !== "free" && (sub.status === "active" || sub.status === "trialing");
+  const hasPaidPlan = sub != null && sub.effective_plan !== "free" && (sub.comp_active || sub.status === "active" || sub.status === "trialing");
   const hasPaidCustomer = sub?.stripe_customer_id != null;
   const statusKey = sub?.status ?? "free";
 
@@ -170,15 +181,30 @@ function BillingContent() {
             <div className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Current plan</p>
+                  <p className="text-sm text-gray-500">Current access</p>
                   <p className="text-xl font-bold text-gray-900 capitalize mt-0.5">
-                    {sub.plan.replace(/_/g, " ")}
+                    {sub.effective_plan.replace(/_/g, " ")}
                   </p>
                 </div>
                 <span className={`inline-flex items-center text-xs font-semibold px-3 py-1 rounded-full ${STATUS_COLOR[statusKey] || STATUS_COLOR.free}`}>
                   {STATUS_LABEL[statusKey] || statusKey}
                 </span>
               </div>
+
+              <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                <dt className="text-gray-500">Access source</dt>
+                <dd className="text-right font-medium text-gray-700">{ACCESS_SOURCE_LABEL[sub.access_source] || sub.access_source}</dd>
+                <dt className="text-gray-500">Billing subscription</dt>
+                <dd className="text-right font-medium text-gray-700 capitalize">{sub.subscription_plan.replace(/_/g, " ")}</dd>
+                <dt className="text-gray-500">Stripe charge</dt>
+                <dd className="text-right font-medium text-gray-700">{sub.billing_charge_status === "charged" ? "Charged" : "No charge"}</dd>
+              </dl>
+
+              {sub.comp_active && (
+                <p className="text-xs text-indigo-600 bg-indigo-50 rounded-lg px-3 py-2 mt-3">
+                  This access was granted by an admin comp — no Stripe charge is associated with it.
+                </p>
+              )}
 
               {sub.current_period_end && (
                 <p className="text-xs text-gray-400 mt-3">

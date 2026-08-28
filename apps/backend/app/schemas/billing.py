@@ -31,14 +31,19 @@ class PlansResponse(BaseModel):
 class SubscriptionResponse(BaseModel):
     id: str
     organization_id: str
-    plan: str
+    plan: str  # raw Stripe-managed subscription plan (kept for backward compat)
+    subscription_plan: str  # explicit alias of `plan`
+    effective_plan: str  # comp grant's plan if one is active, else `plan`
+    access_source: str  # "comp_grant" | "subscription" | "free"
+    comp_active: bool
+    billing_charge_status: str  # "charged" | "no_charge"
     status: str
     stripe_customer_id: str | None
     stripe_subscription_id: str | None
     current_period_start: datetime | None
     current_period_end: datetime | None
     cancel_at_period_end: bool
-    limits: dict[str, Any]
+    limits: dict[str, Any]  # limits for the effective plan, not the raw subscription plan
 
     model_config = {"from_attributes": True}
 

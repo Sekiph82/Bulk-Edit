@@ -73,7 +73,18 @@ export default function MarketingFooter() {
 
         {/* Legal */}
         <div className="border-t border-gray-100 pt-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-gray-400">© 2026 {LEGAL_ENTITY_NAME}. All rights reserved.</p>
+          <p className="text-xs text-gray-400">
+            © 2026 {LEGAL_ENTITY_NAME} by{" "}
+            <a
+              href="https://www.akilta.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-400 hover:text-indigo-600 underline transition-colors"
+            >
+              Akilta
+            </a>
+            . All rights reserved.
+          </p>
           <p className="text-xs text-gray-400 text-center sm:text-right max-w-md">
             The term &ldquo;Etsy&rdquo; is a trademark of Etsy, Inc. This application uses the Etsy
             API but is not endorsed or certified by Etsy, Inc.

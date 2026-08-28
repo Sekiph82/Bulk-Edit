@@ -116,6 +116,7 @@ def build_etsy_inventory_payload(
         "products": [
             {
                 "sku": listing.sku or "",
+                "property_values": [],
                 "offerings": [
                     {
                         "price": {

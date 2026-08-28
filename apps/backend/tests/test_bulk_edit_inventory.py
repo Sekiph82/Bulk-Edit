@@ -275,6 +275,7 @@ def test_build_inventory_payload_structure():
     assert len(payload["products"]) == 1
     product = payload["products"][0]
     assert product["sku"] == "SKU123"
+    assert product["property_values"] == []
     assert len(product["offerings"]) == 1
     offering = product["offerings"][0]
     assert offering["is_enabled"] is True
@@ -546,6 +547,42 @@ async def test_revert_does_not_update_local_price_if_inventory_revert_fails(clie
 
     await db_session.refresh(listing)
     assert listing.price_amount == 3000  # not reverted
+
+
+# ── item-level failure reason surfaced via apply-job detail ───────────────────
+
+async def test_apply_job_detail_exposes_item_level_failure_reason(client, db_session):
+    from app.services.etsy_write import EtsyWriteError
+
+    token = await _register_and_login(client, {
+        "email": "inv_ap_reason@example.com", "password": "password123",
+        "full_name": "R1", "organization_name": "InvApReason Org",
+    })
+    org_id = await _get_org_id_for_user(db_session, "inv_ap_reason@example.com")
+    session_id, listing = await _create_price_session(
+        client, db_session, token, org_id, "inv_ap_reason", new_price=3000
+    )
+
+    with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
+         patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock), \
+         patch("app.services.bulk_edit_apply.patch_etsy_listing_inventory", new_callable=AsyncMock) as mock_inv:
+        mock_inv.side_effect = EtsyWriteError("missing property_values", 400, response_body={"error": "bad request"})
+        r = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    assert r.status_code == 202
+    job_id = r.json()["id"]
+
+    detail = await client.get(f"{APPLY_JOBS_URL}/{job_id}", headers={"Authorization": f"Bearer {token}"})
+    assert detail.status_code == 200
+    results = detail.json()["results"]
+    assert len(results) == 1
+    failed = results[0]
+    assert failed["status"] == "failed"
+    assert failed["error_message"] is not None
+    assert "missing property_values" in failed["error_message"]
+    # no auth/token material leaks through the safe error message field
+    assert "access_token" not in failed["error_message"]
+    assert "Authorization" not in failed["error_message"]
 
 
 # ── structured payload test ────────────────────────────────────────────────────
