@@ -24,6 +24,18 @@ const FAILURE_REASON_CATEGORY: Array<{ match: (msg: string) => boolean; category
   { match: () => true, category: "Write failed" },
 ];
 
+function extractSafeEtsyDetail(responsePayload: unknown): string | null {
+  if (!responsePayload || typeof responsePayload !== "object") return null;
+  const rp = responsePayload as Record<string, unknown>;
+  const errorNode = (rp.inventory_patch_error ?? rp.listing_patch_error) as Record<string, unknown> | undefined;
+  const response = errorNode?.response as Record<string, unknown> | undefined;
+  if (!response) return null;
+  const code = typeof response.safe_etsy_error_code === "string" ? response.safe_etsy_error_code : null;
+  const message = typeof response.safe_etsy_error_message === "string" ? response.safe_etsy_error_message : null;
+  if (!code && !message) return null;
+  return [code, message].filter(Boolean).join(": ");
+}
+
 function categorizeFailure(msg: string | null): string {
   if (!msg) return "Failed — no reason recorded";
   const hit = FAILURE_REASON_CATEGORY.find((c) => c.match(msg));
@@ -743,7 +755,13 @@ function BulkEditContent() {
                         <td className="py-1.5 pr-4 text-red-700 font-medium whitespace-nowrap">
                           {categorizeFailure(r.error_message)}
                         </td>
-                        <td className="py-1.5 text-gray-500 text-xs">{r.error_message || "—"}</td>
+                        <td className="py-1.5 text-gray-500 text-xs">
+                          {r.error_message || "—"}
+                          {(() => {
+                            const detail = extractSafeEtsyDetail(r.response_payload);
+                            return detail ? <p className="mt-0.5 text-gray-400 italic">Etsy: {detail}</p> : null;
+                          })()}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
