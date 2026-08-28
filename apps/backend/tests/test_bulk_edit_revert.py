@@ -405,6 +405,72 @@ async def test_revert_etsy_failure_does_not_update_listing(client, db_session):
     assert listing.title == title_after_apply  # not restored
 
 
+async def test_revert_rate_limited_reports_failure_with_safe_diagnostics(client, db_session):
+    """Magic Revert must not crash or leak a token when Etsy returns 429 —
+    item marked failed, diagnostics carry rate_limited/retry_after_seconds,
+    the listing is left unmodified (same safety contract as any other
+    revert-time Etsy failure)."""
+    from app.services.etsy_write import EtsyWriteError
+    from app.models.revert_result import RevertResult
+
+    token, _, apply_job_id, _, listing = await _setup_and_apply(
+        client, db_session,
+        email="rv_429@example.com",
+        org_name="Rv429 Org",
+        etsy_prefix="rv_429",
+    )
+
+    await db_session.refresh(listing)
+    title_after_apply = listing.title
+
+    rate_limit_diagnostics = {
+        "operation": "listing_patch",
+        "endpoint_category": "listing",
+        "method": "PATCH",
+        "listing_id": listing.etsy_listing_id,
+        "status_code": 429,
+        "rate_limited": True,
+        "retry_attempt": 3,
+        "max_attempts": 3,
+        "retry_after_seconds": 2.0,
+        "final_rate_limit_exhausted": True,
+        "retry_recommended": True,
+        "safe_etsy_error_code": None,
+        "safe_etsy_error_message": "Exceeded per second rate limit",
+        "safe_response_keys": ["error"],
+    }
+
+    with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()), \
+         patch("app.services.bulk_edit_revert.patch_etsy_listing", new_callable=AsyncMock) as m:
+        m.side_effect = EtsyWriteError(
+            "Etsy PATCH failed: HTTP 429", 429, rate_limit_diagnostics, retry_after_seconds=2.0,
+        )
+        r = await client.post(
+            f"{APPLY_JOBS_URL}/{apply_job_id}/revert",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert r.status_code == 202
+    data = r.json()
+    assert data["failure_count"] >= 1
+    assert data["success_count"] == 0
+
+    await db_session.refresh(listing)
+    assert listing.title == title_after_apply  # not restored, no partial write
+
+    result_r = await db_session.execute(
+        select(RevertResult).where(RevertResult.apply_job_id == apply_job_id)
+    )
+    rr = result_r.scalars().first()
+    assert rr.status == "failed"
+    stored_diagnostics = rr.response_payload["response"] if "response" in rr.response_payload else rr.response_payload
+    assert stored_diagnostics["rate_limited"] is True
+    assert stored_diagnostics["retry_after_seconds"] == 2.0
+    assert stored_diagnostics["final_rate_limit_exhausted"] is True
+    assert "Bearer" not in str(rr.response_payload)
+    assert "fake" not in str(rr.response_payload).lower() or "token" not in str(rr.response_payload).lower()
+
+
 async def test_revert_only_touches_successful_apply_results(client, db_session):
     """Verify only apply results with status='success' produce revert attempts."""
     from app.models.bulk_edit_apply_result import BulkEditApplyResult

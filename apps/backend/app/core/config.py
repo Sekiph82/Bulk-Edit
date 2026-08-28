@@ -118,7 +118,13 @@ class Settings(BaseSettings):
     ETSY_API_DAILY_LIMIT: int = 5000
     ETSY_API_BURST_LIMIT: int = 10
     ETSY_BULK_WRITE_BATCH_SIZE: int = 10
-    ETSY_BULK_WRITE_DELAY_MS: int = 200
+    # Minimum spacing enforced between Etsy WRITE attempts (PATCH listing,
+    # PUT inventory) within one apply/revert job — see etsy_http.sleep_before_etsy_write().
+    # 200ms (5/sec) matched Etsy's documented ceiling with zero margin and the
+    # owner hit a live HTTP 429 ("Exceeded per second rate limit") at that
+    # pace — 2026-08-28. Bumped to 1100ms (~0.9/sec) for real headroom; this
+    # setting was defined but never wired up before this fix.
+    ETSY_BULK_WRITE_DELAY_MS: int = 1100
     ETSY_RETRY_MAX_ATTEMPTS: int = 3
 
     # Social integrations (optional — empty = not configured)
