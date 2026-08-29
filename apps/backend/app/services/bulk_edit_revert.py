@@ -128,14 +128,12 @@ async def validate_apply_job_revertable(
     Load and validate apply job is revertable. Returns job on success.
     Raises HTTPException on any validation failure.
 
-    NOTE (audited, not fixed here): PLAN_LIMITS["can_use_magic_revert"] is
-    defined (Free: False) but was never actually enforced anywhere in this
-    revert flow -- Magic Revert has always been available regardless of
-    plan. Adding that gate here would also require granting a paid plan in
-    ~20 pre-existing tests across test_bulk_edit_revert.py/test_bulk_edit.py
-    that assume revert just works, which is out of scope for this history/
-    activity sprint. Left as a documented gap (see HANDOFF.md/TASKS.md) for
-    a dedicated follow-up rather than bundled into an unrelated PR.
+    Check order is deliberate: org-scoped lookup (404) first so a cross-org
+    job id never leaks existence, then status/success-count/duplicate-revert
+    (400/409) -- an already-reverted job must report "already reverted", not
+    "plan blocked" -- and only then, last, the can_use_magic_revert plan gate
+    (403). No RevertJob row is created and no Etsy call is made until every
+    check here has passed.
     """
     result = await db.execute(
         select(BulkEditApplyJob).where(
@@ -172,6 +170,15 @@ async def validate_apply_job_revertable(
         raise HTTPException(
             status_code=409,
             detail=f"Apply job already has a revert job (id={existing.id}, status={existing.status}). Cannot revert twice.",
+        )
+
+    from app.core.plans import get_effective_plan, get_plan_limits
+
+    effective_plan = await get_effective_plan(db, organization_id)
+    if not get_plan_limits(effective_plan).get("can_use_magic_revert", False):
+        raise HTTPException(
+            status_code=403,
+            detail="Magic Revert is not available on your current plan.",
         )
 
     return job
@@ -585,16 +592,21 @@ async def get_revert_eligibility_map(
     Batch, read-only version of validate_apply_job_revertable()'s rules, for
     decorating an apply-job history list with can_revert/revert_status
     without one eligibility query per row (N+1) or ever raising. Mirrors the
-    exact same rule set that function actually enforces: job status, at
-    least one successful item, and no existing completed/completed_with_errors/
-    running revert for that apply job. Deliberately does NOT gate on
-    can_use_magic_revert -- that isn't enforced by validate_apply_job_revertable()
-    either (see its docstring); this stays truthful to what the backend
-    actually allows rather than showing a "not in your plan" reason that a
-    direct call to /revert would not actually honor.
+    exact same rule set that function actually enforces, in the same
+    precedence order: job status, at least one successful item, no existing
+    completed/completed_with_errors/running revert for that apply job, and
+    the can_use_magic_revert plan gate -- checked last, so a job that is
+    already reverted (or already in progress) reports that, not "plan
+    blocked". Effective plan is resolved once per call (not per job) to
+    avoid N+1 queries.
     """
     if not apply_jobs:
         return {}
+
+    from app.core.plans import get_effective_plan, get_plan_limits
+
+    effective_plan = await get_effective_plan(db, organization_id)
+    plan_allows_magic_revert = get_plan_limits(effective_plan).get("can_use_magic_revert", False)
 
     job_ids = [j.id for j in apply_jobs]
     existing_q = await db.execute(
@@ -624,6 +636,8 @@ async def get_revert_eligibility_map(
             can_revert, reason = False, (
                 "Revert already in progress." if revert_status == "running" else "Already reverted."
             )
+        elif not plan_allows_magic_revert:
+            can_revert, reason = False, "Magic Revert is not available on your current plan."
         else:
             can_revert, reason = True, None
 
