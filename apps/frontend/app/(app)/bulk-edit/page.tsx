@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   getAccessToken, getListings, createBulkEditSession, getBulkEditSession,
@@ -452,6 +452,13 @@ function BulkEditContent() {
   const [revertJob, setRevertJob] = useState<RevertJob | null>(null);
   const [revertConfirmText, setRevertConfirmText] = useState("");
 
+  // Ref-level guard in addition to the `applying`/`reverting` state above: a
+  // fast double click can fire both handler calls before React re-renders
+  // with the new state, since setState doesn't take effect synchronously.
+  // A ref read/write is synchronous, so it closes that window.
+  const applyInFlightRef = useRef(false);
+  const revertInFlightRef = useRef(false);
+
   // Support preselection from URL (?listing_ids=id1,id2) or localStorage
   const preselected: string[] = (() => {
     const urlIds = searchParams.get("listing_ids");
@@ -548,29 +555,33 @@ function BulkEditContent() {
 
   async function handleRevertConfirmed() {
     if (!applyJob) return;
+    if (revertInFlightRef.current) return;
+    revertInFlightRef.current = true;
+    setShowRevertModal(false);
     setReverting(true);
     setApiError(null);
     try {
       const job = await revertApplyJob(applyJob.id);
       setRevertJob(job);
-      setShowRevertModal(false);
       setRevertConfirmText("");
     } catch (e) {
       setApiError(e instanceof ApiError ? e.message : "Revert failed.");
-      setShowRevertModal(false);
     } finally {
       setReverting(false);
+      revertInFlightRef.current = false;
     }
   }
 
   async function handleApplyConfirmed() {
     if (!session) return;
+    if (applyInFlightRef.current) return;
+    applyInFlightRef.current = true;
+    setShowApplyModal(false);
     setApplying(true);
     setApiError(null);
     try {
       const job = await applyBulkEditSession(session.id);
       setApplyJob(job);
-      setShowApplyModal(false);
       if (job.failure_count > 0) {
         try {
           const detail = await getApplyJobDetail(job.id);
@@ -583,9 +594,9 @@ function BulkEditContent() {
       }
     } catch (e) {
       setApiError(e instanceof ApiError ? e.message : "Apply failed.");
-      setShowApplyModal(false);
     } finally {
       setApplying(false);
+      applyInFlightRef.current = false;
     }
   }
 
@@ -819,6 +830,30 @@ function BulkEditContent() {
             {hasInvalid && (
               <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-3 text-sm text-red-800">
                 <strong>Cannot apply:</strong> {previewResp?.summary.invalid} listing(s) have validation errors. Fix or remove them first.
+              </div>
+            )}
+
+            {/* Blocking overlay while Apply/Revert is in flight. Sits above the
+                confirmation modals (which close synchronously the moment
+                applying/reverting starts) so the background stays visible but
+                every click is blocked until the API call resolves. */}
+            {(applying || reverting) && (
+              <div
+                className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]"
+                role="status"
+                aria-live="polite"
+              >
+                <div className="bg-white rounded-2xl shadow-xl px-8 py-7 max-w-sm w-full mx-4 text-center">
+                  <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
+                  <p className="text-base font-semibold text-gray-900 mb-1">
+                    {applying ? "Writing changes to Etsy…" : "Reverting Etsy listings…"}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {applying
+                      ? "Please keep this page open. Bulk Edit is processing your selected listings safely."
+                      : "Please keep this page open. Bulk Edit is restoring backup snapshots safely."}
+                  </p>
+                </div>
               </div>
             )}
 

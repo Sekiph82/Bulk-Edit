@@ -2,7 +2,23 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-28 (Etsy rate-limit guard/backoff for Bulk Edit writes)
+## RESUME HERE — 2026-08-29 (UX-01A: Apply/Revert loading overlay + double-submit guard)
+
+**Owner ran a 33-listing bulk price apply and a 32-listing bulk Magic Revert live (2026-08-29), both clean under PR #102's rate-limit guard** — apply `completed_with_errors` (Success 32/Failed 0/Skipped 1, the skip a correct no-op already at target value), revert `completed` (Restored 32/Failed 0/Skipped 0), Etsy Shop Manager confirmed `$60.00`↔`$62.88` both directions. Recorded on `docs/hiveai-dashboard-and-tasks` (PR #101, not merged) — documentation/tracking only, no frontend/backend status wording or semantics changed.
+
+**Same test surfaced a UX bug:** the Apply/Revert confirmation modal stayed interactable while the write was in flight — owner clicked confirm 4-5 times mid-operation. This round (branch `fix/bulk-edit-apply-revert-loading-guard`, based on `origin/main` past PR #102, frontend-only) fixes it in `apps/frontend/app/(app)/bulk-edit/page.tsx`: added `applyInFlightRef`/`revertInFlightRef` (synchronous guard, closes the race window `useState` can't — a fast double click could fire the handler twice before React re-renders with the new state), moved the confirmation-modal close to the top of each handler (synchronous, before the `await`, instead of after it resolved), and added a full-page blocking overlay (`fixed inset-0`, `z-[70]`, spinner + "Writing changes to Etsy…" / "Reverting Etsy listings…" + "Please keep this page open…") shown whenever `applying || reverting` is true — it sits above the (now-already-closed) modal and blocks every click on the page until the API call resolves.
+
+**Explicitly not touched:** `completed_with_errors`/skipped/no-op wording, backend job status semantics, result card colors — confirmed via `git diff` grep, zero matches for any of those strings in the frontend diff. No backend files changed this round.
+
+**No Etsy API call, no Bulk Edit apply, no Magic Revert performed by Claude/Codex** — this is a UI-only race-condition fix, verified via `tsc --noEmit`/`next lint`/`next build` (all clean) and manual code trace (no existing frontend test framework in this repo — established prior-session decision, not repeated here).
+
+**Not yet done as of this write-up:** commit, push, PR open, CI watch, merge, deploy. Do that next: commit `fix(bulk-edit): guard apply revert submits`, push `fix/bulk-edit-apply-revert-loading-guard`, open PR, wait for CI, merge if green, verify prod health + route policy only (add `/bulk-edit` to the usual health/route checklist). **Do not perform any live Etsy write as part of this deploy's verification.**
+
+**Safety constraints still active (unchanged):** never print secrets/tokens; no live Etsy write; no real Stripe action; do not disable Private Beta; no DNS/Cloudflare changes; no staging action; do not merge PR #101; do not push directly to main.
+
+---
+
+## Previously — 2026-08-28 (Etsy rate-limit guard/backoff for Bulk Edit writes)
 
 **Owner confirmed the price-write fix from PR #100 works live**: French Bulldog listing, `price_amount` 6000→6288, Bulk Edit showed Success 1/Failed 0/Skipped 0, Etsy Shop Manager and Bulk Edit Listings both reflected `$62.88`/`USD 62.88` after sync. The multi-round payload/schema saga (readiness_state_id, Money-object vs decimal price, endpoint scoping) is resolved. A later manual apply on a different listing (Miniature Schnauzer Makeup Bag) hit a live `HTTP 429 "Exceeded per second rate limit"` — expected, since no Etsy WRITE call had retry/backoff or inter-item pacing before this round (reads via `etsy_get` did; writes didn't).
 
