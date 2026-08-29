@@ -799,3 +799,157 @@ async def test_get_revert_job_requires_auth(client):
 async def test_get_revert_results_requires_auth(client):
     r = await client.get(f"{REVERT_JOBS_URL}/fake-id/results")
     assert r.status_code == 403
+
+
+# ── Org-wide apply job history (Magic Revert History / Activity & Audit) ──────
+
+async def test_apply_job_history_requires_auth(client):
+    r = await client.get(APPLY_JOBS_URL)
+    assert r.status_code == 403
+
+
+async def test_apply_job_history_org_scoped(client, db_session):
+    token_a, _, apply_job_id_a, _, _ = await _setup_and_apply(
+        client, db_session, email="hist_a@example.com", org_name="Hist A Org", etsy_prefix="hist_a",
+    )
+    _, _, apply_job_id_b, _, _ = await _setup_and_apply(
+        client, db_session, email="hist_b@example.com", org_name="Hist B Org", etsy_prefix="hist_b",
+    )
+
+    r = await client.get(APPLY_JOBS_URL, headers={"Authorization": f"Bearer {token_a}"})
+    assert r.status_code == 200
+    ids = [item["id"] for item in r.json()["items"]]
+    assert apply_job_id_a in ids
+    assert apply_job_id_b not in ids
+
+
+async def test_apply_job_history_eligible_job_can_revert(client, db_session):
+    token, _, apply_job_id, _, _ = await _setup_and_apply(
+        client, db_session, email="hist_elig@example.com", org_name="Hist Elig Org", etsy_prefix="hist_elig",
+    )
+
+    r = await client.get(APPLY_JOBS_URL, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    item = next(i for i in r.json()["items"] if i["id"] == apply_job_id)
+    assert item["can_revert"] is True
+    assert item["revert_blocked_reason"] is None
+    assert item["revert_status"] is None
+
+
+async def test_apply_job_history_already_reverted_job_cannot_revert_again(client, db_session):
+    token, _, apply_job_id, _, _ = await _setup_and_apply(
+        client, db_session, email="hist_reverted@example.com", org_name="Hist Reverted Org", etsy_prefix="hist_rev",
+    )
+
+    with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()), \
+         patch("app.services.bulk_edit_revert.patch_etsy_listing", new_callable=AsyncMock) as m:
+        m.return_value = {"state": "active"}
+        revert_r = await client.post(
+            f"{APPLY_JOBS_URL}/{apply_job_id}/revert",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert revert_r.status_code == 202
+    revert_job_id = revert_r.json()["id"]
+
+    r = await client.get(APPLY_JOBS_URL, headers={"Authorization": f"Bearer {token}"})
+    item = next(i for i in r.json()["items"] if i["id"] == apply_job_id)
+    assert item["can_revert"] is False
+    assert item["revert_blocked_reason"] == "Already reverted."
+    assert item["revert_job_id"] == revert_job_id
+    assert item["revert_status"] in ("completed", "completed_with_errors")
+
+    # Calling revert again directly must also be blocked (409), not just the UI flag.
+    with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()):
+        second_r = await client.post(
+            f"{APPLY_JOBS_URL}/{apply_job_id}/revert",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert second_r.status_code == 409
+
+
+async def test_apply_job_history_no_success_items_cannot_revert(client, db_session):
+    """A job whose apply attempt produced zero successful items should not
+    claim to be revertable, and a direct revert call must be rejected too —
+    not just left to silently no-op."""
+    from app.models.bulk_edit_apply_result import BulkEditApplyResult
+    from app.models.bulk_edit_apply_job import BulkEditApplyJob
+    from sqlalchemy import select
+
+    token, org_id, apply_job_id, session_id, listing = await _setup_and_apply(
+        client, db_session, email="hist_nosuccess@example.com", org_name="Hist NoSuccess Org", etsy_prefix="hist_ns",
+        etsy_patch_side_effect=Exception("boom"),
+    )
+
+    # _setup_and_apply's apply call fails (patch_etsy_listing raises), so the
+    # job should already have 0 successes -- confirm and force the status to
+    # a revertable-looking one to isolate the success_count check specifically.
+    job_result = await db_session.execute(select(BulkEditApplyJob).where(BulkEditApplyJob.id == apply_job_id))
+    job = job_result.scalar_one()
+    assert job.success_count == 0
+    job.status = "completed_with_errors"
+    await db_session.commit()
+
+    r = await client.get(APPLY_JOBS_URL, headers={"Authorization": f"Bearer {token}"})
+    item = next(i for i in r.json()["items"] if i["id"] == apply_job_id)
+    assert item["can_revert"] is False
+    assert item["revert_blocked_reason"] == "No successful items to revert."
+
+    with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()):
+        revert_r = await client.post(
+            f"{APPLY_JOBS_URL}/{apply_job_id}/revert",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert revert_r.status_code == 400
+    assert "no successfully changed items" in revert_r.json()["detail"].lower()
+
+
+async def test_apply_job_history_status_filter(client, db_session):
+    token, _, apply_job_id, _, _ = await _setup_and_apply(
+        client, db_session, email="hist_filter@example.com", org_name="Hist Filter Org", etsy_prefix="hist_filt",
+    )
+
+    r = await client.get(f"{APPLY_JOBS_URL}?status=completed", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    assert all(i["status"] == "completed" for i in r.json()["items"])
+
+    r2 = await client.get(f"{APPLY_JOBS_URL}?status=failed", headers={"Authorization": f"Bearer {token}"})
+    assert apply_job_id not in [i["id"] for i in r2.json()["items"]]
+
+
+async def test_apply_job_history_pagination(client, db_session):
+    token, org_id, _, _, _ = await _setup_and_apply(
+        client, db_session, email="hist_page@example.com", org_name="Hist Page Org", etsy_prefix="hist_pg0",
+    )
+    # Two more apply jobs for the same org
+    for i in range(1, 3):
+        listing = await _setup_listing(db_session, org_id, f"hist_pg{i}_01", title=f"Page Listing {i}")
+        r = await client.post(SESSIONS_URL, json={"listing_ids": [listing.id]}, headers={"Authorization": f"Bearer {token}"})
+        session_id = r.json()["id"]
+        await client.post(f"{SESSIONS_URL}/{session_id}/changes", json={"field_name": "title", "operation": "append", "operation_value": " x"}, headers={"Authorization": f"Bearer {token}"})
+        await client.post(f"{SESSIONS_URL}/{session_id}/preview", headers={"Authorization": f"Bearer {token}"})
+        with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
+             patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock) as m:
+            m.return_value = {"state": "active"}
+            await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    r = await client.get(f"{APPLY_JOBS_URL}?page=1&per_page=2", headers={"Authorization": f"Bearer {token}"})
+    data = r.json()
+    assert len(data["items"]) == 2
+    assert data["total"] >= 3
+    assert data["page"] == 1
+    assert data["per_page"] == 2
+
+
+async def test_apply_job_history_no_raw_payload_leakage(client, db_session):
+    """History items must never include request_payload/response_payload —
+    only the safe decorated summary shape."""
+    token, _, apply_job_id, _, _ = await _setup_and_apply(
+        client, db_session, email="hist_safe@example.com", org_name="Hist Safe Org", etsy_prefix="hist_safe",
+    )
+
+    r = await client.get(APPLY_JOBS_URL, headers={"Authorization": f"Bearer {token}"})
+    item = next(i for i in r.json()["items"] if i["id"] == apply_job_id)
+    assert "request_payload" not in item
+    assert "response_payload" not in item
+    for forbidden in ("token", "authorization", "secret"):
+        assert forbidden not in str(item).lower()

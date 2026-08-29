@@ -6,6 +6,32 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-29 M16/UX-02A — Magic Revert History + Activity & Audit
+
+**Context:** `/magic-revert` was a truthful placeholder (PR #106); owner decision was to build the real customer-facing history foundation now that the nav entry exists.
+
+**Part 1 audit — the backend already had almost everything needed, code-read not guessed:** `BulkEditApplyJob`/`BulkEditApplyResult`/`RevertJob`/`RevertResult` models all exist; `POST /apply-jobs/{apply_job_id}/revert` already accepts **any** apply_job_id (not just an in-memory reference) and is fully org-scoped — this is genuinely already a safe prior-job revert endpoint, just never exposed in the UI as history. `validate_apply_job_revertable()` already enforces: job belongs to org, status is `completed`/`completed_with_errors`, and no existing `completed`/`completed_with_errors`/`running` revert for that job (409 on double-revert). Confirmed (again) Magic Revert does not consume bulk-edit usage/credits (no `increment_usage` call anywhere in `bulk_edit_revert.py`) and inherits the PR #102 rate-limit guard transparently (same `patch_etsy_listing`/`apply_single_listing_price_quantity` write primitives as apply). **Two real gaps found:** (1) no org-wide "list all my apply jobs across sessions" endpoint existed — only per-session; (2) `validate_apply_job_revertable()` never checked that a job actually had at least one successful item, so an all-failed job could be "reverted" as a silent 0-item no-op. Fixed (2) directly (small, safe, doesn't affect the ~20 pre-existing revert tests since they all use successful-apply fixtures). **Also found and deliberately did NOT fix:** `PLAN_LIMITS["can_use_magic_revert"]` (Free: `False`) has never been enforced anywhere in the revert flow — Magic Revert has always been available regardless of plan. Adding that gate now would require granting a paid plan in ~20 pre-existing tests across `test_bulk_edit_revert.py`/`test_bulk_edit.py` that assume revert just works — out of scope for a history/UI sprint, documented as a follow-up instead of bundled in here.
+
+**Backend additions:**
+- `GET /api/v1/bulk-edit/apply-jobs` (new, org-wide, paginated, optional `status` filter) — `list_apply_jobs_for_org()` in `bulk_edit_apply.py`.
+- `get_revert_eligibility_map()` in `bulk_edit_revert.py` — batch (not N+1), read-only decoration of `can_revert`/`revert_blocked_reason`/`revert_job_id`/`revert_status`, mirroring `validate_apply_job_revertable()`'s actual rules exactly (deliberately excludes the un-enforced plan gate, so the UI never shows a reason the backend wouldn't actually honor).
+- New `ApplyJobHistoryItemOut`/`ApplyJobHistoryPageOut` schemas — safe summary shape, no `request_payload`/`response_payload`, no raw Etsy bodies.
+- 8 new backend tests: org-scoping, eligible-job can_revert, already-reverted job blocked (both the UI flag AND a direct second `/revert` call → 409), zero-success job blocked (both flag and direct call → 400), status filter, pagination, no-raw-payload-leakage assertion.
+
+**Frontend — `/magic-revert` rebuilt from placeholder into a real history page:** job table (date, status, item counts, revert availability, view-details/revert actions), status filter, revertable-only filter, expandable inline item-level detail (reuses the existing `getApplyJobDetail()` endpoint, no new route needed), empty/loading/error states, no fake rows. Revert action reuses the exact PR #103 (UX-01A) safety pattern: ref-level double-submit guard, confirmation modal, full-page blocking overlay while in flight — same standard as Bulk Edit's own immediate revert, not a lesser one.
+
+**Frontend — `/account/activity` rebuilt from placeholder into a real activity page:** reuses the same `GET /apply-jobs` history data (no new endpoint needed) to synthesize both "Bulk Edit Apply" and "Magic Revert" rows (a job with a `revert_job_id` produces a second synthesized row) — no generic audit-event model exists yet, so per the task's own instruction this uses apply/revert job data only and states plainly "More activity types coming soon" for account events (shop connected/disconnected, plan changes, AI usage, media jobs) rather than fabricating them.
+
+**Bulk Edit completion screen:** added "View job details" / "Open Magic Revert History" / "Open Activity & Audit" links next to the existing Apply result banner — current immediate in-flight Magic Revert button/behavior completely untouched.
+
+**No new recommendation banners** — the new links added to the Bulk Edit completion screen are functional post-action navigation tied to the just-completed job, not cross-sell suggestion strips; the PR #106 banner-removal policy holds.
+
+**Checks:** 8 new backend tests pass; targeted suite (`test_bulk_edit_revert.py`+`test_bulk_edit_apply.py`+`test_bulk_edit.py`): 91 passed, 8 pre-existing baseline failures (same named `*_requires_auth`/`*_blocked_when_etsy_not_configured` set seen throughout this session) — no regressions. Frontend `tsc`/`lint`/`build` all clean.
+
+**Safety:** no Etsy API call, no Bulk Edit apply/Magic Revert/shop sync, no OAuth completed by Claude/Codex — the eligibility/revert-endpoint work was verified entirely by code read and automated tests, never by triggering a real revert. PR #101 not merged in this round.
+
+---
+
 ## 2026-08-29 UX-01D — Owner visual QA remediation
 
 **Context:** owner tested production after PR #105 and found 6 further issues: Magic Revert missing from nav, Variation Bulk Editor and Photo/Video Bulk Editor both fail to load listings, Bulk Create falsely says "Connect your Etsy shop first" despite a connected shop, product detail page has blank images and large empty card areas, and no performance metrics exist. Plus a request to remove cross-sell/recommendation banners for a cleaner customer SaaS feel.

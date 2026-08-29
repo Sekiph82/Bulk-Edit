@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   getAccessToken, getListings, createBulkEditSession, getBulkEditSession,
   addBulkEditChange, removeBulkEditChange, generateBulkEditPreview,
@@ -753,6 +754,17 @@ function BulkEditContent() {
                 <p className="font-semibold mb-1">Apply complete — {applyJob.status}</p>
                 <p>Success: {applyJob.success_count} · Failed: {applyJob.failure_count} · Skipped: {applyJob.skipped_count}</p>
                 {applyJob.error_message && <p className="mt-1 text-xs">{applyJob.error_message}</p>}
+                <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 text-xs">
+                  <Link href="/magic-revert" className="font-medium underline underline-offset-2 hover:opacity-80">
+                    View job details →
+                  </Link>
+                  <Link href="/magic-revert" className="font-medium underline underline-offset-2 hover:opacity-80">
+                    Open Magic Revert History →
+                  </Link>
+                  <Link href="/account/activity" className="font-medium underline underline-offset-2 hover:opacity-80">
+                    Open Activity &amp; Audit →
+                  </Link>
+                </div>
               </div>
             )}
 

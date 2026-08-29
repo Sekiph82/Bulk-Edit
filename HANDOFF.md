@@ -2,7 +2,27 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-29 (UX-01D: owner visual QA remediation)
+## RESUME HERE — 2026-08-29 (M16/UX-02A: Magic Revert History + Activity & Audit)
+
+**Branch `feature/magic-revert-history-activity`, based on `origin/main` past PR #106's `06e924c`.** Owner decision after PR #106: the Magic Revert nav item existed but was only a placeholder — build the real history foundation.
+
+**Audit first, code-read not guessed:** the backend already supports reverting an arbitrary past `apply_job_id` (org-scoped, idempotent — 409 on double-revert), not just an in-memory reference — `POST /apply-jobs/{apply_job_id}/revert` was already safe for history use, just never exposed in the UI. Fixed one real gap: `validate_apply_job_revertable()` never checked a job had ≥1 successful item before "reverting" it (harmless 0-item no-op before, now a clean 400). **Found and deliberately left unfixed:** `can_use_magic_revert` plan gate has never been enforced on the revert endpoint — adding it now would require granting a paid plan in ~20 pre-existing tests, out of scope for this sprint; documented as a follow-up.
+
+**Prior-job Magic Revert execution is ENABLED**, not read-only-only — the existing endpoint was already safe to call by id, so `/magic-revert` genuinely reverts eligible historical jobs, not just displays them. Eligibility (`can_revert`/`revert_blocked_reason`/`revert_status`) is computed batch/read-only via a new `get_revert_eligibility_map()` that mirrors the real enforcement rules exactly — never shows "available" for something the backend would actually reject.
+
+**New backend endpoint:** `GET /api/v1/bulk-edit/apply-jobs` (org-wide, paginated, status filter) — the only genuinely new capability; everything else (job detail, revert-jobs list, revert-job detail/results) already existed and is just now wired into the UI.
+
+**`/magic-revert`** rebuilt into a real history page: table, status/revertable filters, expandable item-level detail, revert action with the exact PR #103 (UX-01A) double-submit-guard + blocking-overlay pattern. **`/account/activity`** rebuilt to show real Bulk Edit Apply + Magic Revert rows (synthesized from the same history endpoint, no new backend needed) with a truthful "more activity types coming soon" note for account events. Bulk Edit's completion screen gained links to both — its own immediate in-flight Magic Revert button is untouched.
+
+**8 new backend tests**, targeted suite 91 passed / 8 pre-existing baseline failures (same set as every prior round, not a regression). Frontend `tsc`/`lint`/`build` clean.
+
+**No Etsy API call, no Bulk Edit apply/Magic Revert/shop sync/OAuth by Claude/Codex** — every claim about the revert endpoint's safety was verified by code read and automated tests only.
+
+**Not yet done as of this write-up:** commit, push, PR open, CI watch, merge, deploy, post-deploy route verification. **After that's all safely done: merge PR #101** (`docs/hiveai-dashboard-and-tasks`, H!veAI-format `TASKS.md`) — re-verify its diff is docs-only immediately before merging, per the task's own explicit pre-merge safety check.
+
+---
+
+## Previously — 2026-08-29 (UX-01D: owner visual QA remediation)
 
 **Owner tested production after PR #105 and reported 6 issues, all addressed this round — branch `fix/ux01d-owner-visual-remediation`, based on `origin/main` past PR #105's `1bc563e`.**
 
