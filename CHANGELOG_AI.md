@@ -6,6 +6,32 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-29 Account-01 — Account Center + Connected Shops + customer-safe Plan/Usage UI
+
+**Context:** combined run — independent audit of PR #104, TASKS.md format conversion, then this runtime sprint, gated in sequence. PR #104 audit: CONDITIONAL, 0 BLOCKER/MAJOR, 1 MINOR (self-reported test-pass count of 176 did not match an independent rerun of 171 passed/180 collected, though the underlying pass/fail claim re-verified true), 1 NOTE (no live click-through of the new Listings navigation yet). TASKS.md conversion: `M00`-`M20` H!veAI-style milestone ledger, format fetched directly from `AI-Commerce-HQ`'s `H!veAI/TASKS.md`, 21 milestones/21 status lines/95 packages validated. Both on `docs/hiveai-dashboard-and-tasks` (PR #101, still not merged); full detail in that branch's own log entries.
+
+**Account-01 — branch `feature/account-center-connected-shops`, based on `origin/main` past PR #104's `60f9734`.**
+
+**Account Center:** new `/account` route tree — a shared subnav layout (`app/(app)/account/layout.tsx`) plus 11 pages: Overview (`/account`), Plan & Billing (`/account/billing`), Usage (`/account/usage`), Credits (`/account/credits`), Connected Shops (`/account/connected-shops`), Team/Users (`/account/team`), Security (`/account/security`), Notifications (`/account/notifications`), Activity & Audit (`/account/activity`), Data & Privacy (`/account/data-privacy`), Support (`/account/support`).
+
+**Main nav:** "Shops" removed from `AppShell`'s sidebar nav (`components/ui/AppShell.tsx`); "Account" added in the same slot, pointing to `/account`. Removed the now-unused `ShopIcon()` component.
+
+**Backward compatibility:** `/shops` and `/billing` are now thin client-side redirects (`useEffect` + `router.replace`, wrapped in `Suspense` since they read `useSearchParams`) to `/account/connected-shops` and `/account/billing` respectively, both forwarding the full query string. Confirmed via grep that the backend's Etsy OAuth callback still redirects to `{FRONTEND_URL}/shops?connected=true`/`?error=...` unchanged — the redirect chain preserves that result instead of losing it, and zero OAuth code was touched.
+
+**Customer-facing wording cleanup (frontend-only, zero backend files changed):** the pre-existing `/billing` page displayed "Access source: Comp grant" and the sentence "This access was granted by an admin comp — no Stripe charge is associated with it" directly to the customer, plus a prominent "Billing subscription: Free" row even when `effective_plan` was Pro. `/account/billing` (adapted from the same component) drops the `access_source` row entirely and replaces the raw-subscription-plan row with one truthful payment-status line derived from the existing `billing_charge_status` field ("Billed through Stripe." / "Not billed through Stripe." / "No Stripe subscription is associated with this plan." when on a paid effective plan with no Stripe customer). No backend schema change was needed — `SubscriptionResponse` already carried `effective_plan` and `billing_charge_status`, which fully cover the customer-safe surface; only the internal-only fields (`access_source`, prominent `subscription_plan`) stopped being rendered. Verified via grep across `app/(app)/account/`, `app/(app)/billing/`, `app/(app)/shops/`, and `components/account/`: zero matches for `comp grant`/`manual admin`/`admin comp`/`access source` (case-insensitive). The one remaining `comp grant` string in the whole frontend tree is in `app/owner/organizations/[id]/page.tsx` — the internal owner console, a separate superuser-gated route tree, correctly left alone since that surface is exactly where comp-grant terminology belongs.
+
+**Connected Shops** (`/account/connected-shops`): the old `/shops` page's full content relocated verbatim — Connect Etsy (OAuth redirect), Disconnect, shop list with connection status/last-synced, the unauthenticated `?next=` login-redirect pattern preserving the OAuth callback query. No OAuth logic rewritten.
+
+**Usage / Credits:** both read the existing `GET /billing/usage` endpoint, already effective-plan-correct as of PR #104 — no new backend endpoint needed. Usage shows bulk edits/AI credits/media assets/listings synced (used/limit/remaining, with a progress bar, amber at 80%+, red at 100%+) plus a raw-numbers row for dynamic-pricing-jobs/scheduled-jobs/max-shops limits. Credits shows the AI credit balance/limit, a static "what consumes credits" list, and a truthful "coming once transaction logging ships" placeholder for history.
+
+**Team, Security, Notifications, Activity & Audit, Data & Privacy, Support:** truthful MVP placeholders via a small shared `components/account/AccountPlaceholder.tsx` — no fake data, no fake controls, each states plainly what's not built yet. Team shows the real signed-in account owner (via the existing `/auth/me` endpoint) plus a "roles coming soon" list (Owner/Manager/Editor/Viewer — no "admin" label). Data & Privacy states the real current AI-data-usage posture (no Etsy data sent to an external AI provider unless explicitly enabled) without naming any internal env var.
+
+**Checks:** `tsc --noEmit` clean; `next lint` 0 errors (same pre-existing `react-hooks/exhaustive-deps` warning pattern already present on every other page in this codebase, none new in kind); `next build` clean, all 11 `/account/*` routes plus the two redirect routes appear in the build output. `git diff --check` clean. Manual secret-pattern scan of the diff: zero matches. Forbidden customer-copy scan: zero matches in customer-facing code, one correctly-scoped match in the internal owner console (documented above).
+
+**Safety:** no Etsy API call, no OAuth completed, no Bulk Edit apply, no Magic Revert, no shop sync, no Stripe mutation performed by Claude/Codex. Zero backend files changed this round. PR #101 not merged or touched.
+
+---
+
 ## 2026-08-29 Pro comp-grant bulk edit gate fix + UX-01B product detail page
 
 **Context:** owner's Billing page correctly showed Current access: Pro Monthly / Access source: Comp grant / 5000 bulk edits per month, but a single-listing Bulk Edit apply (`price_amount` 6288→6000, French Bulldog Makeup Bag) was blocked with "Monthly bulk edit limit reached. Upgrade your plan to continue." — despite the account being nowhere near 5000 usage.
