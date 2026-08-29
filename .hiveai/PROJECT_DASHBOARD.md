@@ -52,11 +52,12 @@ Build/test metadata: `apps/backend/requirements*.txt`, `apps/frontend/package.js
 
 ## Current operating state
 
-Phase: Private Beta production QA moving into Bulk Edit apply/revert UX hardening.
-Known good: Etsy OAuth, owner shop connection, 210 active listing sync, title write, single and 33-listing bulk non-variation price write, 32-listing bulk Magic Revert, Etsy rate-limit guard (see `TASKS.md` Sprint 2).
-Current manual proof needed: none blocking — 3/10-listing batch sizes and non-price bulk fields remain unverified but are not blockers.
-Current risk: Apply/Revert confirmation modal stays interactable during an in-flight write (owner clicked confirm 4-5 times mid-operation) — tracked as UX-01A.
-Immediate next task family: UX-01A (Apply/Revert loading overlay + double-submit guard, in progress), then UX-01B/C/D (product detail page, health/insights navigation, product-page write architecture) — see `TASKS.md` for detail.
+`TASKS.md` was converted to the H!veAI-style milestone ledger (M00-M20) on 2026-08-29. This section is a snapshot pointer only — `TASKS.md`'s own "Current truth" section is authoritative if the two ever disagree.
+
+Phase: Private Beta production QA; M00-M07 PASS/CLOSED, M11 (Account Center / Account-01) ACTIVE.
+Known good: Etsy OAuth, owner shop connection, 210 active listing sync, title write, single and 33-listing bulk non-variation price write, 32-listing bulk Magic Revert, Etsy rate-limit guard, Apply/Revert double-submit guard + overlay (owner-verified in production), effective-plan billing/usage gate fix (PR #104, independently audited CONDITIONAL — 0 BLOCKER/MAJOR).
+Current manual proof needed: none blocking — see `TASKS.md` M04.04/M09.04 for the specific open verification items (3/10-listing batch sizes, non-price bulk fields, owner click-through of the new product-detail navigation).
+Immediate next task family: M11 Account Center + Connected Shops + customer-safe Plan/Usage UI (Account-01) — see `TASKS.md` for the full milestone.
 
 ## Safety policy
 

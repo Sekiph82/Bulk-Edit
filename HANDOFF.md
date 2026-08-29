@@ -2,7 +2,17 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-29 (Bulk apply/revert owner-verified; UX-01A in progress)
+## RESUME HERE — 2026-08-29 (TASKS.md converted to H!veAI milestone format; independent PR #104 audit CONDITIONAL)
+
+**`TASKS.md` was fully rewritten into the H!veAI-style milestone ledger** (`# BULK EDIT MASTER TASKS`, `M00`-`M20`, `### Mxx.yy` packages, `[x]`/`[~]`/`[ ]`/`[!]` checkboxes, per-milestone status lines) — same structure as `AI-Commerce-HQ`'s `H!veAI/TASKS.md` (fetched directly from GitHub as the format authority, not guessed). Old ad hoc "Sprint 1/2/3..." numbering is retired; every prior sprint item was mapped into the new milestone map (see `TASKS.md`'s own "Milestone policy" section for the mapping rationale). Structure validated: 21 milestone headers, 21 status lines, 95 packages, no malformed checkboxes. `.hiveai/PROJECT_DASHBOARD.md` "Current operating state" refreshed to match, still pointer-only.
+
+**Before converting, an independent strict audit of PR #104** (`fix(billing): align bulk edit limits with effective plan and add listing detail page`) was run — code read directly (not the builder log taken on faith), fresh test execution, fresh `tsc`/`lint`/`build`, fresh `git diff --check`/secret scan. **Verdict: CONDITIONAL** — 0 BLOCKER, 0 MAJOR. 1 MINOR: the PR's self-reported test-pass count ("176 passed") did not match an independent rerun (171 passed of 180 collected on the same command) — the underlying claim re-verified true (same 9 named pre-existing failures, all new tests pass, no regression), only the headline number was wrong. 1 NOTE: no live-browser click-through of the new Listings navigation was performed (already self-disclosed in the original execution log, not a hidden gap). Full audit file: `2026-08-29_13-31_AUDIT_PR104_billing_gate_product_detail.md`. Per the gate rule (CONDITIONAL-with-only-MINOR/NOTE → continue), Phase 2 (this conversion) and Phase 3 (Account-01) proceeded.
+
+**Both phases happened on `docs/hiveai-dashboard-and-tasks` (PR #101, still not merged) for docs, and a separate fresh runtime branch for Account-01 — see the next section below once that phase completes.**
+
+---
+
+## Previously — 2026-08-29 (Bulk apply/revert owner-verified; UX-01A in progress)
 
 **Owner ran a 33-listing bulk price apply and a 32-listing bulk Magic Revert live (2026-08-29), both under the PR #102 rate-limit guard.** Apply: `price_amount=6288` on 33 listings, UI status `completed_with_errors`, Success 32 / Failed 0 / Skipped 1 (1 listing was already at 6288 — correct no-op). Owner's tracking interpretation: 100% successful business outcome. Etsy Shop Manager confirmed `$60.00`→`$62.88`. Revert: `completed`, Restored 32 / Failed 0 / Skipped 0, Etsy confirmed `$62.88`→`$60.00`. **This is documentation/tracking only — no frontend/backend status wording, `completed_with_errors` semantics, or skipped/no-op labeling was changed.** See `TASKS.md` 1.11, 1.12, 2.1, 2.4, 2.6 for full detail.
 
