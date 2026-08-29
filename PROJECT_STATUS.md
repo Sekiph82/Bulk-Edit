@@ -28,8 +28,11 @@ Post-launch production QA. Production is **LIVE** under Private Beta (new sign-u
 | Bulk Edit price write — readiness_state_id required | **Merged and deployed, owner-confirmed live success (2026-08-28)** — PR #100. `normalize_etsy_inventory_tree()` now captures `readiness_state_id` from Etsy's GET response; the writable-payload builder guarantees every offering has one, falling back to a documented placeholder only when Etsy's own response genuinely lacks one. Owner's live retest: French Bulldog listing price write succeeded end-to-end. |
 | Etsy rate-limit guard/backoff | **Merged and deployed (2026-08-28)** — PR #102, merge `c68b4649`. Retry-with-backoff (honors `Retry-After`, max 3 attempts) on Etsy write calls plus a per-shop 1100ms write-spacing gate. Owner's 33-listing bulk apply + 32-listing bulk revert both ran clean under it. |
 | Apply/Revert loading overlay + double-submit guard (UX-01A) | **Merged and deployed, owner-verified in production (2026-08-29)** — PR #103, merge `5b195ea8`. Owner screenshot confirms the blocking overlay and copy appear correctly during Apply. |
-| Pro comp-grant bulk edit gate fix | **This round (2026-08-29)** — `check_usage_limit()` and 4 sibling feature gates (AI tools, Dynamic Pricing, scheduled jobs, `/billing/usage`) were reading the raw Free-defaulting `Subscription.plan` instead of the comp-grant-aware effective plan. A Pro comp-grant account was blocked at Free's 10/month bulk-edit ceiling instead of Pro's 5000. Fixed at the root (`get_effective_plan()`), error messages now state usage/limit context. See `DECISIONS.md`/`CHANGELOG_AI.md` for full root-cause writeup. |
-| Product detail page (UX-01B) | **This round (2026-08-29)** — new route `/listings/[listingId]`, safe launch-only actions (all deep-link to Bulk Edit, no direct Etsy writes). Listings page row/title click now opens it; a small Quick View icon keeps the existing drawer available. |
+| Pro comp-grant bulk edit gate fix | **Merged and deployed (2026-08-29)** — `check_usage_limit()` and 4 sibling feature gates (AI tools, Dynamic Pricing, scheduled jobs, `/billing/usage`) were reading the raw Free-defaulting `Subscription.plan` instead of the comp-grant-aware effective plan. A Pro comp-grant account was blocked at Free's 10/month bulk-edit ceiling instead of Pro's 5000. Fixed at the root (`get_effective_plan()`), error messages now state usage/limit context. See `DECISIONS.md`/`CHANGELOG_AI.md` for full root-cause writeup. |
+| Product detail page (UX-01B) | **Merged and deployed (2026-08-29)** — new route `/listings/[listingId]`, safe launch-only actions (all deep-link to Bulk Edit, no direct Etsy writes). Listings page row/title click now opens it; a small Quick View icon keeps the existing drawer available. |
+| Account Center + Connected Shops (Account-01) | **Merged and deployed (2026-08-29)** — PR #105. New `/account` 11-route subnav, Connected Shops relocated from `/shops`, customer-safe Plan/Billing/Usage/Credits UI (comp-grant wording removed from customer-facing surfaces). |
+| UX-01D owner visual QA remediation | **Merged and deployed (2026-08-29)** — PR #106. Magic Revert added to nav, Media page listings-load bug fixed, Bulk Create false Etsy-not-connected gate fixed, product-detail images/layout fixed, truthful Performance metrics card added, 3 cross-sell banners removed. |
+| Magic Revert History + Activity & Audit (M16/UX-02A) | **Merged and deployed (2026-08-29)** — PR #107, merge `7ee420d`. New org-wide `GET /bulk-edit/apply-jobs` endpoint; `/magic-revert` and `/account/activity` rebuilt from placeholders into real history pages; prior-job Magic Revert execution enabled (not just read-only), reusing the PR #103 double-submit-guard/blocking-overlay pattern. Both prod apps confirmed `ACTIVE`, all 9 post-deploy health/route checks returned 200. `can_use_magic_revert` plan gate remains unenforced — documented follow-up, not a regression. |
 | Public website | Aligned with the submitted appeal as of PR #64 (merge `6be4046`) — public AI/marketing wording neutralized, Privacy/Terms updated, feature/health public routes not exposed, sitemap clean. |
 
 ## Environment Status
@@ -42,7 +45,9 @@ Post-launch production QA. Production is **LIVE** under Private Beta (new sign-u
 
 ## Known Blockers
 
-- **Pro comp-grant bulk edit gate fix not yet merged/deployed** — code-complete on `fix/billing-gate-and-product-detail-page`, needs PR open → CI green → merge → prod deploy. See `HANDOFF.md`.
+- **3-listing and 10-listing batch sizes, and non-price bulk fields, remain unverified** — the 33-listing case (largest) is proven for price; smaller sizes and other fields are not blockers but are still open Sprint 2 test gaps.
+- **`can_use_magic_revert` plan gate is not enforced** on the revert endpoint (found during the M16/UX-02A audit, PR #107) — Magic Revert has always worked regardless of plan. Deliberately not fixed yet: would require granting a paid plan in ~20 pre-existing tests. Documented follow-up, not a regression.
+- PR #101 (`docs/hiveai-dashboard-and-tasks`) restructures `TASKS.md` into the canonical sprint roadmap — merging now that PR #107 is safely deployed and verified.
 - **HTML-entity DB backfill not run** — `apps/backend/scripts/backfill_html_entity_decode.py` written (dry-run by default) but not executed; the frontend decode fix already makes the visible symptom disappear, so this is a data-hygiene follow-up, not a blocker, pending owner approval to run `--apply`.
 - Email-delivery domain verification (Resend, `bulkeditapp.com`) status not re-checked recently — see `docs/operations/PRODUCTION_LAUNCH_FOLLOWUPS.md` if this becomes relevant again.
 
@@ -52,7 +57,7 @@ Nothing currently blocking.
 
 ## Current Next Action
 
-**Merge and deploy `fix/billing-gate-and-product-detail-page`, verify health/route status, then owner retries the single-listing price apply that was previously blocked** — it should now succeed against the correct Pro comp-grant limit. Do not create a new Etsy developer app, do not disable Private Beta, do not enable Etsy-derived external AI processing, do not perform any Etsy write from this session, and do not submit another appeal.
+**PR #107 (M16/UX-02A) merged and deployed 2026-08-29** — Magic Revert History + Activity & Audit is live. PR #101 (H!veAI `TASKS.md` format) is merging next now that the runtime PR is safely deployed and route-verified. Do not create a new Etsy developer app, do not disable Private Beta, do not enable Etsy-derived external AI processing, do not perform any Etsy write from this session, and do not submit another appeal.
 
 ## Last Updated
 

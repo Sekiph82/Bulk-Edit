@@ -6,6 +6,27 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-29 Owner-verified 33-listing bulk apply + 32-listing bulk Magic Revert (docs sync); UX-01A started
+
+**Context, for the record:** between this docs branch's last update (`8a98af1`) and now, a separate engineering branch (`fix/etsy-rate-limit-guard`) shipped PR #102 — merge `c68b4649`, 2026-08-28 — adding retry-with-backoff to Etsy write calls plus a per-shop 1100ms write-pacing gate, closing the gap that let the owner's earlier follow-up price test hit an unretried `HTTP 429`. That work is fully detailed in `main`'s `CHANGELOG_AI.md` (this docs branch hasn't been rebased onto it, so it isn't duplicated here — just referenced).
+
+**This session — owner ran two live tests against the deployed guard (2026-08-29):**
+
+1. **33-listing bulk price apply**, `price_amount=6288` on 33 selected listings. Bulk Edit UI technical status: `completed_with_errors`, Success 32 / Failed 0 / Skipped 1. Owner's stated intent was "make all 33 selected listing prices equal to 6288" — 32 listings needed the change and got it, 1 was already at 6288 so was correctly skipped as a no-op, 0 failed. Owner explicitly frames this as a 100% successful business outcome. **This framing is recorded here for project tracking only — it does not change, and this session did not touch, the frontend `completed_with_errors` status label, the "Skipped" wording, result card colors, or backend job-status semantics.** Etsy Shop Manager visually confirmed the 32 changed listings moved `$60.00`→`$62.88`.
+2. **32-listing bulk Magic Revert** on the same apply result. Bulk Edit UI status: `completed`, Restored 32 / Failed 0 / Skipped 0. Etsy Shop Manager confirmed `$62.88`→`$60.00` on the same listings.
+
+Net effect: Bulk Edit's price write and Magic Revert are now owner-verified at bulk scale (33/32 listings), not just single-listing, and both ran clean under the PR #102 rate-limit guard — no 429s, no unexpected failures.
+
+**Docs updated (this branch, `docs/hiveai-dashboard-and-tasks`):** `TASKS.md` (1.11 and 1.12 → `[DONE]`, 2.1 → `[DONE]`, 2.4 and 2.6 → `[PARTIAL]` with evidence, new UX-01A/B/C/D entries under 12.3, Current production facts, Immediate next actions), `.hiveai/PROJECT_DASHBOARD.md` (pointer-only "Current operating state" refresh, no task-list duplication), `HANDOFF.md`, `PROJECT_STATUS.md`, this entry. `DECISIONS.md` not touched — no new durable policy decision this round, just recording owner-run verification evidence.
+
+**New issue found during the same live test, not yet fixed as of this docs commit:** the Apply/Revert confirmation modal stays interactable while the write is already in flight — owner clicked the confirm button 4-5 times mid-operation. No evidence of an actual duplicate Etsy write (the apply/revert item loop is sequential), but the UI must not allow this. Tracked as **UX-01A** — ref-level double-submit guard + full-page blocking loading overlay, implemented on a separate runtime branch (`fix/bulk-edit-apply-revert-loading-guard`, based on `origin/main`, not this docs branch) in the same session; see that branch's own `CHANGELOG_AI.md` entry on `main` for implementation detail once merged.
+
+**Also recorded this session, documentation only, not implemented:** UX-01B (product detail page, `/listings/[listingId]`), UX-01C (Listing Health issue detail + Shop Insights affected-listings navigation), UX-01D (product-page action/credit/write-surface architecture, needed before any direct inline write from a product page). Full acceptance criteria in `TASKS.md` Sprint 12.3.
+
+**Safety:** no Etsy API call made by Claude/Codex. No Bulk Edit apply or Magic Revert run by Claude/Codex — both tests above were owner-run through the app. No secrets in this diff. PR #101 not merged.
+
+---
+
 ## 2026-08-29 M16/UX-02A — Magic Revert History + Activity & Audit
 
 **Context:** `/magic-revert` was a truthful placeholder (PR #106); owner decision was to build the real customer-facing history foundation now that the nav entry exists.
