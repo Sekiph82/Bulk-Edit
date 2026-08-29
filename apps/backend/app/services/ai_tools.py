@@ -66,16 +66,17 @@ def assert_etsy_data_to_ai_allowed() -> None:
 
 
 async def assert_ai_usage_allowed(org_id: str, db: AsyncSession) -> None:
-    from app.core.plans import VALID_PAID_PLANS
-    sub = await ensure_subscription_exists(org_id, db)
-    if sub.plan not in VALID_PAID_PLANS:
+    from app.core.plans import VALID_PAID_PLANS, get_effective_plan
+    await ensure_subscription_exists(org_id, db)
+    plan = await get_effective_plan(db, org_id)
+    if plan not in VALID_PAID_PLANS:
         raise AIToolsError("AI tools require a paid plan. Upgrade to access AI features.", 402)
-    limits = get_plan_limits(sub.plan)
+    limits = get_plan_limits(plan)
     limit = limits.get("ai_credits_per_month", 0)
     counter = await get_or_create_usage(org_id, db)
     if counter.ai_credits_used >= limit:
         raise AIToolsError(
-            f"AI credit limit reached ({limit}/month). Upgrade your plan for more credits.", 402
+            f"AI credit limit reached ({counter.ai_credits_used}/{limit} this month). Upgrade your plan for more credits.", 402
         )
 
 
@@ -363,8 +364,10 @@ async def convert_to_bulk_edit(
 
 
 async def get_ai_usage(org_id: str, db: AsyncSession) -> dict:
-    sub = await ensure_subscription_exists(org_id, db)
-    limits = get_plan_limits(sub.plan)
+    from app.core.plans import get_effective_plan
+    await ensure_subscription_exists(org_id, db)
+    plan = await get_effective_plan(db, org_id)
+    limits = get_plan_limits(plan)
     limit = limits.get("ai_credits_per_month", 0)
     counter = await get_or_create_usage(org_id, db)
     period = _current_period_key()

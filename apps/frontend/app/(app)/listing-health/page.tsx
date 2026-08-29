@@ -307,6 +307,12 @@ function ListingHealthContent() {
                           >
                             Bulk Edit
                           </Link>
+                          <Link
+                            href={`/listings/${listing.listing_id}`}
+                            className="text-xs text-gray-500 hover:text-gray-700"
+                          >
+                            View Product
+                          </Link>
                         </div>
                       </td>
                     </tr>

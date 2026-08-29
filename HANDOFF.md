@@ -2,7 +2,19 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-29 (UX-01A: Apply/Revert loading overlay + double-submit guard)
+## RESUME HERE — 2026-08-29 (Pro comp-grant bulk edit gate fix + UX-01B product detail page)
+
+**Owner observed a critical mismatch:** Billing page correctly shows Pro Monthly (5000 bulk edits/month) via comp grant, but Bulk Edit apply blocked a single-listing price change with "Monthly bulk edit limit reached." **Root cause found and fixed (branch `fix/billing-gate-and-product-detail-page`, based on `origin/main` past PR #103's `5b195ea`):** `billing.py::check_usage_limit()` (backing the apply gate) read the raw `Subscription.plan` (defaults `"free"` for a comp-only account) instead of `get_effective_plan()` (comp-grant aware, already used correctly by `/billing/subscription` since PR #87). Free plan's `bulk_edits_per_month` is 10 — the owner's own 33-listing/32-success live test alone exceeds that, which is why it blocked; nowhere close to the real 5000 ceiling. **Not a usage overage — a wrong-plan-resolved bug**, proven from code + the org's own visible apply history, no production DB write or credential use needed.
+
+Audited every caller of the same raw-plan pattern and found the identical bug independently duplicated in `ai_tools.py` (AI credit gate ×2), `dynamic_pricing.py` (Dynamic Pricing gate), `scheduled_jobs.py` (scheduling gate), and `GET /billing/usage` — fixed all five in this same PR (same one-line root cause, see `DECISIONS.md`). `check_usage_limit()` now returns `(within_limit, current_usage, limit)` instead of a bare bool, and every blocked-gate error message now states usage/limit context ("Used X of Y this month") instead of a bare "limit reached." 5 new tests in `test_billing.py` cover: free-over-limit blocks, comp-Pro-under-5000-not-blocked (the exact reported bug, regression-proof), comp-Pro-blocks-at-5000, gate/Billing-endpoint agreement, and the error-message content with a no-secret-leak assertion.
+
+**Same PR, Part B — UX-01B product detail page** (owner's design, listed in full in `TASKS.md` Sprint 12.3 on the docs branch): new route `apps/frontend/app/(app)/listings/[listingId]/page.tsx` — full MVP page (header/hero, overview, title, description, tags, materials, price & inventory, media, health placeholder, safe-actions card), all action buttons deep-link to `/bulk-edit?listing_ids=<id>` (preselect only — no direct Etsy writes). Listings page: clicking a row/title now navigates to the product page instead of opening the drawer; added a small 👁 "Quick View" icon per row that still opens the existing `DetailSidebar` without navigating; selection checkboxes, sync, filters, saved views, column visibility, thumbnail hover all untouched. Listing Health page gained a "View Product" link next to its existing "Bulk Edit" action, same internal listing id.
+
+**No Etsy API call, no Bulk Edit apply, no Magic Revert, no shop sync performed by Claude/Codex.** No production DB read or write — the 5000-vs-actual-usage question was answered from code + this session's own visible apply history, not a live query. PR #101 not merged or touched.
+
+---
+
+## Previously — 2026-08-29 (UX-01A: Apply/Revert loading overlay + double-submit guard)
 
 **Owner ran a 33-listing bulk price apply and a 32-listing bulk Magic Revert live (2026-08-29), both clean under PR #102's rate-limit guard** — apply `completed_with_errors` (Success 32/Failed 0/Skipped 1, the skip a correct no-op already at target value), revert `completed` (Restored 32/Failed 0/Skipped 0), Etsy Shop Manager confirmed `$60.00`↔`$62.88` both directions. Recorded on `docs/hiveai-dashboard-and-tasks` (PR #101, not merged) — documentation/tracking only, no frontend/backend status wording or semantics changed.
 

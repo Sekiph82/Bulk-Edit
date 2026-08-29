@@ -220,6 +220,178 @@ async def test_usage_period_key_format(client, auth_headers):
     assert period[4] == "-"
 
 
+async def test_usage_reflects_comp_grant_effective_plan(client, db_session, auth_headers):
+    """GET /billing/usage must show the comp-granted Pro limit, matching
+    /billing/subscription -- not the raw free subscription's limit. Regression
+    test for the bug where /billing/usage used sub.plan directly."""
+    from app.models.comp_access_grant import CompAccessGrant
+
+    org_id = await _get_org_id(client, auth_headers)
+    db_session.add(CompAccessGrant(
+        organization_id=org_id,
+        comp_plan="pro_monthly",
+        reason="test comp",
+        starts_at=datetime.now(timezone.utc),
+        ends_at=None,
+    ))
+    await db_session.commit()
+
+    r = await client.get(USAGE_URL, headers=auth_headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["limits"]["bulk_edits_per_month"] == 5000
+    assert data["limits"]["max_listings"] == 10000
+
+
+# ─── Bulk edit usage gate: effective plan, not raw subscription ───────────────
+# Regression coverage for the bug where check_usage_limit() read the raw
+# Subscription.plan (defaults "free") instead of the effective plan (comp
+# grant aware) -- an account with Pro access via comp grant but a "free"
+# Stripe subscription was gated against the free plan's 10/month limit
+# instead of Pro's 5000/month, even though /billing/subscription correctly
+# showed Pro. See DECISIONS.md for the root-cause writeup.
+
+async def _grant_comp_pro(db_session, org_id: str) -> None:
+    from app.models.comp_access_grant import CompAccessGrant
+    db_session.add(CompAccessGrant(
+        organization_id=org_id,
+        comp_plan="pro_monthly",
+        reason="test comp",
+        starts_at=datetime.now(timezone.utc),
+        ends_at=None,
+    ))
+    await db_session.commit()
+
+
+async def test_check_usage_limit_free_plan_blocks_over_limit(client, db_session, auth_headers):
+    from app.services.billing import check_usage_limit, get_or_create_usage
+
+    org_id = await _get_org_id(client, auth_headers)
+    counter = await get_or_create_usage(org_id, db_session)
+    counter.bulk_edits_used = 10  # free limit is 10 -- at the ceiling
+    db_session.add(counter)
+    await db_session.commit()
+
+    within_limit, current, limit = await check_usage_limit(org_id, "bulk_edits_used", db_session)
+    assert within_limit is False
+    assert current == 10
+    assert limit == 10
+
+
+async def test_check_usage_limit_comp_pro_uses_pro_limit_not_free(client, db_session, auth_headers):
+    """The exact reported bug: a comp-Pro account with usage above the free
+    ceiling (10) but well below Pro's (5000) must NOT be blocked."""
+    from app.services.billing import check_usage_limit, get_or_create_usage
+
+    org_id = await _get_org_id(client, auth_headers)
+    await _grant_comp_pro(db_session, org_id)
+    counter = await get_or_create_usage(org_id, db_session)
+    counter.bulk_edits_used = 32  # matches the owner's 33-listing/32-success live test
+    db_session.add(counter)
+    await db_session.commit()
+
+    within_limit, current, limit = await check_usage_limit(org_id, "bulk_edits_used", db_session)
+    assert within_limit is True
+    assert current == 32
+    assert limit == 5000
+
+
+async def test_check_usage_limit_comp_pro_blocks_at_pro_limit(client, db_session, auth_headers):
+    from app.services.billing import check_usage_limit, get_or_create_usage
+
+    org_id = await _get_org_id(client, auth_headers)
+    await _grant_comp_pro(db_session, org_id)
+    counter = await get_or_create_usage(org_id, db_session)
+    counter.bulk_edits_used = 5000
+    db_session.add(counter)
+    await db_session.commit()
+
+    within_limit, current, limit = await check_usage_limit(org_id, "bulk_edits_used", db_session)
+    assert within_limit is False
+    assert current == 5000
+    assert limit == 5000
+
+
+async def test_check_usage_limit_agrees_with_billing_subscription_endpoint(client, db_session, auth_headers):
+    """The limit check_usage_limit() applies must be the exact same number
+    /billing/subscription displays -- proves the two paths can't drift apart
+    again (they now both resolve through get_effective_plan())."""
+    from app.services.billing import check_usage_limit
+
+    org_id = await _get_org_id(client, auth_headers)
+    await _grant_comp_pro(db_session, org_id)
+
+    sub_resp = await client.get(SUBSCRIPTION_URL, headers=auth_headers)
+    displayed_limit = sub_resp.json()["limits"]["bulk_edits_per_month"]
+
+    _, _, gate_limit = await check_usage_limit(org_id, "bulk_edits_used", db_session)
+    assert gate_limit == displayed_limit == 5000
+
+
+async def test_bulk_edit_limit_error_includes_usage_and_limit_no_secrets(client, db_session, auth_headers):
+    """Applying a session on a free-plan org already at the limit must
+    surface X/Y context in the error, with no secret/token content."""
+    from sqlalchemy import select
+    from app.models.organization_member import OrganizationMember
+    from app.services.billing import get_or_create_usage
+
+    org_id = await _get_org_id(client, auth_headers)
+    counter = await get_or_create_usage(org_id, db_session)
+    counter.bulk_edits_used = 10
+    db_session.add(counter)
+    await db_session.commit()
+
+    # settings mocked configured so the apply flow reaches the usage gate
+    from unittest.mock import patch, MagicMock
+    from app.models.listing import Listing
+    from app.models.etsy_shop import EtsyShop
+    from app.models.etsy_token import EtsyToken
+    from app.core.encryption import encrypt_token
+    from datetime import timedelta
+
+    shop = EtsyShop(organization_id=org_id, etsy_shop_id="usage_gate_shop", shop_name="Usage Gate Shop", is_connected=True)
+    db_session.add(shop)
+    await db_session.flush()
+    db_session.add(EtsyToken(
+        etsy_shop_id=shop.id,
+        access_token_enc=encrypt_token("fake_token"),
+        refresh_token_enc=encrypt_token("fake_r"),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        scopes="listings_r listings_w",
+    ))
+    listing = Listing(
+        organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="usage_gate_1",
+        title="Usage Gate Listing", state="active", price_amount=2000, quantity=1,
+    )
+    db_session.add(listing)
+    await db_session.commit()
+
+    r = await client.post(
+        "/api/v1/bulk-edit/sessions",
+        json={"listing_ids": [listing.id]},
+        headers=auth_headers,
+    )
+    session_id = r.json()["id"]
+    await client.post(
+        f"/api/v1/bulk-edit/sessions/{session_id}/changes",
+        json={"field_name": "title", "operation": "append", "operation_value": " X"},
+        headers=auth_headers,
+    )
+    await client.post(f"/api/v1/bulk-edit/sessions/{session_id}/preview", headers=auth_headers)
+
+    mock_settings = MagicMock()
+    mock_settings.is_etsy_configured.return_value = True
+    with patch("app.services.bulk_edit_apply.settings", mock_settings):
+        r = await client.post(f"/api/v1/bulk-edit/sessions/{session_id}/apply", headers=auth_headers)
+
+    assert r.status_code == 402
+    detail = r.json()["detail"]
+    assert "10" in detail
+    assert "Used 10 of 10" in detail
+    for forbidden in ("token", "Authorization", "secret", "Bearer"):
+        assert forbidden.lower() not in detail.lower()
+
+
 # ─── Feature gate (service-level unit tests) ──────────────────────────────────
 
 async def test_feature_gate_free_plan():

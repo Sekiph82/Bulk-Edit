@@ -148,12 +148,17 @@ async def apply_bulk_edit_session(
             detail="Etsy integration is not configured. Set ETSY_CLIENT_ID in environment.",
         )
 
-    # 4. Check subscription / usage limit
-    within_limit = await check_usage_limit(organization_id, "bulk_edits_used", db)
+    # 4. Check subscription / usage limit (effective plan -- comp-grant aware)
+    within_limit, current_usage, usage_limit = await check_usage_limit(
+        organization_id, "bulk_edits_used", db
+    )
     if not within_limit:
         raise HTTPException(
             status_code=402,
-            detail="Monthly bulk edit limit reached. Upgrade your plan to continue.",
+            detail=(
+                f"Monthly bulk edit limit reached. Used {current_usage} of {usage_limit} "
+                "this month. Upgrade your plan to continue."
+            ),
         )
 
     # 5. Load preview items
