@@ -92,6 +92,8 @@ export interface ListingDetail extends ListingListItem {
   item_width: number | null;
   item_height: number | null;
   item_dimensions_unit: string | null;
+  lifetime_views: number | null;
+  lifetime_favorites: number | null;
 }
 
 export interface ListingImage {

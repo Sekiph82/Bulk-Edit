@@ -105,6 +105,16 @@ class ListingDetailResponse(ListingListItemResponse):
     item_height: Any
     item_dimensions_unit: str | None
 
+    # Lifetime performance counters, when Etsy's own listing payload included
+    # them at sync time. Etsy's core Listing object (not a separate stats
+    # call) carries `views`/`num_favorers` as lifetime cumulative counters —
+    # no monthly breakdown and no sales/receipts data is part of this object,
+    # so those stay unavailable in the UI rather than being guessed here.
+    # Extracted from the already-synced raw_data JSON blob (see get_listing()) —
+    # never a live Etsy call.
+    lifetime_views: int | None = None
+    lifetime_favorites: int | None = None
+
     model_config = {"from_attributes": True}
 
 
