@@ -6,6 +6,25 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-29 UX-01A — Apply/Revert loading overlay + double-submit guard
+
+**Context:** owner ran a 33-listing bulk price apply + 32-listing bulk Magic Revert live (2026-08-29), both clean under PR #102's rate-limit guard (recorded on `docs/hiveai-dashboard-and-tasks`, PR #101, documentation only — not repeated here). During that same test, owner observed the Apply/Revert confirmation modal stayed interactable while the write was already running, and clicked the confirm button 4-5 times mid-operation.
+
+**Root cause:** `handleApplyConfirmed`/`handleRevertConfirmed` in `apps/frontend/app/(app)/bulk-edit/page.tsx` guarded re-entry only with `useState` (`applying`/`reverting`) — a fast double click can fire the handler a second time before React commits the new state, since `setState` isn't synchronous. Worse, the confirmation modal's own buttons had no `disabled` guard at all, and the modal only closed *after* the API call resolved (inside the `try`/`catch`), so it stayed open and clickable for the entire in-flight duration.
+
+**Fix, branch `fix/bulk-edit-apply-revert-loading-guard` (based on `origin/main`, past PR #102's `c68b464`), frontend-only:**
+- Added `applyInFlightRef`/`revertInFlightRef` (`useRef`) as a synchronous guard alongside the existing state — a ref read/write has no batching delay, so it closes the race window `useState` can't.
+- Moved `setShowApplyModal(false)`/`setShowRevertModal(false)` to the top of each handler, synchronous and before the `await` — the modal now closes the instant confirm is clicked, not after the write finishes.
+- Added a full-page blocking overlay (`fixed inset-0`, `z-[70]`, above the modals' `z-50`) shown whenever `applying || reverting` is true: spinner, "Writing changes to Etsy…" / "Reverting Etsy listings…", "Please keep this page open. Bulk Edit is processing/restoring your selected listings/backup snapshots safely." The overlay's opaque full-screen div blocks clicks to every element beneath it, so no per-button `disabled` audit was needed beyond what already existed.
+
+**Explicitly not touched, verified via `git diff` grep (zero matches):** `completed_with_errors`/skipped/no-op wording, backend job status semantics, result card colors/interpretation. No backend file changed this round — confirmed via `git status`.
+
+**Verification:** no existing frontend test framework in this repo (established prior-session decision — no jest/vitest/RTL, no `.test.tsx` anywhere, CI only lints/builds frontend); relied on `tsc --noEmit` (clean), `next lint` (0 errors, same pre-existing warnings), `next build` (clean), plus a manual code trace of the new ref-guard/close-order/overlay logic. `git diff --check` clean, secret scan clean.
+
+**Safety:** no Etsy API call, no Bulk Edit apply, no Magic Revert performed by Claude/Codex this round — this is a UI-only race-condition/UX fix. PR #101 not merged or touched.
+
+---
+
 ## 2026-08-28 Etsy rate-limit guard/backoff for Bulk Edit writes
 
 **Context:** owner confirmed (outside a formal task) that PR #100's readiness_state_id fix resolved the live price-write bug — French Bulldog listing, `price_amount` 6000→6288, succeeded end-to-end (Bulk Edit and Etsy Shop Manager both reflected the new price). A later manual apply on a different listing (Miniature Schnauzer Makeup Bag) hit a live `HTTP 429 "Exceeded per second rate limit"` — a new, different, expected-category problem: no Etsy WRITE call (`patch_etsy_listing`'s PATCH, `patch_etsy_listing_inventory`/`put_etsy_listing_inventory`'s PUT) had ever had retry/backoff, unlike `etsy_get`, which already did.
