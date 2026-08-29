@@ -35,7 +35,8 @@ Package numbering such as `M08.01`, `M08.02`, etc. is task/audit decomposition o
 - PR #103 (Apply/Revert loading overlay + double-submit guard, UX-01A) merged and deployed; owner visually confirmed the overlay in production.
 - PR #104 (effective-plan usage-gate fix + UX-01B product detail page): merged and deployed. **Independent audit verdict: CONDITIONAL** — 0 BLOCKER, 0 MAJOR, 1 MINOR (builder self-reported test-pass count was numerically wrong, though the underlying pass/fail claim re-verified true), 1 NOTE (no live-browser click-through performed yet, already self-disclosed). See `docs/audits/` / `bulkeditapp logs` audit file `2026-08-29_13-31_AUDIT_PR104_billing_gate_product_detail.md`. Per this file's own gate rule, CONDITIONAL-with-only-MINOR/NOTE items closes the implementation as complete while recording the open items rather than claiming unconditional PASS.
 - PR #101 (`docs/hiveai-dashboard-and-tasks`) remains open and is **not merged**.
-- **Account-01 (Account Center + Connected Shops + customer-safe Plan/Usage UI) is the active/next planned major sprint** — see M11.
+- **Account-01 (M11) shipped as PR #105** (Account Center `/account` 11-route subnav, Connected Shops relocated from `/shops`, customer-safe Plan/Billing/Usage/Credits UI) — merged and deployed 2026-08-29. This docs branch has not yet done a full M11 checkbox backfill against that PR; see `CHANGELOG_AI.md`/main-branch `HANDOFF.md` for the shipped detail in the meantime.
+- **UX-01D (owner visual QA remediation, PR #106) addressed 6 owner-reported issues** — Magic Revert nav placeholder, Media page listings-load bug, Bulk Create false shop-gate, product-detail image/layout fixes, truthful Performance metrics (no fake data), 3 recommendation banners removed. See M09.06, M13.01, M15.01, M16.03.
 
 ---
 
@@ -249,7 +250,15 @@ M08 PARTIAL — core gate-correctness IMPLEMENTATION COMPLETE (CONDITIONAL per M
 - [ ] Owner click-through of the new navigation (row → product page, Quick View → drawer, Back to Listings) — not yet performed; flagged as a NOTE in the PR #104 audit, not a blocker.
 
 ### M09.05 - Direct product-page Etsy writes / write-surface architecture
-- [!] Blocked until M11's credit/plan/write-surface architecture (formerly "UX-01D") is designed — Etsy write surfaces differ (title/description/tags vs price/quantity/inventory vs variations vs media), and audit/revert strategy must be designed before any direct inline write ships from the product page.
+- [!] Blocked until a dedicated credit/plan/write-surface architecture design is done — Etsy write surfaces differ (title/description/tags vs price/quantity/inventory vs variations vs media), and audit/revert strategy must be designed before any direct inline write ships from the product page. (Note: this package was previously mislabeled "UX-01D" in earlier notes — the actual UX-01D sprint that ran was the owner visual QA remediation below, M09.06. This design work remains unnamed/unscheduled.)
+
+### M09.06 - Owner visual QA remediation (UX-01D)
+- [x] Product detail image was always blank: `thumbnail_url` isn't a real `Listing` column — the list endpoint patched it in per-request, the single-item detail endpoint never did. Fixed with the same lookup; frontend also falls back to `getListingImages()`'s first image (2026-08-29).
+- [x] Product detail card layout had large empty space under Title/Tags: a single `grid-cols-2` CSS grid row-pairs cells to equal height. Rewritten as two independent flex columns so each card follows its own content height.
+- [x] Added a truthful "Performance" card: `lifetime_views`/`lifetime_favorites` are real (extracted from the already-synced `raw_data` JSON, zero live Etsy call). Monthly views/sales/favorites and lifetime sales are not part of Etsy's core Listing object and this app has never called the Shop Stats/Receipts endpoints that would provide them — shown as explicitly unavailable ("Requires sales data sync" / "Requires Etsy sales scope"), never a fake `0`. 60-second local-only refresh against this app's own backend while the page is open.
+- [x] Magic Revert added to main nav (`/magic-revert`, new truthful placeholder route — explains today's in-flight-only behavior, links to Bulk Edit and `/account/activity`).
+- [x] Removed 3 recommendation/cross-sell banners (Listings, Listing Health, Profit) for a cleaner customer SaaS feel — grepped for more, none found elsewhere.
+- [ ] Owner click-through of the polished layout/image/metrics (still pending, same as M09.04's open item).
 
 M09 PARTIAL / IMPLEMENTATION COMPLETE FOR SHIPPED ITEMS, PENDING OWNER CLICK-THROUGH VERIFICATION.
 
@@ -354,7 +363,8 @@ M12 PLANNED / PARTIAL (policy default only).
 # M13 - Media, photos, video workflows, and Promote
 
 ### M13.01 - Media module listing picker
-- [ ] Loads listings via the shared picker (M03.04); shows existing images/videos when available.
+- [x] Fixed a real loading bug (2026-08-29, UX-01D): `load()` used `Promise.all([getListings, listMediaJobs, listVideoRenders])` — a failure in the unrelated `listMediaJobs()` call rejected the whole batch and blanked the listings picker with a misleading "Failed to load listings," even though `getListings()` (same helper the Listings page uses) would have succeeded. Decoupled into independent try/catches.
+- [ ] Still loads via a page-local `getListings()` call, not yet the shared `ListingPicker` component (M03.04).
 
 ### M13.02 - Listing image read-only view
 - [ ] Image count, primary image, missing-media warnings; no reorder/delete/upload until enabled.
@@ -399,6 +409,7 @@ M14 PLANNED.
 
 ### M15.01 - Variation inventory read model
 - [ ] Fetch and store/read variation products/offerings/property_values in a safe local representation; read-only matrix view first.
+- Owner-observed (2026-08-29): Variation Bulk Editor shows "No variation listings found" for the connected shop. **Audited, not treated as a confirmed bug** — the `has_variations=true` filter uses the same shared `getListings()` helper as the Listings page and a real, correctly-synced Etsy field, so this may be a truthful zero-result for this shop rather than a broken filter; no live/authenticated way exists in this session to check the real count. Empty state improved (distinguishes no-data from no-search-match) without loosening the filter. Revisit if the owner confirms variation listings do exist in the connected shop.
 
 ### M15.02 - Variation price edit preview
 - [ ] Owner can preview variation-specific price changes; no write until explicit approval.
@@ -427,6 +438,7 @@ M15 PLANNED.
 
 ### M16.03 - Magic Revert from prior jobs
 - [ ] Allow reverting a job other than the one just completed, not only the most recent apply result.
+- [x] A truthful nav-level placeholder for this now exists (2026-08-29, UX-01D): `/magic-revert`, linked from the main nav, explicitly states this isn't built yet and links to `/account/activity` (where it will eventually live) and `/bulk-edit` (today's actual Magic Revert entry point). Not a functional implementation of this package — just makes the gap discoverable and honest instead of the feature being invisible.
 
 ### M16.04 - Audit/activity table
 - [ ] Searchable by user/shop/listing/job/date; export-safe summary; no secrets.
