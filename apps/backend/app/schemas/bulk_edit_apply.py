@@ -61,3 +61,32 @@ class BackupSnapshotOut(BaseModel):
 class ApplyJobWithResultsOut(BaseModel):
     job: ApplyJobOut
     results: list[ApplyResultOut]
+
+
+class ApplyJobHistoryItemOut(BaseModel):
+    """Safe, decorated apply-job summary for org-wide history views (Magic
+    Revert History, Activity & Audit) — adds revert-eligibility on top of the
+    plain ApplyJobOut fields, without exposing request/response payloads."""
+    id: str
+    bulk_edit_session_id: str
+    status: str
+    total_items: int
+    success_count: int
+    failure_count: int
+    skipped_count: int
+    started_at: datetime | None
+    finished_at: datetime | None
+    created_at: datetime
+    can_revert: bool = False
+    revert_blocked_reason: str | None = None
+    revert_job_id: str | None = None
+    revert_status: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ApplyJobHistoryPageOut(BaseModel):
+    items: list[ApplyJobHistoryItemOut]
+    page: int
+    per_page: int
+    total: int

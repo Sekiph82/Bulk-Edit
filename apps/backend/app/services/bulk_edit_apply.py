@@ -508,6 +508,31 @@ async def list_apply_jobs_for_session(
     return list(result.scalars().all())
 
 
+async def list_apply_jobs_for_org(
+    db: AsyncSession,
+    organization_id: str,
+    page: int = 1,
+    per_page: int = 50,
+    status: str | None = None,
+) -> tuple[list[BulkEditApplyJob], int]:
+    """
+    Org-wide apply job history, across every session — used by Magic Revert
+    History (/magic-revert) and Activity & Audit (/account/activity).
+    list_apply_jobs_for_session() above is scoped to one session and isn't
+    useful for a customer who doesn't know/track session ids.
+    """
+    query = select(BulkEditApplyJob).where(BulkEditApplyJob.organization_id == organization_id)
+    if status:
+        query = query.where(BulkEditApplyJob.status == status)
+
+    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = count_result.scalar_one()
+
+    query = query.order_by(BulkEditApplyJob.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+    result = await db.execute(query)
+    return list(result.scalars().all()), total
+
+
 async def get_apply_results(
     db: AsyncSession,
     job_id: str,

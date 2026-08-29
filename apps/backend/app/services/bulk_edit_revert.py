@@ -127,6 +127,15 @@ async def validate_apply_job_revertable(
     """
     Load and validate apply job is revertable. Returns job on success.
     Raises HTTPException on any validation failure.
+
+    NOTE (audited, not fixed here): PLAN_LIMITS["can_use_magic_revert"] is
+    defined (Free: False) but was never actually enforced anywhere in this
+    revert flow -- Magic Revert has always been available regardless of
+    plan. Adding that gate here would also require granting a paid plan in
+    ~20 pre-existing tests across test_bulk_edit_revert.py/test_bulk_edit.py
+    that assume revert just works, which is out of scope for this history/
+    activity sprint. Left as a documented gap (see HANDOFF.md/TASKS.md) for
+    a dedicated follow-up rather than bundled into an unrelated PR.
     """
     result = await db.execute(
         select(BulkEditApplyJob).where(
@@ -142,6 +151,12 @@ async def validate_apply_job_revertable(
         raise HTTPException(
             status_code=400,
             detail=f"Apply job must be 'completed' or 'completed_with_errors' to revert. Current status: '{job.status}'.",
+        )
+
+    if job.success_count <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="This apply job has no successfully changed items to revert.",
         )
 
     # Check for existing completed or running revert
@@ -559,6 +574,66 @@ async def list_revert_jobs_for_apply_job(
         ).order_by(RevertJob.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def get_revert_eligibility_map(
+    db: AsyncSession,
+    organization_id: str,
+    apply_jobs: list[BulkEditApplyJob],
+) -> dict[str, dict[str, Any]]:
+    """
+    Batch, read-only version of validate_apply_job_revertable()'s rules, for
+    decorating an apply-job history list with can_revert/revert_status
+    without one eligibility query per row (N+1) or ever raising. Mirrors the
+    exact same rule set that function actually enforces: job status, at
+    least one successful item, and no existing completed/completed_with_errors/
+    running revert for that apply job. Deliberately does NOT gate on
+    can_use_magic_revert -- that isn't enforced by validate_apply_job_revertable()
+    either (see its docstring); this stays truthful to what the backend
+    actually allows rather than showing a "not in your plan" reason that a
+    direct call to /revert would not actually honor.
+    """
+    if not apply_jobs:
+        return {}
+
+    job_ids = [j.id for j in apply_jobs]
+    existing_q = await db.execute(
+        select(RevertJob)
+        .where(
+            RevertJob.apply_job_id.in_(job_ids),
+            RevertJob.organization_id == organization_id,
+        )
+        .order_by(RevertJob.created_at.desc())
+    )
+    # Most recent revert job per apply_job_id (first one seen, since ordered desc)
+    latest_revert_by_apply_job: dict[str, RevertJob] = {}
+    for rj in existing_q.scalars().all():
+        latest_revert_by_apply_job.setdefault(rj.apply_job_id, rj)
+
+    result: dict[str, dict[str, Any]] = {}
+    for job in apply_jobs:
+        latest_revert = latest_revert_by_apply_job.get(job.id)
+        revert_status = latest_revert.status if latest_revert else None
+        revert_job_id = latest_revert.id if latest_revert else None
+
+        if job.status not in ("completed", "completed_with_errors"):
+            can_revert, reason = False, "Apply job did not complete."
+        elif job.success_count <= 0:
+            can_revert, reason = False, "No successful items to revert."
+        elif revert_status in ("completed", "completed_with_errors", "running"):
+            can_revert, reason = False, (
+                "Revert already in progress." if revert_status == "running" else "Already reverted."
+            )
+        else:
+            can_revert, reason = True, None
+
+        result[job.id] = {
+            "can_revert": can_revert,
+            "revert_blocked_reason": reason,
+            "revert_job_id": revert_job_id,
+            "revert_status": revert_status,
+        }
+    return result
 
 
 async def get_revert_results(

@@ -19,6 +19,8 @@ from app.schemas.bulk_edit_apply import (
     ApplyJobWithResultsOut,
     ApplyResultOut,
     BackupSnapshotOut,
+    ApplyJobHistoryPageOut,
+    ApplyJobHistoryItemOut,
 )
 from app.schemas.bulk_edit_revert import (
     RevertJobOut,
@@ -40,6 +42,7 @@ from app.services.bulk_edit_apply import (
     apply_bulk_edit_session,
     get_apply_job,
     list_apply_jobs_for_session,
+    list_apply_jobs_for_org,
     get_apply_results,
     list_backup_snapshots_for_session,
 )
@@ -48,6 +51,7 @@ from app.services.bulk_edit_revert import (
     get_revert_job,
     list_revert_jobs_for_apply_job,
     get_revert_results,
+    get_revert_eligibility_map,
 )
 
 router = APIRouter(prefix="/bulk-edit", tags=["bulk-edit"])
@@ -211,6 +215,40 @@ async def list_apply_jobs(
 ):
     jobs = await list_apply_jobs_for_session(db, session_id, org_id)
     return [ApplyJobOut.model_validate(j) for j in jobs]
+
+
+@router.get("/apply-jobs", response_model=ApplyJobHistoryPageOut)
+async def list_apply_job_history(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    status: str | None = Query(None),
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Org-wide apply job history (Magic Revert History / Activity & Audit) —
+    across every session, not just one. Decorated with can_revert using the
+    exact same eligibility rules Revert itself enforces (effective-plan gate,
+    job status, no existing non-terminal revert), computed batch/read-only
+    so this never has to guess or duplicate that logic.
+    """
+    jobs, total = await list_apply_jobs_for_org(db, org_id, page, per_page, status)
+    eligibility = await get_revert_eligibility_map(db, org_id, jobs)
+
+    items = []
+    for job in jobs:
+        elig = eligibility.get(job.id, {})
+        item = ApplyJobHistoryItemOut.model_validate(job)
+        item = item.model_copy(update={
+            "can_revert": elig.get("can_revert", False),
+            "revert_blocked_reason": elig.get("revert_blocked_reason"),
+            "revert_job_id": elig.get("revert_job_id"),
+            "revert_status": elig.get("revert_status"),
+        })
+        items.append(item)
+
+    return ApplyJobHistoryPageOut(items=items, page=page, per_page=per_page, total=total)
 
 
 @router.get("/apply-jobs/{job_id}", response_model=ApplyJobWithResultsOut)
