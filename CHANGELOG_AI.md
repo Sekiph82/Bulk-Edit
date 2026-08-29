@@ -6,6 +6,22 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-29 Docs cleanup after PR #101 and PR #107 merges
+
+**Context:** both PR #107 (M16/UX-02A, merge `7ee420d`) and PR #101 (H!veAI `TASKS.md`, merge `092e02f`) merged and deployed in the immediately preceding round, but `TASKS.md`, `HANDOFF.md`, and `PROJECT_STATUS.md` on `main` still carried pre-merge current-truth wording (e.g. `TASKS.md`'s "PR #101 remains open and is **not merged**") left over from before those merges landed. Docs-only branch `docs/update-current-truth-after-pr101-pr107`, based on latest `origin/main`.
+
+**`TASKS.md`:** replaced the stale PR #101 line with the actual merge commit and confirmed H!veAI-format/pointer-only state; added a PR #107 truth bullet (real history pages, prior-job revert enabled, known plan-gate gap). Backfilled M11 (Account Center) checkboxes against PR #105 — nav/subnav, Connected Shops move, `/shops` redirect, customer-safe Plan/Billing/Usage/Credits, and placeholder pages for Team/Security/Notifications/Data & Privacy/Support all flipped to `[x]`; Activity & Audit (M11.09) marked shipped-then-superseded by the real PR #107 implementation. Added M13.07 (Bulk Create shop-connection gate fix, previously only mentioned in the "Current truth" prose, not tracked as a package). Updated M16.02/M16.03/M16.05 from `[ ]` planned to `[x]` shipped (apply-job history, prior-job revert, job-level revert-eligibility status), added M16.04 as `[~]` partial (filters exist, full search doesn't), and added M16.06 (new) plus M08.07 (new) as `[!]` known-gap packages for the unenforced `can_use_magic_revert` plan gate — cross-referenced from both milestones instead of only living in prose. Updated the M09.06 Magic Revert nav-placeholder bullet to note it's superseded by the real page.
+
+**`HANDOFF.md`:** replaced the stale "RESUME HERE" section (which still said "not yet done: ... merge PR #101") with one reflecting both merges and a recommended next-work order: close the plan-gate gap, then owner live click-through QA of the History UI (no actual revert unless approved), then UX-01C. Rewrote every historical "PR #101 ... not merged" mention further down the file (9 instances) to avoid the stale-check pattern while preserving the historical facts as "at the time" statements — none were deleted, only reworded.
+
+**`PROJECT_STATUS.md`:** rewrote the "Current Phase" paragraph (previously ended mid-PR#107, before either merge), removed the resolved PR #101 blocker line from Known Blockers, and rewrote "Current Next Action" to the same recommended next-work order as `HANDOFF.md`.
+
+**Checks:** `grep -nE "PR #101.*open|not merged|remains open" TASKS.md HANDOFF.md PROJECT_STATUS.md` — zero matches. Conflict-marker grep across all 4 docs files — zero matches. `git diff --check` clean. Manual secret-pattern scan of the diff — zero matches (no runtime/env/secret files in this diff at all — `TASKS.md`/`HANDOFF.md`/`PROJECT_STATUS.md`/this file only).
+
+**Safety:** no Etsy API call, no Bulk Edit apply/Magic Revert/shop sync/OAuth, no Stripe/DNS/Cloudflare/env change, no secret printed, Private Beta untouched. Docs-only diff — no backend/frontend source file touched.
+
+---
+
 ## 2026-08-29 Owner-verified 33-listing bulk apply + 32-listing bulk Magic Revert (docs sync); UX-01A started
 
 **Context, for the record:** between this docs branch's last update (`8a98af1`) and now, a separate engineering branch (`fix/etsy-rate-limit-guard`) shipped PR #102 — merge `c68b4649`, 2026-08-28 — adding retry-with-backoff to Etsy write calls plus a per-shop 1100ms write-pacing gate, closing the gap that let the owner's earlier follow-up price test hit an unretried `HTTP 429`. That work is fully detailed in `main`'s `CHANGELOG_AI.md` (this docs branch hasn't been rebased onto it, so it isn't duplicated here — just referenced).

@@ -34,9 +34,10 @@ Package numbering such as `M08.01`, `M08.02`, etc. is task/audit decomposition o
 - Owner verified Magic Revert on the same result: 32 restored, 0 failed, 0 skipped. Etsy confirmed `$62.88` → `$60.00`.
 - PR #103 (Apply/Revert loading overlay + double-submit guard, UX-01A) merged and deployed; owner visually confirmed the overlay in production.
 - PR #104 (effective-plan usage-gate fix + UX-01B product detail page): merged and deployed. **Independent audit verdict: CONDITIONAL** — 0 BLOCKER, 0 MAJOR, 1 MINOR (builder self-reported test-pass count was numerically wrong, though the underlying pass/fail claim re-verified true), 1 NOTE (no live-browser click-through performed yet, already self-disclosed). See `docs/audits/` / `bulkeditapp logs` audit file `2026-08-29_13-31_AUDIT_PR104_billing_gate_product_detail.md`. Per this file's own gate rule, CONDITIONAL-with-only-MINOR/NOTE items closes the implementation as complete while recording the open items rather than claiming unconditional PASS.
-- PR #101 (`docs/hiveai-dashboard-and-tasks`) remains open and is **not merged**.
-- **Account-01 (M11) shipped as PR #105** (Account Center `/account` 11-route subnav, Connected Shops relocated from `/shops`, customer-safe Plan/Billing/Usage/Credits UI) — merged and deployed 2026-08-29. This docs branch has not yet done a full M11 checkbox backfill against that PR; see `CHANGELOG_AI.md`/main-branch `HANDOFF.md` for the shipped detail in the meantime.
-- **UX-01D (owner visual QA remediation, PR #106) addressed 6 owner-reported issues** — Magic Revert nav placeholder, Media page listings-load bug, Bulk Create false shop-gate, product-detail image/layout fixes, truthful Performance metrics (no fake data), 3 recommendation banners removed. See M09.06, M13.01, M15.01, M16.03.
+- **PR #101 (`docs(hiveai): add dashboard manifest and master sprint roadmap`) is merged into `main`** as `092e02f9303b9c824cc816176e485d91720cc730`. This H!veAI-format `TASKS.md` is now canonical on `main` (no longer a docs-branch-only draft). `.hiveai/PROJECT_DASHBOARD.md` is also on `main` and remains pointer-only (not a duplicated task ledger).
+- **PR #107 (`feat(revert): add Magic Revert history and activity audit`, M16/UX-02A) is merged into `main`** as `7ee420dc1bca90b812ab7e48becece4e0ff241c0`, deployed, and route-verified. `/magic-revert` now shows real apply-job history (not a placeholder); `/account/activity` shows real Bulk Edit Apply and Magic Revert rows sourced from that same history. Prior-job Magic Revert execution is enabled via the existing org-scoped revert endpoint (not just the most-recent job). **Known gap, not hidden:** `PLAN_LIMITS["can_use_magic_revert"]` is defined but not enforced server-side in the revert flow — see M08.07/M16.06.
+- **Account-01 (M11) shipped as PR #105** (Account Center `/account` 11-route subnav, Connected Shops relocated from `/shops`, customer-safe Plan/Billing/Usage/Credits UI) — merged and deployed 2026-08-29. M11 checkboxes below are now backfilled against that PR.
+- **UX-01D (owner visual QA remediation, PR #106) addressed 6 owner-reported issues** — Magic Revert nav placeholder (since superseded by the real history page, PR #107), Media page listings-load bug, Bulk Create false shop-gate, product-detail image/layout fixes, truthful Performance metrics (no fake data), 3 recommendation banners removed. See M09.06, M13.01, M13.07, M15.01, M16.02, M16.03.
 
 ---
 
@@ -229,7 +230,10 @@ M07 PASS/CLOSED.
 ### M08.06 - Private beta user management
 - [ ] Invite/allowlist strategy; beta users supported without direct DB edits.
 
-M08 PARTIAL — core gate-correctness IMPLEMENTATION COMPLETE (CONDITIONAL per M08.02 audit, only MINOR/NOTE items open), owner/admin-facing billing tooling PLANNED.
+### M08.07 - Magic Revert plan-gate enforcement
+- [!] Known gap, found during the M16/UX-02A audit (PR #107): `PLAN_LIMITS["can_use_magic_revert"]` (`False` on Free) is defined but never checked anywhere in the revert flow (`validate_apply_job_revertable()`/`get_revert_eligibility_map()`) — Magic Revert has always worked regardless of plan. Deliberately not fixed in PR #107: adding the check now would require granting a paid plan in ~20 pre-existing tests across `test_bulk_edit_revert.py`/`test_bulk_edit.py` that assume revert just works, out of scope for a history/UI sprint. Planned follow-up — see M16.06.
+
+M08 PARTIAL — core gate-correctness IMPLEMENTATION COMPLETE (CONDITIONAL per M08.02 audit, only MINOR/NOTE items open), owner/admin-facing billing tooling PLANNED, Magic Revert plan-gate enforcement BLOCKED/PLANNED (M08.07).
 
 ---
 
@@ -256,7 +260,7 @@ M08 PARTIAL — core gate-correctness IMPLEMENTATION COMPLETE (CONDITIONAL per M
 - [x] Product detail image was always blank: `thumbnail_url` isn't a real `Listing` column — the list endpoint patched it in per-request, the single-item detail endpoint never did. Fixed with the same lookup; frontend also falls back to `getListingImages()`'s first image (2026-08-29).
 - [x] Product detail card layout had large empty space under Title/Tags: a single `grid-cols-2` CSS grid row-pairs cells to equal height. Rewritten as two independent flex columns so each card follows its own content height.
 - [x] Added a truthful "Performance" card: `lifetime_views`/`lifetime_favorites` are real (extracted from the already-synced `raw_data` JSON, zero live Etsy call). Monthly views/sales/favorites and lifetime sales are not part of Etsy's core Listing object and this app has never called the Shop Stats/Receipts endpoints that would provide them — shown as explicitly unavailable ("Requires sales data sync" / "Requires Etsy sales scope"), never a fake `0`. 60-second local-only refresh against this app's own backend while the page is open.
-- [x] Magic Revert added to main nav (`/magic-revert`, new truthful placeholder route — explains today's in-flight-only behavior, links to Bulk Edit and `/account/activity`).
+- [x] Magic Revert added to main nav (`/magic-revert`, originally a truthful placeholder route). **Superseded by PR #107 (M16/UX-02A):** `/magic-revert` is now a real apply-job history page, not a placeholder — see M16.02/M16.03.
 - [x] Removed 3 recommendation/cross-sell banners (Listings, Listing Health, Profit) for a cleaner customer SaaS feel — grepped for more, none found elsewhere.
 - [ ] Owner click-through of the polished layout/image/metrics (still pending, same as M09.04's open item).
 
@@ -285,58 +289,58 @@ M10 PLANNED / PARTIAL (View Product link only).
 **Account-01** — Customer Account Center + Connected Shops + customer-safe Plan/Usage UI. Replaces standalone Billing/Shops pages as the primary customer account surface. No customer-facing admin/comp-grant terminology.
 
 ### M11.01 - Account information architecture
-- [ ] Replace standalone Billing as the primary customer account surface.
-- [ ] Add Account main navigation entry.
-- [ ] Add Account subnav: Overview, Plan & Billing, Usage, Credits, Connected Shops, Team / Users, Security, Notifications, Activity & Audit, Data & Privacy, Support.
-- [ ] Remove Shops from main navbar after Connected Shops is ready.
+- [x] Replace standalone Billing as the primary customer account surface — `/billing` is now a thin client-side redirect to `/account/billing` (PR #105).
+- [x] Add Account main navigation entry.
+- [x] Add Account subnav: Overview, Plan & Billing, Usage, Credits, Connected Shops, Team / Users, Security, Notifications, Activity & Audit, Data & Privacy, Support.
+- [x] Remove Shops from main navbar after Connected Shops is ready.
 
 ### M11.02 - Plan & Billing customer-safe presentation
-- [ ] Show effective customer plan without internal grant/source terminology.
-- [ ] Avoid customer-facing "admin", "comp grant", "manual admin", "admin comp" wording.
-- [ ] Present the owner/test account as Pro Monthly using normal customer-facing Pro features/limits.
-- [ ] Preserve truthful Stripe/payment state without a confusing "Free Plan" main badge when the effective plan is Pro.
+- [x] Show effective customer plan without internal grant/source terminology.
+- [x] Avoid customer-facing "admin", "comp grant", "manual admin", "admin comp" wording — verified via grep, zero matches under `/account`, `/billing`, `/shops` (the one remaining "comp grant" string in the whole frontend tree is the internal owner console, correctly scoped, not customer-facing).
+- [x] Present the owner/test account as Pro Monthly using normal customer-facing Pro features/limits.
+- [x] Preserve truthful Stripe/payment state without a confusing "Free Plan" main badge when the effective plan is Pro — replaced with a payment-status line derived from `billing_charge_status`.
 
 ### M11.03 - Usage dashboard
-- [ ] Show bulk edit usage used/limit/remaining/reset period.
-- [ ] Show AI credits used/limit/remaining.
-- [ ] Show media, dynamic pricing, scheduled jobs, listings/shops limits where available.
-- [ ] Use the same effective plan/limits as the M08 backend gates.
+- [x] Show bulk edit usage used/limit/remaining/reset period.
+- [x] Show AI credits used/limit/remaining.
+- [x] Show media, dynamic pricing, scheduled jobs, listings/shops limits where available.
+- [x] Use the same effective plan/limits as the M08 backend gates — reads the existing `GET /billing/usage`, already effective-plan-correct as of PR #104.
 
 ### M11.04 - Credits
-- [ ] Show AI credit balance and monthly limit.
-- [ ] Explain which features consume AI credits.
-- [ ] Add credit history placeholder or real history if existing.
+- [x] Show AI credit balance and monthly limit.
+- [x] Explain which features consume AI credits.
+- [ ] Add credit history placeholder or real history if existing — a truthful "coming once transaction logging ships" placeholder shipped; real history not yet built.
 
 ### M11.05 - Connected Shops
-- [ ] Move current Shops functionality into Account → Connected Shops.
-- [ ] Show connected Etsy shops, connection status, shop name, last sync/listing count if available.
-- [ ] Preserve Connect Etsy flow.
-- [ ] Preserve reconnect/disconnect/sync actions only where currently supported.
-- [ ] Keep `/shops` backward compatible as a redirect or hidden functional route.
+- [x] Move current Shops functionality into Account → Connected Shops.
+- [x] Show connected Etsy shops, connection status, shop name, last sync/listing count if available.
+- [x] Preserve Connect Etsy flow.
+- [x] Preserve reconnect/disconnect/sync actions only where currently supported.
+- [x] Keep `/shops` backward compatible as a redirect — `useEffect`/`router.replace` to `/account/connected-shops`, forwarding the full query string so the Etsy OAuth callback's `?connected=true`/`?error=...` redirect chain still resolves correctly. No OAuth code touched.
 
 ### M11.06 - Team / Users
-- [ ] Add placeholder or MVP for account owner/team roles.
-- [ ] Do not expose admin internals to the customer.
+- [x] Add placeholder or MVP for account owner/team roles — shows the real signed-in account owner (via `/auth/me`) plus a "roles coming soon" list (Owner/Manager/Editor/Viewer — no "admin" label).
+- [x] Do not expose admin internals to the customer.
 
 ### M11.07 - Security
-- [ ] Add Account Security placeholder/MVP.
+- [x] Add Account Security placeholder/MVP.
 - [ ] Add active sessions/password/2FA future hooks where appropriate.
 
 ### M11.08 - Notifications
-- [ ] Add notification preference placeholder/MVP.
+- [x] Add notification preference placeholder/MVP.
 
 ### M11.09 - Activity & Audit
-- [ ] Add Activity & Audit placeholder/MVP.
-- [ ] Reserve this area for Apply Jobs / Magic Revert History (see M16).
+- [x] Add Activity & Audit placeholder/MVP (PR #105). **Superseded by PR #107 (M16/UX-02A):** `/account/activity` now shows real Bulk Edit Apply and Magic Revert rows sourced from apply-job history, not a placeholder — see M16.02.
+- [x] Reserve this area for Apply Jobs / Magic Revert History (see M16) — done, see above.
 
 ### M11.10 - Data & Privacy
-- [ ] Show AI data usage setting/status where supported.
-- [ ] Add export/delete/disconnect placeholders without fake functionality.
+- [x] Show AI data usage setting/status where supported — states the real current posture (no Etsy data sent to an external AI provider unless explicitly enabled) without naming any internal env var.
+- [ ] Add export/delete/disconnect placeholders without fake functionality — not yet built beyond the AI-data-usage statement above.
 
 ### M11.11 - Support
-- [ ] Add help/support/report-bug placeholders or links.
+- [x] Add help/support/report-bug placeholders or links.
 
-M11 ACTIVE / IN PROGRESS.
+M11 MOSTLY SHIPPED (Account-01, PR #105) — information architecture, Plan & Billing, Usage, Connected Shops, Team, Security, Notifications, Support all shipped; Activity & Audit superseded by the real PR #107 implementation. Remaining PLANNED: credit history, 2FA/session hooks, Data & Privacy export/delete functionality.
 
 ---
 
@@ -383,7 +387,11 @@ M12 PLANNED / PARTIAL (policy default only).
 - [ ] Caption/hashtag generation (preview, editable, respects the AI data policy in M12.01).
 - [ ] Schedule/post now, explicit time zone, item-level report, no silent posting.
 
-M13 PLANNED / BLOCKED on several external integrations.
+### M13.07 - Bulk Create shop-connection gate fix (UX-01D)
+- [x] Fixed a real bug (2026-08-29, UX-01D, PR #106): `GET /bulk-create/status` was hardcoded to always return `not_configured`, never actually checking the org's Etsy shop connection — Bulk Create falsely told owners with a connected shop to "Connect your Etsy shop first." Now runs the same `is_connected` check Connected Shops uses. With a connected shop it returns a distinct, truthful `not_yet_enabled` status (the draft-creation workflow itself isn't wired up yet) instead of either the false gate or a non-functional-looking upload UI.
+- [ ] Bulk Create draft-creation workflow itself (the "Create Drafts" button) remains unimplemented — tracked separately, not part of this fix.
+
+M13 PLANNED / BLOCKED on several external integrations. Shop-connection gate correctness for Bulk Create SHIPPED (M13.07).
 
 ---
 
@@ -434,19 +442,23 @@ M15 PLANNED.
 - [ ] Standardize the same shape for media upload and social post write paths once M13 ships.
 
 ### M16.02 - Apply Job history
-- [ ] Surface existing apply-job records (already persisted) in a dedicated Activity view — see M11.09 for the Account-side placeholder this feeds.
+- [x] Shipped (PR #107, 2026-08-29): new org-wide, paginated `GET /api/v1/bulk-edit/apply-jobs` endpoint (the only genuinely new backend capability — job detail, revert-jobs list, revert-job detail/results all already existed). Surfaced in `/magic-revert` (job table: date, status, item counts, revert availability) and `/account/activity` (synthesized Bulk Edit Apply + Magic Revert rows from the same data) — see M11.09.
 
 ### M16.03 - Magic Revert from prior jobs
-- [ ] Allow reverting a job other than the one just completed, not only the most recent apply result.
-- [x] A truthful nav-level placeholder for this now exists (2026-08-29, UX-01D): `/magic-revert`, linked from the main nav, explicitly states this isn't built yet and links to `/account/activity` (where it will eventually live) and `/bulk-edit` (today's actual Magic Revert entry point). Not a functional implementation of this package — just makes the gap discoverable and honest instead of the feature being invisible.
+- [x] Shipped (PR #107, 2026-08-29): reverting a job other than the one just completed is enabled, not just displayed. Audit found `POST /apply-jobs/{apply_job_id}/revert` already accepted **any** apply_job_id (org-scoped, idempotent, 409 on double-revert) — it was already safe for history use, just never exposed in the UI. `/magic-revert`'s revert action reuses the exact PR #103 (UX-01A) double-submit-guard + blocking-overlay safety pattern. One real backend gap fixed alongside this: `validate_apply_job_revertable()` never checked a job had ≥1 successful item before "reverting" it (harmless 0-item no-op before, now a clean 400).
+- [x] The 2026-08-29 (UX-01D) nav-level placeholder at `/magic-revert` is superseded — it is now the real history/revert page described above, not a placeholder.
 
 ### M16.04 - Audit/activity table
-- [ ] Searchable by user/shop/listing/job/date; export-safe summary; no secrets.
+- [~] Partial: `/magic-revert` has status and revertable-only filters, sourced from the same history endpoint. Not yet done: full search by user/shop/listing/date, and an export-safe summary view.
 
 ### M16.05 - Revert availability status per item
-- [ ] Show whether each historical item is still revertible (backup snapshot present, listing unchanged since apply — depends on M06.03).
+- [x] Shipped at the job level (PR #107): `get_revert_eligibility_map()` computes `can_revert`/`revert_blocked_reason`/`revert_job_id`/`revert_status` per apply job in one batch query (not N+1), mirroring the real enforcement rules exactly so the UI never shows "available" for something the backend would reject. Shown in both `/magic-revert` and `/account/activity`.
+- [ ] Not yet done: revert-availability status for individual line items *within* a job (only job-level status exists today).
 
-M16 PLANNED.
+### M16.06 - Magic Revert plan-gate enforcement
+- [!] Known gap (see M08.07): `PLAN_LIMITS["can_use_magic_revert"]` is defined but never enforced in the revert flow — found during the PR #107 audit, deliberately left unfixed (would require granting a paid plan in ~20 pre-existing tests, out of scope for that sprint). Planned follow-up.
+
+M16 PARTIAL — apply-job history, prior-job revert, and job-level revert-eligibility status SHIPPED (PR #107); plan-gate enforcement (M16.06) and full audit-table search/item-level status (M16.04/M16.05) remain PLANNED.
 
 ---
 
