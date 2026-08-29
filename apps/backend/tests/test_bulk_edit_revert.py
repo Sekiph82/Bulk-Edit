@@ -805,7 +805,7 @@ async def test_get_revert_results_requires_auth(client):
 
 async def test_apply_job_history_requires_auth(client):
     r = await client.get(APPLY_JOBS_URL)
-    assert r.status_code == 401
+    assert r.status_code == 403
 
 
 async def test_apply_job_history_org_scoped(client, db_session):
