@@ -52,11 +52,11 @@ Build/test metadata: `apps/backend/requirements*.txt`, `apps/frontend/package.js
 
 ## Current operating state
 
-Phase: Private Beta production QA moving into write hardening.
-Known good: Etsy OAuth, owner shop connection, 210 active listing sync, title write, single non-variation price write.
-Current manual proof needed: Magic Revert for the successful single-listing price change.
-Current risk: Etsy HTTP 429 per-second rate limit during repeated write tests.
-Immediate next task family: Sprint 2 rate-limit guard and write hardening after Magic Revert proof.
+Phase: Private Beta production QA moving into Bulk Edit apply/revert UX hardening.
+Known good: Etsy OAuth, owner shop connection, 210 active listing sync, title write, single and 33-listing bulk non-variation price write, 32-listing bulk Magic Revert, Etsy rate-limit guard (see `TASKS.md` Sprint 2).
+Current manual proof needed: none blocking — 3/10-listing batch sizes and non-price bulk fields remain unverified but are not blockers.
+Current risk: Apply/Revert confirmation modal stays interactable during an in-flight write (owner clicked confirm 4-5 times mid-operation) — tracked as UX-01A.
+Immediate next task family: UX-01A (Apply/Revert loading overlay + double-submit guard, in progress), then UX-01B/C/D (product detail page, health/insights navigation, product-page write architecture) — see `TASKS.md` for detail.
 
 ## Safety policy
 

@@ -1,6 +1,6 @@
 # TASKS.md — Bulk Edit Master Sprint Roadmap
 
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
 This file is the canonical task source for H!veAI and for all future Claude/Codex work on `Sekiph82/Bulk-Edit`.
 
@@ -48,7 +48,10 @@ It replaces the short, session-style active-work list with a stable product road
 - Comp/pro access: owner account has `pro_monthly` comp access.
 - Confirmed live title write: working.
 - Confirmed live price write: working at least once after PR #100.
-- Latest new risk: Etsy per-second rate limit, HTTP 429, seen during follow-up price test.
+- Confirmed live bulk price write (2026-08-29, owner-run): 33 listings targeted `price_amount=6288`. UI technical status `completed_with_errors` — Success 32, Failed 0, Skipped 1. Owner tracking interpretation: 100% successful business outcome (32 needed the change and got it, 1 was already at 6288 so correctly skipped as a no-op, 0 failed). This interpretation is project-tracking only — no frontend/backend status wording or semantics changed. Etsy Shop Manager confirmed `$60.00` → `$62.88` on the changed listings.
+- Confirmed live bulk Magic Revert (2026-08-29, owner-run): same 32 changed listings reverted. UI status `completed` — Restored 32, Failed 0, Skipped 0. Etsy Shop Manager confirmed `$62.88` → `$60.00`.
+- Rate-limit guard: **shipped** — PR #102 (`fix/etsy-rate-limit-guard`, merge `c68b4649`, 2026-08-28) added retry-with-backoff (honors `Retry-After`, max 3 attempts) on Etsy write calls plus a per-shop 1100ms minimum write-spacing gate. The bulk 33-listing test above ran after this guard deployed.
+- New risk found (2026-08-29, owner-observed): Apply/Revert confirmation modal stays interactable while the write is in flight — owner clicked the confirm button 4-5 times during a live operation. Tracked as UX-01A, this sprint's runtime task.
 
 ---
 
@@ -212,21 +215,18 @@ Acceptance:
 ## Remaining in Sprint 1
 
 ### 1.11 Magic Revert for the successful price write
-Status: `[IN_PROGRESS]`
+Status: `[DONE]`
 
-Required manual test:
-1. Use the successful French Bulldog apply job.
-2. Click `Magic Revert`.
-3. Confirm app result Success 1 / Failed 0 / Skipped 0.
-4. Confirm Etsy Shop Manager returns `$62.88` → `$60.00`.
-5. Sync Listings.
-6. Confirm Bulk Edit Listings shows `USD 60.00`.
+Evidence:
+- Owner ran Magic Revert on a 32-listing bulk price write result (2026-08-29) — a superset of the original single-listing exit criterion.
+- Bulk Edit UI status `completed`, Restored 32 / Failed 0 / Skipped 0.
+- Etsy Shop Manager confirmed `$62.88` → `$60.00` on the reverted listings.
 
-Exit criteria:
-- Single-listing price revert proven live.
+Acceptance:
+- Revert proven live, at bulk scale (32 listings), not just single-listing.
 
 ### 1.12 Stop rapid manual price retests until rate-limit handling exists
-Status: `[WATCH]`
+Status: `[DONE]`
 
 Observed:
 - Miniature Schnauzer price test after success failed with HTTP 429.
@@ -236,8 +236,9 @@ Interpretation:
 - This is not a payload/schema failure.
 - Write engine has crossed the main schema hurdle, but repeated writes can hit Etsy’s rate limits.
 
-Exit criteria:
-- Sprint 2 rate-limit guard added or owner explicitly accepts risk for manual slow tests.
+Resolution:
+- Sprint 2 rate-limit guard shipped (PR #102, merge `c68b4649`, 2026-08-28) — retry-with-backoff on write calls, per-shop write pacing.
+- Owner's subsequent 33-listing bulk apply + 32-listing bulk revert both completed live with 0 failures after the guard deployed.
 
 ---
 
@@ -248,21 +249,16 @@ Goal: turn the single-item write success into a reliable, owner-safe bulk write 
 ## Tasks
 
 ### 2.1 Rate-limit-aware Etsy write queue
-Status: `[TODO]`
+Status: `[DONE]`
 
-Requirements:
-- Per-shop write throttle.
-- Per-second request limiter.
-- Configurable delay between item writes.
-- Honor `Retry-After` when present.
-- Exponential backoff for HTTP 429.
-- Max retry count per item.
-- Stop rapid-fire writes.
-- UI reason must say rate-limited, not generic payload failure.
+Evidence:
+- PR #102 (`fix/etsy-rate-limit-guard`, merge `c68b4649`, 2026-08-28): retry-with-backoff on Etsy write calls (`etsy_patch`/`etsy_put`, matching `etsy_get`'s existing behavior), honors `Retry-After`, max 3 attempts, jitter on the non-`Retry-After` path. Per-shop minimum write-spacing gate (`sleep_before_etsy_write`, 1100ms) at every write entry point. Diagnostics carry `rate_limited`/`retry_attempt`/`max_attempts`/`retry_after_seconds`/`final_rate_limit_exhausted` — 429 only; 400/401/403/404 stay distinct, non-retryable.
+- Owner's 2026-08-29 33-listing bulk apply and 32-listing bulk revert both completed with 0 failures under this guard.
 
 Acceptance:
-- Repeated price writes do not immediately trigger 429 under normal use.
-- If 429 occurs, it is retried safely or marked retryable.
+- Repeated price writes do not immediately trigger 429 under normal use. Met.
+- If 429 occurs, it is retried safely or marked retryable. Met.
+- UI reason says rate-limited, not generic payload failure — a dedicated 429 failure category + retry-count-aware message shipped in the same PR. Met.
 
 ### 2.2 Apply job state machine
 Status: `[TODO]`
@@ -297,18 +293,20 @@ Acceptance:
 - Bulk Edit sync reads the reverted value.
 
 ### 2.4 Small-batch apply/revert matrix
-Status: `[TODO]`
+Status: `[PARTIAL]`
 
 Batch sizes:
-- 3 listings
-- 10 listings
-- 33 listings only after 3 and 10 pass
+- 3 listings — not separately tested.
+- 10 listings — not separately tested.
+- 33 listings — **owner-run live 2026-08-29**, price field only. Apply: `completed_with_errors`, Success 32 / Failed 0 / Skipped 1 (1 listing already at target value — correct no-op). Revert: `completed`, Restored 32 / Failed 0 / Skipped 0. Etsy Shop Manager confirmed both directions (`$60.00`↔`$62.88`).
 
 Acceptance:
-- Success/failed/skipped counts are accurate.
-- Partial success is handled without hiding failed items.
-- Revert can target only succeeded items.
-- Rate limits are handled.
+- Success/failed/skipped counts are accurate. Met for the 33-listing price test.
+- Partial success is handled without hiding failed items. Met (0 failed this run, but the skip was surfaced, not hidden).
+- Revert can target only succeeded items. Met — 32 succeeded items reverted, the 1 skip was correctly excluded.
+- Rate limits are handled. Met — ran clean under the PR #102 guard.
+
+Remaining: 3-listing and 10-listing runs, and non-price fields (title/tags/etc.) at batch scale, are still unverified.
 
 ### 2.5 Item-level retry / resume failed items
 Status: `[TODO]`
@@ -319,13 +317,13 @@ Acceptance:
 - Owner can export or copy a failed-item report.
 
 ### 2.6 Magic Revert hardening
-Status: `[TODO]`
+Status: `[PARTIAL]`
 
 Acceptance:
-- Revert uses the same safe Etsy write helpers as apply.
-- Revert has item-level diagnostics.
-- Revert refuses or warns if listing changed since original apply.
-- Revert respects rate limits.
+- Revert uses the same safe Etsy write helpers as apply. Met — always true in code, and PR #102's guard covers both paths transparently since Revert calls the same primitives.
+- Revert has item-level diagnostics. Met.
+- Revert refuses or warns if listing changed since original apply. Not implemented — still `[TODO]`.
+- Revert respects rate limits. Met — PR #102, owner-verified via the 32-listing bulk revert.
 
 ### 2.7 Audit trail for writes
 Status: `[TODO]`
@@ -806,13 +804,48 @@ Acceptance:
 - How to revert.
 
 ### 12.3 UX polish
-Status: `[TODO]`
+Status: `[TODO]` — see the UX-01 series below for the concrete near-term slice of this task.
 
 Acceptance:
 - Loading states.
 - Empty states.
 - Error copy.
 - Mobile/responsive review.
+
+#### UX-01A — Apply/Revert loading overlay + double-submit guard
+Status: `[IN_PROGRESS]`
+
+Problem (owner-observed 2026-08-29): the Apply/Revert confirmation modal stays interactable while the write is already running — owner clicked the confirm button 4-5 times mid-operation. Dangerous and confusing, no evidence yet of an actual duplicate job (Sprint 1 apply loop is sequential), but the UI must not allow it.
+
+Scope, this task only:
+- Ref-level double-submit guard (in addition to React state) so a fast double click can't fire two requests before state updates.
+- Full-page blocking loading overlay while Apply/Revert is in flight — background visible, not interactable, clear copy ("Writing changes to Etsy…" / "Reverting Etsy listings…", "Please keep this page open.").
+- Confirmation modal closes (or is visually blocked) immediately on confirm click, replaced by the overlay until the API call resolves.
+
+Explicitly not in scope: any change to `completed_with_errors`/skipped/no-op wording, job status semantics, or result card colors/interpretation.
+
+Branch: `fix/bulk-edit-apply-revert-loading-guard`.
+
+#### UX-01B — Product detail page
+Status: `[TODO]` — recorded only, not implemented this sprint.
+
+- Route `/listings/[listingId]`. Clicking a listing row/title opens it; Quick View drawer stays available as an optional icon/button.
+- Eventual page content: overview, images, title, description, tags, materials, price, quantity, SKU, state, personalization/customization, variations, health score/issues, Etsy link, sync state, action/service cards.
+- Direct Etsy writes from the product page are explicitly deferred until UX-01D's plan/credit/write-surface architecture is designed — do not implement inline writes as part of this page's first cut.
+
+#### UX-01C — Listing Health + Shop Insights navigation
+Status: `[TODO]` — recorded only, not implemented this sprint.
+
+Listing Health: show issue detail, not just a count — tag count (e.g. `0/13`), photo count, title length, description length, missing/zero price, zero quantity, variation warnings, personalization/materials warnings where data supports them. Add `View Product` and `Fix in Bulk Edit` paths per issue.
+
+Shop Insights: add "Affected Listings" mini-sections (missing tags, low photo count — first 10 each), each listing with `View Product` and `Fix in Bulk Edit`. Metric cards clickable where useful.
+
+#### UX-01D — Product page action/credit architecture
+Status: `[TODO]` — recorded only, design work, not implemented this sprint.
+
+- Product page actions must respect plan/usage/credits.
+- Etsy write surfaces differ and need separate design: price/quantity/variation inventory path, title/description/tags/listing-field path, media/video paths.
+- Design preview/audit/revert strategy before any direct inline write ships from the product page.
 
 ### 12.4 Beta tester checklist
 Status: `[TODO]`
@@ -827,17 +860,18 @@ Acceptance:
 
 # Immediate next actions
 
-1. `[IN_PROGRESS]` Run single-listing Magic Revert on the successful French Bulldog price change.
-2. `[TODO]` Verify Etsy `$60.00` and Bulk Edit `USD 60.00` after sync.
-3. `[TODO]` Add Sprint 2 rate-limit guard before any 3/10/33 listing batch writes.
-4. `[TODO]` Make H!veAI project dashboard valid via `.hiveai/PROJECT_DASHBOARD.md` pointing to this file.
+1. `[IN_PROGRESS]` UX-01A: Apply/Revert loading overlay + double-submit guard (`fix/bulk-edit-apply-revert-loading-guard`).
+2. `[TODO]` Owner-run: 3-listing and 10-listing batch apply/revert tests (33-listing price case is now proven; smaller sizes and non-price fields are not).
+3. `[TODO]` UX-01B: product detail page (`/listings/[listingId]`) — design/implement next, after UX-01A ships.
+4. `[TODO]` UX-01C: Listing Health issue detail + Shop Insights affected-listings navigation.
+5. `[TODO]` UX-01D: product-page action/credit/write-surface architecture — design before any direct inline Etsy write from a product page.
 
 ---
 
 # Do not do without explicit owner approval
 
 - Do not run live Etsy GET/PUT/PATCH from Claude/Codex environment.
-- Do not run 3/10/33 listing bulk write tests before Magic Revert and rate-limit guard decisions.
+- Do not run direct inline Etsy writes from a future product detail page (UX-01B) before UX-01D's plan/credit/write-surface architecture is designed.
 - Do not enable external AI processing for Etsy-derived data.
 - Do not disable Private Beta.
 - Do not change DNS/Cloudflare.

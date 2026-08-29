@@ -2,7 +2,19 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-28 (Price write solved live — task authority moved to TASKS.md)
+## RESUME HERE — 2026-08-29 (Bulk apply/revert owner-verified; UX-01A in progress)
+
+**Owner ran a 33-listing bulk price apply and a 32-listing bulk Magic Revert live (2026-08-29), both under the PR #102 rate-limit guard.** Apply: `price_amount=6288` on 33 listings, UI status `completed_with_errors`, Success 32 / Failed 0 / Skipped 1 (1 listing was already at 6288 — correct no-op). Owner's tracking interpretation: 100% successful business outcome. Etsy Shop Manager confirmed `$60.00`→`$62.88`. Revert: `completed`, Restored 32 / Failed 0 / Skipped 0, Etsy confirmed `$62.88`→`$60.00`. **This is documentation/tracking only — no frontend/backend status wording, `completed_with_errors` semantics, or skipped/no-op labeling was changed.** See `TASKS.md` 1.11, 1.12, 2.1, 2.4, 2.6 for full detail.
+
+**New issue found during the same live test:** the Apply/Revert confirmation modal stays interactable while the write is in flight — owner clicked confirm 4-5 times mid-operation. Tracked as **UX-01A**, this session's runtime task: ref-level double-submit guard + full-page blocking loading overlay ("Writing changes to Etsy…" / "Reverting Etsy listings…"). Branch `fix/bulk-edit-apply-revert-loading-guard`, frontend-only, based on latest `origin/main` (past PR #102's `c68b464`). Explicitly not touching job status semantics, skipped/no-op wording, or result card colors.
+
+**Also recorded this session (documentation only, not implemented):** UX-01B (product detail page `/listings/[listingId]`), UX-01C (Listing Health issue detail + Shop Insights affected-listings navigation), UX-01D (product-page action/credit/write-surface architecture) — see `TASKS.md` Sprint 12.3 for full acceptance criteria. None of these are implemented in this session.
+
+**Branch discipline this session:** docs work stays on `docs/hiveai-dashboard-and-tasks` (PR #101, not merged). Runtime UX-01A work is on a fresh branch from `origin/main`, never on the docs branch. No cherry-picking either direction.
+
+---
+
+## Previously — 2026-08-28 (Price write solved live — task authority moved to TASKS.md)
 
 **PR #100 (merge `c880c91`) deployed, and the owner's live retest succeeded.** The `readiness_state_id` fix worked: French Bulldog listing, `price_amount` 6000→6288, Bulk Edit reported Success 1/Failed 0/Skipped 0, Etsy Shop Manager showed `$62.88`, Bulk Edit Listings showed `USD 62.88` after sync. **The Bulk Edit price-write payload/schema problem that spanned PR #89 through #100 is now resolved and owner-verified.**
 
