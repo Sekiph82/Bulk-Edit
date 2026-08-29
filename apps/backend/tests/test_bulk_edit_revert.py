@@ -104,6 +104,23 @@ async def _setup_listing(db_session, org_id: str, etsy_id: str = "10001", **kwar
     return listing
 
 
+async def _grant_plan(db_session, org_id: str, comp_plan: str) -> None:
+    """Grant an org an active comp plan via CompAccessGrant (same pattern as test_billing.py) --
+    this is the effective-plan path, not a raw Subscription.plan mutation, so it also exercises
+    the comp-grant-aware get_effective_plan() resolution the same way a real comp-Pro account would."""
+    from datetime import datetime, timezone
+    from app.models.comp_access_grant import CompAccessGrant
+
+    db_session.add(CompAccessGrant(
+        organization_id=org_id,
+        comp_plan=comp_plan,
+        reason="test setup",
+        starts_at=datetime.now(timezone.utc),
+        ends_at=None,
+    ))
+    await db_session.commit()
+
+
 async def _setup_and_apply(
     client,
     db_session,
@@ -113,8 +130,13 @@ async def _setup_and_apply(
     etsy_prefix: str,
     etsy_patch_return: object = None,
     etsy_patch_side_effect=None,
+    grant_plan: str | None = "pro_monthly",
 ):
-    """Register user, create listing, apply a bulk edit. Returns (token, org_id, apply_job_id, session_id, listing)."""
+    """Register user, create listing, apply a bulk edit. Returns (token, org_id, apply_job_id, session_id, listing).
+
+    Defaults to granting an effective Pro plan (via CompAccessGrant), since every existing test in
+    this file is about revert *mechanics*, not the can_use_magic_revert plan gate itself -- pass
+    grant_plan=None for tests that specifically need a Free-plan org."""
     token = await _register_and_login(client, {
         "email": email,
         "password": "password123",
@@ -122,6 +144,8 @@ async def _setup_and_apply(
         "organization_name": org_name,
     })
     org_id = await _get_org_id_for_user(db_session, email)
+    if grant_plan:
+        await _grant_plan(db_session, org_id, grant_plan)
     listing = await _setup_listing(db_session, org_id, f"{etsy_prefix}_01",
                                    title=f"Original Title For {etsy_prefix}")
 
@@ -953,3 +977,234 @@ async def test_apply_job_history_no_raw_payload_leakage(client, db_session):
     assert "response_payload" not in item
     for forbidden in ("token", "authorization", "secret"):
         assert forbidden not in str(item).lower()
+
+
+# ── M08.07 / M16.06: can_use_magic_revert plan gate ────────────────────────────
+
+_PLAN_BLOCKED_MSG = "Magic Revert is not available on your current plan."
+
+
+async def test_revert_free_plan_direct_call_blocked(client, db_session):
+    """Free plan (no comp grant, no paid subscription) must not be able to
+    execute Magic Revert via the direct endpoint — 403, no RevertJob row
+    created, and the Etsy write is never even attempted."""
+    from app.models.revert_job import RevertJob
+    from sqlalchemy import select, func
+
+    token, org_id, apply_job_id, _, _ = await _setup_and_apply(
+        client, db_session,
+        email="rv_free_blocked@example.com",
+        org_name="RvFreeBlocked Org",
+        etsy_prefix="rv_free_blocked",
+        grant_plan=None,
+    )
+
+    with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()), \
+         patch("app.services.bulk_edit_revert.patch_etsy_listing", new_callable=AsyncMock) as m:
+        r = await client.post(
+            f"{APPLY_JOBS_URL}/{apply_job_id}/revert",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        m.assert_not_called()
+
+    assert r.status_code == 403
+    assert r.json()["detail"] == _PLAN_BLOCKED_MSG
+    # No customer-facing "admin"/"comp grant"/internal wording.
+    for forbidden in ("admin", "comp grant", "internal", "override", "subscription.plan"):
+        assert forbidden not in r.json()["detail"].lower()
+
+    count_result = await db_session.execute(
+        select(func.count()).select_from(
+            select(RevertJob).where(RevertJob.apply_job_id == apply_job_id).subquery()
+        )
+    )
+    assert count_result.scalar_one() == 0
+
+
+async def test_revert_pro_plan_direct_call_allowed(client, db_session):
+    """Pro plan (via comp grant, same as every other test's default) can
+    execute Magic Revert — the existing happy-path flow is unaffected."""
+    token, _, apply_job_id, _, _ = await _setup_and_apply(
+        client, db_session,
+        email="rv_pro_allowed@example.com",
+        org_name="RvProAllowed Org",
+        etsy_prefix="rv_pro_allowed",
+        grant_plan="pro_monthly",
+    )
+
+    with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()), \
+         patch("app.services.bulk_edit_revert.patch_etsy_listing", new_callable=AsyncMock) as m:
+        m.return_value = {"state": "active"}
+        r = await client.post(
+            f"{APPLY_JOBS_URL}/{apply_job_id}/revert",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert r.status_code == 202
+    assert r.json()["apply_job_id"] == apply_job_id
+
+
+async def test_revert_comp_grant_pro_direct_call_allowed_raw_plan_stays_free(client, db_session):
+    """Regression guard for the same bug class PR #104 fixed: raw
+    Subscription.plan must stay 'free' (no real Stripe subscription) while
+    the comp-grant-aware EFFECTIVE plan is what actually gates the revert."""
+    from app.models.subscription import Subscription
+    from sqlalchemy import select
+
+    token, org_id, apply_job_id, _, _ = await _setup_and_apply(
+        client, db_session,
+        email="rv_comp_pro@example.com",
+        org_name="RvCompPro Org",
+        etsy_prefix="rv_comp_pro",
+        grant_plan="pro_monthly",
+    )
+
+    sub_result = await db_session.execute(
+        select(Subscription).where(Subscription.organization_id == org_id)
+    )
+    sub = sub_result.scalar_one_or_none()
+    assert sub is None or sub.plan == "free"
+
+    with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()), \
+         patch("app.services.bulk_edit_revert.patch_etsy_listing", new_callable=AsyncMock) as m:
+        m.return_value = {"state": "active"}
+        r = await client.post(
+            f"{APPLY_JOBS_URL}/{apply_job_id}/revert",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert r.status_code == 202
+
+
+async def test_apply_job_history_free_plan_eligible_job_cannot_revert(client, db_session):
+    """History list must not show an otherwise-eligible job as revertable
+    when the org's effective plan doesn't allow Magic Revert."""
+    token, _, apply_job_id, _, _ = await _setup_and_apply(
+        client, db_session,
+        email="hist_free_blocked@example.com", org_name="Hist FreeBlocked Org", etsy_prefix="hist_free_blocked",
+        grant_plan=None,
+    )
+
+    r = await client.get(APPLY_JOBS_URL, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    item = next(i for i in r.json()["items"] if i["id"] == apply_job_id)
+    assert item["can_revert"] is False
+    assert item["revert_blocked_reason"] == _PLAN_BLOCKED_MSG
+    assert item["revert_status"] is None
+
+
+async def test_apply_job_history_pro_plan_eligible_job_can_revert(client, db_session):
+    """Same otherwise-eligible job, effective Pro plan — can_revert stays true."""
+    token, _, apply_job_id, _, _ = await _setup_and_apply(
+        client, db_session,
+        email="hist_pro_allowed@example.com", org_name="Hist ProAllowed Org", etsy_prefix="hist_pro_allowed",
+        grant_plan="pro_monthly",
+    )
+
+    r = await client.get(APPLY_JOBS_URL, headers={"Authorization": f"Bearer {token}"})
+    item = next(i for i in r.json()["items"] if i["id"] == apply_job_id)
+    assert item["can_revert"] is True
+    assert item["revert_blocked_reason"] is None
+
+
+async def test_apply_job_history_already_reverted_takes_precedence_over_plan_block(client, db_session):
+    """Precedence: a job that was reverted while the org was on Pro, whose org
+    is later downgraded to Free (comp grant revoked), must still report
+    'Already reverted.' — not 'plan blocked'. Direct re-execution is separately
+    impossible anyway via the existing duplicate-revert 409, which itself is
+    also checked before the plan gate."""
+    from app.models.comp_access_grant import CompAccessGrant
+    from datetime import datetime, timezone
+    from sqlalchemy import select
+
+    token, org_id, apply_job_id, _, _ = await _setup_and_apply(
+        client, db_session,
+        email="hist_precedence@example.com", org_name="Hist Precedence Org", etsy_prefix="hist_prec",
+        grant_plan="pro_monthly",
+    )
+
+    with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()), \
+         patch("app.services.bulk_edit_revert.patch_etsy_listing", new_callable=AsyncMock) as m:
+        m.return_value = {"state": "active"}
+        revert_r = await client.post(
+            f"{APPLY_JOBS_URL}/{apply_job_id}/revert",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert revert_r.status_code == 202
+
+    # Revoke the comp grant — org effectively drops back to Free.
+    grant_result = await db_session.execute(
+        select(CompAccessGrant).where(CompAccessGrant.organization_id == org_id)
+    )
+    grant = grant_result.scalar_one()
+    grant.revoked_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    r = await client.get(APPLY_JOBS_URL, headers={"Authorization": f"Bearer {token}"})
+    item = next(i for i in r.json()["items"] if i["id"] == apply_job_id)
+    assert item["can_revert"] is False
+    assert item["revert_blocked_reason"] == "Already reverted."
+
+    # Direct re-execution is blocked by the pre-existing duplicate-revert
+    # check (409), which also runs before the plan gate — not repurposed
+    # into a 403 by this change.
+    with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()):
+        second_r = await client.post(
+            f"{APPLY_JOBS_URL}/{apply_job_id}/revert",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert second_r.status_code == 409
+
+
+async def test_revert_free_plan_cross_org_job_still_404_not_leaked(client, db_session):
+    """A Free-plan org attempting to revert another org's job must still get
+    404 (org-scoped lookup), not 403 — the plan gate must never run before,
+    or substitute for, the org-ownership check, which would otherwise leak
+    that the job id exists at all."""
+    _, _, apply_job_id_a, _, _ = await _setup_and_apply(
+        client, db_session,
+        email="rv_gate_iso_a@example.com", org_name="RvGateIsoA Org", etsy_prefix="rv_gate_iso_a",
+        grant_plan="pro_monthly",
+    )
+
+    token_b, _, _, _, _ = await _setup_and_apply(
+        client, db_session,
+        email="rv_gate_iso_b@example.com", org_name="RvGateIsoB Org", etsy_prefix="rv_gate_iso_b",
+        grant_plan=None,
+    )
+
+    with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()):
+        r = await client.post(
+            f"{APPLY_JOBS_URL}/{apply_job_id_a}/revert",
+            headers={"Authorization": f"Bearer {token_b}"},
+        )
+    assert r.status_code == 404
+
+
+async def test_revert_pro_plan_zero_success_job_still_blocked(client, db_session):
+    """The PR #107 zero-success-item guard must still apply even on an
+    effective-Pro org — the plan gate is additive, not a replacement."""
+    token, org_id, apply_job_id, session_id, listing = await _setup_and_apply(
+        client, db_session, email="rv_pro_nosuccess@example.com", org_name="RvProNoSuccess Org", etsy_prefix="rv_pro_ns",
+        etsy_patch_side_effect=Exception("boom"),
+        grant_plan="pro_monthly",
+    )
+
+    from app.models.bulk_edit_apply_result import BulkEditApplyResult
+    from app.models.bulk_edit_apply_job import BulkEditApplyJob
+    from sqlalchemy import select
+
+    job_result = await db_session.execute(
+        select(BulkEditApplyJob).where(BulkEditApplyJob.id == apply_job_id)
+    )
+    job = job_result.scalar_one()
+    job.status = "completed_with_errors"
+    await db_session.commit()
+
+    with patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()):
+        r = await client.post(
+            f"{APPLY_JOBS_URL}/{apply_job_id}/revert",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert r.status_code == 400
+    assert "no successfully changed items" in r.json()["detail"].lower()

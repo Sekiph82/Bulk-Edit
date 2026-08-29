@@ -2,17 +2,29 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-29 (docs cleanup after PR #101 + PR #107; next: close the Magic Revert plan-gate gap)
+## RESUME HERE — 2026-08-30 (M08.07/M16.06: Magic Revert plan-gate enforcement)
 
-**Both PR #107 and PR #101 are merged into `main` and deployed:**
-- PR #107 (`feat(revert): add Magic Revert history and activity audit`, M16/UX-02A) — merge commit `7ee420dc1bca90b812ab7e48becece4e0ff241c0`. `/magic-revert` and `/account/activity` are real apply-job-history pages (not placeholders); prior-job Magic Revert execution is enabled via the existing org-scoped revert endpoint. Deployed and route-verified (both prod apps `ACTIVE`, 9 read-only health/route checks 200).
-- PR #101 (`docs(hiveai): add dashboard manifest and master sprint roadmap`) — merge commit `092e02f9303b9c824cc816176e485d91720cc730`. `TASKS.md` (H!veAI format, `M00`-`M20`) and `.hiveai/PROJECT_DASHBOARD.md` (pointer-only) are now canonical on `main`. Deployed and route-verified (both prod apps `ACTIVE`, 8 read-only health/route checks including confirmation Private Beta is unchanged).
-- This round (`docs/update-current-truth-after-pr101-pr107`): fixed stale pre-merge PR #101 wording left over in `TASKS.md`/`HANDOFF.md`/`PROJECT_STATUS.md` from before those two merges landed, backfilled M11 checkboxes against PR #105, recorded PR #106/#107 shipped-state in M09/M13/M16, and recorded the `can_use_magic_revert` plan-gate known gap as a tracked package (M08.07/M16.06) instead of only prose.
+**Branch `fix/magic-revert-plan-gate`, based on `origin/main` past PR #108's `1f984baa248d041f0f630535815b7b368dbbd34f`.** Closes the known gap PR #107/#108 tracked but deliberately didn't fix: `PLAN_LIMITS["can_use_magic_revert"]` (Free: `False`) is now actually enforced server-side.
 
-**Recommended next work, in order (see `TASKS.md` M08.07/M16.06 for the gap detail):**
-1. **Close the `can_use_magic_revert` server-side plan-gate gap** — `PLAN_LIMITS["can_use_magic_revert"]` is defined but never checked in `validate_apply_job_revertable()`/`get_revert_eligibility_map()`. Fixing it now requires touching ~20 pre-existing tests in `test_bulk_edit_revert.py`/`test_bulk_edit.py` that assume revert just works (grant them a paid plan or adjust assertions) — do this as its own focused round, not bundled with UI work.
-2. **Then, owner live QA of the Magic Revert History UI** (`/magic-revert`, `/account/activity`) — click-through only; do not actually run a Magic Revert against a real Etsy listing unless the owner explicitly approves that exact action in-session.
-3. **Then, UX-01C** — Listing Health issue detail (tag count, photo count, missing/zero price, variation warnings) + Shop Insights affected-listings navigation (see `TASKS.md` M10.01/M10.03).
+**Audit first, code-read not guessed:** `get_effective_plan()` (`app/core/plans.py`, comp-grant aware) is the established helper — same one PR #104 used to fix the analogous bulk-edit-usage-gate bug. `validate_apply_job_revertable()` (`app/services/bulk_edit_revert.py`) is the single call site both the direct revert endpoint (`POST /apply-jobs/{id}/revert`) and, indirectly via `get_revert_eligibility_map()`, the history endpoint (`GET /apply-jobs`) both route through.
+
+**Enforcement:** the plan gate is checked **last** in `validate_apply_job_revertable()` — after the org-scoped lookup (404, so a cross-org job id never leaks existence), status check (400), zero-success check (400), and duplicate-revert check (409) — so an already-reverted job still reports "Already reverted.", not "plan blocked", and no RevertJob row is created and no Etsy call is made before every check passes. `get_revert_eligibility_map()` mirrors the identical rule in the identical order, resolving the effective plan **once per history request** (not per job — no N+1). Blocked response: `403 "Magic Revert is not available on your current plan."` — no "admin"/"comp grant"/internal wording.
+
+**Tests:** 8 new (`test_bulk_edit_revert.py`) — Free blocked direct-call + history, Pro allowed, comp-grant-Pro allowed (same bug class as PR #104, raw `Subscription.plan` stays `free` while effective plan gates correctly), already-reverted-takes-precedence, cross-org-still-404-not-leaked, zero-success-still-blocked-on-Pro. All ~25 pre-existing revert-mechanics tests updated via a `grant_plan="pro_monthly"` default added to the shared `_setup_and_apply()` fixture (comp-grant path, not a raw plan mutation) — none skipped or weakened. Targeted suite (`test_bulk_edit_revert.py`+`test_bulk_edit.py`+`test_bulk_edit_apply.py`+`test_billing.py`): 129 passed, 13 pre-existing baseline failures (same local-only `*_requires_auth` 401-vs-403 quirk documented in every prior round, confirmed via `git stash` A/B against `origin/main` before this branch) — no regressions.
+
+**Frontend: no change needed.** `/magic-revert` (PR #107) already renders `revert_blocked_reason` as the disabled-button tooltip/label, and `lib/api.ts`'s `ApiError.message` already surfaces the backend's exact `detail` string on a direct 403 — both were built generically enough in PR #107 to need no update for this new reason string.
+
+**No Etsy API call, no Bulk Edit apply/Magic Revert/shop sync/OAuth by Claude/Codex.**
+
+**Recommended next work, in order:**
+1. **Owner live QA of the Magic Revert History UI** (`/magic-revert`, `/account/activity`) — click-through only; do not actually run a Magic Revert against a real Etsy listing unless the owner explicitly approves that exact action in-session.
+2. **UX-01C** — Listing Health issue detail (tag count, photo count, missing/zero price, variation warnings) + Shop Insights affected-listings navigation (see `TASKS.md` M10.01/M10.03).
+
+---
+
+## Previously — 2026-08-29 (docs cleanup after PR #101 + PR #107)
+
+Both PR #107 (`7ee420dc1bca90b812ab7e48becece4e0ff241c0`) and PR #101 (`092e02f9303b9c824cc816176e485d91720cc730`) merged into `main` and deployed; branch `docs/update-current-truth-after-pr101-pr107` (PR #108) fixed stale pre-merge PR #101 wording left in `TASKS.md`/`HANDOFF.md`/`PROJECT_STATUS.md`, backfilled M11 checkboxes against PR #105, recorded PR #106/#107 shipped-state in M09/M13/M16, and recorded the `can_use_magic_revert` plan-gate known gap as a tracked package (M08.07/M16.06) instead of only prose. See `CHANGELOG_AI.md` for full detail.
 
 ---
 

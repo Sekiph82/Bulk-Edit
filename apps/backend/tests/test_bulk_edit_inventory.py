@@ -461,12 +461,27 @@ async def test_apply_skips_inventory_for_variation_listing(client, db_session):
 # ── revert integration tests ───────────────────────────────────────────────────
 
 async def _setup_apply_with_price_change(client, db_session, email, org_name, etsy_prefix):
-    """Register user, create listing, apply price change with mocked inventory. Returns (token, apply_job_id, listing)."""
+    """Register user, create listing, apply price change with mocked inventory. Returns (token, apply_job_id, listing).
+
+    Grants an effective Pro plan (via CompAccessGrant, same pattern as
+    test_bulk_edit_revert.py) since these tests exercise revert *mechanics*,
+    not the can_use_magic_revert plan gate (M08.07)."""
+    from datetime import datetime, timezone
+    from app.models.comp_access_grant import CompAccessGrant
+
     token = await _register_and_login(client, {
         "email": email, "password": "password123",
         "full_name": "Rv Inv", "organization_name": org_name,
     })
     org_id = await _get_org_id_for_user(db_session, email)
+    db_session.add(CompAccessGrant(
+        organization_id=org_id,
+        comp_plan="pro_monthly",
+        reason="test setup",
+        starts_at=datetime.now(timezone.utc),
+        ends_at=None,
+    ))
+    await db_session.commit()
     session_id, listing = await _create_price_session(
         client, db_session, token, org_id, etsy_prefix, new_price=3000
     )
