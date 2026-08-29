@@ -4,6 +4,14 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-29 (Pro comp-grant bulk edit limit gate bug)
+
+### [ARCH] Every plan/usage gate must resolve through `get_effective_plan()`, never read `Subscription.plan` directly for gating purposes
+Root cause of the reported bug: `billing.py::check_usage_limit()` (backing the Bulk Edit apply gate) read the raw `Subscription.plan` — which defaults to `"free"` and stays `"free"` for any account whose access comes entirely from an admin comp grant rather than a real Stripe subscription. `/billing/subscription` already resolved comp grants correctly via `get_effective_plan()` (added in PR #87, originally only wired into `etsy_sync.py`), so the Billing page showed Pro Monthly / 5000 bulk edits while the apply gate itself silently enforced the Free plan's 10/month ceiling — the owner's own 33-listing/32-success live test alone exceeds that. Auditing every caller of the raw-plan pattern (`get_plan_limits(sub.plan)` / `sub.plan not in VALID_PAID_PLANS`) found the identical bug independently duplicated in `ai_tools.py` (AI credit gate, twice), `dynamic_pricing.py` (Dynamic Pricing gate), `scheduled_jobs.py` (scheduling gate), and `GET /billing/usage`. Fixed all of them the same way, in the same PR, rather than only the reported Bulk Edit call site — same root cause, same one-line class of fix, and leaving the other four in place would have shipped "fixed" messaging while comp-Pro accounts remained silently blocked from AI tools, Dynamic Pricing, and scheduling. `can_use_feature(subscription, ...)` was found to be dead code (defined, never called) and left alone — no live bug to fix there.
+
+### [ARCH] Gate error messages must state usage/limit context, not just "limit reached"
+The prior message ("Monthly bulk edit limit reached. Upgrade your plan to continue.") gave no way to tell a real 5000/month exhaustion apart from this exact class of bug (wrong plan resolved) without reading server logs. `check_usage_limit()` now returns `(within_limit, current_usage, limit)` instead of a bare bool, and every gate that blocks includes the actual numbers ("Used X of Y this month") — safe to show (no secrets, just integers), and it makes the next occurrence of this bug class self-diagnosing from the UI alone.
+
 ## 2026-08-28 (Etsy rate-limit guard/backoff)
 
 ### [ARCH] Split per-call retry from cross-item write pacing into two separate mechanisms, not one

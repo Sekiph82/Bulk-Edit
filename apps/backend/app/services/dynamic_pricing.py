@@ -44,9 +44,10 @@ class DynamicPricingError(Exception):
 # ── Billing gate ──────────────────────────────────────────────────────────────
 
 async def assert_dynamic_pricing_allowed(org_id: str, db: AsyncSession) -> None:
-    sub = await ensure_subscription_exists(org_id, db)
-    from app.core.plans import get_plan_limits
-    limits = get_plan_limits(sub.plan)
+    await ensure_subscription_exists(org_id, db)
+    from app.core.plans import get_effective_plan, get_plan_limits
+    plan = await get_effective_plan(db, org_id)
+    limits = get_plan_limits(plan)
     if not limits.get("can_use_dynamic_pricing", False):
         raise DynamicPricingError(
             "Dynamic pricing requires a Pro plan. Upgrade to access this feature.", 402
@@ -55,7 +56,7 @@ async def assert_dynamic_pricing_allowed(org_id: str, db: AsyncSession) -> None:
     counter = await get_or_create_usage(org_id, db)
     if counter.dynamic_pricing_jobs_used >= monthly_limit:
         raise DynamicPricingError(
-            f"Dynamic pricing job limit reached ({monthly_limit}/month). Upgrade for more.", 402
+            f"Dynamic pricing job limit reached ({counter.dynamic_pricing_jobs_used}/{monthly_limit} this month). Upgrade for more.", 402
         )
 
 

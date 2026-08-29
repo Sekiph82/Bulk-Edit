@@ -120,8 +120,9 @@ async def get_usage(
     org_id: str = Depends(get_current_org_id),
     db: AsyncSession = Depends(get_db),
 ):
-    sub = await ensure_subscription_exists(org_id, db)
-    limits = get_plan_limits(sub.plan)
+    await ensure_subscription_exists(org_id, db)
+    access = await get_effective_access(db, org_id)
+    limits = get_plan_limits(access.effective_plan)
     counter = await get_or_create_usage(org_id, db)
     await db.commit()
 
