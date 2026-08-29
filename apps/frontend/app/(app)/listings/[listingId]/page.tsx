@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,6 +16,11 @@ const STATE_BADGE: Record<string, string> = {
   expired: "bg-red-100 text-red-600",
 };
 
+// Local product-detail data only — refreshed periodically while this page is
+// open. Never polls Etsy directly; this just re-reads our own already-synced
+// database via the same GET the initial page load uses.
+const METRICS_REFRESH_MS = 60_000;
+
 function formatPrice(amount: number | null, divisor: number | null, currency: string | null): string {
   if (amount == null) return "—";
   const val = amount / (divisor ?? 100);
@@ -28,10 +33,13 @@ function yesNo(v: boolean | null | undefined): string {
 
 // ---- reusable pieces ----
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
-      <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
+        {action}
+      </div>
       {children}
     </div>
   );
@@ -57,6 +65,30 @@ function BulkEditLink({ listingId, children }: { listingId: string; children: Re
   );
 }
 
+function ActionChip({ href, external, children }: { href: string; external?: boolean; children: React.ReactNode }) {
+  const cls = "block text-center text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg px-3 py-2 transition-colors";
+  if (external) {
+    return <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>{children}</a>;
+  }
+  return <Link href={href} className={cls}>{children}</Link>;
+}
+
+function Metric({ label, value, unavailable }: { label: string; value: number | null; unavailable?: string }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 uppercase tracking-wide">{label}</p>
+      {value != null ? (
+        <p className="text-lg font-semibold text-gray-900">{value.toLocaleString()}</p>
+      ) : (
+        <>
+          <p className="text-lg font-semibold text-gray-300">—</p>
+          <p className="text-[11px] text-gray-400">{unavailable ?? "Not synced yet"}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ---- page ----
 
 export default function ProductDetailPage() {
@@ -69,10 +101,22 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+  const refreshingRef = useRef(false);
 
   useEffect(() => {
     if (!getAccessToken()) { router.push("/login"); return; }
     load();
+  }, [listingId]);
+
+  // Periodic local-only refresh of listing data (price/quantity/performance
+  // counters) while the page stays open. Hits only this app's own backend —
+  // never Etsy — and stops the moment the component unmounts.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!refreshingRef.current) refreshMetrics();
+    }, METRICS_REFRESH_MS);
+    return () => clearInterval(interval);
   }, [listingId]);
 
   function load() {
@@ -82,6 +126,7 @@ export default function ProductDetailPage() {
     getListing(listingId)
       .then((d) => {
         setListing(d);
+        setLastRefreshedAt(new Date());
         return getListingImages(listingId).catch(() => []);
       })
       .then((imgs) => setImages(imgs ?? []))
@@ -91,6 +136,20 @@ export default function ProductDetailPage() {
         setError(e instanceof ApiError ? e.message : "Failed to load product.");
       })
       .finally(() => setLoading(false));
+  }
+
+  async function refreshMetrics() {
+    refreshingRef.current = true;
+    try {
+      const d = await getListing(listingId);
+      setListing(d);
+      setLastRefreshedAt(new Date());
+    } catch {
+      // Silent — this is a background refresh; the page keeps showing the
+      // last successfully loaded data rather than flashing an error.
+    } finally {
+      refreshingRef.current = false;
+    }
   }
 
   if (loading) {
@@ -126,6 +185,7 @@ export default function ProductDetailPage() {
   const description = listing.description ? decodeEntities(listing.description) : null;
   const tags = listing.tags ?? [];
   const materials = listing.materials ?? [];
+  const primaryImageUrl = listing.thumbnail_url ?? images[0]?.url_570xN ?? images[0]?.url_fullxfull ?? null;
 
   return (
     <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
@@ -133,10 +193,12 @@ export default function ProductDetailPage() {
       <div className="bg-white border border-gray-200 rounded-xl p-6">
         <div className="flex flex-col sm:flex-row gap-6">
           <div className="w-full sm:w-40 shrink-0">
-            {listing.thumbnail_url ? (
-              <img src={listing.thumbnail_url} alt={title} className="w-full aspect-square object-cover rounded-lg border border-gray-100" />
+            {primaryImageUrl ? (
+              <img src={primaryImageUrl} alt={title} className="w-full aspect-square object-cover rounded-lg border border-gray-100" />
             ) : (
-              <div className="w-full aspect-square bg-gray-100 rounded-lg border border-gray-100" />
+              <div className="w-full sm:w-40 aspect-square max-h-40 bg-gray-50 rounded-lg border border-dashed border-gray-200 flex items-center justify-center">
+                <span className="text-2xl text-gray-300">🖼️</span>
+              </div>
             )}
           </div>
           <div className="flex-1 min-w-0 space-y-2">
@@ -176,141 +238,173 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Product Overview */}
-        <Card title="Product Overview">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-            <Field label="State" value={listing.state} />
-            <Field label="Price" value={formatPrice(listing.price_amount, listing.price_divisor, listing.currency_code)} />
-            <Field label="Quantity" value={listing.quantity} />
-            <Field label="SKU" value={listing.sku} />
-            <Field label="Has Variations" value={yesNo(listing.has_variations)} />
-            <Field label="Personalizable" value={yesNo(listing.is_personalizable)} />
-            <Field label="Customizable" value={yesNo(listing.is_customizable)} />
-            <Field label="Who Made" value={listing.who_made} />
-            <Field label="Taxonomy ID" value={listing.taxonomy_id} />
-            <Field label="Section ID" value={listing.section_id} />
-            <Field label="Last Synced" value={listing.last_synced_at ? new Date(listing.last_synced_at).toLocaleString() : "Never"} />
-            <Field label="Etsy Updated" value={listing.etsy_updated_at ? new Date(listing.etsy_updated_at).toLocaleString() : "—"} />
-          </div>
-        </Card>
-
-        {/* Title */}
-        <Card title="Title">
-          <p className="text-gray-800 text-sm">{title}</p>
-          <p className="text-xs text-gray-400">{listing.title?.length ?? 0} characters</p>
-          <BulkEditLink listingId={listing.id}>Edit title in Bulk Edit →</BulkEditLink>
-        </Card>
-
-        {/* Description */}
-        <Card title="Description">
-          {description ? (
-            <>
-              <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{description}</p>
-              <p className="text-xs text-gray-400">{description.length} characters</p>
-            </>
-          ) : (
-            <p className="text-sm text-gray-400">No description synced.</p>
-          )}
-          <BulkEditLink listingId={listing.id}>Edit description in Bulk Edit →</BulkEditLink>
-        </Card>
-
-        {/* Tags */}
-        <Card title="Tags">
-          <p className="text-xs text-gray-400">{tags.length}/13</p>
-          {tags.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {tags.map((t, i) => (
-                <span key={i} className="bg-indigo-50 text-indigo-700 text-xs px-2 py-0.5 rounded-full">{decodeEntities(t)}</span>
-              ))}
+      {/* Two independent columns so a short card (Title, Tags) never gets
+          stretched to match a tall neighbor (Product Overview, Description) —
+          a single CSS grid with row-pairing was the cause of the large empty
+          space under short cards. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+        <div className="space-y-5">
+          {/* Product Overview */}
+          <Card title="Product Overview">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <Field label="State" value={listing.state} />
+              <Field label="Price" value={formatPrice(listing.price_amount, listing.price_divisor, listing.currency_code)} />
+              <Field label="Quantity" value={listing.quantity} />
+              <Field label="SKU" value={listing.sku} />
+              <Field label="Has Variations" value={yesNo(listing.has_variations)} />
+              <Field label="Personalizable" value={yesNo(listing.is_personalizable)} />
+              <Field label="Customizable" value={yesNo(listing.is_customizable)} />
+              <Field label="Who Made" value={listing.who_made} />
+              <Field label="Taxonomy ID" value={listing.taxonomy_id} />
+              <Field label="Section ID" value={listing.section_id} />
+              <Field label="Last Synced" value={listing.last_synced_at ? new Date(listing.last_synced_at).toLocaleString() : "Never"} />
+              <Field label="Etsy Updated" value={listing.etsy_updated_at ? new Date(listing.etsy_updated_at).toLocaleString() : "—"} />
             </div>
-          ) : (
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              No tags synced — this listing is missing all 13 tag slots.
-            </p>
-          )}
-          <BulkEditLink listingId={listing.id}>Edit tags in Bulk Edit →</BulkEditLink>
-        </Card>
+          </Card>
 
-        {/* Materials */}
-        <Card title="Materials">
-          {materials.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {materials.map((m, i) => (
-                <span key={i} className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">{decodeEntities(m)}</span>
-              ))}
+          {/* Performance */}
+          <Card
+            title="Performance"
+            action={
+              <button
+                onClick={() => refreshMetrics()}
+                className="text-xs font-medium text-indigo-600 hover:underline"
+              >
+                Refresh
+              </button>
+            }
+          >
+            <div className="grid grid-cols-3 gap-x-3 gap-y-4">
+              <Metric label="Views this month" value={null} unavailable="Requires sales data sync" />
+              <Metric label="Sales this month" value={null} unavailable="Requires Etsy sales scope" />
+              <Metric label="Favorites this month" value={null} unavailable="Requires sales data sync" />
+              <Metric label="Lifetime views" value={listing.lifetime_views} />
+              <Metric label="Lifetime sales" value={null} unavailable="Requires Etsy sales scope" />
+              <Metric label="Lifetime favorites" value={listing.lifetime_favorites} />
             </div>
-          ) : (
-            <p className="text-sm text-gray-400">Not synced / unavailable.</p>
-          )}
-        </Card>
-
-        {/* Price & Inventory */}
-        <Card title="Price & Inventory">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-            <Field label="Price" value={formatPrice(listing.price_amount, listing.price_divisor, listing.currency_code)} />
-            <Field label="Quantity" value={listing.quantity} />
-            <Field label="Has Variations" value={yesNo(listing.has_variations)} />
-          </div>
-          {listing.has_variations && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              This listing has variations. Price/quantity writes use Etsy inventory-specific handling and are managed through Bulk Edit/Variations workflows.
+            <p className="text-[11px] text-gray-400 pt-1">
+              {lastRefreshedAt ? `Updated ${lastRefreshedAt.toLocaleTimeString()} — refreshes automatically every minute.` : "—"}
             </p>
-          )}
-          <div className="flex gap-4">
-            <BulkEditLink listingId={listing.id}>Edit price in Bulk Edit →</BulkEditLink>
-            <BulkEditLink listingId={listing.id}>Edit quantity in Bulk Edit →</BulkEditLink>
-          </div>
-        </Card>
+          </Card>
 
-        {/* Media */}
-        <Card title="Media">
-          {listing.thumbnail_url ? (
-            <img src={listing.thumbnail_url} alt={title} className="w-24 h-24 object-cover rounded-lg border border-gray-100" />
-          ) : (
-            <div className="w-24 h-24 bg-gray-100 rounded-lg border border-gray-100" />
-          )}
-          <p className="text-xs text-gray-400">
-            {images.length > 0 ? `${images.length} photo${images.length === 1 ? "" : "s"} synced` : "Photo count unavailable."}
-          </p>
-          <p className="text-xs text-gray-400">Full image gallery is not available yet — only the primary thumbnail is shown.</p>
-          <Link href="/media" className="inline-block text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:underline">
-            Open Media tools →
-          </Link>
-        </Card>
+          {/* Description */}
+          <Card title="Description">
+            {description ? (
+              <>
+                <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{description}</p>
+                <p className="text-xs text-gray-400">{description.length} characters</p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-400">No description synced.</p>
+            )}
+            <BulkEditLink listingId={listing.id}>Edit description in Bulk Edit →</BulkEditLink>
+          </Card>
 
-        {/* Health / Improvement */}
-        <Card title="Listing Health">
-          <p className="text-sm text-gray-400">Listing Health details are coming in UX-01C.</p>
-          <div className="flex gap-4">
-            <Link href="/listing-health" className="text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:underline">
-              View in Listing Health →
+          {/* Materials */}
+          <Card title="Materials">
+            {materials.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {materials.map((m, i) => (
+                  <span key={i} className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">{decodeEntities(m)}</span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">Not synced / unavailable.</p>
+            )}
+          </Card>
+
+          {/* Media */}
+          <Card title="Media">
+            <div className="flex items-center gap-3">
+              {primaryImageUrl ? (
+                <img src={primaryImageUrl} alt={title} className="w-16 h-16 object-cover rounded-lg border border-gray-100 shrink-0" />
+              ) : (
+                <div className="w-16 h-16 bg-gray-50 rounded-lg border border-dashed border-gray-200 flex items-center justify-center shrink-0">
+                  <span className="text-lg text-gray-300">🖼️</span>
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500">
+                  {images.length > 0 ? `${images.length} photo${images.length === 1 ? "" : "s"} synced` : "No photos synced yet."}
+                </p>
+                <p className="text-[11px] text-gray-400">Full image gallery is not available yet.</p>
+              </div>
+            </div>
+            <Link href="/media" className="inline-block text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:underline">
+              Open Media tools →
             </Link>
-            <BulkEditLink listingId={listing.id}>Fix in Bulk Edit →</BulkEditLink>
-          </div>
-        </Card>
+          </Card>
+        </div>
+
+        <div className="space-y-5">
+          {/* Title */}
+          <Card title="Title">
+            <p className="text-gray-800 text-sm">{title}</p>
+            <p className="text-xs text-gray-400">{listing.title?.length ?? 0} characters</p>
+            <BulkEditLink listingId={listing.id}>Edit title in Bulk Edit →</BulkEditLink>
+          </Card>
+
+          {/* Tags */}
+          <Card title="Tags">
+            <p className="text-xs text-gray-400">{tags.length}/13</p>
+            {tags.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {tags.map((t, i) => (
+                  <span key={i} className="bg-indigo-50 text-indigo-700 text-xs px-2 py-0.5 rounded-full">{decodeEntities(t)}</span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                No tags synced — this listing is missing all 13 tag slots.
+              </p>
+            )}
+            <BulkEditLink listingId={listing.id}>Edit tags in Bulk Edit →</BulkEditLink>
+          </Card>
+
+          {/* Price & Inventory */}
+          <Card title="Price & Inventory">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <Field label="Price" value={formatPrice(listing.price_amount, listing.price_divisor, listing.currency_code)} />
+              <Field label="Quantity" value={listing.quantity} />
+              <Field label="Has Variations" value={yesNo(listing.has_variations)} />
+            </div>
+            {listing.has_variations && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                This listing has variations. Price/quantity writes use Etsy inventory-specific handling and are managed through Bulk Edit/Variations workflows.
+              </p>
+            )}
+            <div className="flex gap-4">
+              <BulkEditLink listingId={listing.id}>Edit price in Bulk Edit →</BulkEditLink>
+              <BulkEditLink listingId={listing.id}>Edit quantity in Bulk Edit →</BulkEditLink>
+            </div>
+          </Card>
+
+          {/* Health / Improvement */}
+          <Card title="Listing Health">
+            <p className="text-sm text-gray-400">Listing Health details are coming in UX-01C.</p>
+            <div className="flex gap-4">
+              <Link href="/listing-health" className="text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:underline">
+                View in Listing Health →
+              </Link>
+              <BulkEditLink listingId={listing.id}>Fix in Bulk Edit →</BulkEditLink>
+            </div>
+          </Card>
+        </div>
       </div>
 
       {/* Safe Actions */}
       <Card title="Safe Actions">
         <p className="text-xs text-gray-500">
-          Actions open existing safe workflows. Direct single-field edits from this page will be added after credit/plan/write-surface design.
+          Actions open existing safe workflows — no direct Etsy writes from this page yet.
         </p>
-        <div className="flex flex-wrap gap-x-6 gap-y-2 pt-1">
-          <BulkEditLink listingId={listing.id}>Edit title in Bulk Edit →</BulkEditLink>
-          <BulkEditLink listingId={listing.id}>Edit description in Bulk Edit →</BulkEditLink>
-          <BulkEditLink listingId={listing.id}>Edit tags in Bulk Edit →</BulkEditLink>
-          <BulkEditLink listingId={listing.id}>Edit price in Bulk Edit →</BulkEditLink>
-          <BulkEditLink listingId={listing.id}>Edit quantity in Bulk Edit →</BulkEditLink>
-          <Link href="/listing-health" className="text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:underline">
-            Open Listing Health →
-          </Link>
-          {listing.url && (
-            <a href={listing.url} target="_blank" rel="noopener noreferrer"
-              className="text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:underline">
-              View on Etsy →
-            </a>
-          )}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+          <ActionChip href={`/bulk-edit?listing_ids=${listing.id}`}>Edit title</ActionChip>
+          <ActionChip href={`/bulk-edit?listing_ids=${listing.id}`}>Edit description</ActionChip>
+          <ActionChip href={`/bulk-edit?listing_ids=${listing.id}`}>Edit tags</ActionChip>
+          <ActionChip href={`/bulk-edit?listing_ids=${listing.id}`}>Edit price</ActionChip>
+          <ActionChip href={`/bulk-edit?listing_ids=${listing.id}`}>Edit quantity</ActionChip>
+          <ActionChip href="/listing-health">Listing Health</ActionChip>
+          {listing.url && <ActionChip href={listing.url} external>View on Etsy</ActionChip>}
         </div>
       </Card>
     </main>

@@ -2,7 +2,28 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-29 (Account Center + Connected Shops + customer-safe Plan/Usage UI — Account-01)
+## RESUME HERE — 2026-08-29 (UX-01D: owner visual QA remediation)
+
+**Owner tested production after PR #105 and reported 6 issues, all addressed this round — branch `fix/ux01d-owner-visual-remediation`, based on `origin/main` past PR #105's `1bc563e`.**
+
+1. **Magic Revert missing from nav** — added `/magic-revert` (new truthful placeholder route: explains today's Magic Revert lives on the Bulk Edit page right after Apply, links to Bulk Edit and `/account/activity` for the planned job-history revert) plus a nav entry under Workspace next to Bulk Edit.
+2. **Variation Bulk Editor "no listings"** — audited, not blindly fixed: the `has_variations=true` filter is real (Etsy's own field, correctly synced and queried), so this may be a truthful zero-result for this shop, not a bug. Improved the empty state instead (distinguishes no-data from no-search-match, links to Listings) rather than guessing the filter is wrong.
+3. **Media page "Failed to load listings"** — real bug, fixed: a `Promise.all([getListings, listMediaJobs, listVideoRenders])` meant a failure in the unrelated `listMediaJobs()` call blanked the whole listings picker. Decoupled into independent try/catches.
+4. **Bulk Create false "Connect your Etsy shop first"** — real bug, fixed: `GET /bulk-create/status` was hardcoded to always return `not_configured`, never actually checking `org_id`'s shop connection. Now runs the same `is_connected` check Connected Shops uses.
+5. **Product detail images blank** — real bug, fixed: `thumbnail_url` isn't a real column; the list endpoint patches it in per-request, the single-item detail endpoint never did. Added the same lookup, plus a frontend fallback to `getListingImages()`'s first image.
+6. **Product detail layout gaps** — real bug, fixed: a single `grid-cols-2` CSS grid row-pairs cells to equal height, which is why Title/Tags (short) sat next to Overview/Description (tall) with huge empty space. Rewritten as two independent flex columns.
+7. **Product Overview metrics** — added a truthful "Performance" card: `lifetime_views`/`lifetime_favorites` are real (extracted from the already-synced `raw_data` JSON blob, Etsy's core Listing object carries these as lifetime counters), the 4 requested-but-unavailable metrics (monthly views/sales/favorites, lifetime sales) show "—" + "Requires sales data sync"/"Requires Etsy sales scope" — never a fake `0`, since Etsy's Listing object has no monthly breakdown and this app has never called the Shop Stats/Receipts endpoints sales data would need. 60-second local-only refresh (`GET /listings/{id}` on this app's own backend, never Etsy) while the page stays open, cleared on unmount.
+8. **Recommendation banners** — removed exactly 3 ("Not sure what to fix first? Review Listing Health", "Combine margin data... View Profit", "Optimize high-margin listings first... Review Listing Health") from Listings/Listing Health/Profit. Grepped for more elsewhere — none found; all other colored banners tie to real state (errors, warnings) and were left alone.
+
+**4 new backend tests** (2 for the thumbnail fix, 2 for the Bulk Create gate fix). Targeted suite: 41 passed, 1 pre-existing baseline failure (confirmed via `git stash` A/B, not a regression). Frontend `tsc`/`lint`/`build` all clean.
+
+**No Etsy API call, no Bulk Edit apply/Magic Revert/shop sync, no OAuth completed, no Connect Etsy clicked, no Stripe/DNS/Cloudflare/env change by Claude/Codex.** PR #101 not merged or touched.
+
+**Not yet done as of this write-up:** commit, push, PR open, CI watch, merge, deploy, post-deploy route verification (the full route list from the task, including `/magic-revert` and a safe listing-id product-detail load if one is available without live data access).
+
+---
+
+## Previously — 2026-08-29 (Account Center + Connected Shops + customer-safe Plan/Usage UI — Account-01)
 
 **Preceded by an independent strict audit of PR #104** (billing effective-plan gate fix + UX-01B product detail page): code read directly, fresh test/build execution, not the builder log taken on faith. Verdict CONDITIONAL — 0 BLOCKER, 0 MAJOR, 1 MINOR (self-reported test-pass count was numerically wrong, underlying claim re-verified true), 1 NOTE (no live-browser click-through yet, already self-disclosed). Full audit: `2026-08-29_13-31_AUDIT_PR104_billing_gate_product_detail.md`. `TASKS.md` was then converted to the H!veAI-style milestone ledger (`M00`-`M20`) on `docs/hiveai-dashboard-and-tasks` (PR #101, still not merged) — see that branch's `TASKS.md` for the full milestone map.
 

@@ -338,18 +338,26 @@ export default function MediaPage() {
   const [backupCount, setBackupCount] = useState<number | null>(null);
 
   const load = useCallback(async () => {
+    // Listings load independently of jobs/video-renders — a Promise.all here
+    // previously meant an unrelated failure in listMediaJobs()/listVideoRenders()
+    // rejected the whole batch and blanked the listings picker with a
+    // misleading "Failed to load listings", even when listings themselves
+    // loaded fine (they use the same shared getListings() as the Listings page).
     try {
-      const [pg, jobList, renders] = await Promise.all([
-        getListings({ per_page: 200 }),
-        listMediaJobs(),
-        listVideoRenders(true).catch(() => []),
-      ]);
+      const pg = await getListings({ per_page: 200 });
       setListings(pg.items);
-      setJobs(jobList);
-      setVideoRenders(renders);
+      setError(null);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 403) { router.push("/login"); return; }
+      if (e instanceof ApiError && e.status === 401) { router.push("/login"); return; }
       setError("Failed to load listings.");
+    }
+    try {
+      setJobs(await listMediaJobs());
+    } catch {}
+    try {
+      setVideoRenders(await listVideoRenders(true));
+    } catch {
+      setVideoRenders([]);
     }
   }, [router]);
 
