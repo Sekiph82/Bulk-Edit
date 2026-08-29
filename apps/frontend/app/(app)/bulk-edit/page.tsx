@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   getAccessToken, getListings, createBulkEditSession, getBulkEditSession,
   addBulkEditChange, removeBulkEditChange, generateBulkEditPreview,
@@ -14,6 +15,7 @@ import {
 import { decodeEntities } from "@/lib/decodeEntities";
 
 const FAILURE_REASON_CATEGORY: Array<{ match: (msg: string) => boolean; category: string }> = [
+  { match: (m) => /429/.test(m), category: "Etsy rate limit exceeded" },
   { match: (m) => /inventory/i.test(m) && /404/.test(m), category: "Etsy inventory endpoint not found or listing not accessible" },
   { match: (m) => /listing patch|patch failed/i.test(m) && /404/.test(m), category: "Etsy listing endpoint not found or listing not accessible" },
   { match: (m) => /inventory/i.test(m) && /400/.test(m), category: "Etsy rejected the price/quantity payload (invalid or incomplete data)" },
@@ -30,8 +32,18 @@ function extractSafeEtsyDetail(responsePayload: unknown): string | null {
   const errorNode = (rp.inventory_patch_error ?? rp.listing_patch_error) as Record<string, unknown> | undefined;
   const response = errorNode?.response as Record<string, unknown> | undefined;
   if (!response) return null;
+
   const code = typeof response.safe_etsy_error_code === "string" ? response.safe_etsy_error_code : null;
   const message = typeof response.safe_etsy_error_message === "string" ? response.safe_etsy_error_message : null;
+
+  if (response.rate_limited === true) {
+    const attempts = typeof response.retry_attempt === "number" ? response.retry_attempt : null;
+    const maxAttempts = typeof response.max_attempts === "number" ? response.max_attempts : null;
+    const retriedText = attempts && maxAttempts ? `Retried ${attempts}/${maxAttempts} times; try again later.` : "Try again later.";
+    const reasonText = message ?? "Exceeded per second rate limit";
+    return `Etsy returned HTTP 429: ${reasonText}. ${retriedText}`;
+  }
+
   if (!code && !message) return null;
   return [code, message].filter(Boolean).join(": ");
 }
@@ -441,6 +453,13 @@ function BulkEditContent() {
   const [revertJob, setRevertJob] = useState<RevertJob | null>(null);
   const [revertConfirmText, setRevertConfirmText] = useState("");
 
+  // Ref-level guard in addition to the `applying`/`reverting` state above: a
+  // fast double click can fire both handler calls before React re-renders
+  // with the new state, since setState doesn't take effect synchronously.
+  // A ref read/write is synchronous, so it closes that window.
+  const applyInFlightRef = useRef(false);
+  const revertInFlightRef = useRef(false);
+
   // Support preselection from URL (?listing_ids=id1,id2) or localStorage
   const preselected: string[] = (() => {
     const urlIds = searchParams.get("listing_ids");
@@ -537,29 +556,33 @@ function BulkEditContent() {
 
   async function handleRevertConfirmed() {
     if (!applyJob) return;
+    if (revertInFlightRef.current) return;
+    revertInFlightRef.current = true;
+    setShowRevertModal(false);
     setReverting(true);
     setApiError(null);
     try {
       const job = await revertApplyJob(applyJob.id);
       setRevertJob(job);
-      setShowRevertModal(false);
       setRevertConfirmText("");
     } catch (e) {
       setApiError(e instanceof ApiError ? e.message : "Revert failed.");
-      setShowRevertModal(false);
     } finally {
       setReverting(false);
+      revertInFlightRef.current = false;
     }
   }
 
   async function handleApplyConfirmed() {
     if (!session) return;
+    if (applyInFlightRef.current) return;
+    applyInFlightRef.current = true;
+    setShowApplyModal(false);
     setApplying(true);
     setApiError(null);
     try {
       const job = await applyBulkEditSession(session.id);
       setApplyJob(job);
-      setShowApplyModal(false);
       if (job.failure_count > 0) {
         try {
           const detail = await getApplyJobDetail(job.id);
@@ -572,9 +595,9 @@ function BulkEditContent() {
       }
     } catch (e) {
       setApiError(e instanceof ApiError ? e.message : "Apply failed.");
-      setShowApplyModal(false);
     } finally {
       setApplying(false);
+      applyInFlightRef.current = false;
     }
   }
 
@@ -731,6 +754,17 @@ function BulkEditContent() {
                 <p className="font-semibold mb-1">Apply complete — {applyJob.status}</p>
                 <p>Success: {applyJob.success_count} · Failed: {applyJob.failure_count} · Skipped: {applyJob.skipped_count}</p>
                 {applyJob.error_message && <p className="mt-1 text-xs">{applyJob.error_message}</p>}
+                <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 text-xs">
+                  <Link href="/magic-revert" className="font-medium underline underline-offset-2 hover:opacity-80">
+                    View job details →
+                  </Link>
+                  <Link href="/magic-revert" className="font-medium underline underline-offset-2 hover:opacity-80">
+                    Open Magic Revert History →
+                  </Link>
+                  <Link href="/account/activity" className="font-medium underline underline-offset-2 hover:opacity-80">
+                    Open Activity &amp; Audit →
+                  </Link>
+                </div>
               </div>
             )}
 
@@ -808,6 +842,30 @@ function BulkEditContent() {
             {hasInvalid && (
               <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-3 text-sm text-red-800">
                 <strong>Cannot apply:</strong> {previewResp?.summary.invalid} listing(s) have validation errors. Fix or remove them first.
+              </div>
+            )}
+
+            {/* Blocking overlay while Apply/Revert is in flight. Sits above the
+                confirmation modals (which close synchronously the moment
+                applying/reverting starts) so the background stays visible but
+                every click is blocked until the API call resolves. */}
+            {(applying || reverting) && (
+              <div
+                className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]"
+                role="status"
+                aria-live="polite"
+              >
+                <div className="bg-white rounded-2xl shadow-xl px-8 py-7 max-w-sm w-full mx-4 text-center">
+                  <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
+                  <p className="text-base font-semibold text-gray-900 mb-1">
+                    {applying ? "Writing changes to Etsy…" : "Reverting Etsy listings…"}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {applying
+                      ? "Please keep this page open. Bulk Edit is processing your selected listings safely."
+                      : "Please keep this page open. Bulk Edit is restoring backup snapshots safely."}
+                  </p>
+                </div>
               </div>
             )}
 

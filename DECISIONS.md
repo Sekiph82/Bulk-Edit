@@ -4,6 +4,25 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-29 (Pro comp-grant bulk edit limit gate bug)
+
+### [ARCH] Every plan/usage gate must resolve through `get_effective_plan()`, never read `Subscription.plan` directly for gating purposes
+Root cause of the reported bug: `billing.py::check_usage_limit()` (backing the Bulk Edit apply gate) read the raw `Subscription.plan` — which defaults to `"free"` and stays `"free"` for any account whose access comes entirely from an admin comp grant rather than a real Stripe subscription. `/billing/subscription` already resolved comp grants correctly via `get_effective_plan()` (added in PR #87, originally only wired into `etsy_sync.py`), so the Billing page showed Pro Monthly / 5000 bulk edits while the apply gate itself silently enforced the Free plan's 10/month ceiling — the owner's own 33-listing/32-success live test alone exceeds that. Auditing every caller of the raw-plan pattern (`get_plan_limits(sub.plan)` / `sub.plan not in VALID_PAID_PLANS`) found the identical bug independently duplicated in `ai_tools.py` (AI credit gate, twice), `dynamic_pricing.py` (Dynamic Pricing gate), `scheduled_jobs.py` (scheduling gate), and `GET /billing/usage`. Fixed all of them the same way, in the same PR, rather than only the reported Bulk Edit call site — same root cause, same one-line class of fix, and leaving the other four in place would have shipped "fixed" messaging while comp-Pro accounts remained silently blocked from AI tools, Dynamic Pricing, and scheduling. `can_use_feature(subscription, ...)` was found to be dead code (defined, never called) and left alone — no live bug to fix there.
+
+### [ARCH] Gate error messages must state usage/limit context, not just "limit reached"
+The prior message ("Monthly bulk edit limit reached. Upgrade your plan to continue.") gave no way to tell a real 5000/month exhaustion apart from this exact class of bug (wrong plan resolved) without reading server logs. `check_usage_limit()` now returns `(within_limit, current_usage, limit)` instead of a bare bool, and every gate that blocks includes the actual numbers ("Used X of Y this month") — safe to show (no secrets, just integers), and it makes the next occurrence of this bug class self-diagnosing from the UI alone.
+
+## 2026-08-28 (Etsy rate-limit guard/backoff)
+
+### [ARCH] Split per-call retry from cross-item write pacing into two separate mechanisms, not one
+The task explicitly warned against "guessing Etsy limits blindly as a magic hammer." Etsy 429s can happen in two different ways: a single call gets throttled mid-flight (needs retry-with-backoff on that call), or a fast loop over many listings outruns the limit before any single call is even throttled (needs spacing BETWEEN calls). One mechanism can't fix both — a retry loop alone still bursts write N+1 immediately after write N succeeds; a spacing gate alone doesn't help a single write that gets 429'd once. `_request_with_retry()` (per-call, honors `Retry-After`, capped at `ETSY_RETRY_MAX_ATTEMPTS`) and `sleep_before_etsy_write()` (per-shop minimum spacing, called explicitly at write-flow entry points only) are deliberately independent so each can be reasoned about and tested separately, and so future write endpoints only need to call both, not reimplement either.
+
+### [ARCH] Write pacing is scoped to write-flow entry points only, never built into the shared `etsy_get`/`etsy_patch`/`etsy_put` transport wrappers
+`etsy_get` also backs plain listing-sync reads (`etsy_sync.py`), which the task explicitly said must stay fast and unthrottled ("avoid slowing all read-only listing sync unless intentionally designed"). Building `sleep_before_etsy_write()` into the shared transport wrapper would have throttled every read too. Instead it's called explicitly inside the write functions themselves (`patch_etsy_listing`, `patch_etsy_listing_inventory`, `fetch_etsy_listing_inventory`, `put_etsy_listing_inventory`) — the GET inside the fetch-patch-put flow is paced because it's part of a write operation, not because it's a GET.
+
+### [POLICY] Only HTTP 429 is treated as retryable/rate-limited in the write-diagnostics shape; 400/401/403/404/5xx stay terminal and distinct
+The task required 400 to "remain distinct" from 429 in both diagnostics and UI, and explicitly said only 429 retries with backoff. `classify_etsy_write_status()` and `_write_diagnostics()`'s `rate_limited`/`retry_recommended`/`final_rate_limit_exhausted` fields all key off `status_code == 429` specifically — a 5xx server error is retried by `_request_with_retry()` (same mechanism, since a transient server error is also safe to retry) but is NOT reported as `rate_limited` in the final diagnostics, so the UI/logs never conflate "Etsy is overloaded" with "we're sending too fast," which would mislead whoever reads the failure later.
+
 ## 2026-08-28 (Etsy listing sync cap: verified working-as-designed, declined to bypass)
 
 ### [PRODUCT] Refused to implement the requested pagination "fix" once investigation showed it would bypass a paid-plan gate

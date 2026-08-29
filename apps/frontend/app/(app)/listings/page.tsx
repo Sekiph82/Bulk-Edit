@@ -461,15 +461,6 @@ function ListingsContent() {
   return (
     <>
     <main className="max-w-7xl mx-auto px-6 py-6 space-y-5">
-        {/* Health tip */}
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
-          <span>🩺</span>
-          <span>Not sure what to fix first?</span>
-          <Link href="/listing-health" className="font-medium underline underline-offset-2 hover:text-green-900">
-            Review Listing Health →
-          </Link>
-        </div>
-
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -748,7 +739,7 @@ function ListingsContent() {
                     <tr
                       key={listing.id}
                       className={`hover:bg-gray-50 transition-colors cursor-pointer ${selected.has(listing.id) ? "bg-indigo-50" : ""}`}
-                      onClick={() => setDetailId(listing.id)}
+                      onClick={() => router.push(`/listings/${listing.id}`)}
                     >
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <input type="checkbox" checked={selected.has(listing.id)} onChange={() => toggleSelect(listing.id)} className="rounded" />
@@ -760,7 +751,18 @@ function ListingsContent() {
                       )}
                       {colVisible("title") && (
                         <td className="px-4 py-3 max-w-xs">
-                          <p className="font-medium text-gray-900 truncate">{listing.title ? decodeEntities(listing.title) : "—"}</p>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{listing.title ? decodeEntities(listing.title) : "—"}</p>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setDetailId(listing.id); }}
+                              title="Quick View"
+                              aria-label="Quick View"
+                              className="shrink-0 text-gray-300 hover:text-indigo-600"
+                            >
+                              👁
+                            </button>
+                          </div>
                           <p className="text-xs text-gray-400">#{listing.etsy_listing_id}</p>
                         </td>
                       )}

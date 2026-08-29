@@ -92,6 +92,8 @@ export interface ListingDetail extends ListingListItem {
   item_width: number | null;
   item_height: number | null;
   item_dimensions_unit: string | null;
+  lifetime_views: number | null;
+  lifetime_favorites: number | null;
 }
 
 export interface ListingImage {
@@ -394,6 +396,41 @@ export function listApplyJobs(sessionId: string): Promise<ApplyJob[]> {
 
 export function getApplyJobDetail(jobId: string): Promise<ApplyJobWithResults> {
   return apiFetch(`/api/v1/bulk-edit/apply-jobs/${jobId}`);
+}
+
+export interface ApplyJobHistoryItem {
+  id: string;
+  bulk_edit_session_id: string;
+  status: string;
+  total_items: number;
+  success_count: number;
+  failure_count: number;
+  skipped_count: number;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  can_revert: boolean;
+  revert_blocked_reason: string | null;
+  revert_job_id: string | null;
+  revert_status: string | null;
+}
+
+export interface ApplyJobHistoryPage {
+  items: ApplyJobHistoryItem[];
+  page: number;
+  per_page: number;
+  total: number;
+}
+
+export function getApplyJobHistory(
+  params: { page?: number; per_page?: number; status?: string } = {},
+): Promise<ApplyJobHistoryPage> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+  }
+  const q = qs.toString();
+  return apiFetch(`/api/v1/bulk-edit/apply-jobs${q ? `?${q}` : ""}`);
 }
 
 export function listBackupSnapshots(sessionId: string): Promise<BackupSnapshot[]> {

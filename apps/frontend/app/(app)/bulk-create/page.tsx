@@ -52,9 +52,17 @@ function BulkCreateContent() {
           <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
             {status.message}
           </p>
-          <a href="/shops" className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2 rounded-lg">
-            Go to Shops →
+          <a href="/account/connected-shops" className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2 rounded-lg">
+            Go to Connected Shops →
           </a>
+        </div>
+      ) : status?.status === "not_yet_enabled" ? (
+        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
+          <div className="text-4xl mb-4">🚧</div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Bulk Create is coming soon</h2>
+          <p className="text-sm text-gray-500 max-w-md mx-auto">
+            {status.message}
+          </p>
         </div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">

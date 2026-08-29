@@ -17,6 +17,34 @@ from app.main import app
 TEST_DB_URL = "sqlite+aiosqlite:///file:testdb?mode=memory&cache=shared&uri=true"
 
 
+@pytest.fixture(autouse=True)
+def _reset_etsy_write_pacing_state():
+    """
+    etsy_http.sleep_before_etsy_write() tracks the last write time per shop
+    in a module-level dict and enforces settings.ETSY_BULK_WRITE_DELAY_MS
+    (1100ms in production) between writes to the same shop — so a fast
+    sequential apply/revert loop paces itself against Etsy's rate limit.
+    Many tests reuse the same literal shop_etsy_id (e.g. "99999999") across
+    dozens of call sites, and some tests write to one listing more than
+    once (title PATCH + inventory PUT). Without neutralizing this, those
+    would trigger real (non-injected) multi-second asyncio.sleep calls,
+    silently slowing and flaking the suite — exactly what the task asked
+    tests to never do. Sets the interval to 0 for the whole test process
+    (production's real default is untouched — this only patches the
+    Settings instance the app already constructed) and clears any state
+    between tests for good measure. Runs before every test.
+    """
+    from app.core.config import settings as _settings
+    from app.services import etsy_http
+
+    original_delay_ms = _settings.ETSY_BULK_WRITE_DELAY_MS
+    _settings.ETSY_BULK_WRITE_DELAY_MS = 0
+    etsy_http._last_write_at.clear()
+    yield
+    _settings.ETSY_BULK_WRITE_DELAY_MS = original_delay_ms
+    etsy_http._last_write_at.clear()
+
+
 @pytest.fixture
 async def db_engine():
     engine = create_async_engine(TEST_DB_URL, echo=False)

@@ -148,12 +148,17 @@ async def apply_bulk_edit_session(
             detail="Etsy integration is not configured. Set ETSY_CLIENT_ID in environment.",
         )
 
-    # 4. Check subscription / usage limit
-    within_limit = await check_usage_limit(organization_id, "bulk_edits_used", db)
+    # 4. Check subscription / usage limit (effective plan -- comp-grant aware)
+    within_limit, current_usage, usage_limit = await check_usage_limit(
+        organization_id, "bulk_edits_used", db
+    )
     if not within_limit:
         raise HTTPException(
             status_code=402,
-            detail="Monthly bulk edit limit reached. Upgrade your plan to continue.",
+            detail=(
+                f"Monthly bulk edit limit reached. Used {current_usage} of {usage_limit} "
+                "this month. Upgrade your plan to continue."
+            ),
         )
 
     # 5. Load preview items
@@ -501,6 +506,31 @@ async def list_apply_jobs_for_session(
         ).order_by(BulkEditApplyJob.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def list_apply_jobs_for_org(
+    db: AsyncSession,
+    organization_id: str,
+    page: int = 1,
+    per_page: int = 50,
+    status: str | None = None,
+) -> tuple[list[BulkEditApplyJob], int]:
+    """
+    Org-wide apply job history, across every session — used by Magic Revert
+    History (/magic-revert) and Activity & Audit (/account/activity).
+    list_apply_jobs_for_session() above is scoped to one session and isn't
+    useful for a customer who doesn't know/track session ids.
+    """
+    query = select(BulkEditApplyJob).where(BulkEditApplyJob.organization_id == organization_id)
+    if status:
+        query = query.where(BulkEditApplyJob.status == status)
+
+    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = count_result.scalar_one()
+
+    query = query.order_by(BulkEditApplyJob.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+    result = await db.execute(query)
+    return list(result.scalars().all()), total
 
 
 async def get_apply_results(

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   getAccessToken,
   getListings,
@@ -111,6 +112,7 @@ export default function VariationsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [listingsLoaded, setListingsLoaded] = useState(false);
 
   const loadListings = useCallback(async () => {
     try {
@@ -118,6 +120,8 @@ export default function VariationsPage() {
       setListings(page.items);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) router.push("/login");
+    } finally {
+      setListingsLoaded(true);
     }
   }, [search, router]);
 
@@ -217,8 +221,19 @@ export default function VariationsPage() {
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-300"
             />
             <div className="overflow-y-auto max-h-96 divide-y divide-gray-100">
-              {filteredListings.length === 0 && (
-                <p className="text-sm text-gray-400 py-4 text-center">No variation listings found.</p>
+              {filteredListings.length === 0 && listingsLoaded && (
+                <div className="py-4 text-center space-y-1.5">
+                  <p className="text-sm text-gray-400">
+                    {search
+                      ? "No variation listings match your search."
+                      : "No listings with variations are currently synced."}
+                  </p>
+                  {!search && (
+                    <Link href="/listings" className="text-xs font-medium text-indigo-600 hover:underline">
+                      Open Listings →
+                    </Link>
+                  )}
+                </div>
               )}
               {filteredListings.map((l) => (
                 <label key={l.id} className="flex items-start gap-2 py-2 cursor-pointer hover:bg-gray-50 px-1 rounded">

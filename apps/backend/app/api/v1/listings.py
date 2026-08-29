@@ -151,7 +151,35 @@ async def get_listing(
     listing = result.scalar_one_or_none()
     if not listing:
         raise HTTPException(status_code=404, detail="Listing not found.")
-    return ListingDetailResponse.model_validate(listing)
+
+    # thumbnail_url isn't a real Listing column — list_listings() above
+    # patches it in from a batch ListingImage query, but this single-item
+    # endpoint never did the same, so the product detail page always got
+    # thumbnail_url=None. Same top-ranked-image lookup as the list endpoint.
+    img_result = await db.execute(
+        select(ListingImage.url_570xN)
+        .where(ListingImage.listing_id == listing_id)
+        .order_by(ListingImage.rank.asc())
+        .limit(1)
+    )
+    thumbnail_url = img_result.scalar_one_or_none()
+
+    # Lifetime views/favorites: Etsy's core Listing object carries these as
+    # cumulative counters and this app already stores the full raw payload
+    # in raw_data at sync time (etsy_sync.py) — just never surfaced them.
+    # No live Etsy call here, and no monthly/sales figures are invented:
+    # those aren't part of this object and stay unavailable in the schema
+    # default (None) if raw_data lacks them or was never synced with them.
+    raw_data = listing.raw_data if isinstance(listing.raw_data, dict) else {}
+    lifetime_views = raw_data.get("views")
+    lifetime_favorites = raw_data.get("num_favorers")
+
+    detail = ListingDetailResponse.model_validate(listing)
+    return detail.model_copy(update={
+        "thumbnail_url": thumbnail_url,
+        "lifetime_views": lifetime_views if isinstance(lifetime_views, int) else None,
+        "lifetime_favorites": lifetime_favorites if isinstance(lifetime_favorites, int) else None,
+    })
 
 
 @router.get("/{listing_id}/images", response_model=list[ListingImageResponse])

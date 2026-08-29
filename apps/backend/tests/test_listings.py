@@ -477,6 +477,55 @@ async def test_get_listing_detail(client, db_session):
     assert r.json()["title"] == "Detail Listing"
 
 
+async def test_get_listing_detail_includes_thumbnail_url(client, db_session):
+    """Regression test: thumbnail_url isn't a real Listing column — the list
+    endpoint patches it in from a batch ListingImage query, but GET
+    /listings/{id} never did the same, so the product detail page always
+    got thumbnail_url=None (blank image) even when images were synced."""
+    from app.models.organization_member import OrganizationMember
+    from app.models.listing import Listing
+    from app.models.listing_image import ListingImage
+    from sqlalchemy import select
+
+    token = await _register_and_login(client, {"email": "thumb_test@example.com", "password": "password123", "full_name": "T", "organization_name": "Thumb Org"})
+    result = await db_session.execute(
+        select(OrganizationMember).order_by(OrganizationMember.created_at.desc()).limit(1)
+    )
+    org_id = result.scalar_one().organization_id
+    shop, _ = await _setup_connected_shop(db_session, org_id)
+
+    listing = Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="5002", title="Thumb Listing", state="active")
+    db_session.add(listing)
+    await db_session.flush()
+    db_session.add(ListingImage(listing_id=listing.id, etsy_image_id="img1", url_570xN="https://example.com/img.jpg", rank=1))
+    await db_session.commit()
+
+    r = await client.get(f"/api/v1/listings/{listing.id}", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    assert r.json()["thumbnail_url"] == "https://example.com/img.jpg"
+
+
+async def test_get_listing_detail_thumbnail_url_none_without_images(client, db_session):
+    from app.models.organization_member import OrganizationMember
+    from app.models.listing import Listing
+    from sqlalchemy import select
+
+    token = await _register_and_login(client, {"email": "nothumb_test@example.com", "password": "password123", "full_name": "N", "organization_name": "NoThumb Org"})
+    result = await db_session.execute(
+        select(OrganizationMember).order_by(OrganizationMember.created_at.desc()).limit(1)
+    )
+    org_id = result.scalar_one().organization_id
+    shop, _ = await _setup_connected_shop(db_session, org_id)
+
+    listing = Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="5003", title="No Image Listing", state="active")
+    db_session.add(listing)
+    await db_session.commit()
+
+    r = await client.get(f"/api/v1/listings/{listing.id}", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    assert r.json()["thumbnail_url"] is None
+
+
 async def test_get_listing_rejects_other_org(client, db_session):
     token_a = await _register_and_login(client, {"email": "other_a@example.com", "password": "password123", "full_name": "A", "organization_name": "Oth A"})
     await _register_and_login(client, {"email": "other_b@example.com", "password": "password123", "full_name": "B", "organization_name": "Oth B"})

@@ -70,14 +70,25 @@ async def get_or_create_usage(org_id: str, db: AsyncSession) -> UsageCounter:
     return counter
 
 
-async def check_usage_limit(org_id: str, usage_key: str, db: AsyncSession) -> bool:
-    sub = await ensure_subscription_exists(org_id, db)
-    limits = get_plan_limits(sub.plan)
+async def check_usage_limit(org_id: str, usage_key: str, db: AsyncSession) -> tuple[bool, int, int]:
+    """
+    Returns (within_limit, current_usage, limit) for `usage_key` this period.
+    Uses the account's EFFECTIVE plan (get_effective_plan -- comp-grant aware),
+    not the raw Stripe subscription plan, so this always agrees with what
+    /billing/subscription displays. An active comp grant (e.g. pro_monthly)
+    must gate the same as it displays -- a comp account whose real Stripe
+    subscription is "free" was previously gated against the free plan's
+    limits here, contradicting the Pro limits shown on the Billing page.
+    """
+    from app.core.plans import get_effective_plan
+
+    plan = await get_effective_plan(db, org_id)
+    limits = get_plan_limits(plan)
     counter = await get_or_create_usage(org_id, db)
     current = getattr(counter, usage_key, 0)
     limit_key = _usage_to_limit_key(usage_key)
     limit = limits.get(limit_key, 0)
-    return current < limit
+    return current < limit, current, limit
 
 
 async def increment_usage(org_id: str, usage_key: str, db: AsyncSession, amount: int = 1) -> None:

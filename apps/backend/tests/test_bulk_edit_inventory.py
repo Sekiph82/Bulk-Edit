@@ -8,7 +8,7 @@ Tests cover:
   - Structured request payload format (1 test)
 """
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 from sqlalchemy import select
 
 from app.services.etsy_write import build_etsy_inventory_payload
@@ -1314,6 +1314,153 @@ async def test_patch_etsy_listing_raises_on_http_404_without_leaking_token():
 
     assert exc_info.value.status_code == 404
     assert "secret_token_value" not in exc_info.value.message
+
+
+# ── rate-limit guard: retry/backoff/pacing wiring ──────────────────────────────
+# Sprint: Etsy rate-limit guard. Unit-level primitives (parse_retry_after_seconds,
+# compute_backoff_delay, classify_etsy_write_status, sleep_before_etsy_write math)
+# are covered in test_etsy_rate_limit_guard.py — these tests verify the write
+# paths in etsy_write.py actually call/thread through those primitives.
+
+async def test_patch_etsy_listing_paces_write_and_threads_retry_after():
+    """patch_etsy_listing() must call sleep_before_etsy_write() before writing,
+    and a 429 response's Retry-After header must survive onto EtsyWriteError."""
+    from app.services.etsy_write import patch_etsy_listing, EtsyWriteError
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 429
+    mock_resp.headers = {"Retry-After": "5"}
+    mock_resp.json.return_value = {"error": "throttled", "error_description": "Exceeded per second rate limit"}
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.patch = AsyncMock(return_value=mock_resp)
+
+    with patch("app.services.etsy_write.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.services.etsy_write.etsy_api_key_header", return_value="fake_key:fake_secret"), \
+         patch("app.services.etsy_write.sleep_before_etsy_write", new_callable=AsyncMock) as mock_pace:
+        with pytest.raises(EtsyWriteError) as exc_info:
+            await patch_etsy_listing(
+                access_token="secret_token_value",
+                shop_etsy_id="99999999",
+                etsy_listing_id="1234567890",
+                payload={"title": "New Title"},
+            )
+
+    mock_pace.assert_awaited_once_with("99999999")
+    assert exc_info.value.status_code == 429
+    assert exc_info.value.retry_after_seconds == 5.0
+    diagnostics = exc_info.value.response_body
+    assert diagnostics["rate_limited"] is True
+    assert diagnostics["retry_after_seconds"] == 5.0
+    assert diagnostics["final_rate_limit_exhausted"] is True
+    assert diagnostics["safe_etsy_error_message"] == "Exceeded per second rate limit"
+    # no token/header value anywhere in the diagnostics
+    assert "secret_token_value" not in str(diagnostics)
+
+
+async def test_fetch_etsy_listing_inventory_paces_the_get():
+    """The fetch-patch-put flow's GET leg must pace too — a 429 can hit
+    the read as easily as the write when a job is mid-throttle."""
+    from app.services.etsy_variation_write import fetch_etsy_listing_inventory
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = _FAKE_LIVE_INVENTORY
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("app.services.etsy_variation_write.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.services.etsy_variation_write.etsy_get", new_callable=AsyncMock, return_value=mock_resp), \
+         patch("app.services.etsy_variation_write.etsy_api_key_header", return_value="fake_key:fake_secret"), \
+         patch("app.services.etsy_variation_write.sleep_before_etsy_write", new_callable=AsyncMock) as mock_pace:
+        await fetch_etsy_listing_inventory("fake_token", "44263504", "1874506717")
+
+    mock_pace.assert_awaited_once_with("44263504")
+
+
+async def test_put_etsy_listing_inventory_paces_the_put():
+    from app.services.etsy_variation_write import put_etsy_listing_inventory
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"listing_id": 1874506717}
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("app.services.etsy_variation_write.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.services.etsy_variation_write.etsy_put", new_callable=AsyncMock, return_value=mock_resp), \
+         patch("app.services.etsy_variation_write.etsy_api_key_header", return_value="fake_key:fake_secret"), \
+         patch("app.services.etsy_variation_write.sleep_before_etsy_write", new_callable=AsyncMock) as mock_pace:
+        await put_etsy_listing_inventory("fake_token", "44263504", "1874506717", {"products": []})
+
+    mock_pace.assert_awaited_once_with("44263504")
+
+
+async def test_apply_single_listing_price_quantity_threads_retry_after_from_put_429():
+    from app.services.etsy_write import apply_single_listing_price_quantity, EtsyWriteError
+    from app.services.etsy_variation_write import EtsyVariationWriteError
+
+    with patch("app.services.etsy_variation_write.fetch_etsy_listing_inventory", new_callable=AsyncMock) as mock_fetch, \
+         patch("app.services.etsy_variation_write.put_etsy_listing_inventory", new_callable=AsyncMock) as mock_put:
+        mock_fetch.return_value = _FAKE_LIVE_INVENTORY
+        mock_put.side_effect = EtsyVariationWriteError(
+            "Inventory PUT failed for listing 1874506717: HTTP 429",
+            429,
+            response_body={"error": "throttled", "error_description": "Exceeded per second rate limit"},
+            retry_after_seconds=3.0,
+        )
+
+        with pytest.raises(EtsyWriteError) as exc_info:
+            await apply_single_listing_price_quantity(
+                access_token="fake_token",
+                shop_etsy_id="44263504",
+                listing_etsy_id="1874506717",
+                price_amount=6288,
+                quantity=None,
+            )
+
+    assert exc_info.value.status_code == 429
+    assert exc_info.value.retry_after_seconds == 3.0
+    diagnostics = exc_info.value.response_body
+    assert diagnostics["rate_limited"] is True
+    assert diagnostics["retry_after_seconds"] == 3.0
+    assert diagnostics["operation"] == "inventory_put"
+
+
+async def test_sequential_writes_to_same_shop_each_invoke_pacing_gate():
+    """Two listing PATCHes to the same shop, one after another (what the
+    apply/revert item loop does), must each call the pacing gate — proves
+    a multi-listing apply doesn't bypass throttling on later items."""
+    from app.services.etsy_write import patch_etsy_listing
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"listing_id": 1}
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.patch = AsyncMock(return_value=mock_resp)
+
+    with patch("app.services.etsy_write.httpx.AsyncClient", return_value=mock_client), \
+         patch("app.services.etsy_write.etsy_api_key_header", return_value="fake_key:fake_secret"), \
+         patch("app.services.etsy_write.sleep_before_etsy_write", new_callable=AsyncMock) as mock_pace:
+        for listing_id in ("111", "222"):
+            await patch_etsy_listing(
+                access_token="fake_token",
+                shop_etsy_id="99999999",
+                etsy_listing_id=listing_id,
+                payload={"title": "New Title"},
+            )
+
+    assert mock_pace.await_count == 2
+    assert mock_pace.call_args_list == [call("99999999"), call("99999999")]
 
 
 # ── item-level failure reason surfaced via apply-job detail ───────────────────

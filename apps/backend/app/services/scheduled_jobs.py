@@ -18,7 +18,7 @@ from typing import Any
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.plans import get_plan_limits
+from app.core.plans import get_effective_plan, get_plan_limits
 from app.models.bulk_edit_change import BulkEditChange
 from app.models.bulk_edit_session import BulkEditSession
 from app.models.etsy_shop import EtsyShop
@@ -46,8 +46,9 @@ class ScheduledJobError(Exception):
 # ── Plan gate ─────────────────────────────────────────────────────────────────
 
 async def assert_scheduling_allowed(org_id: str, db: AsyncSession) -> None:
-    sub = await ensure_subscription_exists(org_id, db)
-    limits = get_plan_limits(sub.plan)
+    await ensure_subscription_exists(org_id, db)
+    plan = await get_effective_plan(db, org_id)
+    limits = get_plan_limits(plan)
     if not limits.get("can_schedule_jobs", False):
         raise ScheduledJobError(
             "Scheduled jobs require a Basic or Pro plan. Upgrade to access this feature.", 402
@@ -62,7 +63,7 @@ async def assert_scheduling_allowed(org_id: str, db: AsyncSession) -> None:
     active_count = result.scalar_one()
     if active_count >= max_jobs:
         raise ScheduledJobError(
-            f"Active scheduled job limit reached ({max_jobs} active jobs on your plan). "
+            f"Active scheduled job limit reached ({active_count}/{max_jobs} active jobs on your plan). "
             "Pause or disable existing jobs, or upgrade your plan.", 402
         )
 
