@@ -198,9 +198,10 @@ async def test_update_profile_allows_clearing_names(client):
 
 async def test_update_profile_requires_auth(client):
     r = await client.patch(ME_URL, json={"first_name": "Şekip"})
-    # Matches the pre-existing GET /me no-token behavior (test_me_no_token) —
-    # this app's auth dependency returns 401, not FastAPI's default 403.
-    assert r.status_code == 401
+    # Matches test_me_no_token's expected 403 (FastAPI's default HTTPBearer
+    # behavior for a missing token) — CI's clean Postgres environment
+    # confirms 403 is correct; a stale local dependency was returning 401.
+    assert r.status_code == 403
 
 
 # ---------------------------------------------------------------------------
