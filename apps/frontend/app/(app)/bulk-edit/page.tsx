@@ -4,11 +4,11 @@ import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
-  getAccessToken, getListings, createBulkEditSession, getBulkEditSession,
+  getAccessToken, getListings, getListing, createBulkEditSession, getBulkEditSession,
   addBulkEditChange, removeBulkEditChange, generateBulkEditPreview,
   getBulkEditPreview, cancelBulkEditSession, applyBulkEditSession, revertApplyJob, ApiError,
   getApplyJobDetail,
-  type ListingListItem, type BulkEditSession, type BulkEditSessionDetail,
+  type ListingListItem, type ListingDetail, type BulkEditSession, type BulkEditSessionDetail,
   type BulkEditChange, type BulkEditPreviewItem, type BulkEditPreviewGenerateResponse,
   type ApplyJob, type RevertJob, type ApplyResult,
 } from "@/lib/api";
@@ -110,9 +110,11 @@ function formatVal(v: unknown): string {
 
 function ListingSelector({
   preselected,
+  preselectedDetails,
   onConfirm,
 }: {
   preselected: string[];
+  preselectedDetails: ListingDetail[];
   onConfirm: (ids: string[]) => void;
 }) {
   const [listings, setListings] = useState<ListingListItem[]>([]);
@@ -149,9 +151,40 @@ function ListingSelector({
   }
 
   const totalPages = Math.ceil(total / perPage);
+  // Selected rows first within the current page, so a preselected listing
+  // that also happens to be on this page doesn't get buried below unrelated
+  // unselected rows.
+  const sortedListings = [...listings].sort((a, b) => Number(selected.has(b.id)) - Number(selected.has(a.id)));
 
   return (
     <div className="space-y-4">
+      {preselectedDetails.length > 0 && (
+        <div className="border border-indigo-200 bg-indigo-50/50 rounded-xl overflow-hidden">
+          <p className="text-xs font-medium text-indigo-700 px-4 py-2 border-b border-indigo-100">
+            Pre-selected ({preselectedDetails.filter((l) => selected.has(l.id)).length} of {preselectedDetails.length})
+          </p>
+          <table className="w-full text-sm">
+            <tbody className="divide-y divide-indigo-100">
+              {preselectedDetails.map((l) => (
+                <tr key={l.id} className="hover:bg-indigo-50 cursor-pointer" onClick={() => toggleSelect(l.id)}>
+                  <td className="px-4 py-2.5 w-10">
+                    <input type="checkbox" readOnly checked={selected.has(l.id)} className="rounded" />
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <p className="font-medium text-gray-900 truncate max-w-xs">{l.title ? decodeEntities(l.title) : "—"}</p>
+                    <p className="text-xs text-gray-400">#{l.etsy_listing_id}</p>
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-500">{l.state ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-gray-700">
+                    {l.price_amount != null ? `${l.currency_code ?? ""} ${(l.price_amount / (l.price_divisor ?? 100)).toFixed(2)}` : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div className="flex gap-2">
         <input
           type="text"
@@ -182,7 +215,7 @@ function ListingSelector({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {listings.map((l) => (
+              {sortedListings.map((l) => (
                 <tr key={l.id} className={`hover:bg-gray-50 cursor-pointer ${selected.has(l.id) ? "bg-indigo-50" : ""}`} onClick={() => toggleSelect(l.id)}>
                   <td className="px-4 py-3">
                     <input type="checkbox" readOnly checked={selected.has(l.id)} className="rounded" />
@@ -472,9 +505,24 @@ function BulkEditContent() {
   })();
 
   const fromHealthPage = preselected.length > 0 && !!searchParams.get("listing_ids");
+  const [preselectedDetails, setPreselectedDetails] = useState<ListingDetail[]>([]);
 
   useEffect(() => {
     if (!getAccessToken()) { router.push("/login"); }
+  }, []);
+
+  // Fetched once, independent of the paginated/search table in ListingSelector,
+  // so a preselected listing's real title shows in the banner and stays
+  // visibly checked/pinned no matter which page/search result is showing.
+  useEffect(() => {
+    if (preselected.length === 0) return;
+    let cancelled = false;
+    Promise.all(preselected.map((id) => getListing(id).catch(() => null)))
+      .then((results) => {
+        if (!cancelled) setPreselectedDetails(results.filter((r): r is ListingDetail => r !== null));
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleCreateSession(listingIds: string[]) {
@@ -649,7 +697,15 @@ function BulkEditContent() {
             {fromHealthPage && (
               <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-800">
                 <span>🩺</span>
-                <span>{preselected.length} listing{preselected.length !== 1 ? "s" : ""} pre-selected from Listing Health. Review and confirm below.</span>
+                <span>
+                  {preselected.length} listing{preselected.length !== 1 ? "s" : ""} pre-selected from Listing Health
+                  {preselectedDetails.length > 0 && (
+                    preselectedDetails.length === 1
+                      ? <> — <strong>{preselectedDetails[0].title ? decodeEntities(preselectedDetails[0].title) : `#${preselectedDetails[0].etsy_listing_id}`}</strong></>
+                      : <> — <strong>{preselectedDetails[0].title ? decodeEntities(preselectedDetails[0].title) : `#${preselectedDetails[0].etsy_listing_id}`}</strong> and {preselectedDetails.length - 1} more</>
+                  )}
+                  . Checked and pinned at the top of the list below. Review and confirm — nothing is applied yet.
+                </span>
               </div>
             )}
             {creating ? (
@@ -657,7 +713,7 @@ function BulkEditContent() {
                 <div className="w-6 h-6 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : (
-              <ListingSelector preselected={preselected} onConfirm={handleCreateSession} />
+              <ListingSelector preselected={preselected} preselectedDetails={preselectedDetails} onConfirm={handleCreateSession} />
             )}
           </div>
         )}

@@ -35,8 +35,8 @@ export default function OnboardingChecklist({ shopCount, listingCount }: Props) 
       done: false,
     },
     {
-      label: "Explore paid features",
-      description: "Unlock AI optimization, CSV import, and dynamic pricing.",
+      label: "Review available tools",
+      description: "See what's included in your plan — AI optimization, CSV import, dynamic pricing.",
       href: "/pricing",
       done: false,
     },

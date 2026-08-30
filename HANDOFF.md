@@ -2,27 +2,49 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-30 (M19: beta readiness smoke matrix + owner runbooks — PR 4 of 4, final PR in the autonomous backlog run)
+## RESUME HERE — 2026-08-30 (Owner QA polish before write tests — branch `fix/owner-qa-polish-before-write-tests`)
 
-**Owner still away; this is the last PR in the selected sequence (M10, M03.04, M13/M15 done → M19 this round).** Branch `feature/m19-beta-readiness-smoke-matrix`, based on `origin/main` past PR #112's `10c7d54b3a1cbdf8577ce00c0524b76cce74d6de`. Docs + scripts only — zero frontend/backend code changed.
+**Owner ran a manual, non-destructive smoke test across 7 screens** (`/listing-health`, `/insights`, `/media`, `/variations`, `/video-generator`, `/magic-revert`, `/account/activity` + smoke routes) after the autonomous M10→M03.04→M13/M15→M19 sequence (PRs #110–#113) and the PR #114 CodeQL cleanup. **Most flows pass.** Four polish items fixed this round, frontend-only, no behavior change to any write/apply/revert/sync/media/video code path:
 
-**New `docs/operations/BETA_READINESS_SMOKE_MATRIX.md`** — 20 categories, every row scoped as objective/route/data-needed/owner-run-vs-automated/destructive-flag/expected-result/evidence/pass-fail. Every destructive row (title/price write+revert, shop sync, rate-limit-under-real-load) is marked **owner-run only** — Claude/Codex performed none of them.
+1. **Bulk Edit preselection visibility** — a listing preselected via `?listing_ids=<id>` (from "Fix in Bulk Edit") was correctly held in state but not visibly checked if it wasn't on page 1 of the default table. Fixed: preselected listing(s) now fetched independently and pinned in their own "Pre-selected" section at the top of the picker, banner names the actual title, selection still survives pagination/search, no auto-apply.
+2. **Media current-media gallery** — selecting a listing on `/media` gave no indication of what was already synced. Fixed: a read-only "Current Media" panel now shows the primary + synced thumbnails (single selection) or a compact per-listing summary (multi-selection, first 5), with a truthful "not synced yet" state. Replace/delete stay disabled (M13.04, unchanged).
+3. **Video Generator thumbnail preview** — picking a listing filled the URL textarea with no visual confirmation. Fixed: a thumbnail grid (in image order) now renders below the picker; "No synced photos available for this listing." shown truthfully when empty. No video generation, no external provider call.
+4. **Dashboard onboarding copy** — "Explore paid features" was inconsistent with the PR #106 banner-removal policy. Relabeled "Review available tools", description softened from "Unlock…" to "See what's included in your plan…".
 
-**Fixed a real, currently-broken pre-existing script, not just added a new doc:** `scripts/smoke_test_deployment.sh`/`.ps1` already existed but were stale enough to fail if run against production today — `/register` asserted `200` when Private Beta now makes it `307`, and `/admin` no longer exists (renamed `/owner`). Fixed both, added `/health/db`/`/health/redis` and the current app route list, then actually ran both scripts live against `https://app.bulkeditapp.com`/`https://api.bulkeditapp.com` — **26/26 passed on both**, not just claimed to work.
+**Last known merged PRs, in order:** #101 (H!veAI `TASKS.md` format, `092e02f`) → #107 (Magic Revert history/activity, `7ee420d`) → #108 (current-truth docs cleanup, retrospective log backfilled this round) → #109 (M08.07/M16.06 plan-gate, `fd7269e`) → #110 (M10 Listing Health/Insights, `f7d79e7`) → #111 (M03.04 shared `ListingPicker`, `9a220b0`) → #112 (M13/M15 media/variation depth, `10c7d54`) → #113 (M19 smoke matrix/runbooks, `e400272`) → #114 (CodeQL cleanup, `cbcbbc9`) → **this owner-QA-polish PR** (merge commit filled in below once merged).
 
-**Three new owner runbooks:** `OWNER_BULK_EDIT_RUNBOOK.md`, `MAGIC_REVERT_RUNBOOK.md` (including how to read the M08.07 plan-gate/history eligibility states), `RATE_LIMIT_RUNBOOK.md` (explains the actual PR #102 pacing/retry guard, sourced from the real config values `ETSY_BULK_WRITE_DELAY_MS=1100`/`ETSY_RETRY_MAX_ATTEMPTS=3`, not invented numbers).
+**Owner manual QA results this round:**
+1. Listing Health — **conditional pass** (issue pills/View Product work; scoring-engine gap for zero-qty/variation/personalization issues is a known, separate, pre-existing limitation, not a bug).
+2. Insights — **pass**.
+3. Media — **conditional pass** (picker worked; current-media gallery was the gap, closed this round).
+4. Variations — **pass** (read-only matrix confirmed against real synced data; preview-output and apply/revert remain not owner-verified, see M15.02–M15.04).
+5. Video Generator — **conditional pass** (listing selection worked; thumbnail preview was the gap, closed this round).
+6. Magic Revert + Activity — **pass** (history, filters, already-reverted state, Activity rows all confirmed; no live revert run).
+7. Smoke matrix non-destructive rows — **pass** (26/26 automated + owner screen checks).
 
-**M19.03 UX polish: no fabricated item.** Nothing obviously low-risk was found while building the matrix beyond what already shipped in this session's earlier M10/M13/M15 PRs — left `[~]` honestly rather than inventing a change to check a box.
+**Remaining blockers before broader beta, unchanged by this round:**
+- Owner live title write + Magic Revert (never run).
+- Owner live price write + Magic Revert (never run).
+- Variation apply live test — optional, separate owner approval required; no revert exists for it yet (M15.04).
+- Media restore/revert endpoint — doesn't exist (M13.04); the disabled replace/delete buttons are the mitigation, not the fix.
+- Remaining `ListingPicker` consumers (Dynamic Pricing, Bulk Edit, Promote) — M03.04.
 
-**Checks:** no frontend/backend code changed — `tsc`/`lint`/`build`/backend tests not applicable. Both smoke scripts syntax-verified and live-run against production.
+**Safety, explicit:** no Claude/Codex live Etsy action of any kind this round or any prior round in this sequence — every fix was a frontend rendering/wording change reusing already-existing, already-tested read endpoints. All live verification is owner-run only, per the runbooks in `docs/operations/`.
 
-**No Etsy API call, no Bulk Edit apply/Magic Revert/shop sync/OAuth, no media upload/delete by Claude/Codex.** All script runs were read-only GETs against public health/route endpoints, no auth, no secrets.
+**Checks:** `npx tsc --noEmit` clean, `npx next lint` no new warnings, `npx next build` clean, `git diff --check` clean, manual secret scan clean.
 
-**This is the end of the selected 4-PR autonomous sequence.** After this PR merges/deploys/verifies:
-1. Owner performs the manual/live rows in `BETA_READINESS_SMOKE_MATRIX.md` — especially the title/price write+revert and variation-apply rows, none of which have ever been owner-verified for variations (M15.04).
-2. Media restore/revert endpoint (closes the M13.04 gap PR #112's UI change is gating around) — separate future round.
-3. Remaining `ListingPicker` consumers (Dynamic Pricing, Bulk Edit, Video Generator, Promote) — separate future round.
-4. See the roll-up log (`bulkeditapp logs/`) for the full 4-PR summary once this PR is verified.
+**Local log discipline, effective this round (see `DECISIONS.md`):** every future Claude/Codex task creates a local execution log before PR merge and updates `C:\Users\sekip\Desktop\bulkeditapp logs\LOG_INDEX.md` after merge. PR #108 had no dedicated log — retrospectively backfilled this round and marked `RETROSPECTIVE BACKFILL LOG`.
+
+**Recommended next owner action, in order:**
+1. Single-listing title write + Magic Revert (see `OWNER_BULK_EDIT_RUNBOOK.md`, `MAGIC_REVERT_RUNBOOK.md`).
+2. Single-listing price write + Magic Revert.
+3. Variation apply — separate, optional, requires explicit owner approval (no revert exists yet).
+
+---
+
+## Previously — 2026-08-30 (M19: beta readiness smoke matrix + owner runbooks — PR 4 of 4, final PR in the autonomous backlog run)
+
+Branch `feature/m19-beta-readiness-smoke-matrix`, based on `origin/main` past PR #112's `10c7d54b3a1cbdf8577ce00c0524b76cce74d6de`. Merged as PR #113 (`e40027269c327964cf03c67e56a3ea5548c27621`), deployed, route-verified (26/26 smoke script pass). New `docs/operations/BETA_READINESS_SMOKE_MATRIX.md` (20 categories) plus a real fix to the stale pre-existing `scripts/smoke_test_deployment.sh`/`.ps1`, and three owner runbooks. This was PR 4 of 4 in the autonomous selected-backlog sequence (M10 → M03.04 → M13/M15 → M19), all four now merged/deployed/verified. See `CHANGELOG_AI.md` for full detail.
 
 ---
 

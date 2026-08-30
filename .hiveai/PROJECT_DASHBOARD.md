@@ -34,6 +34,7 @@ Roadmap source: `TASKS.md` for current work; `ROADMAP.md` for historical platfor
 Handoff source: `HANDOFF.md`
 Current status source: `PROJECT_STATUS.md`
 Progress/history sources: `CHANGELOG_AI.md`, `CHANGELOG.md`, merged PR history.
+Local execution log index: `C:\Users\sekip\Desktop\bulkeditapp logs\LOG_INDEX.md`
 Decision/governance source: `DECISIONS.md`
 Agent instruction source: `CLAUDE.md`
 Operations sources: `docs/operations/`, deployment logs, DigitalOcean deployment status.
@@ -52,12 +53,12 @@ Build/test metadata: `apps/backend/requirements*.txt`, `apps/frontend/package.js
 
 ## Current operating state
 
-`TASKS.md` was converted to the H!veAI-style milestone ledger (M00-M20) on 2026-08-29. This section is a snapshot pointer only — `TASKS.md`'s own "Current truth" section is authoritative if the two ever disagree.
+`TASKS.md` was converted to the H!veAI-style milestone ledger (M00-M20) on 2026-08-29, merged to `main` as PR #101 (`092e02f`) on 2026-08-30. This section is a snapshot pointer only — `TASKS.md`'s own "Current truth" section is authoritative if the two ever disagree.
 
-Phase: Private Beta production QA; M00-M07 PASS/CLOSED, M11 (Account Center / Account-01) ACTIVE.
-Known good: Etsy OAuth, owner shop connection, 210 active listing sync, title write, single and 33-listing bulk non-variation price write, 32-listing bulk Magic Revert, Etsy rate-limit guard, Apply/Revert double-submit guard + overlay (owner-verified in production), effective-plan billing/usage gate fix (PR #104, independently audited CONDITIONAL — 0 BLOCKER/MAJOR).
-Current manual proof needed: none blocking — see `TASKS.md` M04.04/M09.04 for the specific open verification items (3/10-listing batch sizes, non-price bulk fields, owner click-through of the new product-detail navigation).
-Immediate next task family: M11 Account Center + Connected Shops + customer-safe Plan/Usage UI (Account-01) — see `TASKS.md` for the full milestone.
+Phase: Private Beta production QA. M00-M09 PASS/CLOSED-with-known-gaps; M10 (Listing Health/Insights detail), M03.04 (shared ListingPicker), M13/M15 (media/variation read-only depth), M16 (Magic Revert history/plan-gate), and M19 (beta readiness matrix/runbooks) all SHIPPED and merged (PRs #107–#114) as of 2026-08-30. Owner then ran a manual non-destructive smoke test across 7 screens and found 4 polish items, all closed in the current in-flight PR (branch `fix/owner-qa-polish-before-write-tests`).
+Known good: Etsy OAuth, owner shop connection, 210 active listing sync, title write, single and 33-listing bulk non-variation price write, 32-listing bulk Magic Revert, Etsy rate-limit guard, Apply/Revert double-submit guard + overlay, effective-plan billing/usage gate fix (PR #104), Magic Revert plan-gate enforcement (PR #109), Magic Revert history/Activity & Audit (PR #107, owner-QA-confirmed 2026-08-30), Listing Health/Shop Insights detail (PR #110, owner-QA-confirmed), shared ListingPicker in Media/Variations/Video Generator (PR #111, owner-QA-confirmed), variation read-only matrix against real synced data (PR #112, owner-QA-confirmed).
+Current manual proof needed: **owner has not yet run a live title write + Magic Revert, or a live price write + Magic Revert, through the app** — this is the next recommended owner action, see `HANDOFF.md` and `docs/operations/OWNER_BULK_EDIT_RUNBOOK.md`/`MAGIC_REVERT_RUNBOOK.md`. Variation apply/revert also never owner-live-verified (separate, optional). See `TASKS.md` M04.04/M15.02-M15.04/M19.01 for the specific open verification items.
+Immediate next task family: owner-run live write verification (title, then price, then optionally variation) — no further autonomous engineering work is queued pending that owner action.
 
 ## Safety policy
 

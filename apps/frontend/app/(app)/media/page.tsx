@@ -11,12 +11,100 @@ import {
   getMediaBackups,
   listVideoRenders,
   uploadVideoFile,
+  getListing,
+  getListingImages,
   ApiError,
   type MediaJob,
   type MediaResult,
   type VideoRenderSummary,
+  type ListingDetail,
+  type ListingImage,
 } from "@/lib/api";
 import ListingPicker from "@/components/listings/ListingPicker";
+
+// M13.02-style read-only current-media view (Fix 2, owner QA): shows what's
+// already synced for the currently selected listing(s) — never a control to
+// upload/delete/replace/reorder anything, that stays gated per M13.04 until a
+// restore endpoint exists.
+function CurrentMediaSection({ selectedIds }: { selectedIds: Set<string> }) {
+  const ids = Array.from(selectedIds);
+  const [single, setSingle] = useState<{ listing: ListingDetail; images: ListingImage[] } | null>(null);
+  const [summary, setSummary] = useState<Array<{ listing: ListingDetail; images: ListingImage[] }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (ids.length === 0) { setSingle(null); setSummary([]); return; }
+    setLoading(true);
+    if (ids.length === 1) {
+      Promise.all([getListing(ids[0]), getListingImages(ids[0]).catch(() => [])])
+        .then(([listing, images]) => { setSingle({ listing, images }); setSummary([]); })
+        .catch(() => setSingle(null))
+        .finally(() => setLoading(false));
+    } else {
+      const preview = ids.slice(0, 5);
+      Promise.all(preview.map((id) =>
+        Promise.all([getListing(id), getListingImages(id).catch(() => [])])
+          .then(([listing, images]) => ({ listing, images }))
+          .catch(() => null)
+      ))
+        .then((results) => { setSummary(results.filter((r): r is { listing: ListingDetail; images: ListingImage[] } => r !== null)); setSingle(null); })
+        .finally(() => setLoading(false));
+    }
+    // ids is derived from selectedIds every render; re-run only when the
+    // selection itself actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Array.from(selectedIds).join(",")]);
+
+  if (ids.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 mt-4">
+      <h3 className="font-semibold text-gray-800 mb-3 text-sm">Current Media (read-only)</h3>
+      {loading ? (
+        <p className="text-xs text-gray-400">Loading…</p>
+      ) : ids.length === 1 ? (
+        single ? (
+          single.images.length === 0 ? (
+            <p className="text-xs text-amber-600">Current media not synced yet for this listing.</p>
+          ) : (
+            <div className="flex gap-2 flex-wrap">
+              {single.images.slice().sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0)).map((img, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={img.id}
+                  src={img.url_570xN ?? img.url_fullxfull ?? img.url_170x135 ?? ""}
+                  alt=""
+                  title={i === 0 ? "Primary image" : undefined}
+                  className={`w-16 h-16 rounded-lg object-cover border ${i === 0 ? "border-indigo-400 border-2" : "border-gray-200"}`}
+                />
+              ))}
+            </div>
+          )
+        ) : (
+          <p className="text-xs text-amber-600">Current media not synced yet for this listing.</p>
+        )
+      ) : (
+        <div className="space-y-2">
+          <p className="text-xs text-gray-500">{ids.length} listings selected{ids.length > summary.length ? ` (showing first ${summary.length})` : ""}</p>
+          {summary.map(({ listing, images }) => (
+            <div key={listing.id} className="flex items-center gap-3">
+              {images[0] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={images[0].url_570xN ?? images[0].url_fullxfull ?? ""} alt="" className="w-10 h-10 rounded object-cover border border-gray-200 flex-shrink-0" />
+              ) : (
+                <div className="w-10 h-10 rounded border border-dashed border-gray-200 flex-shrink-0" />
+              )}
+              <p className="text-xs text-gray-700 truncate flex-1">{listing.title ?? `#${listing.etsy_listing_id}`}</p>
+              <p className="text-xs text-gray-400 flex-shrink-0">
+                {images.length > 0 ? `${images.length} photo${images.length === 1 ? "" : "s"}` : "not synced yet"}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Local upload types & constants ──────────────────────────────────────────
 const IMAGE_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -481,6 +569,7 @@ export default function MediaPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h2 className="font-semibold text-gray-800 mb-3">1. Select Listings</h2>
             <ListingPicker selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
+            <CurrentMediaSection selectedIds={selectedIds} />
           </div>
 
           {/* Operation form */}
