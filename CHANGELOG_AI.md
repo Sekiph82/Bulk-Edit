@@ -32,6 +32,24 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-31 Production sync 400 hotfix + M04/M06 write-safety foundation (Phase A + Phase B)
+
+**Phase A — critical hotfix.** Owner reported that after PR #120, clicking Sync in production returned a real Etsy `400 Bad Request` for every listing status, including `active` (which had worked unbroken for this app's entire history before PR #120). Root cause: PR #120 moved `active` onto an untested endpoint/param combination (general "Get Listings by Shop" + `state=active` + `includes=Images,MainImage`) that Etsy simply rejected. Fix: `active` restored to the exact endpoint/params proven working pre-PR-#120 (`/listings/active`, no `state` param); `inactive`/`draft`/`expired`/`sold_out` kept on the general endpoint with `includes` removed (most likely single cause, not load-bearing — the existing per-listing image fallback covers it) but **still not confirmed against live Etsy** (forbidden to test live this round). Error diagnostics improved: the real, sanitized Etsy validation reason is now surfaced per failed state instead of the generic `"Client error '400 Bad Request'..."` message. 4 new regression tests reproduce the owner's exact scenario; every existing sync test's mock now *asserts* the correct request shape. `M03.02`/`M03.03` stay `[~]` — do not promote without an owner-run production sync.
+
+**Phase B — write-safety foundation (started only after Phase A was confidently fixed and tested; no live write/revert/sync run at any point):**
+- **M04.03** — `app/core/job_states.py::canonical_apply_job_state()`: backward-compatible canonical presentation mapping (`pending`/`running`/`succeeded`/`partially_failed`/`failed`/`rate_limited`/`reverted`/`revert_failed`) over the existing, unrenamed DB status values. `cancelled` explicitly documented as unreachable — no code path can cancel an in-flight apply job. Wired into every apply-job API response (`canonical_state` field) and `/magic-revert`'s status badge. 13 unit tests.
+- **M06.03** — `bulk_edit_revert.py::detect_revert_conflict()`: a read-only Etsy GET before every revert write compares the listing's live current value against the locally-known value, for exactly the fields the original apply's session touched (not every key in the full pre-apply backup snapshot — iterating that would have false-flagged untouched fields on every single revert, a real bug caught by this round's own tests). Covers title/description/sku (normalized) and price_amount/quantity (exact); any other field is unverified and refused too, never assumed safe. Conflicted items get `status="conflict"` and the required warning text; the write is never attempted. `/magic-revert` gained a distinct conflict badge. 9 tests.
+- **M06.04** — extended the existing, already-general-purpose `AuditLog` table (migration `0027`, 5 new indexed columns: `apply_job_id`/`revert_job_id`/`field_name`/`result_status`/`revert_status`) rather than building a new table. One row per (listing, field) an apply touches at every outcome; a revert updates those same rows instead of duplicating them. New searchable `GET /api/v1/bulk-edit/audit-trail` covering every required filter. 7 tests.
+- **M04.04** — `OWNER_BULK_EDIT_RUNBOOK.md` gained a safety checklist and 3-listing/10-listing/non-price-field batch test procedures. No owner-live test run this round.
+
+All three Phase B items kept `[~]` in `TASKS.md`, not `[x]` — real, tested (29 new backend tests total this round), but M04.03 awaits owner UI click-through, M06.03 covers only 5 of ~19 possible fields, M06.04 has no export mechanism.
+
+**Checks:** `npx tsc --noEmit`/`next lint`/`next build` clean. Backend: 1030 passed, 28 failed locally (blank Etsy credentials to match CI) — all 28 the confirmed local-venv-only 401-vs-403 artifact plus 2 unrelated pre-existing `test_video_generator.py` failures. `git diff --check` clean, secret scan clean.
+
+**Safety:** no Etsy write/status-mutation endpoint called anywhere in this round (GET only — proven by mocks that raise on write calls); no listing activate/deactivate/renew/delete; no production shop sync, Bulk Edit Apply, or Magic Revert run by Claude/Codex; no Stripe/DNS/Cloudflare/env change; no secrets printed; Private Beta unchanged.
+
+---
+
 ## 2026-08-30 M03.02 full-status sync + M03.03 Listings filters/counts + Dashboard card removal
 
 **Dashboard card removal:** owner explicitly rejected the "Owner-verified production checks" card added in the previous round as unwanted customer-facing content. Removed entirely from `apps/frontend/app/(app)/dashboard/page.tsx`. The underlying facts (title/price write+revert both owner-verified OK, owner-run) stay recorded in `TASKS.md`/`HANDOFF.md`/`CHANGELOG_AI.md` only, never a Dashboard card again.

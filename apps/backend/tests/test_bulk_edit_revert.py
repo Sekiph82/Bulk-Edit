@@ -30,6 +30,24 @@ def _mock_etsy_settings():
     return m
 
 
+@pytest.fixture(autouse=True)
+def _mock_no_revert_conflict():
+    """Every test in this file predates M06.03's changed-since-apply conflict
+    check, which does a real read-only Etsy GET before every revert write.
+    Patch it to always report "no conflict" so these tests keep exercising
+    revert *mechanics* without a live (or per-test-mocked) Etsy read.
+    Conflict-detection behavior itself is covered by
+    test_bulk_edit_revert_conflict.py, which does not import this fixture."""
+    with (
+        patch("app.services.bulk_edit_revert.fetch_current_listing_for_conflict_check", new_callable=AsyncMock, return_value=None),
+        patch(
+            "app.services.bulk_edit_revert.detect_revert_conflict",
+            return_value={"has_conflict": False, "conflicting_fields": [], "unverified_fields": [], "reason": None},
+        ),
+    ):
+        yield
+
+
 # ── helpers ────────────────────────────────────────────────────────────────────
 
 async def _register_and_login(client, user: dict) -> str:

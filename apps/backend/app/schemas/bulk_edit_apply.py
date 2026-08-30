@@ -9,6 +9,7 @@ class ApplyJobOut(BaseModel):
     bulk_edit_session_id: str
     created_by_user_id: str | None
     status: str
+    canonical_state: str | None = None
     total_items: int
     success_count: int
     failure_count: int
@@ -70,6 +71,7 @@ class ApplyJobHistoryItemOut(BaseModel):
     id: str
     bulk_edit_session_id: str
     status: str
+    canonical_state: str | None = None
     total_items: int
     success_count: int
     failure_count: int
@@ -87,6 +89,33 @@ class ApplyJobHistoryItemOut(BaseModel):
 
 class ApplyJobHistoryPageOut(BaseModel):
     items: list[ApplyJobHistoryItemOut]
+    page: int
+    per_page: int
+    total: int
+
+
+class FieldAuditLogOut(BaseModel):
+    """M06.04 per-item write audit trail — one row per (listing, field) this
+    app has written or attempted to write. Read-only, safe to export later;
+    export itself is not built this sprint (API-ready shape only)."""
+    id: str
+    organization_id: str
+    user_id: str | None
+    entity_id: str | None  # internal listing id
+    field_name: str | None
+    result_status: str | None
+    apply_job_id: str | None
+    revert_job_id: str | None
+    revert_status: str | None
+    message: str | None
+    extra_data: Any | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class FieldAuditLogPageOut(BaseModel):
+    items: list[FieldAuditLogOut]
     page: int
     per_page: int
     total: int

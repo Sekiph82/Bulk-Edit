@@ -110,11 +110,13 @@ def _mock_listings_response(count: int = 2) -> dict:
 
 
 def _make_mock_http_client(listings_data: dict):
-    """`listings_data` is returned only for the `state=active` listings-by-shop
-    call; every other status (inactive/draft/expired/sold_out) — and any
-    images/videos/inventory sub-call — gets an empty result. Sync now queries
-    all 5 statuses (M03.02), so a state-blind mock would multiply every
-    fixture's listing count by 5."""
+    """`listings_data` is returned only for the dedicated `/listings/active`
+    call; every other status (inactive/draft/expired/sold_out, via the
+    general `/listings?state=...` endpoint) — and any images/videos/
+    inventory sub-call — gets an empty result. Sync now queries all 5
+    statuses (M03.02), so a state-blind mock would multiply every fixture's
+    listing count by 5. `active` uses the dedicated endpoint with no `state`
+    param (2026-08-31 production-400 hotfix — see etsy_sync.py)."""
     empty_resp = MagicMock()
     empty_resp.raise_for_status = MagicMock()
     empty_resp.is_success = True
@@ -128,7 +130,7 @@ def _make_mock_http_client(listings_data: dict):
     active_resp.json.return_value = listings_data
 
     async def _get(url, headers=None, params=None, **kwargs):
-        if url.endswith("/listings") and (params or {}).get("state") == "active":
+        if url.endswith("/listings/active"):
             return active_resp
         return empty_resp
 

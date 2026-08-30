@@ -356,6 +356,7 @@ export interface ApplyJob {
   bulk_edit_session_id: string;
   created_by_user_id: string | null;
   status: string;
+  canonical_state: string | null;
   total_items: number;
   success_count: number;
   failure_count: number;
@@ -471,6 +472,7 @@ export interface ApplyJobHistoryItem {
   id: string;
   bulk_edit_session_id: string;
   status: string;
+  canonical_state: string | null;
   total_items: number;
   success_count: number;
   failure_count: number;

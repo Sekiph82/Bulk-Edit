@@ -4,6 +4,25 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-31 (Production sync 400 hotfix + M04/M06 write-safety foundation)
+
+### [POLICY] A hard-coded Etsy endpoint/parameter assumption is not "done" until an owner has run it against production — code review and mocked tests are necessary but not sufficient for a live third-party API contract
+PR #120 shipped a full-status sync built entirely on an assumption about Etsy's general "Get Listings by Shop" endpoint's parameter shape — clean code, passing tests, green CI, and it still 400'd on every state in production, including `active`, which had been proven working for months under the old endpoint. Going forward: any change to how this app talks to Etsy (new endpoint, new parameter, changed `includes` value) must either reuse an already-production-proven request shape, or be explicitly flagged in `TASKS.md` as unverified-against-live-Etsy until an owner-run test confirms it — never assumed correct from documentation or mocked-test success alone.
+
+### [ARCHITECTURE] `active` listing sync always uses the dedicated `/listings/active` endpoint; other statuses use the general endpoint — these are not interchangeable, do not unify them again without live proof
+The 2026-08-31 hotfix deliberately reintroduces this asymmetry (PR #120 had unified all 5 states onto one endpoint, which is what caused the regression). `active` is disproportionately important (it's the only state most shops have meaningfully populated, and it's the one every prior sync round was built and tested against) — so it gets the safest, most-proven code path, while the other 4 states — genuinely new, never proven — get the newer, less-certain path. A future change that merges these back onto one endpoint must first get a real owner-run production sync confirming the merged shape works for every state, not just `active`.
+
+### [ARCHITECTURE] Magic Revert's changed-since-apply conflict check compares against the fields the apply's *session* actually changed, not every field in the pre-apply backup snapshot
+`build_before_data()` (used for the backup/restore snapshot) captures a listing's *entire* state before any write, for restore-safety reasons unrelated to conflict detection. Iterating all of its keys in the conflict check flags every revert as a conflict on totally untouched fields (tags, section_id, processing times, etc.) — a real bug caught by this round's own test suite before it shipped. The conflict check must always be scoped to `BulkEditChange.field_name` for the original apply's session, not the full snapshot. Any future extension of the conflict check (e.g. to variations) must follow the same scoping rule.
+
+### [POLICY] A field the revert conflict-checker cannot yet verify is treated as a conflict, not assumed safe — this is why M06.03 stays `[~]`, and expanding field coverage is the only way to move it to `[x]`
+Only title/description/sku (normalized text) and price_amount/quantity (exact) have real comparison logic. Every other field `_SNAPSHOT_TO_LISTING` can touch (tags, materials, section_id, taxonomy_id, personalization fields, processing times, item dimensions) is deliberately marked "unverified" and refuses the revert rather than silently reverting a field this code has no way to confirm is still safe. Do not weaken this to "assume safe if not in the known-conflicting list" — that inverts the safety property this feature exists for.
+
+### [ARCHITECTURE] The per-item write audit trail (M06.04) extends the existing `AuditLog` table rather than creating a new one
+`AuditLog` was already a general-purpose, org+user-scoped event log used across apply/revert/media/variation/admin actions. Rather than duplicate that infrastructure, it gained 5 new nullable indexed columns (`apply_job_id`, `revert_job_id`, `field_name`, `result_status`, `revert_status`) — exactly the columns this task's required filters need as real columns, not buried in JSON. Before/after values and any other variable detail stay in the pre-existing `extra_data`/`metadata` JSON column. Any future audit-trail extension should add columns to `AuditLog`, not create a parallel table, unless a genuinely different access pattern (e.g. a dedicated export/archive table) requires it.
+
+---
+
 ## 2026-08-30 (M03.02 full-status sync + M03.03 Listings filters/counts)
 
 ### [ARCHITECTURE] `sold_out` is treated as a native Etsy listing state, fetched the same read-only way as active/inactive/draft/expired — never derived from local quantity

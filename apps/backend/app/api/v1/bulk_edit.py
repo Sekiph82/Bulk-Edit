@@ -1,7 +1,10 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_org_id, require_active_user, get_current_user
+from app.core.job_states import canonical_apply_job_state
 from app.db.session import get_db
 from app.schemas.bulk_edit import (
     BulkEditSessionCreateRequest,
@@ -21,6 +24,8 @@ from app.schemas.bulk_edit_apply import (
     BackupSnapshotOut,
     ApplyJobHistoryPageOut,
     ApplyJobHistoryItemOut,
+    FieldAuditLogOut,
+    FieldAuditLogPageOut,
 )
 from app.schemas.bulk_edit_revert import (
     RevertJobOut,
@@ -45,6 +50,7 @@ from app.services.bulk_edit_apply import (
     list_apply_jobs_for_org,
     get_apply_results,
     list_backup_snapshots_for_session,
+    list_field_audit_trail,
 )
 from app.services.bulk_edit_revert import (
     revert_apply_job,
@@ -55,6 +61,11 @@ from app.services.bulk_edit_revert import (
 )
 
 router = APIRouter(prefix="/bulk-edit", tags=["bulk-edit"])
+
+
+def _with_canonical_state(job_out: ApplyJobOut, revert_status: str | None = None) -> ApplyJobOut:
+    state = canonical_apply_job_state(job_out.status, job_out.success_count, job_out.error_message, revert_status)
+    return job_out.model_copy(update={"canonical_state": state})
 
 
 @router.post("/sessions", response_model=BulkEditSessionResponse, status_code=201)
@@ -203,7 +214,7 @@ async def apply_session(
     db: AsyncSession = Depends(get_db),
 ):
     job = await apply_bulk_edit_session(db, session_id, org_id, user.id)
-    return ApplyJobOut.model_validate(job)
+    return _with_canonical_state(ApplyJobOut.model_validate(job))
 
 
 @router.get("/sessions/{session_id}/apply-jobs", response_model=list[ApplyJobOut])
@@ -214,7 +225,11 @@ async def list_apply_jobs(
     db: AsyncSession = Depends(get_db),
 ):
     jobs = await list_apply_jobs_for_session(db, session_id, org_id)
-    return [ApplyJobOut.model_validate(j) for j in jobs]
+    eligibility = await get_revert_eligibility_map(db, org_id, jobs)
+    return [
+        _with_canonical_state(ApplyJobOut.model_validate(j), eligibility.get(j.id, {}).get("revert_status"))
+        for j in jobs
+    ]
 
 
 @router.get("/apply-jobs", response_model=ApplyJobHistoryPageOut)
@@ -241,6 +256,9 @@ async def list_apply_job_history(
         elig = eligibility.get(job.id, {})
         item = ApplyJobHistoryItemOut.model_validate(job)
         item = item.model_copy(update={
+            "canonical_state": canonical_apply_job_state(
+                job.status, job.success_count, job.error_message, elig.get("revert_status")
+            ),
             "can_revert": elig.get("can_revert", False),
             "revert_blocked_reason": elig.get("revert_blocked_reason"),
             "revert_job_id": elig.get("revert_job_id"),
@@ -260,8 +278,9 @@ async def get_apply_job_detail(
 ):
     job = await get_apply_job(db, job_id, org_id)
     results = await get_apply_results(db, job_id, org_id)
+    eligibility = await get_revert_eligibility_map(db, org_id, [job])
     return ApplyJobWithResultsOut(
-        job=ApplyJobOut.model_validate(job),
+        job=_with_canonical_state(ApplyJobOut.model_validate(job), eligibility.get(job.id, {}).get("revert_status")),
         results=[ApplyResultOut.model_validate(r) for r in results],
     )
 
@@ -330,4 +349,34 @@ async def get_revert_results_paginated(
         per_page=data["per_page"],
         total=data["total"],
         revert_job_id=data["revert_job_id"],
+    )
+
+
+@router.get("/audit-trail", response_model=FieldAuditLogPageOut)
+async def get_field_audit_trail(
+    apply_job_id: str | None = Query(None),
+    listing_id: str | None = Query(None),
+    field_name: str | None = Query(None),
+    result_status: str | None = Query(None),
+    revert_status: str | None = Query(None),
+    date_from: datetime | None = Query(None),
+    date_to: datetime | None = Query(None),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=100),
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """M06.04 per-item write audit trail — searchable, org-scoped, read-only.
+    Export is not built this sprint; this is the read/search surface a
+    future export would reuse."""
+    items, total = await list_field_audit_trail(
+        db, org_id,
+        apply_job_id=apply_job_id, listing_id=listing_id, field_name=field_name,
+        result_status=result_status, revert_status=revert_status,
+        date_from=date_from, date_to=date_to, page=page, per_page=per_page,
+    )
+    return FieldAuditLogPageOut(
+        items=[FieldAuditLogOut.model_validate(i) for i in items],
+        page=page, per_page=per_page, total=total,
     )
