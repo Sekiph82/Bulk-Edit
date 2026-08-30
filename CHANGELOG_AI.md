@@ -6,6 +6,22 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-30 M10 — Listing Health issue detail + Shop Insights affected listings (autonomous backlog PR 1/4)
+
+**Context:** owner away, working autonomously through a selected 4-PR backlog sequence (M10 → M03.04 → M13/M15 → M19), one focused PR per milestone, non-destructive only (no Etsy calls, no Apply/Revert/Sync, no media upload/delete). Branch `feature/m10-listing-health-insights-details`, based on `origin/main` past PR #109's `fd7269e0a469d40ecbad9b7386bdca639980f3a5`.
+
+**M10.01 audit — the backend had already done almost all of it, code-read not guessed:** `score_listing()` (`app/services/listing_health.py`) computes a full per-listing issue list (`category`/`severity`/`field`/`message`/`recommended_fix`/`ai_can_help`) across title, tags, description, photos, and pricing — `GET /listing-health/listings` already returns `top_issues` (first 3) per row, `GET /listing-health/listings/{id}` already returns `all_issues` + `suggested_actions`, and `lib/api.ts` already had `getListingHealthDetail()`. None of it was rendered — the table only ever showed the bare `issue_count` number. **Fix, frontend-only:** the Issues column is now clickable, expanding an inline row of severity-colored issue pills (each pill's tooltip shows the recommended fix) sourced from the already-fetched `top_issues`, with a "Show all N issues" button that fetches `all_issues`/`suggested_actions` on demand only when `issue_count` exceeds 3. **Exact gap, not hidden:** `score_listing()` does not compute zero-quantity, variation, or personalization/materials issues at all — confirmed via code read, not assumed. No issue data was invented to cover this; M10.01 is marked `[~]` partial in `TASKS.md`, not `[x]`, with the gap named as a backend scoring-engine follow-up.
+
+**M10.03 — Shop Insights affected listings, real backend addition:** the existing `/insights` summary only ever showed bare counts (`listings_missing_tags: 2`) with no way to see *which* listings. New `GET /insights/affected-listings` (`app/api/v1/insights.py`, local-DB-only, zero Etsy calls) computes 5 sections — missing tags, low photo count (reuses the existing `LOW_PHOTO_COUNT_THRESHOLD`), short titles (new `LOW_TITLE_LENGTH_THRESHOLD = 20`, deliberately kept in sync with `listing_health`'s own title-length threshold so the two surfaces never disagree), missing/zero price, zero quantity — each returning up to 10 listings (thumbnail, title, a human metric string like `0/13 tags` or `0 in stock`) plus the section's true total count. Frontend: new `AffectedListingsCard` component on `/insights`, each item linking to `View Product` (`/listings/{id}`) and `Fix in Bulk Edit` (`/bulk-edit?listing_ids={id}`); empty sections are hidden rather than rendered with zero rows.
+
+**Tests:** 5 new in `test_insights.py` — categorization correctness across all 5 categories with a fixture covering every case, 10-item cap with true `count` preserved beyond it, empty state (no listings), auth-required, org isolation. `pytest tests/test_insights.py tests/test_listing_health.py`: 38 passed, 0 failures (no pre-existing baseline noise in either file). Frontend: `tsc --noEmit` clean, `next lint` 0 new warnings (only the pre-existing repo-wide `react-hooks/exhaustive-deps` pattern), `next build` clean — `/insights` and `/listing-health` both compile.
+
+**Checks:** `git diff --check` clean. Manual secret-pattern scan of the diff — zero matches.
+
+**Safety:** no Etsy API call, no Bulk Edit apply/Magic Revert/shop sync/OAuth, no Connect Etsy clicked, no listing/media changed, no Stripe/DNS/Cloudflare/env change, no secrets printed, Private Beta untouched by Claude/Codex. Owner will perform all live manual QA later — no task in this round was marked complete based on manual/live verification.
+
+---
+
 ## 2026-08-30 M08.07/M16.06 — Magic Revert plan-gate enforcement
 
 **Context:** PR #107/#108 tracked, but deliberately left unfixed, that `PLAN_LIMITS["can_use_magic_revert"]` (`False` on Free) was never actually checked anywhere in the revert flow — Magic Revert had always worked regardless of plan. Branch `fix/magic-revert-plan-gate`, based on `origin/main` past PR #108's `1f984ba`.

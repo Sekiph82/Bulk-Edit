@@ -2,7 +2,27 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-30 (M08.07/M16.06: Magic Revert plan-gate enforcement)
+## RESUME HERE — 2026-08-30 (M10: Listing Health issue detail + Shop Insights affected listings — PR 1 of an autonomous 4-PR backlog run)
+
+**Owner is away; working autonomously through a selected backlog sequence (M10 → M03.04 → M13/M15 → M19), one focused PR per milestone, non-destructive only.** Branch `feature/m10-listing-health-insights-details`, based on `origin/main` past PR #109's `fd7269e0a469d40ecbad9b7386bdca639980f3a5`.
+
+**Audit found the backend had already done almost all the work:** `score_listing()` (`app/services/listing_health.py`) already computes a full per-listing issue list (category/severity/message/recommended_fix, title/tags/description/photos/pricing categories only — no quantity/variation/personalization checks exist), and `GET /listing-health/listings` already returns `top_issues` (first 3) per row while `GET /listing-health/listings/{id}` already returns `all_issues`/`suggested_actions` — the frontend simply never rendered any of it, only the bare `issue_count` number. Fixed frontend-only: the Issues column is now clickable, expanding severity-colored issue pills inline, with a "Show all N issues" fetch-on-demand for the full list. **Exact gap left, not hidden:** zero-quantity/variation/personalization issue *detection* doesn't exist in the scoring engine at all — no issue data was invented to cover it (M10.01 marked `[~]` partial, not `[x]`).
+
+**Shop Insights affected listings (M10.03) needed a real backend addition:** new `GET /insights/affected-listings` (local-DB-only, no Etsy call) returns up to 10 listings per category — missing tags, low photo count, short titles, missing/zero price, zero quantity — each with thumbnail/title/metric/View-Product/Fix-in-Bulk-Edit. Section header shows the true total even beyond 10. Shipped in full, marked `[x]`.
+
+**Tests:** 5 new in `test_insights.py` (categorization correctness, 10-item cap with true count, org isolation, empty state, auth). Targeted suite (`test_insights.py`+`test_listing_health.py`): 38 passed, 0 new failures. Frontend `tsc`/`lint`/`build` all clean — `/insights` and `/listing-health` both compile.
+
+**No Etsy API call, no Bulk Edit apply/Magic Revert/shop sync/OAuth by Claude/Codex.**
+
+**Recommended next work (autonomous sequence continues after this PR merges/deploys/verifies):**
+1. **M03.04** — shared `ListingPicker` component, migrate Media/Variations/Dynamic Pricing consumers.
+2. **M13/M15** — read-only media + variation depth.
+3. **M19** — beta readiness smoke matrix + owner runbooks.
+4. Owner live QA of everything shipped this session — Claude/Codex does not run live Etsy write/revert/sync/media actions.
+
+---
+
+## Previously — 2026-08-30 (M08.07/M16.06: Magic Revert plan-gate enforcement)
 
 **Branch `fix/magic-revert-plan-gate`, based on `origin/main` past PR #108's `1f984baa248d041f0f630535815b7b368dbbd34f`.** Closes the known gap PR #107/#108 tracked but deliberately didn't fix: `PLAN_LIMITS["can_use_magic_revert"]` (Free: `False`) is now actually enforced server-side.
 

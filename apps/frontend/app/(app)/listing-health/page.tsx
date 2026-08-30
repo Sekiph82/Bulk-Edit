@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, Suspense, useCallback } from "react";
+import { Fragment, useEffect, useState, Suspense, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   getListingHealthSummary, getListingHealthListings, getListingHealthAISuggestions,
+  getListingHealthDetail,
   getAccessToken, ApiError,
-  type ListingHealthSummary, type ListingHealthRow, type AISuggestions,
+  type ListingHealthSummary, type ListingHealthRow, type AISuggestions, type HealthIssue,
 } from "@/lib/api";
 
 function scoreBadgeClass(score: number): string {
@@ -36,6 +37,83 @@ function priorityBadgeClass(priority: string): string {
   return map[priority] ?? "bg-gray-100 text-gray-500";
 }
 
+function issueSeverityClass(severity: string): string {
+  const map: Record<string, string> = {
+    critical: "bg-red-100 text-red-700",
+    high: "bg-orange-100 text-orange-700",
+    medium: "bg-yellow-100 text-yellow-700",
+    low: "bg-gray-100 text-gray-500",
+  };
+  return map[severity] ?? "bg-gray-100 text-gray-500";
+}
+
+function IssuePill({ issue }: { issue: HealthIssue }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${issueSeverityClass(issue.severity)}`}
+      title={issue.recommended_fix}
+    >
+      {issue.message}
+    </span>
+  );
+}
+
+function IssueDetailRow({ listing }: { listing: ListingHealthRow }) {
+  const [allIssues, setAllIssues] = useState<HealthIssue[] | null>(null);
+  const [suggestedActions, setSuggestedActions] = useState<string[] | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const hasMore = listing.issue_count > listing.top_issues.length;
+
+  async function loadAll() {
+    setLoadingMore(true);
+    setLoadError(null);
+    try {
+      const detail = await getListingHealthDetail(listing.listing_id);
+      setAllIssues(detail.all_issues);
+      setSuggestedActions(detail.suggested_actions);
+    } catch (e) {
+      setLoadError(e instanceof ApiError ? e.message : "Failed to load full issue list.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  const issuesToShow = allIssues ?? listing.top_issues;
+
+  return (
+    <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 space-y-2">
+      {issuesToShow.length === 0 ? (
+        <p className="text-xs text-gray-400">No issues found for this listing.</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {issuesToShow.map((issue, i) => (
+            <IssuePill key={`${issue.category}-${issue.field}-${i}`} issue={issue} />
+          ))}
+        </div>
+      )}
+      {suggestedActions && suggestedActions.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-gray-500 mt-2">Suggested fixes:</p>
+          <ul className="text-xs text-gray-600 list-disc list-inside">
+            {suggestedActions.map((a, i) => <li key={i}>{a}</li>)}
+          </ul>
+        </div>
+      )}
+      {loadError && <p className="text-xs text-red-600">{loadError}</p>}
+      {hasMore && !allIssues && (
+        <button
+          onClick={loadAll}
+          disabled={loadingMore}
+          className="text-xs font-medium text-indigo-600 hover:underline disabled:opacity-60"
+        >
+          {loadingMore ? "Loading…" : `Show all ${listing.issue_count} issues`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function SummaryCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl px-5 py-4">
@@ -61,6 +139,7 @@ function ListingHealthContent() {
   const [aiResults, setAiResults] = useState<Record<string, AISuggestions>>({});
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const pageSize = 50;
 
@@ -241,72 +320,92 @@ function ListingHealthContent() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {listings.map((listing) => (
-                    <tr key={listing.listing_id} className={`hover:bg-gray-50 transition-colors ${selectedIds.has(listing.listing_id) ? "bg-indigo-50/40" : ""}`}>
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${listing.title ?? listing.listing_id}`}
-                          checked={selectedIds.has(listing.listing_id)}
-                          onChange={(e) => {
-                            setSelectedIds((prev) => {
-                              const next = new Set(prev);
-                              if (e.target.checked) next.add(listing.listing_id);
-                              else next.delete(listing.listing_id);
-                              return next;
-                            });
-                          }}
-                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                      </td>
-                      <td className="px-4 py-3 max-w-xs">
-                        <p className="font-medium text-gray-900 truncate text-sm">{listing.title ?? "—"}</p>
-                        <p className="text-xs text-gray-400">{listing.state ?? ""}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${scoreBadgeClass(listing.score)}`}>
-                          {listing.score}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${gradeBadgeClass(listing.grade)}`}>
-                          {listing.grade.replace("_", " ")}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${priorityBadgeClass(listing.priority)}`}>
-                          {listing.priority}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-700">{listing.issue_count}</td>
-                      <td className="px-4 py-3 text-gray-700">{listing.tag_count}/13</td>
-                      <td className="px-4 py-3 text-gray-700">{listing.photo_count}</td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {listing.price != null ? `${listing.currency ?? ""} ${Number(listing.price).toFixed(2)}` : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col gap-1">
-                          <button
-                            onClick={() => fetchAISuggestions(listing.listing_id)}
-                            disabled={aiLoading[listing.listing_id]}
-                            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium text-left disabled:opacity-60"
-                          >
-                            {aiLoading[listing.listing_id] ? "Loading…" : "AI Suggestions"}
-                          </button>
-                          <Link
-                            href={`/bulk-edit?listing_ids=${listing.listing_id}`}
-                            className="text-xs text-gray-500 hover:text-gray-700"
-                          >
-                            Bulk Edit
-                          </Link>
-                          <Link
-                            href={`/listings/${listing.listing_id}`}
-                            className="text-xs text-gray-500 hover:text-gray-700"
-                          >
-                            View Product
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
+                    <Fragment key={listing.listing_id}>
+                      <tr className={`hover:bg-gray-50 transition-colors ${selectedIds.has(listing.listing_id) ? "bg-indigo-50/40" : ""}`}>
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${listing.title ?? listing.listing_id}`}
+                            checked={selectedIds.has(listing.listing_id)}
+                            onChange={(e) => {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(listing.listing_id);
+                                else next.delete(listing.listing_id);
+                                return next;
+                              });
+                            }}
+                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                        </td>
+                        <td className="px-4 py-3 max-w-xs">
+                          <p className="font-medium text-gray-900 truncate text-sm">{listing.title ?? "—"}</p>
+                          <p className="text-xs text-gray-400">{listing.state ?? ""}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-bold px-2 py-1 rounded-full ${scoreBadgeClass(listing.score)}`}>
+                            {listing.score}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${gradeBadgeClass(listing.grade)}`}>
+                            {listing.grade.replace("_", " ")}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${priorityBadgeClass(listing.priority)}`}>
+                            {listing.priority}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          {listing.issue_count === 0 ? (
+                            <span className="text-gray-400 text-sm">0</span>
+                          ) : (
+                            <button
+                              onClick={() => setExpandedId(expandedId === listing.listing_id ? null : listing.listing_id)}
+                              className="text-sm text-indigo-600 hover:underline font-medium"
+                            >
+                              {listing.issue_count} {expandedId === listing.listing_id ? "▲" : "▼"}
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">{listing.tag_count}/13</td>
+                        <td className="px-4 py-3 text-gray-700">{listing.photo_count}</td>
+                        <td className="px-4 py-3 text-gray-700">
+                          {listing.price != null ? `${listing.currency ?? ""} ${Number(listing.price).toFixed(2)}` : "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-1">
+                            <button
+                              onClick={() => fetchAISuggestions(listing.listing_id)}
+                              disabled={aiLoading[listing.listing_id]}
+                              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium text-left disabled:opacity-60"
+                            >
+                              {aiLoading[listing.listing_id] ? "Loading…" : "AI Suggestions"}
+                            </button>
+                            <Link
+                              href={`/bulk-edit?listing_ids=${listing.listing_id}`}
+                              className="text-xs text-gray-500 hover:text-gray-700"
+                            >
+                              Bulk Edit
+                            </Link>
+                            <Link
+                              href={`/listings/${listing.listing_id}`}
+                              className="text-xs text-gray-500 hover:text-gray-700"
+                            >
+                              View Product
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                      {expandedId === listing.listing_id && (
+                        <tr>
+                          <td colSpan={10} className="p-0">
+                            <IssueDetailRow listing={listing} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

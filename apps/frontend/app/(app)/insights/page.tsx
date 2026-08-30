@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { getAccessToken, ApiError } from "@/lib/api";
+import Link from "next/link";
+import { getAccessToken, ApiError, getAffectedListings, type AffectedListingsSection } from "@/lib/api";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
 
@@ -39,9 +40,50 @@ function money(cents: number | null): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+function AffectedListingsCard({ section }: { section: AffectedListingsSection }) {
+  if (section.items.length === 0) return null;
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+        <p className="text-sm font-semibold text-gray-800">{section.label}</p>
+        <span className="text-xs text-gray-400">
+          {section.count} listing{section.count !== 1 ? "s" : ""}
+          {section.count > section.items.length ? ` (showing first ${section.items.length})` : ""}
+        </span>
+      </div>
+      <ul className="divide-y divide-gray-100">
+        {section.items.map((item) => (
+          <li key={item.listing_id} className="px-5 py-3 flex items-center gap-3">
+            {item.thumbnail_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={item.thumbnail_url} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+            ) : (
+              <div className="w-10 h-10 rounded-lg border border-dashed border-gray-200 flex-shrink-0" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-gray-800 truncate">{item.title ?? "Untitled listing"}</p>
+              <p className="text-xs text-gray-400">{item.metric}</p>
+            </div>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <Link href={`/listings/${item.listing_id}`} className="text-xs font-medium text-indigo-600 hover:underline">
+                View Product
+              </Link>
+              <Link href={`/bulk-edit?listing_ids=${item.listing_id}`} className="text-xs font-medium text-gray-500 hover:text-gray-700">
+                Fix in Bulk Edit
+              </Link>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function InsightsPage() {
   const router = useRouter();
   const [summary, setSummary] = useState<InsightSummary | null>(null);
+  const [affectedSections, setAffectedSections] = useState<AffectedListingsSection[]>([]);
+  const [affectedError, setAffectedError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,10 +104,20 @@ export default function InsightsPage() {
     }
   }, []);
 
+  const fetchAffected = useCallback(async () => {
+    try {
+      const data = await getAffectedListings();
+      setAffectedSections(data.sections);
+    } catch (e) {
+      setAffectedError(e instanceof ApiError ? e.message : "Failed to load affected listings.");
+    }
+  }, []);
+
   useEffect(() => {
     if (!getAccessToken()) { router.push("/login"); return; }
     fetchSummary();
-  }, [router, fetchSummary]);
+    fetchAffected();
+  }, [router, fetchSummary, fetchAffected]);
 
   return (
     <main className="max-w-5xl mx-auto px-6 py-6 space-y-5">
@@ -118,6 +170,18 @@ export default function InsightsPage() {
                 <p className="text-xs text-gray-400">
                   Last synced: {new Date(summary.last_synced_at).toLocaleString()}
                 </p>
+              )}
+
+              {affectedError && (
+                <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-sm">{affectedError}</div>
+              )}
+              {affectedSections.some((s) => s.items.length > 0) && (
+                <div className="space-y-4">
+                  <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Affected Listings</h2>
+                  {affectedSections.map((section) => (
+                    <AffectedListingsCard key={section.category} section={section} />
+                  ))}
+                </div>
               )}
             </>
           )}

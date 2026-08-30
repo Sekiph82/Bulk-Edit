@@ -272,16 +272,17 @@ M09 PARTIAL / IMPLEMENTATION COMPLETE FOR SHIPPED ITEMS, PENDING OWNER CLICK-THR
 # M10 - Listing Health and Shop Insights workflow
 
 ### M10.01 - Listing Health issue detail
-- [ ] Show issue detail, not just a count: tag count (e.g. `0/13`), photo count, title length, description length, missing/zero price, zero quantity, variation warnings, personalization/materials warnings where data supports them.
+- [~] Partial. The backend already computed a full per-listing issue list (`score_listing()` → `title`/`tags`/`description`/`media`/`pricing` categories, each with severity/message/recommended_fix) but the frontend only ever rendered the bare `issue_count` number — the API already returned `top_issues` (first 3) per row and a `GET /listing-health/listings/{id}` detail endpoint with `all_issues`/`suggested_actions`, both unused. Fixed: the Issues column is now clickable, expanding an inline row of severity-colored issue pills (tag count e.g. `0/13`, photo count, title length, description length, missing/zero price — each pill's `title` tooltip shows the recommended fix), with a "Show all N issues"/suggested-fixes fetch-on-demand when more than the 3 `top_issues` exist. Tag count and photo count are also still shown as their own dedicated table columns (pre-existing).
+- **Exact gap, not hidden:** `score_listing()` itself does not compute zero-quantity, variation, or personalization/materials issues at all (confirmed via code read — only title/tags/description/photos/price are scored) — no issue data was invented to fill this gap, per the task's explicit rule. Adding those checks is a backend scoring-engine change, out of scope for a frontend detail-surfacing pass; tracked as a follow-up.
 
 ### M10.02 - View Product / Fix in Bulk Edit paths
 - [x] "Fix in Bulk Edit" pre-existing on the Listing Health table.
 - [x] "View Product" link added, same internal listing id (PR #104) — minimal addition, no issue-detail redesign mixed in.
 
 ### M10.03 - Shop Insights affected listings
-- [ ] "Affected Listings" mini-sections (missing tags, low photo count — first 10 each), each with `View Product` and `Fix in Bulk Edit`. Metric cards clickable where useful.
+- [x] "Affected Listings" mini-sections shipped on `/insights`: Missing tags, Low photo count, Short titles, Missing/zero price, Zero quantity — first 10 per section (new `GET /insights/affected-listings` endpoint, local-DB-only, no Etsy call), each item showing thumbnail (or a placeholder), title, the relevant metric (e.g. `0/13 tags`, `1 photo`, `9-char title`, `No price set`, `0 in stock`), `View Product`, and `Fix in Bulk Edit`. Section header shows the true total count even when more than 10 exist. Empty sections are hidden rather than shown with zero rows.
 
-M10 PLANNED / PARTIAL (View Product link only).
+M10 PARTIAL — M10.02/M10.03 SHIPPED; M10.01 issue-detail surfacing SHIPPED for the categories the scoring engine actually computes (title/tags/description/photos/price), zero-quantity/variation/personalization issue *detection* remains a backend follow-up.
 
 ---
 
