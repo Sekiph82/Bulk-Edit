@@ -300,7 +300,7 @@ async def test_affected_listings_limited_to_ten_per_section(client: AsyncClient,
 
 @pytest.mark.anyio
 async def test_affected_listings_org_isolation(client: AsyncClient, db_session):
-    token_a = await _register_and_login(client, "aff_iso_a@test.com", "AffIsoOrgA")
+    await _register_and_login(client, "aff_iso_a@test.com", "AffIsoOrgA")
     org_a = await _get_org_id(db_session, "aff_iso_a@test.com")
     await _seed_affected_listings(db_session, org_a)
 
