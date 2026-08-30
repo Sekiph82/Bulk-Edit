@@ -78,6 +78,31 @@ Update these files before stopping:
 
 ---
 
+## Strict Audit Governance Protocol
+
+Every implementation log, PR completion report, and TASKS.md update is a claim until independently audited.
+
+Before approving any future Claude/Codex log, the auditor must read and apply:
+
+- `docs/AUDIT_GOVERNANCE.md`
+- uploaded execution log
+- `LOG_INDEX.md`
+- GitHub PR metadata, changed files, diff, CI status, and review threads
+- `TASKS.md`, `HANDOFF.md`, `PROJECT_STATUS.md`, `CHANGELOG_AI.md`, `DECISIONS.md`, and `.hiveai/PROJECT_DASHBOARD.md` when touched
+
+Audit results must explicitly distinguish:
+
+- proven implementation
+- partial implementation
+- unsupported builder claims
+- stale or false tracker/doc updates
+- unverified manual steps
+- safety/regression risks
+
+Never mark a milestone `[x]` in `TASKS.md` unless source code, tests/route evidence, and required owner/manual evidence support it. If TASKS.md is stale or overstated, treat that as an audit finding, not as truth.
+
+---
+
 ## Skill Selection Protocol
 
 Before starting any task:
