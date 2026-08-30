@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState, Suspense, useCallback } from "react";
+import { Fragment, useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
