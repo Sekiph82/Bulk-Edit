@@ -219,6 +219,20 @@ export function getShops(): Promise<{ shops: Shop[] }> {
   return apiFetch("/api/v1/etsy/shops");
 }
 
+export interface ListingStatusCounts {
+  all: number;
+  active: number;
+  inactive: number;
+  draft: number;
+  expired: number;
+  sold_out: number;
+}
+
+export function getListingStatusCounts(shop_id?: string): Promise<ListingStatusCounts> {
+  const qs = shop_id ? `?shop_id=${encodeURIComponent(shop_id)}` : "";
+  return apiFetch(`/api/v1/listings/status-counts${qs}`);
+}
+
 export function getListings(params: ListingsParams = {}): Promise<ListingPage> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {

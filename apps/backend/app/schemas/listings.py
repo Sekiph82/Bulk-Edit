@@ -118,6 +118,15 @@ class ListingDetailResponse(ListingListItemResponse):
     model_config = {"from_attributes": True}
 
 
+class ListingStatusCountsResponse(BaseModel):
+    all: int
+    active: int
+    inactive: int
+    draft: int
+    expired: int
+    sold_out: int
+
+
 class ListingPageResponse(BaseModel):
     items: list[ListingListItemResponse]
     page: int

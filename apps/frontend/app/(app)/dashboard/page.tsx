@@ -104,31 +104,6 @@ export default function DashboardPage() {
         <OnboardingChecklist shopCount={shopCount!} listingCount={listingCount!} bulkEditsUsed={bulkEditsUsed!} />
       )}
 
-      {/* Owner-verified production checks — static, truthful, manually recorded. Not an automated guarantee. */}
-      <div className="mb-6 bg-white border border-gray-200 rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-1">Owner-verified production checks</h2>
-        <p className="text-xs text-gray-500 mb-3">
-          Title and price write/revert were verified manually by the shop owner against live production Etsy. This is not an automated test suite — it reflects what has actually been run and confirmed.
-        </p>
-        <ul className="space-y-1.5 text-xs">
-          <li className="flex items-center gap-2 text-gray-700">
-            <span className="text-green-600">✓</span> Title write + Magic Revert — owner-verified
-          </li>
-          <li className="flex items-center gap-2 text-gray-700">
-            <span className="text-green-600">✓</span> Price write + Magic Revert — owner-verified
-          </li>
-          <li className="flex items-center gap-2 text-gray-400">
-            <span>—</span> Variation apply — not yet verified, optional, requires separate approval
-          </li>
-          <li className="flex items-center gap-2 text-gray-400">
-            <span>—</span> Media replace/delete — not yet verified, disabled pending restore support
-          </li>
-          <li className="flex items-center gap-2 text-gray-400">
-            <span>—</span> Video generation — not yet verified
-          </li>
-        </ul>
-      </div>
-
       {/* Health + Profit widgets */}
       {(healthSummary || profitSummary) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">

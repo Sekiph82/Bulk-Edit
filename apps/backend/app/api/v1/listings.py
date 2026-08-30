@@ -13,6 +13,7 @@ from app.schemas.listings import (
     ListingImageResponse,
     ListingPageResponse,
     ListingListItemResponse,
+    ListingStatusCountsResponse,
     ListingVariationResponse,
     ListingVideoResponse,
 )
@@ -23,6 +24,8 @@ VALID_SORT_COLS = {
     "title", "state", "price_amount", "quantity",
     "etsy_updated_at", "last_synced_at", "updated_at", "created_at",
 }
+
+COUNTED_STATES = ("active", "inactive", "draft", "expired", "sold_out")
 
 
 @router.get("", response_model=ListingPageResponse)
@@ -135,6 +138,34 @@ async def list_listings(
         per_page=per_page,
         total=total,
         filters=active_filters if active_filters else None,
+    )
+
+
+@router.get("/status-counts", response_model=ListingStatusCountsResponse)
+async def get_listing_status_counts(
+    shop_id: str | None = Query(None),
+    org_id: str = Depends(get_current_org_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_active_user),
+):
+    """Real per-status counts from synced local data — not hardcoded, not
+    page-limited. `all` is the total across the 5 counted statuses (a listing
+    not yet synced with any recognized state is excluded from `all`, same as
+    every per-status count, so the numbers stay internally consistent)."""
+    query = select(Listing.state, func.count()).where(Listing.organization_id == org_id)
+    if shop_id:
+        query = query.where(Listing.etsy_shop_id == shop_id)
+    query = query.group_by(Listing.state)
+    result = await db.execute(query)
+    counts = {state: count for state, count in result.all()}
+
+    return ListingStatusCountsResponse(
+        all=sum(counts.get(s, 0) for s in COUNTED_STATES),
+        active=counts.get("active", 0),
+        inactive=counts.get("inactive", 0),
+        draft=counts.get("draft", 0),
+        expired=counts.get("expired", 0),
+        sold_out=counts.get("sold_out", 0),
     )
 
 

@@ -5,20 +5,30 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  getShops, getListings, getListing, syncShop, getAccessToken, ApiError,
-  type Shop, type ListingListItem, type ListingDetail, type ListingsParams,
+  getShops, getListings, getListing, syncShop, getListingStatusCounts, getAccessToken, ApiError,
+  type Shop, type ListingListItem, type ListingDetail, type ListingsParams, type ListingStatusCounts,
 } from "@/lib/api";
 import { decodeEntities } from "@/lib/decodeEntities";
 
 // ---- constants ----
 
-const STATE_TABS = ["All", "active", "inactive", "draft", "expired"] as const;
+const STATE_TABS = ["All", "active", "inactive", "draft", "expired", "sold_out"] as const;
+
+const STATE_TAB_LABELS: Record<string, string> = {
+  All: "All",
+  active: "Active",
+  inactive: "Inactive",
+  draft: "Draft",
+  expired: "Expired",
+  sold_out: "Sold out",
+};
 
 const STATE_BADGE: Record<string, string> = {
   active: "bg-green-100 text-green-700",
   inactive: "bg-gray-100 text-gray-500",
   draft: "bg-yellow-100 text-yellow-700",
   expired: "bg-red-100 text-red-600",
+  sold_out: "bg-orange-100 text-orange-700",
 };
 
 const SORTABLE_COLS = ["title", "state", "price_amount", "quantity", "last_synced_at", "etsy_updated_at", "updated_at"] as const;
@@ -268,8 +278,10 @@ function ListingsContent() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [syncMsg, setSyncMsg] = useState<{ ok: boolean; partial?: boolean; text: string } | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  const [statusCounts, setStatusCounts] = useState<ListingStatusCounts | null>(null);
 
   // Filters
   const [selectedShopId, setSelectedShopId] = useState("");
@@ -368,7 +380,16 @@ function ListingsContent() {
     }
   }, [buildParams]);
 
+  const fetchStatusCounts = useCallback(async () => {
+    try {
+      setStatusCounts(await getListingStatusCounts(selectedShopId || undefined));
+    } catch {
+      setStatusCounts(null);
+    }
+  }, [selectedShopId]);
+
   useEffect(() => { fetchListings(1); }, [selectedShopId, stateTab, sortBy, sortDir]);
+  useEffect(() => { fetchStatusCounts(); }, [selectedShopId, fetchStatusCounts]);
 
   async function triggerSync() {
     if (!selectedShopId) { setApiError("Select a shop first."); return; }
@@ -378,7 +399,10 @@ function ListingsContent() {
       const data = await syncShop(selectedShopId);
       if (data.status === "completed") {
         setSyncMsg({ ok: true, text: `Sync complete — ${data.processed_items} listings synced.` });
-        await fetchListings(1);
+        await Promise.all([fetchListings(1), fetchStatusCounts()]);
+      } else if (data.status === "completed_with_errors") {
+        setSyncMsg({ ok: true, partial: true, text: `Sync partially complete — ${data.processed_items} listings synced. ${data.error_message ?? ""}` });
+        await Promise.all([fetchListings(1), fetchStatusCounts()]);
       } else {
         setSyncMsg({ ok: false, text: `Sync failed: ${data.error_message ?? "Unknown error"}` });
       }
@@ -506,7 +530,7 @@ function ListingsContent() {
 
         {/* Messages */}
         {syncMsg && (
-          <div className={`px-4 py-3 rounded-lg text-sm border ${syncMsg.ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}>
+          <div className={`px-4 py-3 rounded-lg text-sm border ${syncMsg.partial ? "bg-amber-50 border-amber-200 text-amber-800" : syncMsg.ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}>
             {syncMsg.text}
           </div>
         )}
@@ -527,17 +551,21 @@ function ListingsContent() {
           </div>
         )}
 
-        {/* State tabs */}
+        {/* State tabs — counts are real synced totals (GET /listings/status-counts), not page-scoped */}
         <div className="flex gap-1 bg-white border border-gray-200 rounded-xl p-1 w-fit">
-          {STATE_TABS.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => { setStateTab(tab); }}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${stateTab === tab ? "bg-indigo-600 text-white" : "text-gray-500 hover:text-gray-700"}`}
-            >
-              {tab === "All" ? "All" : tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
+          {STATE_TABS.map((tab) => {
+            const count = statusCounts ? (tab === "All" ? statusCounts.all : statusCounts[tab as keyof ListingStatusCounts]) : null;
+            return (
+              <button
+                key={tab}
+                onClick={() => { setStateTab(tab); }}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${stateTab === tab ? "bg-indigo-600 text-white" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                {STATE_TAB_LABELS[tab]}
+                {count !== null && <span className="ml-1.5 opacity-70">{count.toLocaleString()}</span>}
+              </button>
+            );
+          })}
         </div>
 
         {/* Filter panel */}
