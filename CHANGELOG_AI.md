@@ -6,6 +6,30 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-30 M13/M15 — Media + variation read-only depth (autonomous backlog PR 3/4)
+
+**Context:** owner away, autonomous 4-PR sequence continues (M10, M03.04 done → M13/M15 this round). Branch `feature/media-variations-read-depth`, based on `origin/main` past PR #111's `9a220b08a902ff521c19c5365946c7964048f696`. Scope required to stay read-only/preview-only — no destructive writes, no live Etsy calls.
+
+**M13.02 — product detail page image gallery:** the Media card showed a primary image + count with "Full image gallery is not available yet." — `getListingImages(listingId)` had already fetched every image on page load, just never rendered past the first. Now renders a 4-column read-only thumbnail grid of every synced image, sorted by rank, plus a truthful amber warning (not a fake `0`) when zero photos exist. No reorder/delete/upload control added.
+
+**M15.01 — variation read model, audited then surfaced:** code read (not guessed) confirmed `ListingVariation` (property_id/name, value_id/name, price, quantity, SKU, availability) is written by `etsy_sync.py` on every shop sync, and `GET /listings/{id}/variations` — plus `lib/api.ts`'s `getListingVariations()` — has existed since Sprint 5/12. Nothing in the frontend ever called it. New `VariationMatrix`/`SelectedListingVariations` components on the Variations page: one row per selected listing, expandable into a real read-only table (property/value/price/qty/SKU/available), with a truthful distinction between "has_variations on Etsy but nothing synced locally yet — run a shop sync" and an actual empty result (previously indistinguishable). Fetched on-demand per expand, not on page load (no N+1).
+
+**M15.05 — diagnostics surfaced:** `BulkEditVariationPreviewItem.validation_messages` existed on the backend schema (populated by `build_variation_preview_for_listing()`), unused. The variation preview table gained a Diagnostics column listing the exact safe validation message(s) instead of only a bare status badge.
+
+**M13.05 — Video Generator, listing-image selection:** added a radio toggle ("Paste URLs" / "Select from a listing's synced photos") above the existing image-URL textarea. Picking a listing (via the new `ListingPicker`, single-select) fetches `getListingImages()` and populates the same `imageUrlsText` state the manual-paste path already used — `handleRender()` and every downstream render-triggering call are byte-for-byte unchanged. Manual paste remains fully available; this is a second input path, not a replacement.
+
+**M13.04 — audit found a live gap, closed the UI half of it (recorded as a decision in `DECISIONS.md`):** the Media page's `add_image`/`replace_image`/`delete_image`/`add_video`/`replace_video`/`delete_video` operations are all pre-existing (not introduced this round), fully implemented, and enabled — a `MediaBackup` row is created before every write ("Backups are created before every write," pre-existing page copy) — but grepping every route file (`app/api/v1/*.py`) turns up zero media-revert/restore endpoints. A customer who deletes or replaces media today has no self-service way back despite the backup row existing. `replace_image`/`delete_image`/`replace_video`/`delete_video` are now disabled in the operation picker with truthful "coming soon — no restore yet" labels; `add_image`/`add_video` (nothing ever lost) are untouched. Fully reversible, UI-only — no backend touched, no already-taken action affected.
+
+**M15.02/M15.03/M15.04 — documentation-accuracy correction (recorded in `DECISIONS.md`), no new code:** `TASKS.md` had all three marked `[ ]` planned. `CHANGELOG_AI.md`'s own Sprint 12 (2026-06-26) entry, plus a code read of `services/bulk_edit_variation.py` and 26+ existing tests in `test_bulk_edit_variation.py`, show variation price/quantity preview (`generate_variation_preview()`, local-data-only, zero Etsy call) and an apply mechanism (`apply_variation_job()`, fetch-patch-put + backup + confirm-to-apply UI) were both built and unit-tested well before this session's tracked rounds — the `[ ]` status was simply stale. Corrected M15.02/M15.03 to `[x]` (real evidence: code + tests). M15.04 corrected to `[~]`, deliberately not `[x]` — apply has never been owner-live-verified (unlike the price/title write saga's extensive verification trail — unit tests mocking Etsy are not acceptance evidence per this file's own rule), and Sprint 12's own entry says "Revert for variations explicitly deferred to Sprint 13" — no revert code was ever added. No live write, no revert code, added or run this round.
+
+**Checks:** zero backend files changed this round (confirmed via `git status`) — no backend test run needed, every fix reuses a pre-existing, pre-tested endpoint. Frontend: `npx tsc --noEmit` clean; `npx next lint` — zero new warnings on any changed file (only the pre-existing repo-wide `react-hooks/exhaustive-deps` pattern, and the same `no-img-element` warning pattern already present on this exact file from a prior round); `npx next build` clean, all 4 changed routes compile.
+
+**Checks:** `git diff --check` clean. Manual secret-pattern scan of the diff — zero matches.
+
+**Safety:** no Etsy API call, no Bulk Edit apply/Magic Revert/shop sync/OAuth, no Connect Etsy clicked, no listing/media changed (no upload/delete/reorder — the render/apply/upload code paths this round touched were UI-input plumbing only, never executed), no Stripe/DNS/Cloudflare/env change, no secrets printed, Private Beta untouched by Claude/Codex. No task marked `[x]` without code/test evidence.
+
+---
+
 ## 2026-08-30 M03.04 — Shared ListingPicker (autonomous backlog PR 2/4)
 
 **Context:** owner away, autonomous 4-PR backlog sequence continues (M10 done → M03.04 this round). Branch `feature/m03-shared-listing-picker`, based on `origin/main` past PR #110's `f7d79e795be68026333908cca6a9b3303e6649e2`.

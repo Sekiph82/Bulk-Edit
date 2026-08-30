@@ -375,16 +375,16 @@ M12 PLANNED / PARTIAL (policy default only).
 - [x] Now uses the shared `ListingPicker` component (M03.04, 2026-08-30) — gained thumbnails, server-side status filter, and pagination it never had as the page-local version.
 
 ### M13.02 - Listing image read-only view
-- [ ] Image count, primary image, missing-media warnings; no reorder/delete/upload until enabled.
+- [x] Product detail page (`/listings/[listingId]`) Media card now shows a full read-only thumbnail grid of every synced image (was: primary image + count + "Full image gallery is not available yet."), plus a truthful amber warning when zero photos are synced. No reorder/delete/upload control added — grid is display-only.
 
 ### M13.03 - Etsy listing video upload workflow
 - [!] Blocked — implemented historically but never live-tested. Needs owner-approved single-listing test, preview/confirmation, item-level report, rate-limit handling (via M07).
 
 ### M13.04 - Media delete/revert strategy
-- [ ] No destructive media operation without a recovery story; delete requires explicit confirmation.
+- [~] Audit found this is a live, already-shipped feature (not something this round is introducing): the Media page's `add_image`/`replace_image`/`delete_image`/`add_video`/`replace_video`/`delete_video` operations are all fully implemented and enabled, and a `MediaBackup` row is created before every write ("Backups are created before every write," pre-existing page copy) — but no revert/restore endpoint exists anywhere (confirmed via grep across `app/api/v1/*.py`, zero matches for a media-revert route). A customer who deletes or replaces media today cannot self-recover through the app despite the backup row existing. **Fixed this round:** `replace_image`/`delete_image`/`replace_video`/`delete_video` (every operation that can lose an existing asset) are now disabled in the operation picker with truthful "coming soon — no restore yet" labels; `add_image`/`add_video` (purely additive, nothing lost) stay enabled. Recovery-story implementation (an actual restore endpoint reading `MediaBackup`) remains planned.
 
 ### M13.05 - Video Generator real workflow
-- [ ] Listing-based image auto-fetch (replace manual URL paste), batch selection, one video job per listing, item-level states, preview/approval before any Etsy upload, upload to existing listing only after approval.
+- [~] Listing-based image selection shipped: a "Select from a listing's synced photos" option (alongside, not replacing, manual URL paste) uses the shared `ListingPicker` + `getListingImages()` to populate the same image-URL list the existing render form already used — the actual render-triggering path (`handleRender`) is completely untouched. Preview/approval, per-listing job state, and the existing "not yet Etsy-uploaded until approved" flow were already in place and are unchanged. Batch selection (multiple listings → multiple jobs) not added this round.
 
 ### M13.06 - Promote (Pinterest/Instagram)
 - [!] Blocked on external app setup: Pinterest developer app + redirect URI + scopes; Meta developer app + Instagram Graph API + business/creator permissions; production review if required.
@@ -395,7 +395,7 @@ M12 PLANNED / PARTIAL (policy default only).
 - [x] Fixed a real bug (2026-08-29, UX-01D, PR #106): `GET /bulk-create/status` was hardcoded to always return `not_configured`, never actually checking the org's Etsy shop connection — Bulk Create falsely told owners with a connected shop to "Connect your Etsy shop first." Now runs the same `is_connected` check Connected Shops uses. With a connected shop it returns a distinct, truthful `not_yet_enabled` status (the draft-creation workflow itself isn't wired up yet) instead of either the false gate or a non-functional-looking upload UI.
 - [ ] Bulk Create draft-creation workflow itself (the "Create Drafts" button) remains unimplemented — tracked separately, not part of this fix.
 
-M13 PLANNED / BLOCKED on several external integrations. Shop-connection gate correctness for Bulk Create SHIPPED (M13.07).
+M13 PARTIAL — M13.01/M13.02/M13.07 SHIPPED; M13.04 destructive-action UI safety SHIPPED (recovery-story endpoint itself remains PLANNED); M13.05 listing-image-selection foundation SHIPPED (full batch workflow remains PLANNED); M13.03/M13.06 remain BLOCKED on external prerequisites (owner-approved live test / third-party developer apps).
 
 ---
 
@@ -420,22 +420,22 @@ M14 PLANNED.
 # M15 - Variations and inventory depth
 
 ### M15.01 - Variation inventory read model
-- [ ] Fetch and store/read variation products/offerings/property_values in a safe local representation; read-only matrix view first.
-- Owner-observed (2026-08-29): Variation Bulk Editor shows "No variation listings found" for the connected shop. **Audited, not treated as a confirmed bug** — the `has_variations=true` filter uses the same shared `getListings()` helper as the Listings page and a real, correctly-synced Etsy field, so this may be a truthful zero-result for this shop rather than a broken filter; no live/authenticated way exists in this session to check the real count. Empty state improved (distinguishes no-data from no-search-match) without loosening the filter. Revisit if the owner confirms variation listings do exist in the connected shop.
+- [x] Audit found the read model already exists and is already populated (confirmed via code read, not guessed): `ListingVariation` (property_id/name, value_id/name, price, quantity, SKU, availability) is written by `etsy_sync.py` on every shop sync, and `GET /listings/{id}/variations` has returned it since Sprint 5/12 — `lib/api.ts`'s `getListingVariations()` existed too. **None of it was ever rendered anywhere in the frontend.** Fixed frontend-only: the Variations page now has a "Variation Data (read-only)" panel — one row per selected listing, expandable into a real matrix (property/value/price/qty/SKU/available), truthfully distinguishing "has synced variation rows" from "has_variations on Etsy but nothing synced locally yet — run a shop sync" (the latter state was previously indistinguishable from "no data at all").
+- Owner-observed (2026-08-29): Variation Bulk Editor showed "No variation listings found" for the connected shop at the time. **Still not treated as a confirmed bug** — the `has_variations=true` filter is real and correctly-synced; whether that shop's listings genuinely have zero variations is unverifiable without a live authenticated check. Unchanged this round.
 
 ### M15.02 - Variation price edit preview
-- [ ] Owner can preview variation-specific price changes; no write until explicit approval.
+- [x] Audit correction: this was already fully shipped (Sprint 12, 2026-06-26, predates this session's tracked rounds) — `generate_variation_preview()` builds a before/after diff from local `ListingVariation` data only (zero Etsy call for preview), rendered in the existing before/after preview table. Was incorrectly still marked `[ ]`; corrected based on code + the 26 existing tests in `test_bulk_edit_variation.py`, not newly built this round.
 
 ### M15.03 - Variation quantity edit preview
-- [ ] Per-offering quantity preview; invalid combinations blocked before write.
+- [x] Same correction as M15.02 — quantity preview uses the identical `generate_variation_preview()` path; already shipped, already tested, was mismarked `[ ]`.
 
 ### M15.04 - Variation write apply/revert
-- [ ] Single variation listing tested first; preserve SKU, property_values, readiness_state_id, price_on_property, quantity_on_property, sku_on_property; revert works for succeeded variation writes.
+- [~] Audit correction, not `[ ]` and not `[x]`: an apply mechanism already exists in code (`apply_variation_job()` — fetch-patch-put against Etsy, backup-before-write, confirm-to-apply UI with a "Type APPLY VARIATIONS" gate) and is unit-tested, but two things are genuinely missing: (1) **no owner live verification has ever occurred** for a variation write (unlike the price/title write saga, which has an extensive owner-run verification trail) — code-level tests mock Etsy and are not acceptance evidence per this file's own rule; (2) **variation revert does not exist at all** — the Sprint 12 changelog entry explicitly says "Revert for variations explicitly deferred to Sprint 13," and no revert code was ever added. Neither gap was touched this round (no live write, no revert built) — this is a documentation-accuracy correction, not new work.
 
 ### M15.05 - Variation diagnostics
-- [ ] Item-level failure shows exact safe reason; no raw Etsy body, token, secret, or header leak.
+- [x] `BulkEditVariationPreviewItem.validation_messages` already existed on the backend (populated by `build_variation_preview_for_listing()`) but was never rendered — fixed: the preview table now has a Diagnostics column showing the exact safe validation message(s) per item (list-formatted) instead of only a bare status badge. No raw Etsy body/token/secret ever included in these messages (confirmed via the same code path M05.04 already established as sanitized).
 
-M15 PLANNED.
+M15 PARTIAL — read model + matrix (M15.01), price/quantity preview (M15.02/M15.03, corrected from a stale `[ ]`), and diagnostics (M15.05) SHIPPED; apply exists+tested but never owner-live-verified and revert doesn't exist at all (M15.04, `[~]` not `[x]`).
 
 ---
 
