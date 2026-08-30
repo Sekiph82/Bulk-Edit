@@ -41,6 +41,11 @@ def _decode_entities(value: Any) -> Any:
 PAGE_LIMIT = 100
 TOKEN_REFRESH_BUFFER_SECONDS = 300
 
+# Every state Etsy's "Get Listings by Shop" endpoint accepts. sold_out is a
+# real, native Etsy listing state (not derived from quantity) — fetched the
+# same read-only way as the other four.
+LISTING_STATES = ("active", "inactive", "draft", "expired", "sold_out")
+
 
 def _auth_headers(access_token: str) -> dict[str, str]:
     return {
@@ -90,14 +95,17 @@ async def get_valid_etsy_access_token(shop: EtsyShop, db: AsyncSession) -> str:
 
 
 async def fetch_shop_listings(
-    access_token: str, etsy_shop_id: str, limit: int = PAGE_LIMIT, offset: int = 0
+    access_token: str, etsy_shop_id: str, state: str = "active", limit: int = PAGE_LIMIT, offset: int = 0
 ) -> dict[str, Any]:
+    """Read-only GET against Etsy's general "Get Listings by Shop" endpoint,
+    filtered by `state`. Covers active/inactive/draft/expired/sold_out — no
+    write/status-mutation Etsy endpoint is ever called."""
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await etsy_get(
             client,
-            f"{ETSY_API_BASE}/application/shops/{etsy_shop_id}/listings/active",
+            f"{ETSY_API_BASE}/application/shops/{etsy_shop_id}/listings",
             headers=_auth_headers(access_token),
-            params={"limit": limit, "offset": offset, "includes": "Images,MainImage"},
+            params={"state": state, "limit": limit, "offset": offset, "includes": "Images,MainImage"},
         )
         resp.raise_for_status()
         return resp.json()
@@ -371,80 +379,105 @@ async def sync_shop_listings(
     try:
         access_token = await get_valid_etsy_access_token(shop, db)
 
-        offset = 0
         total_fetched = 0
         processed = 0
+        failed_states: list[str] = []
+        synced_states: list[str] = []
 
-        while True:
-            remaining = max_listings - total_fetched
-            if remaining <= 0:
+        for state in LISTING_STATES:
+            if total_fetched >= max_listings:
+                # Budget is shared across all states, not per-state — a Free
+                # plan's max_listings cap applies to the shop's listings as a
+                # whole, regardless of which status they're in.
                 break
 
-            page_limit = min(PAGE_LIMIT, remaining)
-            page_data = await fetch_shop_listings(
-                access_token, shop.etsy_shop_id, limit=page_limit, offset=offset
-            )
-            results = page_data.get("results", [])
-            count = page_data.get("count", len(results))
+            try:
+                offset = 0
+                state_had_results = False
 
-            if not results:
-                break
+                while True:
+                    remaining = max_listings - total_fetched
+                    if remaining <= 0:
+                        break
 
-            # Cap results to remaining budget (Etsy may return more than page_limit in some cases)
-            results = results[:remaining]
+                    page_limit = min(PAGE_LIMIT, remaining)
+                    page_data = await fetch_shop_listings(
+                        access_token, shop.etsy_shop_id, state=state, limit=page_limit, offset=offset
+                    )
+                    results = page_data.get("results", [])
 
-            if job.total_items == 0:
-                job.total_items = min(count, max_listings)
-                await db.flush()
+                    if not results:
+                        break
 
-            for listing_data in results:
-                listing = await upsert_listing(db, org_id, shop, listing_data)
+                    state_had_results = True
+                    # Cap results to remaining budget (Etsy may return more than page_limit in some cases)
+                    results = results[:remaining]
 
-                # Sync images: try inline Images include first, then fetch separately
-                inline_images = listing_data.get("Images") or listing_data.get("images") or []
-                if inline_images:
-                    await upsert_listing_images(db, listing, inline_images)
-                else:
-                    try:
-                        images = await fetch_listing_images(access_token, listing_data["listing_id"])
-                        if images:
-                            await upsert_listing_images(db, listing, images)
-                    except Exception as exc:
-                        logger.warning("Failed to fetch images for listing %s: %s", listing_data.get("listing_id"), exc)
+                    for listing_data in results:
+                        listing = await upsert_listing(db, org_id, shop, listing_data)
 
-                # Sync videos (best-effort)
-                try:
-                    videos = await fetch_listing_videos(access_token, listing_data["listing_id"])
-                    if videos:
-                        await upsert_listing_videos(db, listing, videos)
-                except Exception as exc:
-                    logger.warning("Failed to fetch videos for listing %s: %s", listing_data.get("listing_id"), exc)
+                        # Sync images: try inline Images include first, then fetch separately
+                        inline_images = listing_data.get("Images") or listing_data.get("images") or []
+                        if inline_images:
+                            await upsert_listing_images(db, listing, inline_images)
+                        else:
+                            try:
+                                images = await fetch_listing_images(access_token, listing_data["listing_id"])
+                                if images:
+                                    await upsert_listing_images(db, listing, images)
+                            except Exception as exc:
+                                logger.warning("Failed to fetch images for listing %s: %s", listing_data.get("listing_id"), exc)
 
-                # Sync variations/inventory (best-effort)
-                if listing_data.get("has_variations"):
-                    try:
-                        products = await fetch_listing_inventory(access_token, listing_data["listing_id"])
-                        if products:
-                            await upsert_listing_variations(db, listing, products)
-                    except Exception as exc:
-                        logger.warning("Failed to fetch inventory for listing %s: %s", listing_data.get("listing_id"), exc)
+                        # Sync videos (best-effort)
+                        try:
+                            videos = await fetch_listing_videos(access_token, listing_data["listing_id"])
+                            if videos:
+                                await upsert_listing_videos(db, listing, videos)
+                        except Exception as exc:
+                            logger.warning("Failed to fetch videos for listing %s: %s", listing_data.get("listing_id"), exc)
 
-                processed += 1
-                job.processed_items = processed
-                await db.flush()
+                        # Sync variations/inventory (best-effort)
+                        if listing_data.get("has_variations"):
+                            try:
+                                products = await fetch_listing_inventory(access_token, listing_data["listing_id"])
+                                if products:
+                                    await upsert_listing_variations(db, listing, products)
+                            except Exception as exc:
+                                logger.warning("Failed to fetch inventory for listing %s: %s", listing_data.get("listing_id"), exc)
 
-            total_fetched += len(results)
-            offset += len(results)
+                        processed += 1
+                        job.processed_items = processed
+                        await db.flush()
 
-            if len(results) < page_limit:
-                break
+                    total_fetched += len(results)
+                    offset += len(results)
+
+                    if len(results) < page_limit:
+                        break
+
+                if state_had_results:
+                    synced_states.append(state)
+            except Exception as exc:
+                # A failure fetching one status must not lose listings already
+                # upserted (and flushed, not yet committed) for other statuses
+                # this run, and must not touch previously-committed data —
+                # log and move to the next state instead of re-raising.
+                logger.warning("Listing status sync failed for shop %s, state=%s: %s", shop_db_id, state, exc)
+                failed_states.append(f"{state} ({exc})")
 
         # Update shop last_synced_at
         shop.last_synced_at = datetime.now(timezone.utc)
-        job.status = "completed"
         job.completed_at = datetime.now(timezone.utc)
-        job.total_items = job.total_items or processed
+        job.total_items = processed
         job.processed_items = processed
+        if not failed_states:
+            job.status = "completed"
+        elif processed > 0:
+            job.status = "completed_with_errors"
+            job.error_message = ("Some listing statuses failed to sync: " + "; ".join(failed_states))[:1000]
+        else:
+            job.status = "failed"
+            job.error_message = ("All listing statuses failed to sync: " + "; ".join(failed_states))[:1000]
         await db.commit()
 
     except SyncError:

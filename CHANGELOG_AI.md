@@ -32,6 +32,22 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-30 M03.02 full-status sync + M03.03 Listings filters/counts + Dashboard card removal
+
+**Dashboard card removal:** owner explicitly rejected the "Owner-verified production checks" card added in the previous round as unwanted customer-facing content. Removed entirely from `apps/frontend/app/(app)/dashboard/page.tsx`. The underlying facts (title/price write+revert both owner-verified OK, owner-run) stay recorded in `TASKS.md`/`HANDOFF.md`/`CHANGELOG_AI.md` only, never a Dashboard card again.
+
+**M03.02 — Full inventory/status read-only sync (branch `feature/m03-full-status-sync-and-listing-filters`):** `sync_shop_listings()`/`fetch_shop_listings()` (`apps/backend/app/services/etsy_sync.py`) now fetch all 5 Etsy listing states — active, inactive, draft, expired, sold_out — via Etsy's general "Get Listings by Shop" endpoint with a `state` query param, replacing the old active-only convenience endpoint. `sold_out` is a native Etsy state value (confirmed against Etsy's documented parameter values for this endpoint), not derived from local quantity — no derivation logic needed. Strictly read-only: a mock test client that raises on `.post`/`.patch`/`.put`/`.delete` proves no write/status-mutation call is ever made. `max_listings` plan-limit budget is shared across all 5 states, not per-state. Per-state pagination; partial-failure isolation — one state's fetch failing doesn't lose listings already synced from other states this run (new `job.status = "completed_with_errors"` value, alongside existing `"completed"`/`"failed"`), with a safe, secret-free error summary. 7 new tests in `test_etsy_sync_status.py`; 2 pre-existing `test_listings.py` tests updated (their shared mock helper was state-blind and needed to become state-aware once sync queries 5 states instead of 1). No DB migration — `Listing.state` was already a free-text indexed column.
+
+**M03.03 — Listings status filters + real counts:** added a **Sold out** 6th tab to `/listings` (`STATE_TABS`). New backend endpoint `GET /api/v1/listings/status-counts` returns real, grouped per-status counts from local synced data (not hardcoded, not page-scoped) — wired into every tab, refetched on shop change and after sync. Search/pagination/checkbox-selection/Bulk-Edit-selected/product-detail-nav/Quick-View/column-visibility untouched (confirmed via diff review). Sync result banner also gained a third (amber, "partial") state for the new `"completed_with_errors"` status.
+
+**Both M03.02 and M03.03 kept `[~]` in `TASKS.md`, not `[x]`:** per this round's explicit constraint, no production shop sync was run and no owner has click-through-verified the new tabs/counts — every claim is mocked-test-verified only.
+
+**Checks:** `npx tsc --noEmit`/`next lint`/`next build` clean. Backend: 1006 passed, 32 failed locally — all 32 matching the confirmed local-venv-only 401-vs-403 artifact (30 pre-existing + this round's 1 new `_requires_auth` test) plus 2 unrelated pre-existing `test_video_generator.py` failures; CI expected fully green per the PR #117 precedent. `git diff --check` clean, secret scan clean.
+
+**Safety:** no Etsy write/status-mutation endpoint called (GET only), no listing activate/deactivate/renew/delete, no production shop sync run, no Bulk Edit Apply/Magic Revert/media/video action, no Stripe/DNS/Cloudflare/env change, no secrets printed, Private Beta unchanged.
+
+---
+
 ## 2026-08-30 TASKS.md full truth audit (docs-only, no feature work)
 
 **Owner instruction:** a strict, full re-verification of every line in `TASKS.md` against real source code, tests, migrations, and this session's own logs — explicitly not a feature sprint, no implementation of any flagged item.

@@ -2,7 +2,36 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-30 (TASKS.md full truth audit — branch `docs/tasks-md-full-truth-audit`)
+## RESUME HERE — 2026-08-30 (M03.02 full-status sync + M03.03 Listings filters/counts + Dashboard card removal — branch `feature/m03-full-status-sync-and-listing-filters`)
+
+**Owner review of `/dashboard` after the account-profile round: mostly good (greeting uses saved name, sidebar clean), but explicitly rejected the "Owner-verified production checks" card as unwanted customer-facing content.** Removed entirely from `apps/frontend/app/(app)/dashboard/page.tsx` — the underlying facts (title/price write+revert both owner-verified OK) stay in `TASKS.md`/`HANDOFF.md`/`CHANGELOG_AI.md` only, never a Dashboard card again. All other Dashboard cards (onboarding checklist, Listing Health, Profit Overview, Action Queue, tool grid) untouched.
+
+**M03.02 — Full inventory/status read-only sync, implemented:**
+- `sync_shop_listings()`/`fetch_shop_listings()` (`apps/backend/app/services/etsy_sync.py`) now iterate all 5 Etsy listing states — `active`, `inactive`, `draft`, `expired`, `sold_out` — via Etsy's general "Get Listings by Shop" endpoint (`GET /shops/{shop_id}/listings?state={state}`), replacing the old active-only convenience endpoint.
+- `sold_out` is a **native Etsy state value**, not derived from local quantity — confirmed against Etsy's documented `state` parameter values for this endpoint.
+- Read-only, proven by a mock client that raises if `.post`/`.patch`/`.put`/`.delete` are ever called on it.
+- `max_listings` plan-limit budget shared across all 5 states (not per-state — a Free plan still can't exceed its real cap 5x over).
+- Per-state pagination; partial-failure safety (one state's failure doesn't lose other states' listings this run; `job.status` gains `"completed_with_errors"`).
+- 7 new tests in `test_etsy_sync_status.py`; 2 pre-existing `test_listings.py` tests updated (their mock helper was state-blind, needed to become state-aware).
+- **Kept `[~]`, not `[x]`:** no production shop sync was run this round (owner approval required separately, per explicit task constraint) — only mocked Etsy responses were tested.
+
+**M03.03 — Listings status filters + counts, implemented:**
+- New **Sold out** 6th tab on `/listings` (`STATE_TABS` now includes it).
+- New `GET /api/v1/listings/status-counts` endpoint — real, grouped `SELECT state, COUNT(*)` from local data, not hardcoded, not page-scoped. Every tab shows its real count.
+- Search/pagination/checkbox-selection/"Bulk Edit selected"/product-detail navigation/Quick View/column-visibility untouched (confirmed via diff review).
+- **Kept `[~]`, not `[x]`:** test-verified against real local data, but no owner click-through yet.
+
+**Files changed:** backend — `app/services/etsy_sync.py`, `app/api/v1/listings.py`, `app/schemas/listings.py`, `tests/test_etsy_sync_status.py` (new), `tests/test_listings.py`. Frontend — `app/(app)/dashboard/page.tsx`, `app/(app)/listings/page.tsx`, `lib/api.ts`.
+
+**Checks:** `npx tsc --noEmit` clean, `npx next lint` no new warnings, `npx next build` clean. Backend: local run (SQLite) — 1006 passed, 32 failed, all matching the confirmed local-venv-only 401-vs-403 artifact (30 pre-existing + 1 new, same pattern) plus 2 unrelated pre-existing `test_video_generator.py` failures. `git diff --check` clean, manual secret scan clean.
+
+**Safety, explicit:** no Etsy write/status-mutation endpoint ever called (GET only, proven in tests); no listing activation/deactivation/renewal/deletion; no production shop sync run; no Bulk Edit Apply/Magic Revert/media/video action by Claude/Codex.
+
+**Recommended next owner action:** refresh `/dashboard` and confirm the owner-verified card is gone; open `/listings` and confirm the status tabs/counts render and filtering still works. **Do not run a production sync unless you explicitly choose to** — M03.02 has only been verified against mocked Etsy responses.
+
+---
+
+## Previously — 2026-08-30 (TASKS.md full truth audit — PR #119, branch `docs/tasks-md-full-truth-audit`, merge `77e1b250c29f13f077a5b489be3aeb4adbf2726d`)
 
 **Owner instruction: strict, docs-only truth audit of every line in `TASKS.md`. No feature work, no implementation of M03.02/M03.03/M04.03/M06.03/M08.04 or any other product feature — verification and correction only.**
 

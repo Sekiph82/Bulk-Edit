@@ -110,17 +110,33 @@ def _mock_listings_response(count: int = 2) -> dict:
 
 
 def _make_mock_http_client(listings_data: dict):
-    mock_resp = MagicMock()
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = listings_data
-    mock_resp.is_success = True
-    mock_resp.status_code = 200
+    """`listings_data` is returned only for the `state=active` listings-by-shop
+    call; every other status (inactive/draft/expired/sold_out) — and any
+    images/videos/inventory sub-call — gets an empty result. Sync now queries
+    all 5 statuses (M03.02), so a state-blind mock would multiply every
+    fixture's listing count by 5."""
+    empty_resp = MagicMock()
+    empty_resp.raise_for_status = MagicMock()
+    empty_resp.is_success = True
+    empty_resp.status_code = 200
+    empty_resp.json.return_value = {"count": 0, "results": []}
+
+    active_resp = MagicMock()
+    active_resp.raise_for_status = MagicMock()
+    active_resp.is_success = True
+    active_resp.status_code = 200
+    active_resp.json.return_value = listings_data
+
+    async def _get(url, headers=None, params=None, **kwargs):
+        if url.endswith("/listings") and (params or {}).get("state") == "active":
+            return active_resp
+        return empty_resp
 
     mock_client = AsyncMock()
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
-    mock_client.get = AsyncMock(return_value=mock_resp)
-    mock_client.post = AsyncMock(return_value=mock_resp)
+    mock_client.get = AsyncMock(side_effect=_get)
+    mock_client.post = AsyncMock(return_value=active_resp)
     return mock_client
 
 

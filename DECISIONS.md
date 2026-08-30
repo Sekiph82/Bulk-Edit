@@ -4,6 +4,19 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-30 (M03.02 full-status sync + M03.03 Listings filters/counts)
+
+### [ARCHITECTURE] `sold_out` is treated as a native Etsy listing state, fetched the same read-only way as active/inactive/draft/expired — never derived from local quantity
+Etsy's "Get Listings by Shop" endpoint's `state` parameter documents `sold_out` as one of its 5 accepted values, alongside `active`/`inactive`/`draft`/`expired`. Rather than deriving a local `sold_out` heuristic from `quantity == 0` (which would conflict with Etsy's own notion of the state and could disagree with what Etsy actually shows), the sync fetches it as its own state pass, identically to the other four. Any future feature needing "is this listing sold out" should read `Listing.state == "sold_out"`, not re-derive it from quantity.
+
+### [PRODUCT] The `max_listings` plan-limit budget is shared across all 5 synced statuses, not applied per-status
+Before this round, the budget only ever applied to active listings (the only state ever fetched). Now that inactive/draft/expired/sold_out are fetched too, the budget is enforced as one shared total across all 5 states in a single sync run — a Free-plan account cannot use the new multi-status sync to end up with 5x its real listing cap. If a future round wants per-status budgets (e.g. "always sync at least N active listings even if other statuses eat the budget first"), that needs an explicit product decision, not a default.
+
+### [POLICY] `TASKS.md` items are not promoted to `[x]` on mocked-test evidence alone when the task involves a live external API contract (Etsy, in this case) — a real run against production (owner-approved) is required first
+M03.02's endpoint/parameter choice is based on Etsy's documented API contract, verified only via mocked tests this round (the task explicitly forbade a live production sync). Kept at `[~]`, consistent with the audit-governance rule already applied elsewhere in this project: implementation + tests is necessary but not sufficient for `[x]` when a live, real-world confirmation is the only way to fully validate the underlying assumption.
+
+---
+
 ## 2026-08-30 (TASKS.md full truth audit)
 
 ### [POLICY] The H!veAI milestone conversion (PR #101) is not a reliable source of "what's actually built" on its own — every milestone must be periodically re-verified against real Sprint 0-27 history, not assumed complete or assumed absent based on the conversion alone
