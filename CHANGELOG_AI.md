@@ -32,6 +32,30 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-30 TASKS.md full truth audit (docs-only, no feature work)
+
+**Owner instruction:** a strict, full re-verification of every line in `TASKS.md` against real source code, tests, migrations, and this session's own logs — explicitly not a feature sprint, no implementation of any flagged item.
+
+**Method:** read the entire file (all M00-M20 sections, then the bottom "Milestone policy" summary), then verified suspect/ambiguous markers directly against the codebase rather than trusting prior summaries — grepped for the relevant service/route/model code, ran targeted `pytest` files, checked test counts, and cross-referenced `CHANGELOG_AI.md`'s own historical Sprint entries for origin/context.
+
+**Biggest finding:** several entire milestones were dramatically understated because `TASKS.md`'s H!veAI conversion (PR #101) didn't fully backfill pre-existing Sprint 0-27 work. Specifically:
+- **M08.04 (Owner dashboard / comp grant UI)** was `[ ]` "currently owner-console/API-only" — actually a full 14-page owner frontend console (`apps/frontend/app/owner/`) backed by a 575-line, ~35-endpoint admin API (`apps/backend/app/api/v1/admin.py`), a real working Grant/Revoke comp UI, a 12-call-site audit-log helper (`_write_owner_audit_log()`), and 108 backend tests (105 passing — 3 failures are the known local-venv 401-vs-403 artifact, not real). Built in Sprint 19 "Internal Admin Business Dashboard" (2026-06-26). Upgraded `[ ]` → `[~]` (real, tested, not owner-click-through-verified).
+- **M12.02 (AI listing suggestions)** was `[ ]` "not started" — actually Sprint 13's real, tested feature (`apps/backend/app/api/v1/ai.py`, `apps/frontend/app/(app)/ai/page.tsx`, 27 backend tests), genuinely preview-only (accepting a suggestion only flips a status flag; converting creates a draft `BulkEditSession`, never a direct Etsy write). Upgraded `[ ]` → `[~]`.
+- **M14 (all 4 packages — Dynamic Pricing/profit)** was entirely `[ ]` "PLANNED" — actually Sprint 15's real, tested feature (`apps/backend/app/api/v1/dynamic_pricing.py`, `apps/frontend/app/(app)/pricing-rules/page.tsx` 884 lines, `apps/frontend/app/(app)/profit/page.tsx` 308 lines with honest missing-cost handling, 27 backend tests). Module docstring: "Dynamic pricing NEVER writes directly to Etsy." Upgraded all 4 sub-items `[ ]` → `[~]` — the single largest correction in this audit.
+- **CSV Import/Export and Scheduled Jobs** (Sprint 14 and Sprint 16, 2026-06-26) had **zero milestone tracking anywhere in `TASKS.md`** despite being real, tested, safe-by-design features (36 and 41 backend tests respectively). Added as new packages M03.06 and M04.06.
+- **M03.03 (listing status filters)** and **M04.03 (apply job state tracking)** were `[ ]` despite real partial implementations (`STATE_TABS` filter UI wired to a real backend param; job/item status fields that persist and survive refresh, just not the exact named state machine). Upgraded to `[~]` with the specific gap named.
+- The bottom-of-file **"Milestone policy" summary was badly stale**, describing M10/M12/M13/M14/M15/M16/M19 as "PLANNED — not started" and M11 as "the current major sprint" — flatly contradicted by the detailed per-milestone sections directly above it. Rewritten to defer to each milestone's own closing line instead of duplicating (and drifting from) it.
+
+**Confirmed still genuinely not done (no change):** M03.02 full-status sync (only Etsy's `/listings/active` endpoint is ever called — `etsy_sync.py:98`), M06.03 revert-staleness check (zero matches via grep), M08.05/M08.06 Stripe review / beta invite management (zero invite code, explicit comment confirms), M09.04/M09.06 owner click-through (outside every recorded smoke-test's scope), M13.04/M15.04 media and variation revert (don't exist).
+
+**New `TASKS.md` "Current Truth Snapshot" section added** near the top, summarizing fully-closed milestones, partial milestones, owner-verified live-write capabilities, implemented-but-not-owner-verified capabilities, not-implemented/blocked capabilities, and everything corrected in this audit.
+
+**Checks:** `git diff --check` clean on `TASKS.md`; grep confirmed no malformed checkbox markers and exactly one closing-line summary per milestone (no duplicates). Docs-only — no frontend/backend build or test run required for this change itself (the admin/AI/dynamic-pricing/CSV/scheduled-jobs test counts cited above were run to gather evidence, not because this round's own diff needed them).
+
+**Safety:** no Etsy API call, no Apply/Revert/Sync, no media upload/delete/replace, no video generation, no Stripe/DNS/Cloudflare/env change, no destructive DB action, no secrets read or printed. Zero product/feature code touched — docs only.
+
+---
+
 ## 2026-08-30 Account profile name fields + sidebar identity cleanup + beta-readiness/owner-control polish
 
 **Both owner live production write tests recorded as owner-run evidence** — single-listing title write + Magic Revert (OK) and single-listing price write (`price_amount` 6000→6288) + Magic Revert (Apply success=1/failed=0/skipped=0, revert restored=1/failed=0/skipped=0, OK). Not run by Claude/Codex.

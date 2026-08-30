@@ -47,6 +47,21 @@ Package numbering such as `M08.01`, `M08.02`, etc. is task/audit decomposition o
 - **Owner completed live production write tests (2026-08-30):** single-listing title write + Magic Revert OK; single-listing price write (`price_amount` 6000→6288) + Magic Revert OK (Apply success=1/failed=0/skipped=0, revert restored=1/failed=0/skipped=0). See M16.03, M19.01.
 - **Dashboard onboarding tracking + `[object Object]` display bug fixed (2026-08-30, PR #116, branch `fix/dashboard-onboarding-tracking-after-write-tests`, merge `2ec4226c`):** found immediately after the above live tests — the onboarding checklist's "Try bulk edit"/"Review available tools" steps were hardcoded incomplete regardless of real account activity. Now "Try bulk edit" reads real `bulk_edits_used` from `GET /api/v1/billing/usage`; "Review available tools" removed from the checklist (dashboard's existing tool grid covers it). Also fixed: Bulk Edit Add Changes table showed `[object Object]` for find/replace rules — now renders `Find: "…" → Replace: "…"`. See M19.03.
 - **Account profile name fields + sidebar cleanup + beta-readiness/owner-control polish (2026-08-30, branch `feature/account-profile-and-beta-readiness-control`):** owner asked for first/last name (Account → Profile), Dashboard greeting by name instead of raw email, and sidebar email/Sign out moved into Account. Backend: `User.first_name`/`last_name` (migration `0026`), `display_name` deterministic fallback (first+last → first → last → email → "Account"), new `PATCH /api/v1/auth/me`. Frontend: new `/account/profile` page, `/dashboard` greeting via `getGreetingName()` (prefers first name), sidebar footer (email + Sign out) removed from `AppShell.tsx`, Sign out relocated to `/account`. Also this round: small owner-verified-checks card on `/dashboard` (title/price write+revert owner-verified; variation/media/video not yet), and a truthful copy fix on the Variations apply-confirm modal (no revert exists for variations yet). See M11.12, M15.04, M19.03. **Remaining owner-live actions, still separate and optional: variation apply (no revert yet, M15.04), media upload/delete/replace, video generation. Broader beta launch, real Stripe live billing readiness, and wider beta user onboarding remain untouched/pending.**
+- **Full TASKS.md truth audit (2026-08-30, branch `docs/tasks-md-full-truth-audit`):** every milestone/package re-verified against source code, migrations, tests, and this session's own logs — not trusted from prior summaries alone. Found and corrected: (1) the "Milestone policy" section at the bottom of this file was badly stale, describing M10/M12/M13/M14/M15/M16/M19 as "PLANNED — not started" and M11 as "the current major sprint" when the per-milestone sections directly above it already documented most of that work as shipped; (2) **two entire shipped, tested features had zero milestone tracking at all** — CSV Import/Export (Sprint 14, 2026-06-26) and Scheduled Jobs (Sprint 16, 2026-06-26) — now added as M03.06 and M04.06; (3) **M08.04 (Owner dashboard/comp grant UI), M12.02 (AI suggestions), and all of M14 (Dynamic Pricing/profit)** were marked `[ ]` "not started" despite being real, tested, safety-checked implementations from Sprint 19/13/15 respectively — upgraded to `[~]` (implemented, not owner-click-through-verified); (4) M03.03 (listing status filters) and M04.03 (apply job state tracking) were marked `[ ]` despite partial real implementations — upgraded to `[~]` with the exact gap named. See the audit's local log for the full evidence table (upgrades/downgrades/still-not-done/owner-verification-required), `2026-08-30_..._tasks-md-full-truth-audit.md`.
+
+## Current Truth Snapshot (2026-08-30 full audit)
+
+**Fully closed milestones:** M00 (repo/stack), M02 (Etsy OAuth), M05 (live Etsy write core), M07 (rate limits/write pacing — M07.06 Scheduled Jobs added this round as a `[~]` package, doesn't reopen the closed core rate-limit work).
+
+**Partial milestones (real shipped work + real gaps, evidence-backed):** M01, M03, M04, M06, M08, M09, M10, M11, M12, M13, M14, M15, M16, M17, M18, M19.
+
+**Owner-verified live write capabilities:** single-listing title write + Magic Revert; single-listing price write + Magic Revert; 33-listing bulk price apply (32 success/0 failed/1 skipped) + 32-listing bulk revert (32 restored/0 failed/0 skipped). All Etsy-write-capable and owner-run only, never Claude/Codex-run.
+
+**Implemented in code/tested but NOT owner-verified (do not read as "working in the owner's hands" until an owner click-through is recorded):** Owner admin console (`/owner/*`, M08.04) including Grant/Revoke comp access UI; AI listing suggestions (`/ai`, M12.02); Dynamic Pricing + Profit Calculator (`/pricing-rules`, `/profit`, M14); CSV Import/Export (`/csv`, M03.06); Scheduled Jobs (`/scheduled`, M04.06); variation price/quantity preview (M15.02/M15.03); variation live apply (M15.04); product-detail-page and Listings-page navigation polish (M09.04/M09.06).
+
+**Not implemented / blocked:** full-status (draft/inactive/expired/sold_out) listing sync (M03.02) — only Etsy's `/listings/active` endpoint is ever called; revert-refuses-if-changed-since-apply (M06.03); variation revert (does not exist, M15.04); media restore/revert endpoint (M13.04); Promote publishing (`[!]` blocked on Pinterest/Meta developer app credentials, M13.06); Etsy listing video upload live test (`[!]` blocked, M13.03); Private Beta invite/allowlist management (M08.06); direct product-page Etsy writes (`[!]` blocked on write-surface architecture design, M09.05).
+
+**Stale items corrected in this audit:** the bottom-of-file "Milestone policy" summary (rewritten to match real per-milestone status); M03.03 and M04.03 (`[ ]` → `[~]`, partial real implementations existed and were undocumented); M08.04, M12.02, M14.01–M14.04 (`[ ]` → `[~]`, substantial real implementations existed and were undocumented — the single largest correction in this audit); M12.03's second line (`[ ]` → `[x]`, already shipped via M11.03); CSV Import/Export and Scheduled Jobs (previously untracked anywhere in this file, now M03.06/M04.06).
 
 ---
 
@@ -115,7 +130,10 @@ M02 PASS/CLOSED.
 - [ ] Sync `active`/`draft`/`inactive`/`expired`/`sold_out` statuses, read-only, no accidental activation/deactivation.
 
 ### M03.03 - Listing status filters on Listings page
-- [ ] All/Active/Inactive/Draft/Expired filters with counts matching synced data.
+- [~] **Audit upgrade (2026-08-30):** was marked `[ ]`, but real, functional filters already exist — `apps/frontend/app/(app)/listings/page.tsx:15` (`STATE_TABS = ["All", "active", "inactive", "draft", "expired"]`), wired to a real `state` query param sent to the backend (`:338`) and rendered as clickable tabs (`:532-539`). Genuinely partial, not done: (1) the summary cards are honestly labeled "(page)" — current-page-only counts, no full-dataset total-per-status count on each tab; (2) since only Etsy's `/listings/active` endpoint is ever called (M03.02), the inactive/draft/expired tabs are trivially empty by data limitation, not a UI bug.
+
+### M03.06 - CSV Import/Export (audit: previously untracked, Sprint 14 2026-06-26)
+- [~] **Docs gap found and corrected in this audit** — this entire feature existed in shipped, tested code with zero milestone tracking anywhere in this file. `apps/backend/app/api/v1/csv_tools.py` (export/template/import/jobs/preview/convert, 7 endpoints); `apps/backend/app/services/csv_tools.py` — safety-documented in its own docstring: "CSV import NEVER writes to Etsy directly. Import creates BulkEditSession + BulkEditChange rows only. User must run existing bulk edit preview/apply flow to publish changes." `apps/frontend/app/(app)/csv/page.tsx` (472 lines). 36 backend tests in `test_csv_tools.py`. Not owner-click-through-verified — kept `[~]`, not `[x]`.
 
 ### M03.04 - Shared ListingPicker component
 - [~] Component shipped: `apps/frontend/components/listings/ListingPicker.tsx` — shop filter (behind `showShopFilter`, hidden when the org has ≤1 shop), status filter, title search, pagination, thumbnail (`ListingListItem.thumbnail_url`, already returned by `getListings()`), variation indicator (`has_variations` badge), selected count, loading/error/empty states (with an overridable `renderEmpty` for consumer-specific honesty, e.g. Variations' no-data-vs-no-match distinction), multi-select and single-select modes, `disabled` read-only mode.
@@ -130,7 +148,7 @@ M02 PASS/CLOSED.
 - [ ] Dynamic Pricing page shows listings — already did, pre-existing, unchanged this round; suggestions remain preview-only.
 - [x] Media page loads listings when listings exist; operations remain read-only/preview-gated until M13 (unchanged).
 
-M03 PARTIAL — listing sync foundation PASS; shared `ListingPicker` SHIPPED and migrated into Media + Variations (M03.04); Dynamic Pricing/Bulk Edit/Video Generator/Promote consumer migration remains PLANNED.
+M03 PARTIAL — listing sync foundation PASS; shared `ListingPicker` SHIPPED and migrated into Media + Variations (M03.04); listing status filters SHIPPED but limited by the active-only sync gap (M03.03, audit upgrade); CSV Import/Export SHIPPED, previously untracked (M03.06, audit addition); Dynamic Pricing/Bulk Edit/Video Generator/Promote `ListingPicker` migration remains PLANNED; full-status sync remains PLANNED (M03.02).
 
 ---
 
@@ -143,8 +161,7 @@ M03 PARTIAL — listing sync foundation PASS; shared `ListingPicker` SHIPPED and
 - [x] `apiFetch()` 204-handling bug fixed in the shared client, not just the remove-change call site (PR #91) — also fixed 4 other affected `204` routes.
 
 ### M04.03 - Apply job state machine
-- [ ] States: `pending`, `running`, `succeeded`, `partially_failed`, `failed`, `rate_limited`, `cancelled`, `reverted`, `revert_failed`.
-- [ ] UI shows clear batch progress and final state; jobs survive refresh.
+- [~] **Audit upgrade (2026-08-30):** was marked `[ ]`, but a real, working (if differently-named) status mechanism already exists — `apps/backend/app/services/bulk_edit_apply.py:439-443` sets job-level `status` to `"running"` → `"completed"` / `"completed_with_errors"` / `"failed"` (default `"pending"`); item-level `BulkEditApplyResult.status` uses `"pending"`/`"skipped"`/`"failed"`/`"success"`. Jobs persist in Postgres and survive refresh — confirmed via `/magic-revert`'s real job history (M16.02). **Genuinely missing:** the exact named states this package specifies (`rate_limited`, `cancelled`, `reverted`, `revert_failed` as job-level states) don't exist — `rate_limited` only exists as an item-level failure-reason category (`etsy_http.py`/`etsy_write.py`), not a job state; revert status is tracked via a separate linkage (`backup_snapshot_id`/revert-job records), not a `job.status` value.
 
 ### M04.04 - Single/small-batch apply-revert verification matrix
 - [x] 33-listing price apply/revert — owner-verified live (Success 32/Failed 0/Skipped 1 apply; Restored 32/Failed 0/Skipped 0 revert; Etsy confirmed both price directions).
@@ -154,7 +171,10 @@ M03 PARTIAL — listing sync foundation PASS; shared `ListingPicker` SHIPPED and
 ### M04.05 - Preselection UX from Listing Health / Insights (owner QA fix)
 - [x] Owner-reported (2026-08-30, manual non-destructive smoke test): a listing preselected via `?listing_ids=<id>` (from "Fix in Bulk Edit") showed a generic "N listing(s) pre-selected" banner but the actual listing wasn't clearly visible/checked in the on-screen picker — it was correctly held in state, but if it wasn't on page 1 of the default unfiltered listing table, nothing on screen showed it. Fixed: preselected listing(s) are now fetched by id independently of the paginated/search table and rendered in a pinned "Pre-selected" section at the top of the picker (checked, with title/Etsy id), the banner names the actual title (not just a count), selection persists across pagination/search (already worked, confirmed unchanged), and no automatic apply is triggered.
 
-M04 PARTIAL.
+### M04.06 - Scheduled Jobs (audit: previously untracked, Sprint 16 2026-06-26)
+- [~] **Docs gap found and corrected in this audit** — this entire feature existed in shipped, tested code with zero milestone tracking anywhere in this file. `apps/backend/app/api/v1/scheduled_jobs.py` (create/list/detail/pause/resume/disable/run-now/runs/run-due, 10 endpoints); `apps/frontend/app/(app)/scheduled/page.tsx` (466 lines) — nav copy: "Schedule safe syncs, draft creation, and pricing previews — nothing publishes without your approval." 41 backend tests in `test_scheduled_jobs.py`. Not owner-click-through-verified — kept `[~]`, not `[x]`.
+
+M04 PARTIAL — session/preview/apply core and the M04.02/M04.05 fixes PASS; apply job status tracking real but not the exact named state machine (M04.03, audit upgrade); Scheduled Jobs SHIPPED, previously untracked (M04.06, audit addition); 3/10-listing and non-price-field batch verification remains an open gap (M04.04).
 
 ---
 
@@ -196,6 +216,7 @@ M05 PASS/CLOSED.
 
 ### M06.04 - Audit trail for writes
 - [ ] Per-item record: who/when/shop/listing/field/before/after/result/job/session/revert status, searchable and safe to export, no secrets persisted. See also M16.
+- **Audit note (2026-08-30):** `BulkEditApplyResult` (`apps/backend/app/models/bulk_edit_apply_result.py`) already records org/job/session/listing/status/request+response payload/backup-snapshot-link/timestamps per item — real data, not invented — but has no clean structured `field`/`before`/`after` columns (must be reconstructed from JSON payload blobs) and no per-user `user_id` column (multi-user accounts aren't built yet, M11.06). Still correctly `[ ]` — the gap is the same one already named in M16.04 (no full search/export UI), not a missing data source.
 
 M06 PARTIAL.
 
@@ -238,18 +259,19 @@ M07 PASS/CLOSED.
 - [x] `can_use_feature(subscription, feature_name)` confirmed dead code (zero call sites) — left alone, no live bug.
 
 ### M08.04 - Owner dashboard / comp grant management UI
-- [ ] Owner can view users, orgs, shops, plans, sync status, recent write jobs; grant/revoke comp access safely with an audit trail. Currently owner-console/API-only (`POST /admin/organizations/{org_id}/comp`).
+- [~] **Major audit upgrade (2026-08-30):** was marked `[ ]` with the note "Currently owner-console/API-only" — this significantly understated reality. A full owner frontend console already exists at `apps/frontend/app/owner/` (14 real pages: overview, users list+detail, organizations list+detail, shops, payments, system-health, audit-logs, feature-flags, alerts, contact-submissions, content, emails, jobs), backed by `apps/backend/app/api/v1/admin.py` (575 lines, ~35 endpoints — users/organizations/subscriptions/usage/shops/sync-jobs/bulk-edit-sessions/ai-sessions/csv-jobs/dynamic-pricing-jobs/scheduled-jobs/events/billing-summary/stripe-summary/product-usage/system-health/audit-log/contact-submissions/feature-flags). **Grant/revoke comp access has a real, working UI**, not API-only — `apps/frontend/app/owner/organizations/[id]/page.tsx:84-113,247-279`, wired to `adminGrantComp`/`adminRevokeComp`. **A real audit trail exists** — `_write_owner_audit_log()` (`apps/backend/app/services/admin.py:819-836`, `OwnerActionLog` model) is called at 12 sites across every mutating owner action (grant/revoke/plan-change/disable-user/sync-trigger/refund/password-reset), safe by design (own doc comment: "Never include tokens, password reset tokens, Slack webhook URLs, card data, or Stripe secret values"). 108 backend tests (`test_admin_dashboard.py` ×21, `test_admin_panel.py` ×87), 105 passing (3 failures are the same pre-existing local-venv 401-vs-403 artifact independently disproven by CI during PR #117 — not a real gap). Original build: Sprint 19 "Internal Admin Business Dashboard" (2026-06-26), route later renamed `/admin` → `/owner`. **Kept at `[~]`, not `[x]`:** no recorded owner click-through of the `/owner` console exists in any log — implementation is real and tested, manual acceptance is not.
 
 ### M08.05 - Stripe production workflow review
 - [ ] Products/prices re-verified, webhook endpoint status manually checked in Stripe dashboard, no accidental real charge during tests.
 
 ### M08.06 - Private beta user management
 - [ ] Invite/allowlist strategy; beta users supported without direct DB edits.
+- **Audit-confirmed (2026-08-30):** grep across `apps/backend/app` found zero invite/allowlist code; `apps/backend/app/services/auth.py:226-227` explicitly documents "this app has no team/invite feature (one owner per organization, confirmed by grep — no invite endpoint exists)." Marker stays `[ ]`, confirmed genuinely not done, not just undocumented.
 
 ### M08.07 - Magic Revert plan-gate enforcement
 - [x] Closed: `validate_apply_job_revertable()` now resolves the effective plan (`get_effective_plan()`, comp-grant aware — not raw `Subscription.plan`) and blocks with `403 "Magic Revert is not available on your current plan."` when `can_use_magic_revert` is false, checked last (after org-ownership, status, zero-success, and duplicate-revert checks) so an already-reverted job still reports "Already reverted." rather than plan-blocked, and no cross-org job existence leaks. `get_revert_eligibility_map()` mirrors the same rule in the same precedence order, resolving the effective plan once per history request (not per job — no N+1). 8 new backend tests (Free blocked direct + history, Pro/comp-grant-Pro allowed, precedence, cross-org, zero-success-still-blocked). Existing ~25 pre-existing revert-mechanics tests updated via a `grant_plan="pro_monthly"` default on the shared `_setup_and_apply()` fixture (comp-grant path, not a raw plan mutation) rather than weakened.
 
-M08 PARTIAL — core gate-correctness IMPLEMENTATION COMPLETE (CONDITIONAL per M08.02 audit, only MINOR/NOTE items open), owner/admin-facing billing tooling PLANNED, Magic Revert plan-gate enforcement SHIPPED (M08.07).
+M08 PARTIAL — core gate-correctness IMPLEMENTATION COMPLETE (CONDITIONAL per M08.02 audit, only MINOR/NOTE items open), Magic Revert plan-gate enforcement SHIPPED (M08.07), owner admin console SHIPPED and tested but not owner-click-through-verified (M08.04, audit upgrade — this was significantly understated before this round), Stripe production workflow review and Private Beta invite management remain genuinely PLANNED (M08.05/M08.06, owner-only manual verification, code-unaddressable).
 
 ---
 
@@ -378,16 +400,16 @@ M11 MOSTLY SHIPPED (Account-01, PR #105; Profile/sidebar cleanup, this round) �
 - [ ] UI explains when AI is unavailable due to policy.
 
 ### M12.02 - AI listing suggestions
-- [ ] Preview-only suggestions; user must approve before any write; clear before/after diff.
+- [~] **Major audit upgrade (2026-08-30):** was marked `[ ]` "not started" — this is a real, tested, shipped feature (Sprint 13 "AI Tools", 2026-06-26). `apps/backend/app/api/v1/ai.py` (sessions CRUD, run, list suggestions, accept/reject, convert-to-bulk-edit, usage — 9 endpoints); `apps/backend/app/services/ai_tools.py:270-284` — `accept_suggestion()` only flips a status flag, no Etsy write; `:304` `convert_to_bulk_edit()` creates a real `BulkEditSession`, reusing the exact same preview/apply/revert/rate-limit pipeline every other write path uses — genuinely preview-only with a clear before/after diff (Bulk Edit's own preview table). `apps/frontend/app/(app)/ai/page.tsx` (422 lines). 27 backend tests (`test_ai_tools.py`). **Kept at `[~]`, not `[x]`:** not owner-click-through-verified.
 
 ### M12.03 - AI tool usage limits
 - [x] Backend gate now uses the effective plan (M08.03).
-- [ ] Clear monthly usage counters in the UI (see M11.04).
+- [x] **Audit upgrade (2026-08-30):** was marked `[ ]` — already shipped via M11.03/M11.09's usage UI: `apps/frontend/app/(app)/account/usage/page.tsx` ROWS includes `ai_credits_used`/`ai_credits_per_month` ("AI credits this month"); `apps/frontend/app/(app)/account/page.tsx`'s "Usage this period" card also shows an AI credits bar. Same underlying `GET /billing/usage` endpoint M11.03 already documented as shipped — this was a cross-reference gap, not a missing feature.
 
 ### M12.04 - Prompt and output audit
 - [ ] Safe logs record prompt category and item id, not secrets; Etsy-derived content handling explicit.
 
-M12 PLANNED / PARTIAL (policy default only).
+M12 PARTIAL — AI listing suggestions SHIPPED and tested but not owner-click-through-verified (M12.02, major audit upgrade — was incorrectly "not started"); usage limits + UI counters SHIPPED (M12.03); policy-gate default SHIPPED (M12.01) but no in-UI explanation of AI unavailability; prompt/output audit logging remains PLANNED (M12.04).
 
 ---
 
@@ -427,18 +449,18 @@ M13 PARTIAL — M13.01/M13.02/M13.07 SHIPPED; M13.04 destructive-action UI safet
 # M14 - Dynamic Pricing and profit intelligence
 
 ### M14.01 - Dynamic Pricing data prerequisites
-- [ ] Current price, quantity, listing status, product cost (if available), shipping cost/profile (if available), Etsy fees model (if implemented), manual margin target.
+- [~] **Major audit upgrade (2026-08-30):** was marked `[ ]` "not started" — Sprint 15 "Dynamic Pricing" (2026-06-26) shipped real prerequisite handling. `apps/backend/app/services/dynamic_pricing.py:114-140` `apply_margin_floor()` uses real `cost_amount` and a minimum-margin percent to floor suggested prices. Not owner-click-through-verified — kept `[~]`.
 
 ### M14.02 - Profit page validation
-- [ ] Numbers explainable, missing cost data clearly marked, no fake precision.
+- [~] **Audit upgrade (2026-08-30):** was marked `[ ]` — `apps/frontend/app/(app)/profit/page.tsx` already has an honest `"missing_costs"` status (line 12), renders `"—"` for null values rather than fake numbers (line 35), and only applies `.toFixed(1)` when a real value exists (lines 178, 254). Not owner-click-through-verified — kept `[~]`.
 
 ### M14.03 - Pricing suggestion engine
-- [ ] Suggests price changes with a stated reason, preview-only by default, user chooses exact listings.
+- [~] **Major audit upgrade (2026-08-30):** was marked `[ ]` "not started" — real, tested, shipped feature. `apps/backend/app/api/v1/dynamic_pricing.py` (jobs/preview/recommendations/accept/reject/accept-all/convert/summary — 10 endpoints). `apps/backend/app/services/dynamic_pricing.py`'s own module docstring: "Dynamic pricing NEVER writes directly to Etsy. Approved recommendations are converted to a BulkEditSession (draft) only." `apps/frontend/app/(app)/pricing-rules/page.tsx` (884 lines). 27 backend tests (`test_dynamic_pricing.py`). Not owner-click-through-verified — kept `[~]`.
 
 ### M14.04 - Dynamic Pricing write handoff
-- [ ] Uses the M07 write queue/rate-limit guard; item-level report and revert available. Backend gate already effective-plan-correct (M08.03).
+- [~] **Audit upgrade (2026-08-30):** was marked `[ ]` — `convert_to_bulk_edit()`-equivalent conversion (`dynamic_pricing.py`, same pattern as M14.03) creates a real `BulkEditSession`, so it automatically inherits the M07 rate-limit/write-pacing guard and the standard apply/revert mechanism — there is no separate write path to build. Item-level report and revert come from the same Bulk Edit apply/revert flow used everywhere else. Not owner-click-through-verified — kept `[~]`.
 
-M14 PLANNED.
+M14 PARTIAL — **not PLANNED as previously stated; this was the single largest correction in the 2026-08-30 audit.** All 4 packages have real, tested, safety-checked implementations (Sprint 15, 2026-06-26) that were never reflected in this file. None are owner-click-through-verified.
 
 ---
 
@@ -500,10 +522,10 @@ M16 PARTIAL — apply-job history, prior-job revert, job-level revert-eligibilit
 - [x] DigitalOcean Scheduled Job `retention-cleanup`, `30 3 * * *` (03:30 UTC daily) — two consecutive successful runs confirmed (2026-07-15, 2026-07-16).
 
 ### M17.02 - Owner dashboard
-- [ ] See M08.04 — owner views users/orgs/shops/plans/sync/jobs.
+- [~] **Audit upgrade (2026-08-30):** see M08.04 — a real, tested owner dashboard already exists at `/owner`, covering users/orgs/shops/plans/sync/jobs. Not owner-click-through-verified.
 
 ### M17.03 - Comp grant management UI
-- [ ] See M08.04 — owner-console UI for grant/revoke, currently API-only.
+- [~] **Audit upgrade (2026-08-30):** see M08.04 — Grant/Revoke comp access already has a real working UI (`/owner/organizations/[id]`), not API-only as previously stated. Not owner-click-through-verified.
 
 ### M17.04 - Private beta user management
 - [ ] See M08.06 — invite/allowlist, no direct DB edits needed for support.
@@ -511,7 +533,7 @@ M16 PARTIAL — apply-job history, prior-job revert, job-level revert-eligibilit
 ### M17.05 - Beta tester checklist
 - [ ] Small tester cohort flow, support contacts, known limitations, feedback capture.
 
-M17 PARTIAL.
+M17 PARTIAL — owner dashboard + comp grant UI SHIPPED (see M08.04, audit upgrade), retention cleanup PASS, private beta invite management and beta tester checklist remain PLANNED.
 
 ---
 
@@ -519,6 +541,7 @@ M17 PARTIAL.
 
 ### M18.01 - OAuth callback query-string redaction
 - [ ] OAuth code/state not exposed in access logs; redaction tests or log checks exist.
+- **Audit clarification (2026-08-30):** application-level logging is already safe — `apps/backend/app/api/v1/etsy.py:33` logs `has_code=%s has_state=%s` (booleans), never the raw values, matching M02.01's already-`[x]` work. The remaining gap is specifically infra/platform-level (DigitalOcean/Uvicorn HTTP access logs recording the raw callback URL's query string), which application code cannot fully control — stays `[ ]`, genuinely open, distinct from M02.01.
 
 ### M18.02 - Sanitized Etsy error-body diagnostics
 - [x] No raw Etsy response body, token, header, or secret ever persisted or displayed — established M05.04, extended through every write path added in M07/M08.
@@ -569,10 +592,10 @@ M20 PLANNED/BLOCKED until M19.
 
 # Milestone policy
 
+**This section is rewritten as of the 2026-08-30 full truth audit — it was previously badly stale (see the audit bullet in "Current truth" above), describing several heavily-shipped milestones as "not started." Keep this section in sync with each milestone's own closing line; do not let it drift again.**
+
 - M00, M02, M05, and M07 are PASS/CLOSED on direct code/test evidence and owner live verification, not builder self-report alone.
-- M01, M03, M04, M06, M08, M09, M17, M18 are PARTIAL — real shipped evidence exists for some packages, other packages remain planned or blocked.
-- M10, M12, M13, M14, M15, M16, M19 are PLANNED — not started, or only a minimal linking change has shipped.
-- M11 (Account-01) is ACTIVE / IN PROGRESS — the current major sprint.
+- M01, M03, M04, M06, M08, M09, M10, M11, M12, M13, M14, M15, M16, M17, M18, M19 are PARTIAL — each has real shipped-and-evidenced packages alongside genuinely planned, blocked, or not-yet-owner-verified packages. See each milestone's own closing line for its specific mix — do not assume uniform completeness across a milestone from this list alone.
 - M20 is PLANNED/BLOCKED pending M19 and an owner decision on registration.
 - No milestone or package may be marked `[x]` on the strength of a builder execution log alone — code read, direct test execution, route verification, or recorded owner acceptance is required, per the PR #104 independent audit precedent (`2026-08-29_13-31_AUDIT_PR104_billing_gate_product_detail.md`).
 - Historical remediation truth (every merged PR, every owner-reported live-test result, every audit verdict) remains immutable in `CHANGELOG_AI.md` and the `bulkeditapp logs` archive and does not get rewritten to look cleaner in hindsight.
