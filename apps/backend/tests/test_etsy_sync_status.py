@@ -7,10 +7,27 @@ mutation Etsy endpoint (PATCH/PUT/DELETE against a listing) is ever invoked
 by this service in the first place, only GET.
 """
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+
+@contextmanager
+def _valid_etsy_credentials():
+    """Fake, non-placeholder ETSY_CLIENT_ID/SECRET so etsy_api_key_header()
+    (called to build the x-api-key header before any Etsy GET) doesn't raise
+    EtsyConfigurationError. Not real credentials -- every Etsy HTTP call in
+    these tests is mocked. CI leaves the real settings blank on purpose (to
+    exercise the is_etsy_configured() 503 gate elsewhere), so this must be
+    patched explicitly rather than relying on ambient env values. Same
+    pattern as tests/test_etsy.py's helper of the same name."""
+    with (
+        patch("app.services.etsy_http.settings.ETSY_CLIENT_ID", "test_keystring_never_logged"),
+        patch("app.services.etsy_http.settings.ETSY_CLIENT_SECRET", "test_shared_secret_never_logged"),
+    ):
+        yield
 
 REGISTER_URL = "/api/v1/auth/register"
 LOGIN_URL = "/api/v1/auth/login"
@@ -154,7 +171,7 @@ async def test_full_status_sync_covers_all_five_states(client, db_session):
     get_side_effect = _make_get_side_effect(listings_by_state)
     mock_client = _mock_client(get_side_effect)
 
-    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client):
+    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client), _valid_etsy_credentials():
         job = await sync_shop_listings(db_session, org_id, shop.id)
 
     assert job.status == "completed"
@@ -187,7 +204,7 @@ async def test_sync_never_calls_a_write_or_status_mutation_method(client, db_ses
     listings_by_state = {"active": [_fake_listing(10, "active")]}
     mock_client = _mock_client(_make_get_side_effect(listings_by_state))
 
-    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client):
+    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client), _valid_etsy_credentials():
         job = await sync_shop_listings(db_session, org_id, shop.id)
 
     assert job.status == "completed"
@@ -210,6 +227,7 @@ async def test_sync_paginates_within_a_single_state(client, db_session):
     with (
         patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client),
         patch("app.services.etsy_sync.PAGE_LIMIT", 1),  # force 1-item pages -> 3 pages for this state
+        _valid_etsy_credentials(),
     ):
         job = await sync_shop_listings(db_session, org_id, shop.id)
 
@@ -237,7 +255,7 @@ async def test_partial_state_failure_does_not_wipe_other_states_and_reports_erro
     }
     mock_client = _mock_client(_make_get_side_effect(listings_by_state, raise_for_state={"expired"}))
 
-    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client):
+    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client), _valid_etsy_credentials():
         job = await sync_shop_listings(db_session, org_id, shop.id)
 
     assert job.status == "completed_with_errors"
@@ -260,7 +278,7 @@ async def test_all_states_failing_marks_job_failed_without_raising(client, db_se
 
     mock_client = _mock_client(_make_get_side_effect({}, raise_for_state={"active", "inactive", "draft", "expired", "sold_out"}))
 
-    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client):
+    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client), _valid_etsy_credentials():
         job = await sync_shop_listings(db_session, org_id, shop.id)
 
     assert job.status == "failed"
@@ -283,7 +301,7 @@ async def test_status_counts_endpoint_matches_synced_local_data(client, db_sessi
         "sold_out": [_fake_listing(45, "sold_out"), _fake_listing(46, "sold_out")],
     }
     mock_client = _mock_client(_make_get_side_effect(listings_by_state))
-    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client):
+    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client), _valid_etsy_credentials():
         await sync_shop_listings(db_session, org_id, shop.id)
 
     r = await client.get("/api/v1/listings/status-counts", headers={"Authorization": f"Bearer {token}"})
