@@ -51,9 +51,26 @@ echo ""
 
 check_json "Backend /health"       "$BACKEND_URL/api/v1/health"       "status" "ok"
 check_json "Backend /health/ready" "$BACKEND_URL/api/v1/health/ready" "status" "ready"
+check_json "Backend /health/db"    "$BACKEND_URL/api/v1/health/db"    "status" "ok"
+check_json "Backend /health/redis" "$BACKEND_URL/api/v1/health/redis" "status" "ok"
 
-for route in "/" "/pricing" "/features" "/faq" "/contact-us" "/login" "/register" \
-             "/dashboard" "/admin" "/shops" "/listings"; do
+# Public marketing/auth routes — plain 200
+for route in "/" "/pricing" "/features" "/faq" "/contact-us" "/login" "/private-beta"; do
+    check_status "Frontend $route" "$FRONTEND_URL$route"
+done
+
+# /register redirects to /private-beta while Private Beta is enabled (registration
+# paused) — a plain 200 here would be WRONG right now, not a pass. If Private Beta
+# is ever disabled, update this to 200 and re-add "public registration" to the
+# manual-check list in BETA_READINESS_SMOKE_MATRIX.md.
+check_status "Frontend /register (Private Beta redirect)" "$FRONTEND_URL/register" 307
+
+# Authenticated app shell routes — unauthenticated requests still get a 200 HTML
+# shell (client-side redirects to /login happen in the browser, not at this layer),
+# so this only proves the route/build exists, not that auth or data-loading works.
+for route in "/dashboard" "/owner" "/account" "/shops" "/billing" "/listings" \
+             "/listing-health" "/insights" "/bulk-edit" "/magic-revert" \
+             "/media" "/variations" "/pricing-rules" "/video-generator"; do
     check_status "Frontend $route" "$FRONTEND_URL$route"
 done
 

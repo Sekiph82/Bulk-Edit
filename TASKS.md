@@ -505,15 +505,16 @@ M18 PARTIAL.
 # M19 - Beta readiness and launch polish
 
 ### M19.01 - Production smoke-test matrix
-- [ ] Auth, shop connect, sync, listings grid, bulk edit preview, title write/revert, price write/revert, media read, billing plan display, private beta routes.
+- [~] `docs/operations/BETA_READINESS_SMOKE_MATRIX.md` created — 20 categories (Auth, Private Beta gate, Connected Shops, shop sync, Listings grid, product detail, Listing Health, Shop Insights, Bulk Edit preview, title/price write+revert, Magic Revert History, Media read, Variations read, Billing, Usage/Credits, Account pages, mobile/responsive, error/empty/loading states, rate limit, help/support, security/no-secret-logging), each row with objective/route/data needed/owner-run-vs-automated/destructive-flag/expected result/evidence/pass-fail. `[~]` not `[x]` because the matrix itself is a checklist template — every "Pass/Fail" cell is genuinely blank pending the owner-run rows being executed; only the automated rows (route/health checks) have been run and confirmed passing (26/26 against production, 2026-08-30).
+- [x] Automated read-only smoke script fixed and re-verified: `scripts/smoke_test_deployment.sh`/`.ps1` existed but were stale (`/register` expected `200`, which is wrong now that Private Beta redirects it `307`; `/admin` no longer exists, renamed `/owner`; missing most current app routes). Updated route list, added `/health/db`/`/health/redis` checks, ran both scripts live against `https://app.bulkeditapp.com`/`https://api.bulkeditapp.com` — 26/26 passed on both the bash and PowerShell versions.
 
 ### M19.02 - Help docs and owner runbooks
-- [ ] How to sync, how to run a safe bulk edit, what to do on failed items, what to do on rate limit, how to revert.
+- [x] Three runbooks created in `docs/operations/`: `OWNER_BULK_EDIT_RUNBOOK.md` (safe single-listing test procedure, evidence capture, stop conditions, revert pointer, error-meaning table), `MAGIC_REVERT_RUNBOOK.md` (how to read the History page's eligibility states, safe revert procedure, error-meaning table), `RATE_LIMIT_RUNBOOK.md` (how the PR #102 pacing/retry guard actually works, what a residual 429 looks like, what to do about it). All three are read-only reference material — none instruct or enable Claude/Codex to perform any live action.
 
 ### M19.03 - UX polish
-- [ ] Loading states, empty states, error copy, mobile/responsive review (beyond the M07/M09 items already shipped).
+- [~] No additional low-risk copy/loading/empty-state fix was found this round beyond what already shipped in the M10/M13/M15 PRs earlier in this same autonomous sequence (Listing Health issue pills, Shop Insights affected-listings, product-detail image gallery, variation matrix, Media truthful "coming soon" copy). Not fabricating a polish item to fill this checkbox — leaving genuinely `[~]` rather than falsely `[x]`.
 
-M19 PLANNED.
+M19 PARTIAL — M19.02 (runbooks) SHIPPED in full; M19.01 (smoke matrix doc + automated script) SHIPPED with owner-run rows still pending execution (expected — those require live/manual verification); M19.03 stays `[~]`, no fabricated polish item.
 
 ---
 
