@@ -103,6 +103,18 @@ const VALIDATION_BADGE: Record<string, string> = {
 function formatVal(v: unknown): string {
   if (v === null || v === undefined) return "—";
   if (Array.isArray(v)) return decodeEntities(v.join(", ")) || "(empty)";
+  if (typeof v === "object") {
+    const obj = v as Record<string, unknown>;
+    if ("find" in obj || "replace" in obj) {
+      const find = obj.find;
+      const replace = obj.replace;
+      if (find || replace) {
+        return decodeEntities(`Find: "${find ?? ""}" → Replace: "${replace ?? ""}"`);
+      }
+      return "Find/replace rule configured";
+    }
+    return decodeEntities(JSON.stringify(obj));
+  }
   return decodeEntities(String(v));
 }
 
