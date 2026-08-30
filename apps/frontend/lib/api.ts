@@ -2066,3 +2066,27 @@ export function createCostProfile(profile: Omit<CostProfile, "id" | "organizatio
 export function updateCostProfile(profileId: string, profile: Omit<CostProfile, "id" | "organization_id" | "created_at" | "updated_at">): Promise<CostProfile> {
   return apiFetch(`${PROFIT}/cost-profiles/${profileId}`, { method: "PUT", body: JSON.stringify(profile) });
 }
+
+// ── Shop Insights: affected listings (M10.03) ──────────────────────────────────
+
+export interface AffectedListingItem {
+  listing_id: string;
+  title: string | null;
+  thumbnail_url: string | null;
+  metric: string;
+}
+
+export interface AffectedListingsSection {
+  category: string;
+  label: string;
+  count: number;
+  items: AffectedListingItem[];
+}
+
+export interface AffectedListingsOut {
+  sections: AffectedListingsSection[];
+}
+
+export function getAffectedListings(): Promise<AffectedListingsOut> {
+  return apiFetch(`/api/v1/insights/affected-listings`);
+}

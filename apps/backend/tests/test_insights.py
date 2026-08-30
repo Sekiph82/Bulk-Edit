@@ -142,3 +142,172 @@ async def test_insights_summary_org_isolation(client: AsyncClient):
     assert resp_b.status_code == 200
     assert resp_a.json()["total_listings"] == 0
     assert resp_b.json()["total_listings"] == 0
+
+
+# ── M10.03: affected-listings drill-down ────────────────────────────────────────
+
+async def _seed_affected_listings(db_session, org_id: str) -> dict:
+    """A richer fixture set specifically covering every affected-listings category."""
+    from app.models.etsy_shop import EtsyShop
+    from app.models.listing import Listing
+    from app.models.listing_image import ListingImage
+
+    shop = EtsyShop(
+        organization_id=org_id,
+        etsy_shop_id=f"affected_shop_{org_id[:8]}",
+        shop_name="Affected Test Shop",
+        is_connected=True,
+    )
+    db_session.add(shop)
+    await db_session.flush()
+
+    healthy = Listing(
+        organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="h1",
+        title="A perfectly healthy long descriptive listing title",
+        state="active", price_amount=2500, quantity=5,
+        tags=["handmade", "gift", "custom"],
+    )
+    no_tags = Listing(
+        organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="h2",
+        title="Listing with zero tags but otherwise fine",
+        state="active", price_amount=1500, quantity=3, tags=None,
+    )
+    short_title = Listing(
+        organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="h3",
+        title="Too short", state="active", price_amount=1200, quantity=2,
+        tags=["ok", "fine"],
+    )
+    no_price = Listing(
+        organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="h4",
+        title="Listing missing its price entirely for some reason",
+        state="active", price_amount=None, quantity=1,
+        tags=["ok", "fine"],
+    )
+    zero_qty = Listing(
+        organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="h5",
+        title="Listing that is completely sold out right now",
+        state="active", price_amount=999, quantity=0,
+        tags=["ok", "fine"],
+    )
+    db_session.add_all([healthy, no_tags, short_title, no_price, zero_qty])
+    await db_session.flush()
+
+    # Only `healthy` gets enough photos; everyone else has zero.
+    db_session.add_all([
+        ListingImage(listing_id=healthy.id, etsy_image_id="ai1", rank=1),
+        ListingImage(listing_id=healthy.id, etsy_image_id="ai2", rank=2),
+        ListingImage(listing_id=healthy.id, etsy_image_id="ai3", rank=3),
+    ])
+    await db_session.commit()
+
+    return {
+        "healthy": healthy.id, "no_tags": no_tags.id, "short_title": short_title.id,
+        "no_price": no_price.id, "zero_qty": zero_qty.id,
+    }
+
+
+@pytest.mark.anyio
+async def test_affected_listings_requires_auth(client: AsyncClient):
+    resp = await client.get("/api/v1/insights/affected-listings")
+    assert resp.status_code in (401, 403)
+
+
+@pytest.mark.anyio
+async def test_affected_listings_empty_when_no_listings(client: AsyncClient):
+    token = await _register_and_login(client, "aff_empty@test.com", "AffEmptyOrg")
+    resp = await client.get(
+        "/api/v1/insights/affected-listings", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["sections"] == []
+
+
+@pytest.mark.anyio
+async def test_affected_listings_categorizes_correctly(client: AsyncClient, db_session):
+    token = await _register_and_login(client, "aff_seeded@test.com", "AffSeededOrg")
+    org_id = await _get_org_id(db_session, "aff_seeded@test.com")
+    ids = await _seed_affected_listings(db_session, org_id)
+
+    resp = await client.get(
+        "/api/v1/insights/affected-listings", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert resp.status_code == 200
+    sections = {s["category"]: s for s in resp.json()["sections"]}
+
+    assert set(sections.keys()) == {
+        "missing_tags", "low_photo_count", "short_title", "missing_price", "zero_quantity",
+    }
+
+    missing_tags_ids = {item["listing_id"] for item in sections["missing_tags"]["items"]}
+    assert missing_tags_ids == {ids["no_tags"]}
+    assert sections["missing_tags"]["count"] == 1
+
+    # low_photo_count: everyone except `healthy` has 0 photos (< threshold of 3).
+    low_photo_ids = {item["listing_id"] for item in sections["low_photo_count"]["items"]}
+    assert ids["healthy"] not in low_photo_ids
+    assert ids["no_tags"] in low_photo_ids
+    assert sections["low_photo_count"]["count"] == 4
+
+    short_title_ids = {item["listing_id"] for item in sections["short_title"]["items"]}
+    assert short_title_ids == {ids["short_title"]}
+    assert sections["short_title"]["items"][0]["metric"] == "9-char title"
+
+    missing_price_ids = {item["listing_id"] for item in sections["missing_price"]["items"]}
+    assert missing_price_ids == {ids["no_price"]}
+
+    zero_qty_ids = {item["listing_id"] for item in sections["zero_quantity"]["items"]}
+    assert zero_qty_ids == {ids["zero_qty"]}
+    assert sections["zero_quantity"]["items"][0]["metric"] == "0 in stock"
+
+    # Every item must carry a title (never fabricated) and a metric string.
+    for section in sections.values():
+        for item in section["items"]:
+            assert item["title"]
+            assert item["metric"]
+
+
+@pytest.mark.anyio
+async def test_affected_listings_limited_to_ten_per_section(client: AsyncClient, db_session):
+    """Only the first 10 affected listings per category are returned, but the
+    section's `count` still reflects the true total."""
+    from app.models.etsy_shop import EtsyShop
+    from app.models.listing import Listing
+
+    token = await _register_and_login(client, "aff_many@test.com", "AffManyOrg")
+    org_id = await _get_org_id(db_session, "aff_many@test.com")
+
+    shop = EtsyShop(
+        organization_id=org_id, etsy_shop_id=f"many_shop_{org_id[:8]}",
+        shop_name="Many Shop", is_connected=True,
+    )
+    db_session.add(shop)
+    await db_session.flush()
+    for i in range(15):
+        db_session.add(Listing(
+            organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id=f"m{i}",
+            title=f"No tags listing number {i}", state="active",
+            price_amount=1000, quantity=1, tags=None,
+        ))
+    await db_session.commit()
+
+    resp = await client.get(
+        "/api/v1/insights/affected-listings", headers={"Authorization": f"Bearer {token}"}
+    )
+    sections = {s["category"]: s for s in resp.json()["sections"]}
+    assert sections["missing_tags"]["count"] == 15
+    assert len(sections["missing_tags"]["items"]) == 10
+
+
+@pytest.mark.anyio
+async def test_affected_listings_org_isolation(client: AsyncClient, db_session):
+    token_a = await _register_and_login(client, "aff_iso_a@test.com", "AffIsoOrgA")
+    org_a = await _get_org_id(db_session, "aff_iso_a@test.com")
+    await _seed_affected_listings(db_session, org_a)
+
+    token_b = await _register_and_login(client, "aff_iso_b@test.com", "AffIsoOrgB")
+
+    resp_b = await client.get(
+        "/api/v1/insights/affected-listings", headers={"Authorization": f"Bearer {token_b}"}
+    )
+    assert resp_b.status_code == 200
+    assert resp_b.json()["sections"] == []
