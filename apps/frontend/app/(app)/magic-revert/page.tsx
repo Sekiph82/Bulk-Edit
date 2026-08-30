@@ -9,12 +9,22 @@ import {
   type ApplyJobHistoryItem, type ApplyResult,
 } from "@/lib/api";
 
+// Canonical presentation states (M04.03) — DB status stays completed/
+// completed_with_errors/failed/etc. underneath (see app/core/job_states.py);
+// this maps the *canonical_state* field the API now also returns.
 const STATUS_BADGE: Record<string, string> = {
-  completed: "bg-green-100 text-green-700",
-  completed_with_errors: "bg-orange-100 text-orange-700",
+  succeeded: "bg-green-100 text-green-700",
+  partially_failed: "bg-orange-100 text-orange-700",
   failed: "bg-red-100 text-red-700",
+  rate_limited: "bg-orange-100 text-orange-700",
   running: "bg-blue-100 text-blue-700",
   pending: "bg-gray-100 text-gray-600",
+  reverted: "bg-purple-100 text-purple-700",
+  revert_failed: "bg-red-100 text-red-700",
+  cancelled: "bg-gray-100 text-gray-500",
+  // Raw DB values, kept for any row canonical_state didn't cover (older API responses)
+  completed: "bg-green-100 text-green-700",
+  completed_with_errors: "bg-orange-100 text-orange-700",
 };
 
 const RESULT_STATUS_BADGE: Record<string, string> = {
@@ -22,6 +32,10 @@ const RESULT_STATUS_BADGE: Record<string, string> = {
   failed: "bg-red-100 text-red-700",
   skipped: "bg-gray-100 text-gray-500",
   pending: "bg-gray-100 text-gray-500",
+  // M06.03: listing changed since the original apply — revert refused for
+  // this item, not attempted. See error_message (rendered below) for the
+  // exact "changed after apply" warning.
+  conflict: "bg-amber-100 text-amber-800",
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -199,7 +213,7 @@ export default function MagicRevertPage() {
                 <Fragment key={item.id}>
                   <tr className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-gray-700 text-xs">{fmt(item.created_at)}</td>
-                    <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
+                    <td className="px-4 py-3"><StatusBadge status={item.canonical_state ?? item.status} /></td>
                     <td className="px-4 py-3 text-xs text-gray-600">
                       {item.success_count} success / {item.failure_count} failed / {item.skipped_count} skipped
                     </td>

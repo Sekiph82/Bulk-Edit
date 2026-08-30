@@ -25,6 +25,7 @@ from app.models.listing_video import ListingVideo
 from app.models.listing_variation import ListingVariation
 from app.models.sync_job import SyncJob
 from app.services.etsy_http import etsy_api_key_header, etsy_get
+from app.services.etsy_write import _sanitize_etsy_response_body
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +42,11 @@ def _decode_entities(value: Any) -> Any:
 PAGE_LIMIT = 100
 TOKEN_REFRESH_BUFFER_SECONDS = 300
 
-# Every state Etsy's "Get Listings by Shop" endpoint accepts. sold_out is a
-# real, native Etsy listing state (not derived from quantity) — fetched the
-# same read-only way as the other four.
+# sold_out is a real, native Etsy listing state (not derived from quantity)
+# — same as inactive/draft/expired. "active" uses Etsy's dedicated, long-
+# confirmed-working active-listings endpoint (see fetch_shop_listings()); the
+# other four use the general listings-by-shop endpoint with a `state` filter,
+# which is unverified against live Etsy as of 2026-08-31 (see DECISIONS.md).
 LISTING_STATES = ("active", "inactive", "draft", "expired", "sold_out")
 
 
@@ -97,16 +100,32 @@ async def get_valid_etsy_access_token(shop: EtsyShop, db: AsyncSession) -> str:
 async def fetch_shop_listings(
     access_token: str, etsy_shop_id: str, state: str = "active", limit: int = PAGE_LIMIT, offset: int = 0
 ) -> dict[str, Any]:
-    """Read-only GET against Etsy's general "Get Listings by Shop" endpoint,
-    filtered by `state`. Covers active/inactive/draft/expired/sold_out — no
-    write/status-mutation Etsy endpoint is ever called."""
+    """Read-only GET against Etsy — no write/status-mutation Etsy endpoint is
+    ever called from this function or anywhere else in this module.
+
+    2026-08-31 production hotfix: PR #120 moved every status, including
+    `active`, onto the general "Get Listings by Shop" endpoint
+    (`/shops/{shop_id}/listings?state=...&includes=Images,MainImage`) to
+    unify all 5 statuses into one code path. That request 400'd in
+    production for *every* state, including `active` (owner report,
+    `docs/errors/` if a log was saved) — confirming the assumption behind
+    that endpoint/param/includes combination was wrong, not just untested.
+    `active` is restored here to the exact endpoint and params proven
+    working for this app's entire history before PR #120. The other four
+    states still use the general endpoint with `state`, but with `includes`
+    removed (the single most likely difference between the two endpoints'
+    accepted parameters, and not load-bearing — `sync_shop_listings()`
+    already has a separate per-listing image-fetch fallback for exactly
+    this case). This has not been verified against a live production sync
+    (forbidden for this task) — see DECISIONS.md."""
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await etsy_get(
-            client,
-            f"{ETSY_API_BASE}/application/shops/{etsy_shop_id}/listings",
-            headers=_auth_headers(access_token),
-            params={"state": state, "limit": limit, "offset": offset, "includes": "Images,MainImage"},
-        )
+        if state == "active":
+            url = f"{ETSY_API_BASE}/application/shops/{etsy_shop_id}/listings/active"
+            params: dict[str, Any] = {"limit": limit, "offset": offset, "includes": "Images,MainImage"}
+        else:
+            url = f"{ETSY_API_BASE}/application/shops/{etsy_shop_id}/listings"
+            params = {"state": state, "limit": limit, "offset": offset}
+        resp = await etsy_get(client, url, headers=_auth_headers(access_token), params=params)
         resp.raise_for_status()
         return resp.json()
 
@@ -457,13 +476,29 @@ async def sync_shop_listings(
 
                 if state_had_results:
                     synced_states.append(state)
-            except Exception as exc:
+            except httpx.HTTPStatusError as exc:
                 # A failure fetching one status must not lose listings already
                 # upserted (and flushed, not yet committed) for other statuses
                 # this run, and must not touch previously-committed data —
                 # log and move to the next state instead of re-raising.
+                # Extract Etsy's actual validation reason (sanitized, no
+                # secrets) instead of just the generic "400 Bad Request"
+                # httpx message — this is what tells the owner *why* a status
+                # was rejected, not just that it was.
+                try:
+                    body = exc.response.json()
+                except Exception:
+                    body = exc.response.text
+                safe = _sanitize_etsy_response_body(body)
+                reason = safe.get("safe_etsy_error_message") or safe.get("safe_etsy_error_code") or f"HTTP {exc.response.status_code}"
+                logger.warning(
+                    "Listing status sync failed for shop %s, state=%s, status=%s: %s",
+                    shop_db_id, state, exc.response.status_code, reason,
+                )
+                failed_states.append(f"{state} ({reason})")
+            except Exception as exc:
                 logger.warning("Listing status sync failed for shop %s, state=%s: %s", shop_db_id, state, exc)
-                failed_states.append(f"{state} ({exc})")
+                failed_states.append(f"{state} (sync error)")
 
         # Update shop last_synced_at
         shop.last_synced_at = datetime.now(timezone.utc)

@@ -84,3 +84,49 @@ Stop immediately and do not retry if you see:
 
 See `RATE_LIMIT_RUNBOOK.md` for the full explanation of the retry/backoff/pacing guard and what a
 residual 429 (one that survives all retries) looks like in the UI.
+
+---
+
+## Safety checklist — read this before *every* live test below, not just the first one
+
+- **Owner only.** Claude/Codex must never click Apply, Preview-then-Apply, or Revert. These steps
+  are yours to run by hand, every time — a prior session's approval does not carry forward.
+- **This is real production Etsy write risk.** Every Apply here changes real, live listing data on
+  a real connected shop. There is no sandbox mode.
+- **Preview first, always.** Never skip the Preview step, even on a batch you've run before.
+- **Screenshot before AND after** — the app's result card, and the same listing(s) in Etsy Shop
+  Manager. "The app said success" is not evidence on its own.
+- **Confirm the revert, don't just trust it.** After clicking Revert, re-check Etsy Shop Manager the
+  same way you checked the apply.
+- **Stop on any failure.** If any item in a batch fails or behaves unexpectedly, stop — do not
+  retry, do not continue to a larger batch, and do not proceed to a different field type until the
+  failure is understood. Report it instead of working around it.
+- **Never run a live variation apply unless you explicitly accept there is no one-click revert for
+  it** (`TASKS.md` M15.04) — a variation write today can only be undone by manually re-editing the
+  listing back on Etsy yourself, not by this app's Magic Revert.
+
+## 3-listing small-batch test (price or title) — not yet owner-run
+
+1. In `/listings`, pick 3 low-stakes listings (same guidance as the single-listing test above).
+2. Go to `/bulk-edit`, select those 3, choose **one** field (price nudge or a reversible title
+   suffix), Preview, read all 3 rows of the diff.
+3. Apply. Expect `success_count: 3, failure_count: 0, skipped_count: 0`. Screenshot the result card.
+4. Check all 3 listings on Etsy Shop Manager, not just one — a partial success (e.g. `2/1/0`) with
+   only one screenshot checked is not a passed test.
+5. Revert the job from `/magic-revert`, re-check all 3 listings restored correctly.
+6. Record the result (pass/partial/fail, exact counts) in `TASKS.md` M04.04 and this session's log.
+
+## 10-listing batch test (price or title) — not yet owner-run
+
+Same procedure as the 3-listing test, scaled to 10 listings. This is meant to catch rate-limiting
+or pacing issues that a 1-3 listing test is too small to surface — watch specifically for any `429`
+in the result card even though the guard (`RATE_LIMIT_RUNBOOK.md`) should keep them rare. Record the
+exact counts and whether any `429` occurred, retried, and succeeded vs. exhausted its retries.
+
+## Non-price field batch test — not yet owner-run
+
+Pick a **reversible** non-price field — appending/removing a short suffix on the title, or adding/
+removing a single tag, are good choices specifically because they're trivially reversible even
+without Magic Revert if something goes wrong. Run this at 3-listing scale first, same procedure as
+above. The goal is to confirm batch-scale writes work correctly for a field other than price (which
+has already been extensively tested) before broader beta relies on it.

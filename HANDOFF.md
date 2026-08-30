@@ -2,7 +2,37 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-30 (M03.02 full-status sync + M03.03 Listings filters/counts + Dashboard card removal — branch `feature/m03-full-status-sync-and-listing-filters`)
+## RESUME HERE — 2026-08-31 (Production sync 400 hotfix + M04/M06 write-safety foundation — branch `fix/sync-status-400-then-write-safety-foundation`)
+
+**Critical owner report:** after PR #120, clicking Sync in production returned `Sync failed: All listing statuses failed to sync` — a real Etsy `400 Bad Request` for every state, including `active` (which had worked for this app's entire history before PR #120). Per the task's explicit instruction, no other work started until this was fixed and tested.
+
+**Phase A — root cause and fix:**
+- PR #120 moved `active` onto the general "Get Listings by Shop" endpoint with `state=active&includes=Images,MainImage` — that combination was never actually proven against live Etsy, it was an untested assumption. Etsy rejected it outright.
+- **Fix:** `active` restored to the exact endpoint/params proven working before PR #120 (`GET /shops/{shop_id}/listings/active`, no `state` param, `includes=Images,MainImage`) — highest-confidence fix, reverts to a long-proven request shape rather than guessing again.
+- `inactive`/`draft`/`expired`/`sold_out` still use the general endpoint with `state=`, but `includes` was removed (most likely single point of difference; the existing per-listing image-fetch fallback covers images without it). **This is still not confirmed against live Etsy** — could not be verified this round (forbidden by the task).
+- Error diagnostics improved: `httpx.HTTPStatusError` now caught specifically, Etsy's real response body sanitized and surfaced (reusing `_sanitize_etsy_response_body()` from `etsy_write.py`) instead of the generic message the owner saw.
+- 4 new direct regression tests reproduce the owner's exact scenario and assert the fixed request shapes; every existing sync test's mock now asserts the correct shape too (would fail loudly if the old broken shape ever came back).
+- **M03.02/M03.03 stay `[~]`** — `active` is fixed with high confidence, the other 4 states are still unconfirmed live. Do not promote without an owner-run production sync.
+
+**Phase A stop-condition check:** tests pass, request shape corrected, active sync path restored, partial-failure handling safe, docs/log updated — proceeded to Phase B.
+
+**Phase B — M04/M06 write-safety foundation (no live write/revert/sync run):**
+- **M04.03 (apply job state machine):** new `app/core/job_states.py::canonical_apply_job_state()` — Option B, backward-compatible (DB status values unchanged, historical jobs unaffected). Maps existing `pending`/`running`/`completed`/`completed_with_errors`/`failed` (+ revert linkage) onto the full target vocabulary (`succeeded`/`partially_failed`/`rate_limited`/`reverted`/`revert_failed`/etc.). `cancelled` explicitly documented unsupported — no architecture exists to safely cancel an in-flight write loop. Wired into every apply-job API response as a new `canonical_state` field; `/magic-revert`'s status badge now uses it. 13 unit tests. Kept `[~]` — tested, not owner-UI-verified.
+- **M06.03 (revert conflict detection):** new `detect_revert_conflict()` in `bulk_edit_revert.py` — before every revert write, a read-only Etsy GET checks whether the listing changed since the original apply (compares live Etsy value against the locally-known value, for exactly the fields the apply's session actually touched — not the full backup snapshot, which captures everything for restore purposes and would false-flag untouched fields). Covers title/description/sku (normalized text) and price_amount/quantity (exact). Any other field is treated as unverified → also refused, never assumed safe. Conflicted items get `status="conflict"` and the exact required message ("This listing changed after the original apply. Reverting may overwrite newer work.") — write never attempted. 9 tests. Kept `[~]` — only 5 of ~19 possible fields are truly verified.
+- **M06.04 (per-item audit trail):** extended the existing `AuditLog` table (migration `0027`) with `apply_job_id`/`revert_job_id`/`field_name`/`result_status`/`revert_status` columns rather than a new table. One row per (listing, field) an apply touches, at every outcome (success/failed/skipped); a revert updates the same rows' `revert_job_id`/`revert_status` rather than duplicating them. New searchable `GET /api/v1/bulk-edit/audit-trail` (job/listing/field/result-status/revert-status/date-range filters, org-scoped). 7 tests. Kept `[~]` — field coverage and search are complete, but no export mechanism exists yet.
+- **M04.04 (runbook):** `docs/operations/OWNER_BULK_EDIT_RUNBOOK.md` gained a safety checklist plus 3-listing/10-listing/non-price-field batch test procedures. No owner-live test was run — the existing single-listing title/price write+revert results are recorded accurately (already owner-verified), batch tests remain not-yet-run.
+
+**Files changed:** backend — `app/services/etsy_sync.py`, `app/core/job_states.py` (new), `app/services/bulk_edit_apply.py`, `app/services/bulk_edit_revert.py`, `app/api/v1/bulk_edit.py`, `app/models/audit_log.py`, `app/schemas/bulk_edit_apply.py`, `alembic/versions/0027_add_write_audit_trail_columns.py` (new), 6 test files (2 new: `test_bulk_edit_revert_conflict.py`, `test_write_audit_trail.py`, `test_job_states.py`; 4 updated). Frontend — `app/(app)/magic-revert/page.tsx`, `lib/api.ts`. Docs — `docs/operations/OWNER_BULK_EDIT_RUNBOOK.md`.
+
+**Checks:** `npx tsc --noEmit` clean, `npx next lint` no new warnings, `npx next build` clean. Backend: local run (SQLite, blank Etsy credentials to match CI) — 1030 passed, 28 failed, all matching the confirmed local-venv-only 401-vs-403 artifact plus 2 unrelated pre-existing `test_video_generator.py` failures. `git diff --check` clean, manual secret scan clean.
+
+**Safety, explicit:** no Etsy write/status-mutation endpoint ever called anywhere in this round's code (GET only); no listing activation/deactivation/renewal/deletion; no production shop sync, Bulk Edit Apply, or Magic Revert run by Claude/Codex; the conflict-detection and audit-trail features add a read-only Etsy GET and new DB writes, never a write to Etsy.
+
+**Recommended next owner action:** open `/dashboard`, confirm the rejected card is gone; open `/listings`, **click Sync only when ready** (this is the real test of whether the hotfix worked), and report the exact result message plus screenshots of the status tabs/counts afterward.
+
+---
+
+## Previously — 2026-08-30 (M03.02 full-status sync + M03.03 Listings filters/counts + Dashboard card removal — PR #120, branch `feature/m03-full-status-sync-and-listing-filters`, merge `8e70dec190f1d29a0f7814c00cadb27b6ae98a3b`)
 
 **Owner review of `/dashboard` after the account-profile round: mostly good (greeting uses saved name, sidebar clean), but explicitly rejected the "Owner-verified production checks" card as unwanted customer-facing content.** Removed entirely from `apps/frontend/app/(app)/dashboard/page.tsx` — the underlying facts (title/price write+revert both owner-verified OK) stay in `TASKS.md`/`HANDOFF.md`/`CHANGELOG_AI.md` only, never a Dashboard card again. All other Dashboard cards (onboarding checklist, Listing Health, Profit Overview, Action Queue, tool grid) untouched.
 

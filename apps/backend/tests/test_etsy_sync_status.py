@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 
@@ -101,15 +102,29 @@ def _fake_listing(listing_id: int, state: str) -> dict:
     }
 
 
-def _make_get_side_effect(listings_by_state: dict, raise_for_state: set[str] | None = None, page_limit_hint: int = 100):
+def _make_get_side_effect(
+    listings_by_state: dict,
+    raise_for_state: set[str] | None = None,
+    page_limit_hint: int = 100,
+    http_error_for_state: dict[str, tuple[int, object]] | None = None,
+):
     """Returns an async callable usable as httpx.AsyncClient.get's side_effect.
-    Dispatches by URL suffix (listings-by-shop vs images/videos/inventory) and
-    by the `state` query param for the listings-by-shop endpoint."""
+
+    Enforces the real (post-hotfix) request shape as it dispatches:
+    - `active` MUST hit `/listings/active` with no `state` param and
+      `includes=Images,MainImage` (the endpoint proven working pre-PR-#120).
+    - every other status MUST hit the general `/listings` endpoint with a
+      `state` param and NO `includes` param.
+    Any other shape raises AssertionError — this is what would have caught
+    the production 400 before it shipped.
+    """
     raise_for_state = raise_for_state or set()
+    http_error_for_state = http_error_for_state or {}
     calls: list[dict] = []
 
     async def _get(url, headers=None, params=None, **kwargs):
-        calls.append({"url": url, "params": dict(params or {})})
+        params = dict(params or {})
+        calls.append({"url": url, "params": params})
         resp = MagicMock()
         resp.raise_for_status = MagicMock()
         resp.is_success = True
@@ -123,14 +138,30 @@ def _make_get_side_effect(listings_by_state: dict, raise_for_state: set[str] | N
             resp.json.return_value = {"results": []}
             return resp
 
-        # Listings-by-shop endpoint
-        state = (params or {}).get("state", "active")
+        if url.endswith("/listings/active"):
+            state = "active"
+            assert "state" not in params, "active must use the dedicated endpoint, not a state= query param"
+            assert params.get("includes") == "Images,MainImage", "active must keep the proven-working includes value"
+        elif url.endswith("/listings"):
+            state = params.get("state")
+            assert state in ("inactive", "draft", "expired", "sold_out"), f"unexpected state on general endpoint: {state}"
+            assert "includes" not in params, "includes must not be sent to the general listings-by-shop endpoint (unverified there)"
+        else:
+            raise AssertionError(f"unexpected listings URL: {url}")
+
+        if state in http_error_for_state:
+            status_code, body = http_error_for_state[state]
+            err_resp = MagicMock()
+            err_resp.status_code = status_code
+            err_resp.json.return_value = body
+            err_resp.text = str(body)
+            raise httpx.HTTPStatusError(f"Client error '{status_code}' for url: {url}", request=MagicMock(), response=err_resp)
         if state in raise_for_state:
             raise RuntimeError(f"simulated Etsy failure for state={state}")
 
         items = listings_by_state.get(state, [])
-        offset = int((params or {}).get("offset", 0))
-        limit = int((params or {}).get("limit", page_limit_hint))
+        offset = int(params.get("offset", 0))
+        limit = int(params.get("limit", page_limit_hint))
         page_items = items[offset: offset + limit]
         resp.json.return_value = {"count": len(items), "results": page_items}
         return resp
@@ -186,12 +217,14 @@ async def test_full_status_sync_covers_all_five_states(client, db_session):
         ("draft", "4"), ("expired", "5"), ("sold_out", "6"),
     }
 
-    # Every state was queried against the general listings-by-shop endpoint with a state param
-    queried_states = {c["params"].get("state") for c in get_side_effect.calls if c["url"].endswith("/listings")}
-    assert queried_states == {"active", "inactive", "draft", "expired", "sold_out"}
-    for c in get_side_effect.calls:
-        if c["url"].endswith("/listings"):
-            assert "/listings/active" not in c["url"]  # general endpoint, not the old active-only convenience route
+    # active hits the dedicated endpoint (no state param); the other 4 hit
+    # the general endpoint with a state param — exact real request shapes,
+    # not the single unified shape that 400'd in production.
+    active_calls = [c for c in get_side_effect.calls if c["url"].endswith("/listings/active")]
+    assert len(active_calls) >= 1
+    general_calls = [c for c in get_side_effect.calls if c["url"].endswith("/listings") and not c["url"].endswith("/listings/active")]
+    queried_states = {c["params"].get("state") for c in general_calls}
+    assert queried_states == {"inactive", "draft", "expired", "sold_out"}
 
 
 async def test_sync_never_calls_a_write_or_status_mutation_method(client, db_session):
@@ -234,7 +267,7 @@ async def test_sync_paginates_within_a_single_state(client, db_session):
     assert job.status == "completed"
     assert job.processed_items == 3
 
-    active_calls = [c for c in mock_client.get.side_effect.calls if c["params"].get("state") == "active"]
+    active_calls = [c for c in mock_client.get.side_effect.calls if c["url"].endswith("/listings/active")]
     # 3 pages of real data + 1 trailing empty-results call that ends the loop
     assert len(active_calls) == 4
     assert [c["params"]["offset"] for c in active_calls] == [0, 1, 2, 3]
@@ -268,6 +301,146 @@ async def test_partial_state_failure_does_not_wipe_other_states_and_reports_erro
     result = await db_session.execute(select(Listing.etsy_listing_id).where(Listing.etsy_shop_id == shop.id))
     synced_ids = {r[0] for r in result.all()}
     assert synced_ids == {"30", "31"}
+
+
+async def test_fetch_shop_listings_active_uses_dedicated_endpoint_no_state_param():
+    """Direct regression test for the 2026-08-31 production 400.
+
+    PR #120 built `active` as GET /shops/{id}/listings?state=active&...&
+    includes=Images,MainImage — Etsy rejected that shape with a 400 in
+    production (owner report), for `active` and every other state. This
+    asserts fetch_shop_listings("active", ...) no longer produces that URL:
+    it must hit the dedicated /listings/active endpoint with no `state`
+    param at all, exactly like the pre-PR-#120 code that was proven working
+    for this app's entire history."""
+    from app.services.etsy_sync import fetch_shop_listings
+
+    captured = {}
+
+    async def _get(url, headers=None, params=None, **kwargs):
+        captured["url"] = url
+        captured["params"] = dict(params or {})
+        resp = MagicMock()
+        resp.raise_for_status = MagicMock()
+        resp.json.return_value = {"count": 0, "results": []}
+        return resp
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.get = AsyncMock(side_effect=_get)
+
+    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client), _valid_etsy_credentials():
+        await fetch_shop_listings("fake_token", "44263504", state="active", limit=100, offset=0)
+
+    assert captured["url"] == "https://openapi.etsy.com/v3/application/shops/44263504/listings/active"
+    assert "state" not in captured["params"]
+    assert captured["params"]["includes"] == "Images,MainImage"
+    # The exact broken shape from the owner's report must never be produced for active:
+    assert captured["url"] != "https://openapi.etsy.com/v3/application/shops/44263504/listings"
+
+
+async def test_fetch_shop_listings_non_active_uses_general_endpoint_no_includes():
+    """Companion regression test: non-active states use the general endpoint
+    with `state`, and — unverified whether the general endpoint accepts the
+    same `includes` values as /listings/active — no `includes` param, relying
+    on the existing per-listing image-fetch fallback instead."""
+    from app.services.etsy_sync import fetch_shop_listings
+
+    captured = {}
+
+    async def _get(url, headers=None, params=None, **kwargs):
+        captured["url"] = url
+        captured["params"] = dict(params or {})
+        resp = MagicMock()
+        resp.raise_for_status = MagicMock()
+        resp.json.return_value = {"count": 0, "results": []}
+        return resp
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.get = AsyncMock(side_effect=_get)
+
+    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client), _valid_etsy_credentials():
+        await fetch_shop_listings("fake_token", "44263504", state="draft", limit=100, offset=0)
+
+    assert captured["url"] == "https://openapi.etsy.com/v3/application/shops/44263504/listings"
+    assert captured["params"]["state"] == "draft"
+    assert "includes" not in captured["params"]
+
+
+async def test_active_sync_still_completes_when_all_other_states_400(client, db_session):
+    """Reproduces the owner's exact production scenario at the sync-job level:
+    every non-active state returns a real Etsy 400, but active (now on the
+    dedicated endpoint) succeeds. The job must be completed_with_errors, not
+    failed — active listings must still be synced, not lost."""
+    from app.services.etsy_sync import sync_shop_listings
+    from app.models.listing import Listing
+    from sqlalchemy import select
+
+    token, org_id = await _register_and_get_org(client, db_session, "prod_repro@example.com")
+    shop = await _setup_shop_with_token(db_session, org_id)
+
+    listings_by_state = {"active": [_fake_listing(50, "active"), _fake_listing(51, "active")]}
+    bad_request_body = {"error": "invalid state or includes parameter"}
+    mock_client = _mock_client(_make_get_side_effect(
+        listings_by_state,
+        http_error_for_state={
+            "inactive": (400, bad_request_body),
+            "draft": (400, bad_request_body),
+            "expired": (400, bad_request_body),
+            "sold_out": (400, bad_request_body),
+        },
+    ))
+
+    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client), _valid_etsy_credentials():
+        job = await sync_shop_listings(db_session, org_id, shop.id)
+
+    assert job.status == "completed_with_errors"
+    assert job.processed_items == 2
+    assert job.error_message is not None
+    for s in ("inactive", "draft", "expired", "sold_out"):
+        assert s in job.error_message
+    # Sanitized reason from Etsy's body must appear, not just a bare "400 Bad Request"
+    assert "invalid state or includes parameter" in job.error_message
+    # No raw URL, token, or secret ever lands in the stored error message
+    assert "openapi.etsy.com" not in job.error_message
+    assert "valid_access_token" not in job.error_message
+
+    result = await db_session.execute(select(Listing.etsy_listing_id).where(Listing.etsy_shop_id == shop.id))
+    synced_ids = {r[0] for r in result.all()}
+    assert synced_ids == {"50", "51"}
+
+
+async def test_etsy_error_body_is_sanitized_not_raw(client, db_session):
+    """A response body containing something that looks secret-shaped must
+    never reach job.error_message even if Etsy's real response ever did."""
+    from app.services.etsy_sync import sync_shop_listings
+
+    token, org_id = await _register_and_get_org(client, db_session, "sanitize@example.com")
+    shop = await _setup_shop_with_token(db_session, org_id)
+
+    suspicious_body = {
+        "error": "invalid state",
+        "access_token": "should_never_appear_in_stored_error",
+        "authorization": "Bearer should_never_appear_either",
+    }
+    mock_client = _mock_client(_make_get_side_effect(
+        {"active": [_fake_listing(60, "active")]},
+        http_error_for_state={
+            "inactive": (400, suspicious_body), "draft": (400, suspicious_body),
+            "expired": (400, suspicious_body), "sold_out": (400, suspicious_body),
+        },
+    ))
+
+    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client), _valid_etsy_credentials():
+        job = await sync_shop_listings(db_session, org_id, shop.id)
+
+    assert job.status == "completed_with_errors"
+    assert "should_never_appear_in_stored_error" not in (job.error_message or "")
+    assert "should_never_appear_either" not in (job.error_message or "")
+    assert "invalid state" in job.error_message
 
 
 async def test_all_states_failing_marks_job_failed_without_raising(client, db_session):

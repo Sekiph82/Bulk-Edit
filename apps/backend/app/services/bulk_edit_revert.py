@@ -21,24 +21,28 @@ Safety contract:
 Partial write caveat: if text PATCH succeeds but inventory PUT fails, Etsy has reverted text
 but not price/quantity. Local DB not updated. Next sync resolves the discrepancy.
 """
+import html
 import logging
 from datetime import datetime, timezone
 from typing import Any
 
+import httpx
 from fastapi import HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.audit_log import AuditLog
 from app.models.bulk_edit_apply_job import BulkEditApplyJob
 from app.models.bulk_edit_apply_result import BulkEditApplyResult
+from app.models.bulk_edit_change import BulkEditChange
 from app.models.etsy_shop import EtsyShop
 from app.models.listing import Listing
 from app.models.listing_backup_snapshot import ListingBackupSnapshot
 from app.models.revert_job import RevertJob
 from app.models.revert_result import RevertResult
-from app.services.etsy_sync import get_valid_etsy_access_token
+from app.services.etsy_http import etsy_get
+from app.services.etsy_sync import ETSY_API_BASE, _auth_headers, get_valid_etsy_access_token
 from app.services.etsy_write import (
     build_etsy_patch_payload,
     build_etsy_inventory_payload,
@@ -107,6 +111,123 @@ def build_etsy_revert_payload(snapshot_data: dict[str, Any]) -> dict[str, Any]:
         for field in snapshot_data
     }
     return build_etsy_patch_payload(diff)
+
+
+# M06.03 changed-since-apply conflict detection (2026-08-31).
+#
+# `snapshot.snapshot_data` is the PRE-apply state (the revert target, not
+# the after-value). The correct "expected after apply" value is the local
+# `Listing` row's current column value -- it is only ever updated after an
+# Etsy write succeeds (apply, revert, or a real sync), so under normal
+# operation it should equal what the last successful write actually set on
+# Etsy. Comparing a fresh, read-only Etsy GET against that local value is
+# what actually detects "something changed this listing without going
+# through this app since we last touched it" -- a seller edit on Etsy
+# directly, another app, or a job this app doesn't know about.
+#
+# Text fields are compared normalized (HTML-entity-decoded, whitespace-
+# trimmed) so decode-only differences never produce a false conflict.
+# price_amount/quantity are compared as exact integers. Every other field
+# this revert could touch (the rest of _SNAPSHOT_TO_LISTING) is NOT verified
+# here yet -- per this task's explicit instruction, an unverified field is
+# treated as a conflict rather than assumed safe. This is exactly why
+# M06.03 stays `[~]`, not `[x]`: title/description/sku/price/quantity are
+# fully covered, everything else in _SNAPSHOT_TO_LISTING is not.
+_CONFLICT_CHECK_TEXT_FIELDS = {"title", "description", "sku"}
+_CONFLICT_CHECK_NUMERIC_FIELDS = {"price_amount", "quantity"}
+
+
+def _normalize_text_for_conflict_check(value: Any) -> str:
+    if value is None:
+        return ""
+    return html.unescape(str(value)).strip()
+
+
+async def fetch_current_listing_for_conflict_check(
+    access_token: str, etsy_listing_id: str
+) -> dict[str, Any] | None:
+    """Read-only GET of a single listing's current Etsy state, used only to
+    detect changed-since-apply conflicts before a revert write. Never writes,
+    never calls a status-mutation endpoint."""
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await etsy_get(
+            client,
+            f"{ETSY_API_BASE}/application/listings/{etsy_listing_id}",
+            headers=_auth_headers(access_token),
+        )
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+        return resp.json()
+
+
+def detect_revert_conflict(
+    listing: Listing,
+    snapshot_data: dict[str, Any],
+    current_etsy_data: dict[str, Any] | None,
+    changed_fields: set[str] | None = None,
+) -> dict[str, Any]:
+    """Compares the live current Etsy value for each field *this apply
+    actually changed* against the locally-known value. A mismatch, or a
+    changed field this check can't yet verify, is a conflict -- never
+    assumed safe by default. Returns a JSON-safe dict, no secrets.
+
+    `changed_fields` MUST be the set of field names the original session's
+    BulkEditChange rows actually touched -- NOT every key in snapshot_data.
+    snapshot_data (build_before_data()) captures the listing's *entire*
+    state before the write, for restore purposes, regardless of what was
+    actually changed; iterating all of its keys here would flag every
+    revert as a conflict on totally untouched fields (tags, section_id,
+    processing times, etc.) that this checker doesn't verify, defeating the
+    feature. If `changed_fields` is not provided, falls back to every key in
+    snapshot_data (safe-by-default, but overly broad -- callers should
+    always pass the real changed-field set)."""
+    if current_etsy_data is None:
+        return {
+            "has_conflict": True,
+            "conflicting_fields": [],
+            "unverified_fields": ["*"],
+            "reason": "Could not read the listing's current Etsy state to verify it hasn't changed.",
+        }
+
+    conflicting: list[str] = []
+    unverified: list[str] = []
+    price = current_etsy_data.get("price") or {}
+
+    fields_to_check = (
+        [f for f in snapshot_data.keys() if f in changed_fields]
+        if changed_fields is not None
+        else list(snapshot_data.keys())
+    )
+    for field in fields_to_check:
+        if field in _CONFLICT_CHECK_TEXT_FIELDS:
+            expected = _normalize_text_for_conflict_check(getattr(listing, field, None))
+            actual = _normalize_text_for_conflict_check(current_etsy_data.get(field))
+            if expected != actual:
+                conflicting.append(field)
+        elif field == "price_amount":
+            if getattr(listing, "price_amount", None) != price.get("amount"):
+                conflicting.append(field)
+        elif field == "quantity":
+            if getattr(listing, "quantity", None) != current_etsy_data.get("quantity"):
+                conflicting.append(field)
+        elif field in _SNAPSHOT_TO_LISTING:
+            unverified.append(field)
+        # else: not a field this revert path touches at all — ignore
+
+    if conflicting:
+        reason = f"This listing changed after the original apply (field(s): {', '.join(conflicting)}). Reverting may overwrite newer work."
+    elif unverified:
+        reason = f"Field(s) {', '.join(unverified)} cannot yet be verified as unchanged since apply — reverting is blocked to avoid a silent overwrite."
+    else:
+        reason = None
+
+    return {
+        "has_conflict": bool(conflicting or unverified),
+        "conflicting_fields": conflicting,
+        "unverified_fields": unverified,
+        "reason": reason,
+    }
 
 
 def update_local_listing_from_snapshot(
@@ -201,6 +322,16 @@ async def revert_apply_job(
         )
 
     apply_job = await validate_apply_job_revertable(db, organization_id, apply_job_id)
+
+    # M06.03: the set of fields this apply's session actually intended to
+    # change -- used to scope the changed-since-apply conflict check to real
+    # writes, not every field build_before_data() captured for restore.
+    changes_q = await db.execute(
+        select(BulkEditChange.field_name).where(
+            BulkEditChange.bulk_edit_session_id == apply_job.bulk_edit_session_id
+        )
+    )
+    changed_fields: set[str] = {row[0] for row in changes_q.all()}
 
     # Load only successful apply results
     apply_results_q = await db.execute(
@@ -413,6 +544,27 @@ async def revert_apply_job(
             await db.flush()
             continue
 
+        # M06.03: refuse to revert if the listing appears to have changed
+        # since the original apply — read-only Etsy GET, no write attempted
+        # for a conflicted item.
+        try:
+            current_etsy_data = await fetch_current_listing_for_conflict_check(access_token, listing.etsy_listing_id)
+        except Exception as exc:
+            logger.warning("Conflict check GET failed for listing %s: %s", listing.etsy_listing_id, exc)
+            current_etsy_data = None
+        conflict = detect_revert_conflict(listing, snapshot_data, current_etsy_data, changed_fields)
+        if conflict["has_conflict"]:
+            skipped_count += 1
+            rr.status = "conflict"
+            rr.error_message = conflict["reason"]
+            rr.response_payload = {
+                "conflicting_fields": conflict["conflicting_fields"],
+                "unverified_fields": conflict["unverified_fields"],
+            }
+            rr.completed_at = datetime.now(timezone.utc)
+            await db.flush()
+            continue
+
         # Step 1: revert text/bool fields (listing PATCH)
         listing_resp: Any = None
         if standard_payload and shop:
@@ -525,6 +677,19 @@ async def revert_apply_job(
     )
 
     db.add(revert_job)
+
+    # M06.04: link the per-field write audit trail to this revert's outcome
+    # -- "audit record updates after Magic Revert" -- rather than creating a
+    # second, disconnected set of rows for the same fields.
+    await db.execute(
+        update(AuditLog)
+        .where(
+            AuditLog.apply_job_id == apply_job_id,
+            AuditLog.event_type == "bulk_edit_field_write",
+            AuditLog.organization_id == organization_id,
+        )
+        .values(revert_job_id=revert_job.id, revert_status=revert_job.status)
+    )
 
     await _write_audit_log(
         db,

@@ -35,6 +35,7 @@ from app.core.config import settings
 from app.models.audit_log import AuditLog
 from app.models.bulk_edit_apply_job import BulkEditApplyJob
 from app.models.bulk_edit_apply_result import BulkEditApplyResult
+from app.models.bulk_edit_change import BulkEditChange
 from app.models.bulk_edit_preview_item import BulkEditPreviewItem
 from app.models.bulk_edit_session import BulkEditSession
 from app.models.etsy_shop import EtsyShop
@@ -106,6 +107,52 @@ async def _write_audit_log(
     await db.flush()
 
 
+async def _write_field_audit_trail(
+    db: AsyncSession,
+    org_id: str,
+    user_id: str | None,
+    shop_etsy_id: str | None,
+    listing: Listing,
+    apply_job_id: str,
+    session_id: str,
+    diff: dict[str, Any],
+    field_operations: dict[str, str],
+    result_status: str,
+    error_message: str | None,
+) -> None:
+    """M06.04 per-item write audit trail — one AuditLog row per field this
+    apply's diff actually touched (not per listing): BulkEditApplyResult is
+    per-listing and can't distinguish which of several changed fields
+    succeeded independently, since Etsy's PATCH covers every changed field
+    in one call, so this records the same listing-level result_status
+    against each field. Before/after values and a sanitized, size-limited
+    error live in extra_data — never a raw Etsy response body, token, or
+    header."""
+    safe_error = (error_message or "")[:500] if error_message else None
+    for field_name, change in diff.items():
+        db.add(AuditLog(
+            organization_id=org_id,
+            user_id=user_id,
+            event_type="bulk_edit_field_write",
+            entity_type="listing",
+            entity_id=listing.id,
+            apply_job_id=apply_job_id,
+            field_name=field_name,
+            result_status=result_status,
+            message=f"{field_name} on listing {listing.etsy_listing_id}: {result_status}",
+            extra_data={
+                "etsy_shop_id": shop_etsy_id,
+                "etsy_listing_id": listing.etsy_listing_id,
+                "bulk_edit_session_id": session_id,
+                "operation": field_operations.get(field_name),
+                "before": change.get("before") if isinstance(change, dict) else None,
+                "after": change.get("after") if isinstance(change, dict) else None,
+                "error_message": safe_error,
+            },
+        ))
+    await db.flush()
+
+
 async def apply_bulk_edit_session(
     db: AsyncSession,
     session_id: str,
@@ -168,6 +215,14 @@ async def apply_bulk_edit_session(
         )
     )
     preview_items = list(items_result.scalars().all())
+
+    # M06.04: field_name -> operation, for the per-field audit trail below.
+    changes_result = await db.execute(
+        select(BulkEditChange.field_name, BulkEditChange.operation).where(
+            BulkEditChange.bulk_edit_session_id == session_id
+        )
+    )
+    field_operations: dict[str, str] = {row[0]: row[1] for row in changes_result.all()}
 
     if not preview_items:
         raise HTTPException(
@@ -331,7 +386,10 @@ async def apply_bulk_edit_session(
             result.error_message = inventory_skip_reason or "No patchable fields in diff."
             result.completed_at = datetime.now(timezone.utc)
             skipped_count += 1
-            await db.flush()
+            await _write_field_audit_trail(
+                db, organization_id, user_id, shop.etsy_shop_id if shop else None, listing,
+                job.id, session_id, diff, field_operations, "skipped", result.error_message,
+            )
             continue
 
         # 8c. Write text/bool fields (listing PATCH)
@@ -351,7 +409,10 @@ async def apply_bulk_edit_session(
                 result.completed_at = datetime.now(timezone.utc)
                 failure_count += 1
                 logger.warning("Etsy listing PATCH failed for %s: %s", listing.etsy_listing_id, e.message)
-                await db.flush()
+                await _write_field_audit_trail(
+                    db, organization_id, user_id, shop.etsy_shop_id if shop else None, listing,
+                    job.id, session_id, diff, field_operations, "failed", e.message,
+                )
                 continue
             except Exception as e:
                 result.status = "failed"
@@ -359,7 +420,10 @@ async def apply_bulk_edit_session(
                 result.completed_at = datetime.now(timezone.utc)
                 failure_count += 1
                 logger.exception("Unexpected error on listing PATCH %s", listing.etsy_listing_id)
-                await db.flush()
+                await _write_field_audit_trail(
+                    db, organization_id, user_id, shop.etsy_shop_id if shop else None, listing,
+                    job.id, session_id, diff, field_operations, "failed", str(e),
+                )
                 continue
 
         # 8d. Write price/quantity (fetch-patch-put inventory tree)
@@ -384,7 +448,10 @@ async def apply_bulk_edit_session(
                 result.completed_at = datetime.now(timezone.utc)
                 failure_count += 1
                 logger.warning("Etsy inventory PUT failed for %s: %s (listing PATCH already applied)", listing.etsy_listing_id, e.message)
-                await db.flush()
+                await _write_field_audit_trail(
+                    db, organization_id, user_id, shop.etsy_shop_id if shop else None, listing,
+                    job.id, session_id, diff, field_operations, "failed", result.error_message,
+                )
                 continue
             except Exception as e:
                 result.status = "failed"
@@ -392,7 +459,10 @@ async def apply_bulk_edit_session(
                 result.completed_at = datetime.now(timezone.utc)
                 failure_count += 1
                 logger.exception("Unexpected error on inventory PUT %s", listing.etsy_listing_id)
-                await db.flush()
+                await _write_field_audit_trail(
+                    db, organization_id, user_id, shop.etsy_shop_id if shop else None, listing,
+                    job.id, session_id, diff, field_operations, "failed", result.error_message,
+                )
                 continue
 
         # 8e. All writes succeeded — build response payload
@@ -429,7 +499,10 @@ async def apply_bulk_edit_session(
 
         db.add(listing)
         success_count += 1
-        await db.flush()
+        await _write_field_audit_trail(
+            db, organization_id, user_id, shop.etsy_shop_id if shop else None, listing,
+            job.id, session_id, diff, field_operations, "success", None,
+        )
 
     # 9. Finalize job
     job.success_count = success_count
@@ -559,3 +632,47 @@ async def list_backup_snapshots_for_session(
         ).order_by(ListingBackupSnapshot.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def list_field_audit_trail(
+    db: AsyncSession,
+    organization_id: str,
+    apply_job_id: str | None = None,
+    listing_id: str | None = None,
+    field_name: str | None = None,
+    result_status: str | None = None,
+    revert_status: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    page: int = 1,
+    per_page: int = 50,
+) -> tuple[list[AuditLog], int]:
+    """M06.04: searchable per-item write audit trail. Org-scoped always —
+    cross-org isolation is enforced by the organization_id filter below, not
+    by the caller. Export is not built this sprint; this is the read/search
+    surface that a future export would reuse."""
+    query = select(AuditLog).where(
+        AuditLog.organization_id == organization_id,
+        AuditLog.event_type == "bulk_edit_field_write",
+    )
+    if apply_job_id:
+        query = query.where(AuditLog.apply_job_id == apply_job_id)
+    if listing_id:
+        query = query.where(AuditLog.entity_id == listing_id)
+    if field_name:
+        query = query.where(AuditLog.field_name == field_name)
+    if result_status:
+        query = query.where(AuditLog.result_status == result_status)
+    if revert_status:
+        query = query.where(AuditLog.revert_status == revert_status)
+    if date_from:
+        query = query.where(AuditLog.created_at >= date_from)
+    if date_to:
+        query = query.where(AuditLog.created_at <= date_to)
+
+    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = count_result.scalar_one()
+
+    query = query.order_by(AuditLog.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+    result = await db.execute(query)
+    return list(result.scalars().all()), total
