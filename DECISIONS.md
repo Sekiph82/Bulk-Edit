@@ -4,6 +4,14 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-30 (M13/M15 read-only depth, autonomous backlog PR 3/4)
+
+### [PRODUCT] Disabled Media's replace/delete operations until a real restore endpoint exists, despite them being live, working, tested pre-existing features
+Audit (not something introduced this round) found the Media page's `replace_image`/`delete_image`/`replace_video`/`delete_video` operations are fully implemented and enabled, and a `MediaBackup` row is created before every write — but no revert/restore endpoint exists anywhere in the backend (confirmed via grep, zero matches). A customer who deletes or replaces media today has no self-service way to get it back, despite the backup data technically existing. Disabled those four operations in the picker (with truthful "coming soon — no restore yet" labels), left `add_image`/`add_video` (purely additive, nothing ever lost) untouched. This is a UI-only, fully reversible change (flip `implemented: true` back once a restore endpoint ships) — no backend code, no data, and no already-taken action was touched. Made without owner sign-in-session (owner was away for this autonomous run) because the task's own explicit instruction for this milestone package was "UI destructive actions should be disabled or hidden until recovery story is implemented" — not a judgment call invented for this round.
+
+### [DOCS] Corrected M15.02/M15.03/M15.04 from `[ ]` to `[x]`/`[x]`/`[~]` based on pre-existing Sprint 12 code, not new work
+`TASKS.md` had all three marked `[ ]` planned. Code read + `CHANGELOG_AI.md`'s own Sprint 12 (2026-06-26) entry show variation preview (price and quantity) and an apply mechanism were built and unit-tested (26+ tests) well before this session's tracked rounds — `[ ]` was simply stale, predating the H!veAI milestone conversion (PR #101) that first introduced these package numbers and evidently didn't reconcile them against actual shipped code. Corrected preview items to `[x]` (real evidence: code + tests). Left apply/revert (M15.04) at `[~]`, not `[x]` — apply exists and is unit-tested but has never been owner-live-verified (unlike the price/title write saga's extensive verification trail), and revert was explicitly deferred at Sprint 12 and never built. No live write, no revert code, was added or run this round — this is a documentation-accuracy fix, not a scope expansion.
+
 ## 2026-08-29 (Pro comp-grant bulk edit limit gate bug)
 
 ### [ARCH] Every plan/usage gate must resolve through `get_effective_plan()`, never read `Subscription.plan` directly for gating purposes

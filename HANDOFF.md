@@ -2,23 +2,36 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-30 (M03.04: shared ListingPicker — PR 2 of an autonomous 4-PR backlog run)
+## RESUME HERE — 2026-08-30 (M13/M15: read-only media + variation depth — PR 3 of an autonomous 4-PR backlog run)
 
-**Owner still away; sequence continues (M10 done → M03.04 this round → M13/M15 → M19).** Branch `feature/m03-shared-listing-picker`, based on `origin/main` past PR #110's `f7d79e795be68026333908cca6a9b3303e6649e2`.
+**Owner still away; sequence continues (M10, M03.04 done → M13/M15 this round → M19).** Branch `feature/media-variations-read-depth`, based on `origin/main` past PR #111's `9a220b08a902ff521c19c5365946c7964048f696`. Zero backend files changed — every fix reuses an endpoint that already existed.
 
-**New shared component:** `apps/frontend/components/listings/ListingPicker.tsx` — shop filter, status filter, title search, server-side pagination, thumbnails (`ListingListItem.thumbnail_url`, already in `getListings()`'s response, just never rendered by the ad hoc pickers), variation indicator badge, selected count, loading/error/empty states with an overridable `renderEmpty` for consumer-specific honesty (used by Variations to preserve its no-data-vs-no-search-match distinction), multi/single-select, `disabled` read-only mode.
+**Two real "backend already built it, frontend never showed it" gaps closed:**
+- **M13.02** — product detail page's Media card showed a primary image + count with "Full image gallery is not available yet."; `getListingImages()` already fetched every image. Now renders the full thumbnail grid.
+- **M15.01** — `ListingVariation` (property/value/price/qty/SKU/availability) has been synced by `etsy_sync.py` and exposed via `GET /listings/{id}/variations` since Sprint 5/12; nothing in the frontend ever called it. Variations page now has an expandable "Variation Data (read-only)" matrix per selected listing, truthfully distinguishing "no data synced yet" from "no rows at all."
 
-**Migrated (M03.04 `[~]`, not `[x]` — see exact remaining-consumer list below):** Media page (replaced its client-side-only, unpaginated, thumbnail-less picker) and Variations page (added `extraParams={{ has_variations: true }}`, preserved the existing empty-state honesty via `renderEmpty`). **Not migrated this round, by design, per this package's own risk-scope rule:** Dynamic Pricing (`pricing-rules/page.tsx` has a "select all *loaded* listings" action tied to its own full un-paginated listings array — doesn't map cleanly onto the picker's paginated design), Bulk Edit (949-line file with the live working apply flow — explicitly out of this non-destructive round's risk budget), Video Generator and Promote (neither currently calls `getListings()` at all — not a picker swap, a larger rewrite).
+**M15.05** — `validation_messages` existed on the backend preview-item schema, unused; preview table now has a Diagnostics column showing it.
 
-**Checks:** frontend `tsc --noEmit`/`next lint`/`next build` all clean — `/media` and `/variations` both compile, no new lint warnings on any changed file.
+**M13.05** — Video Generator gained a listing-image-selection option (via the new `ListingPicker`) alongside, not replacing, manual URL paste; the actual render-triggering code path is untouched.
 
-**No Etsy API call, no Bulk Edit apply/Magic Revert/shop sync/OAuth, no media upload/delete by Claude/Codex.**
+**Product decision, recorded in `DECISIONS.md`:** audit found Media's `replace_image`/`delete_image`/`replace_video`/`delete_video` are live, pre-existing (not introduced this round), working features — but no restore/revert endpoint exists anywhere for the `MediaBackup` rows they create. Disabled those four in the operation picker with truthful "coming soon — no restore yet" copy; `add_image`/`add_video` (nothing ever lost) stay enabled. Fully reversible UI-only change.
+
+**Docs-accuracy correction, also in `DECISIONS.md`:** M15.02/M15.03 were stale `[ ]` — variation price/quantity preview was actually built and unit-tested at Sprint 12 (2026-06-26), predating this session. Corrected to `[x]`. M15.04 (apply/revert) corrected to `[~]`, not `[x]` or `[ ]` — apply exists+tested but never owner-live-verified; revert was explicitly deferred at Sprint 12 and was never built. No live write, no revert code, added or run this round.
+
+**Checks:** zero backend changes → no backend test run needed. Frontend `tsc --noEmit`/`next lint`/`next build` all clean, no new warnings.
+
+**No Etsy API call, no Bulk Edit apply/Magic Revert/shop sync/OAuth, no media upload/delete/reorder by Claude/Codex.**
 
 **Recommended next work (autonomous sequence continues after this PR merges/deploys/verifies):**
-1. **M13/M15** — read-only media + variation depth.
-2. **M19** — beta readiness smoke matrix + owner runbooks.
-3. Dynamic Pricing/Bulk Edit/Video Generator/Promote `ListingPicker` migration (remaining M03.04 consumers) — separate future round.
-4. Owner live QA of everything shipped this session — Claude/Codex does not run live Etsy write/revert/sync/media actions.
+1. **M19** — beta readiness smoke matrix + owner runbooks.
+2. Media restore/revert endpoint (closes the M13.04 gap this round's UI change is gating around).
+3. Owner live QA of everything shipped this session, including a first-ever live variation apply verification if the owner chooses (M15.04) — Claude/Codex does not run live Etsy write/revert/sync/media actions.
+
+---
+
+## Previously — 2026-08-30 (M03.04: shared ListingPicker — PR 2 of an autonomous 4-PR backlog run)
+
+Branch `feature/m03-shared-listing-picker`, based on `origin/main` past PR #110's `f7d79e795be68026333908cca6a9b3303e6649e2`. Merged as PR #111 (`9a220b08a902ff521c19c5365946c7964048f696`), deployed, route-verified. New `apps/frontend/components/listings/ListingPicker.tsx` (shop/status filter, search, pagination, thumbnails, variation badge, empty/error/loading states), migrated into Media and Variations; Dynamic Pricing/Bulk Edit/Video Generator/Promote intentionally left for a later round (documented reasons per consumer, M03.04 stays `[~]`). See `CHANGELOG_AI.md` for full detail.
 
 ---
 

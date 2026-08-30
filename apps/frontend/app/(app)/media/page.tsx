@@ -283,13 +283,19 @@ function LocalUploadPanel({ onVideoUploaded }: { onVideoUploaded: (render: Video
   );
 }
 
+// M13.04: add_image/add_video are purely additive (no existing asset is ever
+// lost) and stay enabled. replace_*/delete_* overwrite or remove an existing
+// asset — a MediaBackup row is created before the write (see getMediaBackups()
+// below), but there is no restore/revert endpoint yet, so a customer cannot
+// self-recover through this app if they change their mind. Disabled here
+// until that recovery story exists — see TASKS.md M13.04.
 const OPERATION_OPTIONS = [
   { value: "add_image", label: "Add Image", implemented: true },
-  { value: "replace_image", label: "Replace Image (at rank)", implemented: true },
-  { value: "delete_image", label: "Delete Image", implemented: true },
+  { value: "replace_image", label: "Replace Image (at rank) — coming soon, no restore yet", implemented: false },
+  { value: "delete_image", label: "Delete Image — coming soon, no restore yet", implemented: false },
   { value: "add_video", label: "Add Video", implemented: true },
-  { value: "replace_video", label: "Replace Video", implemented: true },
-  { value: "delete_video", label: "Delete Video", implemented: true },
+  { value: "replace_video", label: "Replace Video — coming soon, no restore yet", implemented: false },
+  { value: "delete_video", label: "Delete Video — coming soon, no restore yet", implemented: false },
 ];
 
 function StatusBadge({ status }: { status: string }) {
@@ -388,7 +394,7 @@ export default function MediaPage() {
     setMsg(null);
     if (selectedIds.size === 0) { setError("Select at least one listing."); return; }
     const op = OPERATION_OPTIONS.find(o => o.value === operationType);
-    if (!op?.implemented) { setError("This operation is not yet available."); return; }
+    if (!op?.implemented) { setError("This operation isn't available yet — restoring a replaced or deleted asset isn't supported yet, so it's disabled until that exists."); return; }
     if ((operationType === "add_image" || operationType === "replace_image") && !imageUrl) {
       setError("Image URL is required."); return;
     }

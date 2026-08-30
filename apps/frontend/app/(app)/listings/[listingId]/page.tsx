@@ -315,22 +315,31 @@ export default function ProductDetailPage() {
 
           {/* Media */}
           <Card title="Media">
-            <div className="flex items-center gap-3">
-              {primaryImageUrl ? (
-                <img src={primaryImageUrl} alt={title} className="w-16 h-16 object-cover rounded-lg border border-gray-100 shrink-0" />
-              ) : (
+            {images.length === 0 ? (
+              <div className="flex items-center gap-3">
                 <div className="w-16 h-16 bg-gray-50 rounded-lg border border-dashed border-gray-200 flex items-center justify-center shrink-0">
                   <span className="text-lg text-gray-300">🖼️</span>
                 </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-xs text-gray-500">
-                  {images.length > 0 ? `${images.length} photo${images.length === 1 ? "" : "s"} synced` : "No photos synced yet."}
-                </p>
-                <p className="text-[11px] text-gray-400">Full image gallery is not available yet.</p>
+                <p className="text-xs text-amber-600">No photos synced for this listing yet.</p>
               </div>
-            </div>
-            <Link href="/media" className="inline-block text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:underline">
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 mb-2">
+                  {images.length} photo{images.length === 1 ? "" : "s"} synced — read-only, no reorder/delete/upload here.
+                </p>
+                <div className="grid grid-cols-4 gap-2">
+                  {images.slice().sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0)).map((img) => (
+                    <img
+                      key={img.id}
+                      src={img.url_570xN ?? img.url_fullxfull ?? img.url_170x135 ?? ""}
+                      alt={img.alt_text ?? title}
+                      className="w-full aspect-square object-cover rounded-lg border border-gray-100"
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+            <Link href="/media" className="inline-block text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:underline mt-3">
               Open Media tools →
             </Link>
           </Card>

@@ -11,12 +11,113 @@ import {
   getVariationPreview,
   applyVariationJob,
   getVariationResults,
+  getListingVariations,
+  getListing,
   ApiError,
   type VariationJob,
   type VariationPreviewItem,
   type VariationResult,
+  type ListingVariation,
 } from "@/lib/api";
 import ListingPicker from "@/components/listings/ListingPicker";
+
+// M15.01: read-only variation matrix for the currently selected listings —
+// the data has been synced into ListingVariation (via etsy_sync) and exposed
+// via GET /listings/{id}/variations since Sprint 5/12, but no UI ever showed
+// it as a matrix. Fetches per selected listing, on demand (no N+1 on mount).
+function VariationMatrix({ listingId }: { listingId: string }) {
+  const [rows, setRows] = useState<ListingVariation[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getListingVariations(listingId)
+      .then((r) => { if (!cancelled) setRows(r); })
+      .catch((e) => { if (!cancelled) setError(e instanceof ApiError ? e.message : "Failed to load variation data."); });
+    return () => { cancelled = true; };
+  }, [listingId]);
+
+  if (error) return <p className="text-xs text-red-600 px-2 py-1">{error}</p>;
+  if (rows === null) return <p className="text-xs text-gray-400 px-2 py-1">Loading variation data…</p>;
+  if (rows.length === 0) {
+    return (
+      <p className="text-xs text-amber-600 px-2 py-1">
+        This listing has variations on Etsy, but no variation data has been synced locally yet — run a shop sync to populate it.
+      </p>
+    );
+  }
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="text-gray-400">
+          <th className="text-left font-medium py-1 px-2">Property</th>
+          <th className="text-left font-medium py-1 px-2">Value</th>
+          <th className="text-left font-medium py-1 px-2">Price</th>
+          <th className="text-left font-medium py-1 px-2">Qty</th>
+          <th className="text-left font-medium py-1 px-2">SKU</th>
+          <th className="text-left font-medium py-1 px-2">Available</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-100">
+        {rows.map((v) => (
+          <tr key={v.id}>
+            <td className="py-1 px-2 text-gray-700">{v.property_name ?? "—"}</td>
+            <td className="py-1 px-2 text-gray-700">{v.value_name ?? "—"}</td>
+            <td className="py-1 px-2 text-gray-700">
+              {v.price_amount != null ? `${v.currency_code ?? ""} ${(v.price_amount / (v.price_divisor ?? 100)).toFixed(2)}` : "—"}
+            </td>
+            <td className="py-1 px-2 text-gray-700">{v.quantity ?? "—"}</td>
+            <td className="py-1 px-2 text-gray-700">{v.sku ?? "—"}</td>
+            <td className="py-1 px-2 text-gray-700">{v.is_available ? "Yes" : "No"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function SelectedListingVariations({ selectedIds }: { selectedIds: Set<string> }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [titles, setTitles] = useState<Record<string, string>>({});
+  const ids = Array.from(selectedIds);
+
+  function toggle(id: string) {
+    const next = expandedId === id ? null : id;
+    setExpandedId(next);
+    if (next && !titles[next]) {
+      getListing(next).then((l) => setTitles((prev) => ({ ...prev, [next]: l.title ?? next }))).catch(() => {});
+    }
+  }
+
+  if (ids.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+      <h2 className="font-semibold text-gray-800 mb-1">Variation Data (read-only)</h2>
+      <p className="text-xs text-gray-400 mb-3">
+        Real, already-synced variation data for your selected listings — property/value, price, quantity, SKU, availability.
+      </p>
+      <div className="divide-y divide-gray-100 border border-gray-100 rounded-lg">
+        {ids.map((id) => (
+          <div key={id}>
+            <button
+              onClick={() => toggle(id)}
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <span className="truncate">{titles[id] ?? id}</span>
+              <span className="text-gray-400">{expandedId === id ? "▲" : "▼"}</span>
+            </button>
+            {expandedId === id && (
+              <div className="border-t border-gray-100 bg-gray-50">
+                <VariationMatrix listingId={id} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const OPERATION_OPTIONS = [
   { value: "set_variation_price", label: "Set Variation Price" },
@@ -312,6 +413,8 @@ export default function VariationsPage() {
           </div>
         </div>
 
+        <SelectedListingVariations selectedIds={selectedIds} />
+
         {/* Preview table */}
         {previewItems.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
@@ -335,6 +438,7 @@ export default function VariationsPage() {
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-2 px-3 text-gray-600 font-medium">Listing</th>
                     <th className="text-left py-2 px-3 text-gray-600 font-medium">Status</th>
+                    <th className="text-left py-2 px-3 text-gray-600 font-medium">Diagnostics</th>
                     <th className="text-left py-2 px-3 text-gray-600 font-medium">Before</th>
                     <th className="text-left py-2 px-3 text-gray-600 font-medium">After</th>
                   </tr>
@@ -343,6 +447,7 @@ export default function VariationsPage() {
                   {previewItems.map((item) => {
                     const before = (item.before_variations as Array<Record<string, unknown>>) ?? [];
                     const after = (item.after_variations as Array<Record<string, unknown>>) ?? [];
+                    const messages = Array.isArray(item.validation_messages) ? item.validation_messages as string[] : [];
                     return (
                       <tr key={item.id} className="hover:bg-gray-50">
                         <td className="py-2 px-3 text-gray-700 max-w-xs truncate">
@@ -350,6 +455,15 @@ export default function VariationsPage() {
                         </td>
                         <td className="py-2 px-3">
                           <StatusBadge status={item.validation_status} />
+                        </td>
+                        <td className="py-2 px-3 text-gray-500 max-w-xs">
+                          {messages.length > 0 ? (
+                            <ul className="list-disc list-inside space-y-0.5">
+                              {messages.map((m, i) => <li key={i}>{m}</li>)}
+                            </ul>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
                         </td>
                         <td className="py-2 px-3 text-gray-500">
                           {before.slice(0, 3).map((v, i) => (

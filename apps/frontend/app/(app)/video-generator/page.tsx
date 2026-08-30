@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { getAccessToken } from "@/lib/api";
+import { getAccessToken, getListingImages, ApiError } from "@/lib/api";
+import ListingPicker from "@/components/listings/ListingPicker";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
 
@@ -258,6 +259,10 @@ function VideoGeneratorContent() {
   const [selectedAspectRatio, setSelectedAspectRatio] = useState("9:16");
   const [durationSeconds, setDurationSeconds] = useState(10);
   const [imageUrlsText, setImageUrlsText] = useState("");
+  const [imageSource, setImageSource] = useState<"manual" | "listing">("manual");
+  const [pickedListingId, setPickedListingId] = useState<Set<string>>(new Set());
+  const [loadingListingImages, setLoadingListingImages] = useState(false);
+  const [listingImagesError, setListingImagesError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [renderJob, setRenderJob] = useState<RenderStatus | null>(null);
 
@@ -281,6 +286,29 @@ function VideoGeneratorContent() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const id = Array.from(pickedListingId)[0];
+    if (!id) return;
+    setLoadingListingImages(true);
+    setListingImagesError(null);
+    getListingImages(id)
+      .then((imgs) => {
+        const urls = imgs
+          .slice()
+          .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
+          .map((img) => img.url_fullxfull ?? img.url_570xN ?? img.url_170x135)
+          .filter((u): u is string => !!u);
+        if (urls.length === 0) {
+          setListingImagesError("This listing has no synced photos.");
+        }
+        setImageUrlsText(urls.join("\n"));
+      })
+      .catch((e) => {
+        setListingImagesError(e instanceof ApiError ? e.message : "Failed to load this listing's photos.");
+      })
+      .finally(() => setLoadingListingImages(false));
+  }, [pickedListingId]);
 
   useEffect(() => {
     if (renderJob && (renderJob.status === "pending" || renderJob.status === "rendering")) {
@@ -488,8 +516,45 @@ function VideoGeneratorContent() {
         {/* Render form */}
         <form onSubmit={handleRender} className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900">Image URLs</h2>
+
+          <div className="flex gap-4 text-xs font-medium">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="radio"
+                checked={imageSource === "manual"}
+                onChange={() => setImageSource("manual")}
+                className="accent-indigo-600"
+              />
+              Paste URLs
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="radio"
+                checked={imageSource === "listing"}
+                onChange={() => setImageSource("listing")}
+                className="accent-indigo-600"
+              />
+              Select from a listing&apos;s synced photos
+            </label>
+          </div>
+
+          {imageSource === "listing" && (
+            <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+              <ListingPicker
+                selectedIds={pickedListingId}
+                onSelectionChange={setPickedListingId}
+                multiSelect={false}
+                pageSize={10}
+              />
+              {loadingListingImages && <p className="text-xs text-gray-400 mt-2">Loading photos…</p>}
+              {listingImagesError && <p className="text-xs text-red-600 mt-2">{listingImagesError}</p>}
+            </div>
+          )}
+
           <p className="text-xs text-gray-500">
-            Paste one image URL per line (e.g. from your listing images). Maximum {maxImages} images.
+            {imageSource === "manual"
+              ? `Paste one image URL per line (e.g. from your listing images). Maximum ${maxImages} images.`
+              : `Photo URLs from the selected listing, in image order. Maximum ${maxImages} images — edit the list below if needed.`}
           </p>
           <textarea
             value={imageUrlsText}
