@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   getAccessToken,
-  getListings,
   createMediaJob,
   listMediaJobs,
   applyMediaJob,
@@ -13,12 +12,11 @@ import {
   listVideoRenders,
   uploadVideoFile,
   ApiError,
-  type ListingListItem,
   type MediaJob,
   type MediaResult,
   type VideoRenderSummary,
 } from "@/lib/api";
-import { decodeEntities } from "@/lib/decodeEntities";
+import ListingPicker from "@/components/listings/ListingPicker";
 
 // ── Local upload types & constants ──────────────────────────────────────────
 const IMAGE_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -313,9 +311,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function MediaPage() {
   const router = useRouter();
-  const [listings, setListings] = useState<ListingListItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [search, setSearch] = useState("");
   const [operationType, setOperationType] = useState("add_image");
   const [imageUrl, setImageUrl] = useState("");
   const [rank, setRank] = useState<number | "">("");
@@ -338,19 +334,9 @@ export default function MediaPage() {
   const [backupCount, setBackupCount] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    // Listings load independently of jobs/video-renders — a Promise.all here
-    // previously meant an unrelated failure in listMediaJobs()/listVideoRenders()
-    // rejected the whole batch and blanked the listings picker with a
-    // misleading "Failed to load listings", even when listings themselves
-    // loaded fine (they use the same shared getListings() as the Listings page).
-    try {
-      const pg = await getListings({ per_page: 200 });
-      setListings(pg.items);
-      setError(null);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 401) { router.push("/login"); return; }
-      setError("Failed to load listings.");
-    }
+    // Jobs/video-renders load independently of the listing picker (which now
+    // owns its own listing fetch via ListingPicker) — an unrelated failure
+    // here must never blank the picker.
     try {
       setJobs(await listMediaJobs());
     } catch {}
@@ -359,21 +345,13 @@ export default function MediaPage() {
     } catch {
       setVideoRenders([]);
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     const token = getAccessToken();
     if (!token) { router.push("/login"); return; }
     load();
   }, [load, router]);
-
-  const toggleListing = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
 
   const handleVideoUploaded = (render: VideoRenderSummary) => {
     setVideoRenders(prev => [render, ...prev]);
@@ -475,10 +453,6 @@ export default function MediaPage() {
     }
   };
 
-  const filtered = listings.filter(l =>
-    !search || l.title?.toLowerCase().includes(search.toLowerCase()) || l.etsy_listing_id.includes(search)
-  );
-
   return (
     <main className="max-w-6xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Photo & Video Bulk Editor</h1>
@@ -499,30 +473,8 @@ export default function MediaPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Listing selector */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="font-semibold text-gray-800 mb-3">1. Select Listings ({selectedIds.size} selected)</h2>
-            <input
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              placeholder="Search listings..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            <div className="max-h-64 overflow-y-auto space-y-1">
-              {filtered.map(l => (
-                <label key={l.id} className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(l.id)}
-                    onChange={() => toggleListing(l.id)}
-                    className="accent-indigo-600"
-                  />
-                  <span className="text-sm text-gray-800 truncate flex-1">{l.title ? decodeEntities(l.title) : l.etsy_listing_id}</span>
-                  <span className="text-xs text-gray-400 shrink-0">{l.etsy_listing_id}</span>
-                </label>
-              ))}
-              {filtered.length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-4">No listings found.</p>
-              )}
-            </div>
+            <h2 className="font-semibold text-gray-800 mb-3">1. Select Listings</h2>
+            <ListingPicker selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
           </div>
 
           {/* Operation form */}

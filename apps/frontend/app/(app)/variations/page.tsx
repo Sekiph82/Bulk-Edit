@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getAccessToken,
-  getListings,
   createVariationJob,
   listVariationJobs,
   generateVariationPreview,
@@ -13,11 +12,11 @@ import {
   applyVariationJob,
   getVariationResults,
   ApiError,
-  type ListingListItem,
   type VariationJob,
   type VariationPreviewItem,
   type VariationResult,
 } from "@/lib/api";
+import ListingPicker from "@/components/listings/ListingPicker";
 
 const OPERATION_OPTIONS = [
   { value: "set_variation_price", label: "Set Variation Price" },
@@ -93,9 +92,7 @@ function buildPayload(
 
 export default function VariationsPage() {
   const router = useRouter();
-  const [listings, setListings] = useState<ListingListItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [search, setSearch] = useState("");
   const [operationType, setOperationType] = useState("set_variation_price");
   const [amount, setAmount] = useState("");
   const [findText, setFindText] = useState("");
@@ -112,18 +109,6 @@ export default function VariationsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [listingsLoaded, setListingsLoaded] = useState(false);
-
-  const loadListings = useCallback(async () => {
-    try {
-      const page = await getListings({ has_variations: true, per_page: 200, search: search || undefined });
-      setListings(page.items);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 401) router.push("/login");
-    } finally {
-      setListingsLoaded(true);
-    }
-  }, [search, router]);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -135,17 +120,8 @@ export default function VariationsPage() {
   useEffect(() => {
     const token = getAccessToken();
     if (!token) { router.push("/login"); return; }
-    loadListings();
     loadJobs();
-  }, [loadListings, loadJobs, router]);
-
-  const toggleListing = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
+  }, [loadJobs, router]);
 
   const handleCreateAndPreview = async () => {
     if (selectedIds.size === 0) { setError("Select at least one listing."); return; }
@@ -188,10 +164,6 @@ export default function VariationsPage() {
   const hasInvalidPreview = previewItems.some((p) => p.validation_status === "invalid");
   const canApply = activeJob?.status === "preview_ready" && !hasInvalidPreview;
 
-  const filteredListings = listings.filter(
-    (l) => !search || (l.title ?? "").toLowerCase().includes(search.toLowerCase()),
-  );
-
   const needsAmount = [
     "set_variation_price", "adjust_variation_price_percent", "adjust_variation_price_fixed",
     "set_variation_quantity", "adjust_variation_quantity_fixed", "set_variation_sku",
@@ -213,41 +185,26 @@ export default function VariationsPage() {
           {/* Left: Listing selector */}
           <div className="lg:col-span-1 bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3">
             <h2 className="font-semibold text-gray-800">Select Listings (with variations)</h2>
-            <input
-              type="text"
-              placeholder="Search listings..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-            <div className="overflow-y-auto max-h-96 divide-y divide-gray-100">
-              {filteredListings.length === 0 && listingsLoaded && (
+            <ListingPicker
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+              extraParams={{ has_variations: true }}
+              showStatusFilter={false}
+              renderEmpty={(hasSearch) => (
                 <div className="py-4 text-center space-y-1.5">
                   <p className="text-sm text-gray-400">
-                    {search
+                    {hasSearch
                       ? "No variation listings match your search."
                       : "No listings with variations are currently synced."}
                   </p>
-                  {!search && (
+                  {!hasSearch && (
                     <Link href="/listings" className="text-xs font-medium text-indigo-600 hover:underline">
                       Open Listings →
                     </Link>
                   )}
                 </div>
               )}
-              {filteredListings.map((l) => (
-                <label key={l.id} className="flex items-start gap-2 py-2 cursor-pointer hover:bg-gray-50 px-1 rounded">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(l.id)}
-                    onChange={() => toggleListing(l.id)}
-                    className="mt-0.5"
-                  />
-                  <span className="text-xs text-gray-700 leading-snug">{l.title ?? l.etsy_listing_id}</span>
-                </label>
-              ))}
-            </div>
-            <p className="text-xs text-gray-400">{selectedIds.size} selected</p>
+            />
           </div>
 
           {/* Right: Operation config */}

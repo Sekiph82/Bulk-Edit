@@ -110,15 +110,17 @@ M02 PASS/CLOSED.
 - [ ] All/Active/Inactive/Draft/Expired filters with counts matching synced data.
 
 ### M03.04 - Shared ListingPicker component
-- [ ] Shop filter, status filter, title search, pagination, thumbnail, variation indicator, selected count, empty/error/loading states.
-- [ ] Consumers: Bulk Edit, Variations, Dynamic Pricing, Media, Video Generator, Promote.
+- [~] Component shipped: `apps/frontend/components/listings/ListingPicker.tsx` — shop filter (behind `showShopFilter`, hidden when the org has ≤1 shop), status filter, title search, pagination, thumbnail (`ListingListItem.thumbnail_url`, already returned by `getListings()`), variation indicator (`has_variations` badge), selected count, loading/error/empty states (with an overridable `renderEmpty` for consumer-specific honesty, e.g. Variations' no-data-vs-no-match distinction), multi-select and single-select modes, `disabled` read-only mode.
+- [x] Media migrated — replaced its client-side-only, unpaginated, thumbnail-less picker.
+- [x] Variations migrated — same component with `extraParams={{ has_variations: true }}`, preserving its existing no-data-vs-no-search-match empty-state distinction via `renderEmpty`.
+- [ ] **Not migrated this round, remaining consumers:** Dynamic Pricing (`pricing-rules/page.tsx` has a "select all *loaded* listings" action tied to holding the full un-paginated listings array client-side — doesn't map cleanly onto the picker's own paginated fetch; not "straightforward" per this package's own scope rule), Bulk Edit (949-line file with the live working apply flow — explicitly higher-risk than this round's non-destructive scope), Video Generator and Promote (neither currently calls `getListings()` at all — manual-URL/other selection flows — migrating them is a larger rewrite than a picker swap, left for a dedicated round).
 
 ### M03.05 - Variations/Dynamic Pricing/Media listing visibility
-- [ ] Variations page shows listings instead of a false empty state; distinguishes `has_variations`/`no_variations`/unknown.
-- [ ] Dynamic Pricing page shows listings; suggestions remain preview-only.
-- [ ] Media page loads listings when listings exist; operations remain read-only until M13.
+- [x] Variations page shows listings instead of a false empty state; distinguishes `has_variations`/no-data/no-search-match via `ListingPicker`'s `renderEmpty`.
+- [ ] Dynamic Pricing page shows listings — already did, pre-existing, unchanged this round; suggestions remain preview-only.
+- [x] Media page loads listings when listings exist; operations remain read-only/preview-gated until M13 (unchanged).
 
-M03 PARTIAL — listing sync foundation PASS, shared-picker/status-filter work PLANNED.
+M03 PARTIAL — listing sync foundation PASS; shared `ListingPicker` SHIPPED and migrated into Media + Variations (M03.04); Dynamic Pricing/Bulk Edit/Video Generator/Promote consumer migration remains PLANNED.
 
 ---
 
@@ -370,7 +372,7 @@ M12 PLANNED / PARTIAL (policy default only).
 
 ### M13.01 - Media module listing picker
 - [x] Fixed a real loading bug (2026-08-29, UX-01D): `load()` used `Promise.all([getListings, listMediaJobs, listVideoRenders])` — a failure in the unrelated `listMediaJobs()` call rejected the whole batch and blanked the listings picker with a misleading "Failed to load listings," even though `getListings()` (same helper the Listings page uses) would have succeeded. Decoupled into independent try/catches.
-- [ ] Still loads via a page-local `getListings()` call, not yet the shared `ListingPicker` component (M03.04).
+- [x] Now uses the shared `ListingPicker` component (M03.04, 2026-08-30) — gained thumbnails, server-side status filter, and pagination it never had as the page-local version.
 
 ### M13.02 - Listing image read-only view
 - [ ] Image count, primary image, missing-media warnings; no reorder/delete/upload until enabled.

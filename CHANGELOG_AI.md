@@ -6,6 +6,27 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-30 M03.04 — Shared ListingPicker (autonomous backlog PR 2/4)
+
+**Context:** owner away, autonomous 4-PR backlog sequence continues (M10 done → M03.04 this round). Branch `feature/m03-shared-listing-picker`, based on `origin/main` past PR #110's `f7d79e795be68026333908cca6a9b3303e6649e2`.
+
+**New component:** `apps/frontend/components/listings/ListingPicker.tsx` — every consumer had hand-rolled its own version of the same thing (Media/Variations/Dynamic Pricing/Bulk Edit each had a page-local `getListings()` call plus their own checkbox list), none consistently: Media's and Variations' were client-side-filtered and unpaginated (fetched up to 200 rows once, filtered in the browser, no thumbnail); only Bulk Edit's had real server-side search/pagination. `ListingListItem` already carried `thumbnail_url` and `has_variations` from the backend (confirmed via `lib/api.ts` — no backend change needed), just never rendered by the ad hoc pickers. New component: shop filter (`showShopFilter`, hidden when the org has ≤1 shop so it's not visual noise for the common case), status filter, title search, real server-side pagination (`getListings({ page, per_page, ... })`), thumbnails, a variation-indicator badge, selected count, loading/error/empty states, an overridable `renderEmpty(hasSearch)` for consumer-specific empty-state honesty, multi-select and single-select modes, a `disabled` read-only mode.
+
+**Migrated:** Media page — replaced its `filtered = listings.filter(...)` client-side search + unpaginated 200-row fetch with `<ListingPicker selectedIds={selectedIds} onSelectionChange={setSelectedIds} />`; the page's own `load()` now only fetches jobs/video-renders (the listing fetch moved into the picker), preserving the PR #106 fix that decoupled those from the listings load. Variations page — same swap, plus `extraParams={{ has_variations: true }}` and a `renderEmpty` that reproduces the exact PR #106 empty-state wording verbatim ("No variation listings match your search." vs "No listings with variations are currently synced." + an "Open Listings →" link) — that owner-facing honesty distinction was preserved, not regressed, by the migration.
+
+**Not migrated this round, documented not silently dropped:**
+- **Dynamic Pricing** (`pricing-rules/page.tsx`) — has a "select all *loaded* listings" button (`setSelectedIds(new Set(listings.map(l => l.id)))`) that depends on holding the full un-paginated listings array client-side. `ListingPicker` deliberately owns its own paginated fetch and doesn't expose the underlying array to the caller, so this doesn't map onto the component without either changing the button's behavior (select-all-on-current-page, a UX change) or breaking the picker's own encapsulation. Not "straightforward" per this package's own scope rule — left for a dedicated round.
+- **Bulk Edit** (`bulk-edit/page.tsx`) — 949 lines, contains the live working Apply/Revert flow (PR #103's double-submit-guard/blocking-overlay, the actual write path). Explicitly higher risk than this autonomous, non-destructive round's budget — the task's own instruction was "only if safe and low-risk," and a picker swap touching the file with the real write flow isn't.
+- **Video Generator, Promote** — neither currently calls `getListings()` at all (different selection flows entirely — manual URL paste / other). Migrating them is a larger rewrite than a picker swap.
+
+**Checks:** `npx tsc --noEmit` clean. `npx next lint` — zero new warnings on any changed file (only the pre-existing repo-wide `react-hooks/exhaustive-deps` pattern elsewhere). `npx next build` clean — `/media` and `/variations` both compile.
+
+**Checks:** `git diff --check` clean. Manual secret-pattern scan of the diff — zero matches.
+
+**Safety:** no Etsy API call, no Bulk Edit apply/Magic Revert/shop sync/OAuth, no Connect Etsy clicked, no listing/media changed, no Stripe/DNS/Cloudflare/env change, no secrets printed, Private Beta untouched by Claude/Codex. No task marked `[x]` without evidence — M03.04 itself stays `[~]` given 2 of 6 consumers migrated.
+
+---
+
 ## 2026-08-30 M10 — Listing Health issue detail + Shop Insights affected listings (autonomous backlog PR 1/4)
 
 **Context:** owner away, working autonomously through a selected 4-PR backlog sequence (M10 → M03.04 → M13/M15 → M19), one focused PR per milestone, non-destructive only (no Etsy calls, no Apply/Revert/Sync, no media upload/delete). Branch `feature/m10-listing-health-insights-details`, based on `origin/main` past PR #109's `fd7269e0a469d40ecbad9b7386bdca639980f3a5`.
