@@ -39,6 +39,11 @@ Package numbering such as `M08.01`, `M08.02`, etc. is task/audit decomposition o
 - **Magic Revert plan-gate enforcement closed (M08.07/M16.06).** `validate_apply_job_revertable()` and `get_revert_eligibility_map()` now both check the effective plan's `can_use_magic_revert` (comp-grant aware) — Free plan is blocked with `403` on the direct endpoint and `can_revert=false` in history; Pro (including comp-grant Pro) is allowed. Checked last in precedence order, so an already-reverted job still reports "Already reverted.", not plan-blocked, and no cross-org job existence leaks through the gate.
 - **Account-01 (M11) shipped as PR #105** (Account Center `/account` 11-route subnav, Connected Shops relocated from `/shops`, customer-safe Plan/Billing/Usage/Credits UI) — merged and deployed 2026-08-29. M11 checkboxes below are now backfilled against that PR.
 - **UX-01D (owner visual QA remediation, PR #106) addressed 6 owner-reported issues** — Magic Revert nav placeholder (since superseded by the real history page, PR #107), Media page listings-load bug, Bulk Create false shop-gate, product-detail image/layout fixes, truthful Performance metrics (no fake data), 3 recommendation banners removed. See M09.06, M13.01, M13.07, M15.01, M16.02, M16.03.
+- **PR #108** (docs cleanup after PR #101/#107, stale pre-merge wording fixed) merged — see `2026-08-30_RETROSPECTIVE_pr108-docs-cleanup.md` in `bulkeditapp logs`.
+- **PR #109** (M08.07/M16.06, `can_use_magic_revert` plan-gate enforcement) merged — see above.
+- **Autonomous selected-backlog run, PR #110–#113 (owner away, non-destructive only), all merged and deployed:** PR #110 M10 (Listing Health issue detail, Shop Insights affected listings); PR #111 M03.04 (shared `ListingPicker`, Media+Variations migrated); PR #112 M13/M15 (media/variation read-only depth); PR #113 M19 (beta readiness smoke matrix + owner runbooks). Full roll-up: `2026-08-30_08-00_selected-backlog-autonomous-rollup.md`.
+- **PR #114** (CodeQL cleanup, 2 unused-variable removals, no behavior change) merged — see `2026-08-30_RETROSPECTIVE_pr114-codeql-cleanup.md`.
+- **Owner manual non-destructive smoke test (2026-08-30)** across `/listing-health`, `/insights`, `/media`, `/variations`, `/video-generator`, `/magic-revert`, `/account/activity` found 4 polish items, all closed this round (branch `fix/owner-qa-polish-before-write-tests`): Bulk Edit "Fix in Bulk Edit" preselection visibility (M04.05), Media current-media gallery (M13.02), Video Generator synced-photo thumbnail preview (M13.05), dashboard onboarding cross-sell copy neutralized. **Recommended next owner action: single-listing title write + Magic Revert, then single-listing price write + Magic Revert** — see `HANDOFF.md`.
 
 ---
 
@@ -113,7 +118,9 @@ M02 PASS/CLOSED.
 - [~] Component shipped: `apps/frontend/components/listings/ListingPicker.tsx` — shop filter (behind `showShopFilter`, hidden when the org has ≤1 shop), status filter, title search, pagination, thumbnail (`ListingListItem.thumbnail_url`, already returned by `getListings()`), variation indicator (`has_variations` badge), selected count, loading/error/empty states (with an overridable `renderEmpty` for consumer-specific honesty, e.g. Variations' no-data-vs-no-match distinction), multi-select and single-select modes, `disabled` read-only mode.
 - [x] Media migrated — replaced its client-side-only, unpaginated, thumbnail-less picker.
 - [x] Variations migrated — same component with `extraParams={{ has_variations: true }}`, preserving its existing no-data-vs-no-search-match empty-state distinction via `renderEmpty`.
-- [ ] **Not migrated this round, remaining consumers:** Dynamic Pricing (`pricing-rules/page.tsx` has a "select all *loaded* listings" action tied to holding the full un-paginated listings array client-side — doesn't map cleanly onto the picker's own paginated fetch; not "straightforward" per this package's own scope rule), Bulk Edit (949-line file with the live working apply flow — explicitly higher-risk than this round's non-destructive scope), Video Generator and Promote (neither currently calls `getListings()` at all — manual-URL/other selection flows — migrating them is a larger rewrite than a picker swap, left for a dedicated round).
+- [x] Video Generator migrated (2026-08-30) — single-select mode, used for the "select a listing's synced photos" image-source option (not its own separate render-batch flow, which doesn't select listings the same way).
+- [x] Owner-QA-confirmed (2026-08-30, manual non-destructive smoke test): Media and Variations pickers both observed working — search/pagination/thumbnails/selection all functional against real data.
+- [ ] **Not migrated, remaining consumers:** Dynamic Pricing (`pricing-rules/page.tsx` has a "select all *loaded* listings" action tied to holding the full un-paginated listings array client-side — doesn't map cleanly onto the picker's own paginated fetch; not "straightforward" per this package's own scope rule), Bulk Edit (949-line file with the live working apply flow — explicitly higher-risk than a non-destructive round's scope), Promote (doesn't call `getListings()` at all — migrating it is a larger rewrite than a picker swap, left for a dedicated round).
 
 ### M03.05 - Variations/Dynamic Pricing/Media listing visibility
 - [x] Variations page shows listings instead of a false empty state; distinguishes `has_variations`/no-data/no-search-match via `ListingPicker`'s `renderEmpty`.
@@ -140,6 +147,9 @@ M03 PARTIAL — listing sync foundation PASS; shared `ListingPicker` SHIPPED and
 - [x] 33-listing price apply/revert — owner-verified live (Success 32/Failed 0/Skipped 1 apply; Restored 32/Failed 0/Skipped 0 revert; Etsy confirmed both price directions).
 - [ ] 3-listing and 10-listing batch sizes — not separately tested.
 - [ ] Non-price fields (title/tags/etc.) at batch scale — not separately tested.
+
+### M04.05 - Preselection UX from Listing Health / Insights (owner QA fix)
+- [x] Owner-reported (2026-08-30, manual non-destructive smoke test): a listing preselected via `?listing_ids=<id>` (from "Fix in Bulk Edit") showed a generic "N listing(s) pre-selected" banner but the actual listing wasn't clearly visible/checked in the on-screen picker — it was correctly held in state, but if it wasn't on page 1 of the default unfiltered listing table, nothing on screen showed it. Fixed: preselected listing(s) are now fetched by id independently of the paginated/search table and rendered in a pinned "Pre-selected" section at the top of the picker (checked, with title/Etsy id), the banner names the actual title (not just a count), selection persists across pagination/search (already worked, confirmed unchanged), and no automatic apply is triggered.
 
 M04 PARTIAL.
 
@@ -276,15 +286,18 @@ M09 PARTIAL / IMPLEMENTATION COMPLETE FOR SHIPPED ITEMS, PENDING OWNER CLICK-THR
 ### M10.01 - Listing Health issue detail
 - [~] Partial. The backend already computed a full per-listing issue list (`score_listing()` → `title`/`tags`/`description`/`media`/`pricing` categories, each with severity/message/recommended_fix) but the frontend only ever rendered the bare `issue_count` number — the API already returned `top_issues` (first 3) per row and a `GET /listing-health/listings/{id}` detail endpoint with `all_issues`/`suggested_actions`, both unused. Fixed: the Issues column is now clickable, expanding an inline row of severity-colored issue pills (tag count e.g. `0/13`, photo count, title length, description length, missing/zero price — each pill's `title` tooltip shows the recommended fix), with a "Show all N issues"/suggested-fixes fetch-on-demand when more than the 3 `top_issues` exist. Tag count and photo count are also still shown as their own dedicated table columns (pre-existing).
 - **Exact gap, not hidden:** `score_listing()` itself does not compute zero-quantity, variation, or personalization/materials issues at all (confirmed via code read — only title/tags/description/photos/price are scored) — no issue data was invented to fill this gap, per the task's explicit rule. Adding those checks is a backend scoring-engine change, out of scope for a frontend detail-surfacing pass; tracked as a follow-up.
+- [x] Owner-QA-confirmed (2026-08-30, manual non-destructive smoke test): issue-pill expand works, issue details render for real listings (owner observed tags/no-video examples), "View Product" works. Kept at `[~]` overall — the scoring-engine gap above is unrelated to what owner QA can confirm and remains the reason this stays partial, not the UI itself.
 
 ### M10.02 - View Product / Fix in Bulk Edit paths
 - [x] "Fix in Bulk Edit" pre-existing on the Listing Health table.
 - [x] "View Product" link added, same internal listing id (PR #104) — minimal addition, no issue-detail redesign mixed in.
+- [x] Owner-QA-confirmed (2026-08-30): both links route correctly. "Fix in Bulk Edit" was found to preselect the listing in state but not clearly show it on screen — **closed this round**, see M04.05.
 
 ### M10.03 - Shop Insights affected listings
 - [x] "Affected Listings" mini-sections shipped on `/insights`: Missing tags, Low photo count, Short titles, Missing/zero price, Zero quantity — first 10 per section (new `GET /insights/affected-listings` endpoint, local-DB-only, no Etsy call), each item showing thumbnail (or a placeholder), title, the relevant metric (e.g. `0/13 tags`, `1 photo`, `9-char title`, `No price set`, `0 in stock`), `View Product`, and `Fix in Bulk Edit`. Section header shows the true total count even when more than 10 exist. Empty sections are hidden rather than shown with zero rows.
+- [x] Owner-QA-confirmed (2026-08-30): Missing tags section observed working with real thumbnails, `0/13` metric, and both action links functional.
 
-M10 PARTIAL — M10.02/M10.03 SHIPPED; M10.01 issue-detail surfacing SHIPPED for the categories the scoring engine actually computes (title/tags/description/photos/price), zero-quantity/variation/personalization issue *detection* remains a backend follow-up.
+M10 PARTIAL — M10.02/M10.03 SHIPPED and owner-QA-confirmed; M10.01 issue-detail surfacing SHIPPED and owner-QA-confirmed for the categories the scoring engine actually computes (title/tags/description/photos/price), zero-quantity/variation/personalization issue *detection* remains a backend follow-up (this is why M10.01 stays `[~]`, not the UI quality).
 
 ---
 
@@ -376,6 +389,7 @@ M12 PLANNED / PARTIAL (policy default only).
 
 ### M13.02 - Listing image read-only view
 - [x] Product detail page (`/listings/[listingId]`) Media card now shows a full read-only thumbnail grid of every synced image (was: primary image + count + "Full image gallery is not available yet."), plus a truthful amber warning when zero photos are synced. No reorder/delete/upload control added — grid is display-only.
+- [x] Owner-reported (2026-08-30, manual non-destructive smoke test): the same gap existed on the Media page's own listing picker — selecting a listing gave no indication of what media it already had synced. Fixed: a "Current Media (read-only)" panel now appears below the picker — single selection shows the primary + all synced thumbnails; multiple selections show a compact per-listing summary (thumbnail, title, photo count) for the first 5; "Current media not synced yet" shown truthfully when none exist. No upload/delete/replace/reorder control added.
 
 ### M13.03 - Etsy listing video upload workflow
 - [!] Blocked — implemented historically but never live-tested. Needs owner-approved single-listing test, preview/confirmation, item-level report, rate-limit handling (via M07).
@@ -385,6 +399,7 @@ M12 PLANNED / PARTIAL (policy default only).
 
 ### M13.05 - Video Generator real workflow
 - [~] Listing-based image selection shipped: a "Select from a listing's synced photos" option (alongside, not replacing, manual URL paste) uses the shared `ListingPicker` + `getListingImages()` to populate the same image-URL list the existing render form already used — the actual render-triggering path (`handleRender`) is completely untouched. Preview/approval, per-listing job state, and the existing "not yet Etsy-uploaded until approved" flow were already in place and are unchanged. Batch selection (multiple listings → multiple jobs) not added this round.
+- [x] Owner-reported (2026-08-30, manual non-destructive smoke test): picking a listing filled the URL textarea but gave no visual confirmation of which photos were actually selected. Fixed: a thumbnail preview grid (in image order, first image marked) now renders below the picker whenever a listing is chosen; "No synced photos available for this listing." shown truthfully when none exist. Textarea stays editable. No video generation or external provider call added or triggered.
 
 ### M13.06 - Promote (Pinterest/Instagram)
 - [!] Blocked on external app setup: Pinterest developer app + redirect URI + scopes; Meta developer app + Instagram Graph API + business/creator permissions; production review if required.
@@ -424,10 +439,10 @@ M14 PLANNED.
 - Owner-observed (2026-08-29): Variation Bulk Editor showed "No variation listings found" for the connected shop at the time. **Still not treated as a confirmed bug** — the `has_variations=true` filter is real and correctly-synced; whether that shop's listings genuinely have zero variations is unverifiable without a live authenticated check. Unchanged this round.
 
 ### M15.02 - Variation price edit preview
-- [x] Audit correction: this was already fully shipped (Sprint 12, 2026-06-26, predates this session's tracked rounds) — `generate_variation_preview()` builds a before/after diff from local `ListingVariation` data only (zero Etsy call for preview), rendered in the existing before/after preview table. Was incorrectly still marked `[ ]`; corrected based on code + the 26 existing tests in `test_bulk_edit_variation.py`, not newly built this round.
+- [~] Code exists and is shipped (Sprint 12, 2026-06-26, predates this session's tracked rounds) — `generate_variation_preview()` builds a before/after diff from local `ListingVariation` data only (zero Etsy call for preview), rendered in the existing before/after preview table; 26 existing tests in `test_bulk_edit_variation.py` cover it. **Kept at `[~]`, not `[x]`** (2026-08-30 owner QA round): the owner's manual smoke test confirmed the Variation Data *read* matrix works against real synced data, but did not specifically exercise creating a price-preview job and inspecting its output — preview-output correctness itself remains code/test-verified only, not owner-observed. Promote to `[x]` once an owner actually runs a preview (no apply) and confirms the before/after numbers look right.
 
 ### M15.03 - Variation quantity edit preview
-- [x] Same correction as M15.02 — quantity preview uses the identical `generate_variation_preview()` path; already shipped, already tested, was mismarked `[ ]`.
+- [~] Same as M15.02 — quantity preview uses the identical `generate_variation_preview()` path, shipped and unit-tested, but not yet owner-observed specifically. Kept at `[~]` for the same reason.
 
 ### M15.04 - Variation write apply/revert
 - [~] Audit correction, not `[ ]` and not `[x]`: an apply mechanism already exists in code (`apply_variation_job()` — fetch-patch-put against Etsy, backup-before-write, confirm-to-apply UI with a "Type APPLY VARIATIONS" gate) and is unit-tested, but two things are genuinely missing: (1) **no owner live verification has ever occurred** for a variation write (unlike the price/title write saga, which has an extensive owner-run verification trail) — code-level tests mock Etsy and are not acceptance evidence per this file's own rule; (2) **variation revert does not exist at all** — the Sprint 12 changelog entry explicitly says "Revert for variations explicitly deferred to Sprint 13," and no revert code was ever added. Neither gap was touched this round (no live write, no revert built) — this is a documentation-accuracy correction, not new work.
@@ -435,7 +450,7 @@ M14 PLANNED.
 ### M15.05 - Variation diagnostics
 - [x] `BulkEditVariationPreviewItem.validation_messages` already existed on the backend (populated by `build_variation_preview_for_listing()`) but was never rendered — fixed: the preview table now has a Diagnostics column showing the exact safe validation message(s) per item (list-formatted) instead of only a bare status badge. No raw Etsy body/token/secret ever included in these messages (confirmed via the same code path M05.04 already established as sanitized).
 
-M15 PARTIAL — read model + matrix (M15.01), price/quantity preview (M15.02/M15.03, corrected from a stale `[ ]`), and diagnostics (M15.05) SHIPPED; apply exists+tested but never owner-live-verified and revert doesn't exist at all (M15.04, `[~]` not `[x]`).
+M15 PARTIAL — read model + matrix (M15.01, owner-QA-confirmed 2026-08-30 against a real synced variation listing) and diagnostics (M15.05) SHIPPED; price/quantity preview (M15.02/M15.03) code-shipped but not yet owner-observed, kept `[~]`; apply exists+tested but never owner-live-verified and revert doesn't exist at all (M15.04, `[~]` not `[x]`).
 
 ---
 
@@ -447,10 +462,12 @@ M15 PARTIAL — read model + matrix (M15.01), price/quantity preview (M15.02/M15
 
 ### M16.02 - Apply Job history
 - [x] Shipped (PR #107, 2026-08-29): new org-wide, paginated `GET /api/v1/bulk-edit/apply-jobs` endpoint (the only genuinely new backend capability — job detail, revert-jobs list, revert-job detail/results all already existed). Surfaced in `/magic-revert` (job table: date, status, item counts, revert availability) and `/account/activity` (synthesized Bulk Edit Apply + Magic Revert rows from the same data) — see M11.09.
+- [x] Owner-QA-confirmed (2026-08-30, manual non-destructive smoke test): `/magic-revert` job list, "View details" expand, "Revertable only" filter, and "already reverted"/failed-jobs-not-revertable states all observed working against real data. `/account/activity` confirmed showing both Bulk Edit Apply and Magic Revert rows. Owner did not run a live revert during this pass (non-destructive by design) — see M16.03.
 
 ### M16.03 - Magic Revert from prior jobs
 - [x] Shipped (PR #107, 2026-08-29): reverting a job other than the one just completed is enabled, not just displayed. Audit found `POST /apply-jobs/{apply_job_id}/revert` already accepted **any** apply_job_id (org-scoped, idempotent, 409 on double-revert) — it was already safe for history use, just never exposed in the UI. `/magic-revert`'s revert action reuses the exact PR #103 (UX-01A) double-submit-guard + blocking-overlay safety pattern. One real backend gap fixed alongside this: `validate_apply_job_revertable()` never checked a job had ≥1 successful item before "reverting" it (harmless 0-item no-op before, now a clean 400).
 - [x] The 2026-08-29 (UX-01D) nav-level placeholder at `/magic-revert` is superseded — it is now the real history/revert page described above, not a placeholder.
+- [ ] **Owner live revert test still pending** — code+UI confirmed via manual read-only QA (2026-08-30), but no owner has yet clicked Revert against a real Etsy listing through this page. Recommended next owner action (see `HANDOFF.md`).
 
 ### M16.04 - Audit/activity table
 - [~] Partial: `/magic-revert` has status and revertable-only filters, sourced from the same history endpoint. Not yet done: full search by user/shop/listing/date, and an export-safe summary view.
@@ -507,12 +524,14 @@ M18 PARTIAL.
 ### M19.01 - Production smoke-test matrix
 - [~] `docs/operations/BETA_READINESS_SMOKE_MATRIX.md` created — 20 categories (Auth, Private Beta gate, Connected Shops, shop sync, Listings grid, product detail, Listing Health, Shop Insights, Bulk Edit preview, title/price write+revert, Magic Revert History, Media read, Variations read, Billing, Usage/Credits, Account pages, mobile/responsive, error/empty/loading states, rate limit, help/support, security/no-secret-logging), each row with objective/route/data needed/owner-run-vs-automated/destructive-flag/expected result/evidence/pass-fail. `[~]` not `[x]` because the matrix itself is a checklist template — every "Pass/Fail" cell is genuinely blank pending the owner-run rows being executed; only the automated rows (route/health checks) have been run and confirmed passing (26/26 against production, 2026-08-30).
 - [x] Automated read-only smoke script fixed and re-verified: `scripts/smoke_test_deployment.sh`/`.ps1` existed but were stale (`/register` expected `200`, which is wrong now that Private Beta redirects it `307`; `/admin` no longer exists, renamed `/owner`; missing most current app routes). Updated route list, added `/health/db`/`/health/redis` checks, ran both scripts live against `https://app.bulkeditapp.com`/`https://api.bulkeditapp.com` — 26/26 passed on both the bash and PowerShell versions.
+- [x] Owner-QA-confirmed (2026-08-30): owner ran the non-destructive screen-check portion of the matrix manually across `/listing-health`, `/insights`, `/media`, `/variations`, `/video-generator`, `/magic-revert`, `/account/activity`, and smoke routes. All destructive owner-run rows (shop sync, title/price write+revert, variation apply, media upload/delete, video generation) remain genuinely pending — none run by the owner or by Claude/Codex this round.
 
 ### M19.02 - Help docs and owner runbooks
 - [x] Three runbooks created in `docs/operations/`: `OWNER_BULK_EDIT_RUNBOOK.md` (safe single-listing test procedure, evidence capture, stop conditions, revert pointer, error-meaning table), `MAGIC_REVERT_RUNBOOK.md` (how to read the History page's eligibility states, safe revert procedure, error-meaning table), `RATE_LIMIT_RUNBOOK.md` (how the PR #102 pacing/retry guard actually works, what a residual 429 looks like, what to do about it). All three are read-only reference material — none instruct or enable Claude/Codex to perform any live action.
 
 ### M19.03 - UX polish
-- [~] No additional low-risk copy/loading/empty-state fix was found this round beyond what already shipped in the M10/M13/M15 PRs earlier in this same autonomous sequence (Listing Health issue pills, Shop Insights affected-listings, product-detail image gallery, variation matrix, Media truthful "coming soon" copy). Not fabricating a polish item to fill this checkbox — leaving genuinely `[~]` rather than falsely `[x]`.
+- [~] No additional low-risk copy/loading/empty-state fix was found in the M19 round itself beyond what already shipped in the M10/M13/M15 PRs earlier in the same autonomous sequence (Listing Health issue pills, Shop Insights affected-listings, product-detail image gallery, variation matrix, Media truthful "coming soon" copy). Not fabricated to fill this checkbox at the time.
+- [x] Owner-reported (2026-08-30, separate manual QA round after M19): dashboard onboarding still showed "Explore paid features" — cross-sell tone the PR #106 banner-removal policy already established should not exist in the customer-facing app. Fixed: `components/onboarding/OnboardingChecklist.tsx` step relabeled "Review available tools" with neutral description ("See what's included in your plan…" instead of "Unlock…"). Kept package at `[~]` overall since this is one targeted fix, not a full polish pass.
 
 M19 PARTIAL — M19.02 (runbooks) SHIPPED in full; M19.01 (smoke matrix doc + automated script) SHIPPED with owner-run rows still pending execution (expected — those require live/manual verification); M19.03 stays `[~]`, no fabricated polish item.
 

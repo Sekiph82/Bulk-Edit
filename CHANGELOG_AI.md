@@ -6,6 +6,18 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-30 Owner QA polish + local log/H!veAI tracking backfill
+
+**Owner QA polish PR** (branch `fix/owner-qa-polish-before-write-tests`, frontend-only, no write/apply/revert/sync/media/video code touched): after a manual non-destructive smoke test across `/listing-health`, `/insights`, `/media`, `/variations`, `/video-generator`, `/magic-revert`, `/account/activity`, the owner found 4 polish items — all fixed. (1) Bulk Edit's `?listing_ids=` preselection was correctly held in state but not visibly checked if off page 1 — now fetched independently and pinned in a "Pre-selected" section at the top, with the real title in the banner. (2) Media's picker showed no current-media state — added a read-only "Current Media" panel (single/multi-selection). (3) Video Generator's listing-photo picker filled the URL textarea with no visual confirmation — added a thumbnail preview grid. (4) Dashboard onboarding's "Explore paid features" relabeled "Review available tools" (PR #106 banner-removal policy consistency). `TASKS.md` M15.02/M15.03 also corrected back to `[~]` (code+tests shipped, but owner didn't specifically verify preview output this round — a stricter bar than the earlier code-only audit used).
+
+**Local log / H!veAI tracking backfill** (same round, prompted by the user's explicit request to prevent stale-status drift): found PR #108 (docs cleanup after PR #101/#107) had no dedicated local execution log — retrospectively backfilled and marked `RETROSPECTIVE BACKFILL LOG`; same for PR #114 (CodeQL cleanup). New `C:\Users\sekip\Desktop\bulkeditapp logs\LOG_INDEX.md` indexes every log (original and retrospective) with PR/branch/merge-commit/status. `TASKS.md`/`HANDOFF.md`/`PROJECT_STATUS.md`/`.hiveai/PROJECT_DASHBOARD.md` all brought current through PR #114 and this round. New `DECISIONS.md` policy: every future task logs before merge and updates the index after.
+
+**Checks:** `npx tsc --noEmit`/`next lint`/`next build` clean, `git diff --check` clean, secret scan clean.
+
+**Safety:** no Etsy API call, no Apply/Revert/Sync, no media upload/delete/replace, no video generation, no Stripe/DNS/Cloudflare/env change, no secrets printed, Private Beta unchanged by Claude/Codex.
+
+---
+
 ## 2026-08-30 M19 — Beta readiness smoke matrix + owner runbooks (autonomous backlog PR 4/4, final)
 
 **Context:** owner away, this is the fourth and final PR in the selected autonomous backlog sequence (M10 → M03.04 → M13/M15 → M19, all now shipped). Branch `feature/m19-beta-readiness-smoke-matrix`, based on `origin/main` past PR #112's `10c7d54b3a1cbdf8577ce00c0524b76cce74d6de`. Docs and scripts only — zero frontend/backend application code touched.

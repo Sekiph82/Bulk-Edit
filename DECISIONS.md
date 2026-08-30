@@ -4,6 +4,16 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-30 (Owner QA polish; log/tracking discipline)
+
+### [POLICY] Local log discipline: every future Claude/Codex task creates a local execution log before PR merge, and updates `LOG_INDEX.md` after merge
+Discovered while backfilling logs for this round: PR #108 (docs cleanup after PR #101/#107) had no dedicated local execution log at all — its detail only survived as a passing mention inside two later, unrelated logs. Every other PR in this session's history has a real log. A single missed round is enough to break "H!veAI must be able to resume from correct current truth" if nobody happens to remember it. Going forward: `C:\Users\sekip\Desktop\bulkeditapp logs\LOG_INDEX.md` is the authoritative index of every log, original or retrospective; any task that opens a PR writes its own log before that PR merges, and updates the index after.
+
+### [POLICY] Claude/Codex may not run live Etsy write/revert/sync/media/video actions without explicit owner approval — reaffirmed, not new
+This has been the hard constraint on every task in this session already; recorded here as a durable, standing decision (not just a per-task instruction) because the project is now approaching the point where the owner is expected to run the first live write/revert tests themselves — the boundary needs to survive independently of any single task's prompt text. Applies equally to variation apply (no revert exists for it) and any future write-capable surface added later.
+
+---
+
 ## 2026-08-30 (M13/M15 read-only depth, autonomous backlog PR 3/4)
 
 ### [PRODUCT] Disabled Media's replace/delete operations until a real restore endpoint exists, despite them being live, working, tested pre-existing features

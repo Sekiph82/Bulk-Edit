@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { getAccessToken, getListingImages, ApiError } from "@/lib/api";
+import { getAccessToken, getListingImages, ApiError, type ListingImage } from "@/lib/api";
 import ListingPicker from "@/components/listings/ListingPicker";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8100";
@@ -263,6 +263,7 @@ function VideoGeneratorContent() {
   const [pickedListingId, setPickedListingId] = useState<Set<string>>(new Set());
   const [loadingListingImages, setLoadingListingImages] = useState(false);
   const [listingImagesError, setListingImagesError] = useState<string | null>(null);
+  const [pickedImages, setPickedImages] = useState<ListingImage[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [renderJob, setRenderJob] = useState<RenderStatus | null>(null);
 
@@ -292,16 +293,17 @@ function VideoGeneratorContent() {
     if (!id) return;
     setLoadingListingImages(true);
     setListingImagesError(null);
+    setPickedImages([]);
     getListingImages(id)
       .then((imgs) => {
-        const urls = imgs
-          .slice()
-          .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
+        const sorted = imgs.slice().sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+        const urls = sorted
           .map((img) => img.url_fullxfull ?? img.url_570xN ?? img.url_170x135)
           .filter((u): u is string => !!u);
         if (urls.length === 0) {
-          setListingImagesError("This listing has no synced photos.");
+          setListingImagesError("No synced photos available for this listing.");
         }
+        setPickedImages(sorted);
         setImageUrlsText(urls.join("\n"));
       })
       .catch((e) => {
@@ -548,6 +550,23 @@ function VideoGeneratorContent() {
               />
               {loadingListingImages && <p className="text-xs text-gray-400 mt-2">Loading photos…</p>}
               {listingImagesError && <p className="text-xs text-red-600 mt-2">{listingImagesError}</p>}
+              {!loadingListingImages && pickedImages.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs text-gray-500 mb-1.5">{pickedImages.length} synced photo{pickedImages.length === 1 ? "" : "s"}, in image order:</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {pickedImages.map((img, i) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        key={img.id}
+                        src={img.url_170x135 ?? img.url_570xN ?? img.url_fullxfull ?? ""}
+                        alt=""
+                        title={i === 0 ? "First in order" : undefined}
+                        className={`w-14 h-14 rounded-lg object-cover border ${i === 0 ? "border-indigo-400 border-2" : "border-gray-200"}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
