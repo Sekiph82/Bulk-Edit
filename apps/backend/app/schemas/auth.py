@@ -78,11 +78,27 @@ class UserResponse(BaseModel):
     id: str
     email: str
     full_name: str
+    first_name: str | None
+    last_name: str | None
+    display_name: str
     is_active: bool
     is_verified: bool
     is_superuser: bool
 
     model_config = {"from_attributes": True}
+
+
+class UpdateProfileRequest(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def trim_and_blank_to_none(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        return v or None
 
 
 class OrganizationResponse(BaseModel):

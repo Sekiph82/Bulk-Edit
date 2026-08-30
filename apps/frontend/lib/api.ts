@@ -38,6 +38,49 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 // ---- Types ----
 
+export interface CurrentUser {
+  id: string;
+  email: string;
+  full_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  display_name: string;
+  is_active: boolean;
+  is_verified: boolean;
+  is_superuser: boolean;
+}
+
+export interface Membership {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  role: string;
+}
+
+export interface MeResponse {
+  user: CurrentUser;
+  memberships: Membership[];
+}
+
+export function getMe(): Promise<MeResponse> {
+  return apiFetch(`/api/v1/auth/me`);
+}
+
+export function updateProfile(data: { first_name: string; last_name: string }): Promise<CurrentUser> {
+  return apiFetch(`/api/v1/auth/me`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+/** Prefers first name alone for greeting copy ("Welcome, Şekip") over the
+ * fuller display_name ("Şekip Hayıt") — deterministic fallback chain:
+ * first_name -> last_name -> email -> null (caller shows bare "Welcome"). */
+export function getGreetingName(user: CurrentUser | null | undefined): string | null {
+  if (!user) return null;
+  if (user.first_name) return user.first_name;
+  if (user.last_name) return user.last_name;
+  if (user.email) return user.email;
+  return null;
+}
+
 export interface Shop {
   id: string;
   etsy_shop_id: string;
@@ -206,6 +249,18 @@ export function syncShop(shopId: string): Promise<SyncJobResult> {
 }
 
 export function logoutLocalSession(): void {
+  clearLocalSession();
+}
+
+/** Revokes the refresh token server-side (best-effort) and clears local session. */
+export async function logout(): Promise<void> {
+  const rt = typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
+  if (rt) {
+    await apiFetch(`/api/v1/auth/logout`, {
+      method: "POST",
+      body: JSON.stringify({ refresh_token: rt }),
+    }).catch(() => {});
+  }
   clearLocalSession();
 }
 

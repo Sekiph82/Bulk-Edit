@@ -4,7 +4,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import OnboardingChecklist from "@/components/onboarding/OnboardingChecklist";
-import { getListingHealthSummary, getProfitSummary, type ListingHealthSummary, type ProfitSummary } from "@/lib/api";
+import {
+  getListingHealthSummary,
+  getProfitSummary,
+  getMe,
+  getGreetingName,
+  type ListingHealthSummary,
+  type ProfitSummary,
+  type CurrentUser,
+} from "@/lib/api";
 
 interface ActionItem {
   id: string;
@@ -33,7 +41,7 @@ const activeFeatures = [
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [email, setEmail] = useState<string | null>(null);
+  const [user, setUser] = useState<CurrentUser | null>(null);
   const [shopCount, setShopCount] = useState<number | null>(null);
   const [listingCount, setListingCount] = useState<number | null>(null);
   const [bulkEditsUsed, setBulkEditsUsed] = useState<number | null>(null);
@@ -45,11 +53,8 @@ export default function DashboardPage() {
     const token = localStorage.getItem("access_token");
     if (!token) { router.push("/login"); return; }
 
-    fetch(`${BACKEND_URL}/api/v1/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data) setEmail(data.user.email); })
+    getMe()
+      .then((data) => setUser(data.user))
       .catch(() => {});
 
     fetch(`${BACKEND_URL}/api/v1/etsy/shops`, {
@@ -91,13 +96,38 @@ export default function DashboardPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-gray-500 mt-1">
-          {email ? `Welcome, ${email}` : "Manage your Etsy listings"}
+          {user ? (getGreetingName(user) ? `Welcome, ${getGreetingName(user)}` : "Welcome") : "Manage your Etsy listings"}
         </p>
       </div>
 
       {showChecklist && (
         <OnboardingChecklist shopCount={shopCount!} listingCount={listingCount!} bulkEditsUsed={bulkEditsUsed!} />
       )}
+
+      {/* Owner-verified production checks — static, truthful, manually recorded. Not an automated guarantee. */}
+      <div className="mb-6 bg-white border border-gray-200 rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">Owner-verified production checks</h2>
+        <p className="text-xs text-gray-500 mb-3">
+          Title and price write/revert were verified manually by the shop owner against live production Etsy. This is not an automated test suite — it reflects what has actually been run and confirmed.
+        </p>
+        <ul className="space-y-1.5 text-xs">
+          <li className="flex items-center gap-2 text-gray-700">
+            <span className="text-green-600">✓</span> Title write + Magic Revert — owner-verified
+          </li>
+          <li className="flex items-center gap-2 text-gray-700">
+            <span className="text-green-600">✓</span> Price write + Magic Revert — owner-verified
+          </li>
+          <li className="flex items-center gap-2 text-gray-400">
+            <span>—</span> Variation apply — not yet verified, optional, requires separate approval
+          </li>
+          <li className="flex items-center gap-2 text-gray-400">
+            <span>—</span> Media replace/delete — not yet verified, disabled pending restore support
+          </li>
+          <li className="flex items-center gap-2 text-gray-400">
+            <span>—</span> Video generation — not yet verified
+          </li>
+        </ul>
+      </div>
 
       {/* Health + Profit widgets */}
       {(healthSummary || profitSummary) && (

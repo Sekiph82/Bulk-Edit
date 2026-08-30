@@ -20,7 +20,7 @@ from app.models.password_reset_token import PasswordResetToken
 from app.models.refresh_token import RefreshToken
 from app.models.terms_acceptance import TermsAcceptance
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest
+from app.schemas.auth import LoginRequest, RegisterRequest, UpdateProfileRequest
 from app.services.email import send_password_reset_email
 
 logger = logging.getLogger(__name__)
@@ -196,6 +196,16 @@ async def get_user_memberships(user_id: str, db: AsyncSession) -> list[Organizat
         select(OrganizationMember).where(OrganizationMember.user_id == user_id)
     )
     return list(result.scalars().all())
+
+
+async def update_profile(user: User, data: UpdateProfileRequest, db: AsyncSession) -> User:
+    """Update the current user's first/last name. Trimming and blank-to-None
+    conversion already happened in UpdateProfileRequest's validator."""
+    user.first_name = data.first_name
+    user.last_name = data.last_name
+    await db.commit()
+    await db.refresh(user)
+    return user
 
 
 async def delete_account(user_id: str, password: str, db: AsyncSession) -> None:

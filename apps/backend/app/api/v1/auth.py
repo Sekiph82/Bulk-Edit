@@ -18,6 +18,7 @@ from app.schemas.auth import (
     ResetPasswordRequest,
     ResetPasswordResponse,
     TokenResponse,
+    UpdateProfileRequest,
     UserResponse,
 )
 from app.services.auth import (
@@ -30,6 +31,7 @@ from app.services.auth import (
     register_user,
     request_password_reset,
     reset_password,
+    update_profile,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -107,6 +109,16 @@ async def me(current_user=Depends(require_active_user), db: AsyncSession = Depen
         user=UserResponse.model_validate(current_user),
         memberships=[MembershipResponse.model_validate(m) for m in memberships],
     )
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    data: UpdateProfileRequest,
+    current_user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    updated = await update_profile(current_user, data, db)
+    return UserResponse.model_validate(updated)
 
 
 @router.delete("/me", response_model=DeleteAccountResponse)

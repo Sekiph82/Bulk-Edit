@@ -2,7 +2,35 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-30 (Dashboard onboarding tracking fix after owner live write tests — branch `fix/dashboard-onboarding-tracking-after-write-tests`)
+## RESUME HERE — 2026-08-30 (Account profile name + sidebar cleanup + beta-readiness/owner-control polish — branch `feature/account-profile-and-beta-readiness-control`)
+
+**Owner request, after both live write tests passed (see previous round):** add first/last name to Account, use it for greetings instead of raw email, and clean up the sidebar footer (remove email + Sign out, move Sign out into Account).
+
+**Part 1 — Account profile:**
+1. Backend: `User.first_name`/`User.last_name` added (migration `0026_add_user_name_fields.py`, nullable, no forced backfill). `User.display_name` property: deterministic fallback `first+last → first → last → email → "Account"`. `GET /api/v1/auth/me` now returns `first_name`/`last_name`/`display_name`. New `PATCH /api/v1/auth/me` — authenticated-self only, trims whitespace, blank string → `null` (clears the name). 5 new tests in `test_auth.py`, all passing.
+2. Frontend: new `/account/profile` page (first/last name inputs, read-only email, Save, loading/success/error states). New `lib/api.ts` helpers: `getMe()`, `updateProfile()`, `getGreetingName()` (greeting variant prefers first name alone, e.g. "Welcome, Şekip" not "Welcome, Şekip Hayıt").
+3. `/dashboard` greeting now uses `getGreetingName()` — falls back to email if no name set, to bare "Welcome" if even email unavailable, to the existing "Manage your Etsy listings" subtitle while loading.
+4. Sidebar (`AppShell.tsx`): removed the entire bottom user-footer block (email display + "Sign out" button + their fetch/handler code). Sign out moved to `/account` (new "Account controls" card, new `logout()` helper in `lib/api.ts`). Account nav entry unchanged.
+
+**Part 2 — Beta readiness / owner control polish (small, product-state-clarity only):**
+1. New static "Owner-verified production checks" card on `/dashboard` — truthfully lists what's actually been manually verified (title write+revert, price write+revert) vs. not yet (variation apply, media destructive actions, video generation). Explicitly not framed as automated.
+2. Variations page's Apply confirm modal: added one line — "Magic Revert does not support variation changes yet" — the existing copy mentioned an automatic backup snapshot in a way that could read as "revert available." No functionality changed.
+3. Account structure reviewed — already coherent (Profile/Plan & Billing/Usage/Credits/Connected Shops/Activity & Audit/Data & Privacy/Support/Sign out all present); no new large features added.
+4. Media/Magic Revert/Video Generator copy already honest from prior rounds (checked, no change needed) — coming-soon/no-restore-yet, cannot-be-undone, never-auto-uploaded language all already present.
+
+**Files changed:** backend — `app/models/user.py`, `app/schemas/auth.py`, `app/services/auth.py`, `app/api/v1/auth.py`, `alembic/versions/0026_add_user_name_fields.py`, `tests/test_auth.py`. Frontend — `lib/api.ts`, `app/(app)/dashboard/page.tsx`, `app/(app)/account/layout.tsx`, `app/(app)/account/page.tsx`, `app/(app)/account/profile/page.tsx` (new), `app/(app)/account/security/page.tsx`, `app/(app)/variations/page.tsx`, `components/ui/AppShell.tsx`.
+
+**Checks:** `npx tsc --noEmit` clean, `npx next lint` no new warnings, `npx next build` clean (`/account/profile` route confirmed in output). Backend: CI (Postgres) — **1136 passed, 0 failed** on PR #117, after fixing one wrong assertion in a new test (see note below). `git diff --check` clean, manual secret scan clean.
+
+**Correction to a stale local-testing claim:** a local `pytest` run (SQLite) showed 30 failures matching what looked like a pre-existing `*_requires_auth` 401-vs-403 baseline (and `PROJECT_STATUS.md` had an old note claiming the same, from a past session). CI's actual run proved this was a **local-venv-only artifact** — a stale dependency locally returns 401 for a missing token where FastAPI's real default (and CI's clean-install behavior) is 403. CI was fully green except for one of this round's own new tests, which had wrongly asserted 401 to match the misleading local result — fixed to assert 403. `PROJECT_STATUS.md`'s old "9 pre-existing baseline failures" note has been corrected. Trust CI, not a local run, for backend test baselines going forward.
+
+**Safety, explicit:** no Claude/Codex live Etsy action — the title/price write+revert tests referenced above were owner-run in production in the previous round, not by Claude/Codex. This round only adds a profile field, a greeting, a sidebar cleanup, and two copy changes — no new write/apply/revert/sync/media/video code path.
+
+**Recommended next owner action:** open `/account/profile`, enter first and last name, save, refresh `/dashboard` and confirm the greeting uses the saved name, confirm the sidebar no longer shows email/Sign out, confirm `/account` has a visible Sign out control, and confirm the onboarding checklist still shows the completed live-bulk-edit state.
+
+---
+
+## Previously — 2026-08-30 (Dashboard onboarding tracking fix after owner live write tests — PR #116, branch `fix/dashboard-onboarding-tracking-after-write-tests`, merge `2ec4226c8067ab59dde6fd203b77239c53ff13d9`)
 
 **Owner completed the two live production write tests recommended by the previous round:**
 1. Single-listing title write + Magic Revert — Apply completed, Magic Revert completed, owner reports OK.
