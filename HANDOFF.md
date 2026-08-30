@@ -2,30 +2,33 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-30 (M13/M15: read-only media + variation depth — PR 3 of an autonomous 4-PR backlog run)
+## RESUME HERE — 2026-08-30 (M19: beta readiness smoke matrix + owner runbooks — PR 4 of 4, final PR in the autonomous backlog run)
 
-**Owner still away; sequence continues (M10, M03.04 done → M13/M15 this round → M19).** Branch `feature/media-variations-read-depth`, based on `origin/main` past PR #111's `9a220b08a902ff521c19c5365946c7964048f696`. Zero backend files changed — every fix reuses an endpoint that already existed.
+**Owner still away; this is the last PR in the selected sequence (M10, M03.04, M13/M15 done → M19 this round).** Branch `feature/m19-beta-readiness-smoke-matrix`, based on `origin/main` past PR #112's `10c7d54b3a1cbdf8577ce00c0524b76cce74d6de`. Docs + scripts only — zero frontend/backend code changed.
 
-**Two real "backend already built it, frontend never showed it" gaps closed:**
-- **M13.02** — product detail page's Media card showed a primary image + count with "Full image gallery is not available yet."; `getListingImages()` already fetched every image. Now renders the full thumbnail grid.
-- **M15.01** — `ListingVariation` (property/value/price/qty/SKU/availability) has been synced by `etsy_sync.py` and exposed via `GET /listings/{id}/variations` since Sprint 5/12; nothing in the frontend ever called it. Variations page now has an expandable "Variation Data (read-only)" matrix per selected listing, truthfully distinguishing "no data synced yet" from "no rows at all."
+**New `docs/operations/BETA_READINESS_SMOKE_MATRIX.md`** — 20 categories, every row scoped as objective/route/data-needed/owner-run-vs-automated/destructive-flag/expected-result/evidence/pass-fail. Every destructive row (title/price write+revert, shop sync, rate-limit-under-real-load) is marked **owner-run only** — Claude/Codex performed none of them.
 
-**M15.05** — `validation_messages` existed on the backend preview-item schema, unused; preview table now has a Diagnostics column showing it.
+**Fixed a real, currently-broken pre-existing script, not just added a new doc:** `scripts/smoke_test_deployment.sh`/`.ps1` already existed but were stale enough to fail if run against production today — `/register` asserted `200` when Private Beta now makes it `307`, and `/admin` no longer exists (renamed `/owner`). Fixed both, added `/health/db`/`/health/redis` and the current app route list, then actually ran both scripts live against `https://app.bulkeditapp.com`/`https://api.bulkeditapp.com` — **26/26 passed on both**, not just claimed to work.
 
-**M13.05** — Video Generator gained a listing-image-selection option (via the new `ListingPicker`) alongside, not replacing, manual URL paste; the actual render-triggering code path is untouched.
+**Three new owner runbooks:** `OWNER_BULK_EDIT_RUNBOOK.md`, `MAGIC_REVERT_RUNBOOK.md` (including how to read the M08.07 plan-gate/history eligibility states), `RATE_LIMIT_RUNBOOK.md` (explains the actual PR #102 pacing/retry guard, sourced from the real config values `ETSY_BULK_WRITE_DELAY_MS=1100`/`ETSY_RETRY_MAX_ATTEMPTS=3`, not invented numbers).
 
-**Product decision, recorded in `DECISIONS.md`:** audit found Media's `replace_image`/`delete_image`/`replace_video`/`delete_video` are live, pre-existing (not introduced this round), working features — but no restore/revert endpoint exists anywhere for the `MediaBackup` rows they create. Disabled those four in the operation picker with truthful "coming soon — no restore yet" copy; `add_image`/`add_video` (nothing ever lost) stay enabled. Fully reversible UI-only change.
+**M19.03 UX polish: no fabricated item.** Nothing obviously low-risk was found while building the matrix beyond what already shipped in this session's earlier M10/M13/M15 PRs — left `[~]` honestly rather than inventing a change to check a box.
 
-**Docs-accuracy correction, also in `DECISIONS.md`:** M15.02/M15.03 were stale `[ ]` — variation price/quantity preview was actually built and unit-tested at Sprint 12 (2026-06-26), predating this session. Corrected to `[x]`. M15.04 (apply/revert) corrected to `[~]`, not `[x]` or `[ ]` — apply exists+tested but never owner-live-verified; revert was explicitly deferred at Sprint 12 and was never built. No live write, no revert code, added or run this round.
+**Checks:** no frontend/backend code changed — `tsc`/`lint`/`build`/backend tests not applicable. Both smoke scripts syntax-verified and live-run against production.
 
-**Checks:** zero backend changes → no backend test run needed. Frontend `tsc --noEmit`/`next lint`/`next build` all clean, no new warnings.
+**No Etsy API call, no Bulk Edit apply/Magic Revert/shop sync/OAuth, no media upload/delete by Claude/Codex.** All script runs were read-only GETs against public health/route endpoints, no auth, no secrets.
 
-**No Etsy API call, no Bulk Edit apply/Magic Revert/shop sync/OAuth, no media upload/delete/reorder by Claude/Codex.**
+**This is the end of the selected 4-PR autonomous sequence.** After this PR merges/deploys/verifies:
+1. Owner performs the manual/live rows in `BETA_READINESS_SMOKE_MATRIX.md` — especially the title/price write+revert and variation-apply rows, none of which have ever been owner-verified for variations (M15.04).
+2. Media restore/revert endpoint (closes the M13.04 gap PR #112's UI change is gating around) — separate future round.
+3. Remaining `ListingPicker` consumers (Dynamic Pricing, Bulk Edit, Video Generator, Promote) — separate future round.
+4. See the roll-up log (`bulkeditapp logs/`) for the full 4-PR summary once this PR is verified.
 
-**Recommended next work (autonomous sequence continues after this PR merges/deploys/verifies):**
-1. **M19** — beta readiness smoke matrix + owner runbooks.
-2. Media restore/revert endpoint (closes the M13.04 gap this round's UI change is gating around).
-3. Owner live QA of everything shipped this session, including a first-ever live variation apply verification if the owner chooses (M15.04) — Claude/Codex does not run live Etsy write/revert/sync/media actions.
+---
+
+## Previously — 2026-08-30 (M13/M15: read-only media + variation depth — PR 3 of an autonomous 4-PR backlog run)
+
+Branch `feature/media-variations-read-depth`, based on `origin/main` past PR #111's `9a220b08a902ff521c19c5365946c7964048f696`. Merged as PR #112 (`10c7d54b3a1cbdf8577ce00c0524b76cce74d6de`), deployed, route-verified. Zero backend files changed. Product detail page's Media card now shows a full read-only image gallery; Variations page shows a real read-only variation-data matrix (backend data existed and synced since Sprint 5/12, never rendered) plus a Diagnostics column; Media's replace/delete operations disabled pending a real restore endpoint (decision in `DECISIONS.md`); Video Generator gained listing-image selection; M15.02/M15.03/M15.04 statuses corrected to reflect pre-existing Sprint 12 code. See `CHANGELOG_AI.md` for full detail.
 
 ---
 

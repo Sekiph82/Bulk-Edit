@@ -82,11 +82,40 @@ Write-Host ""
 # Backend health
 Check-JsonField "Backend /health"       "$BackendUrl/api/v1/health"       "status" "ok"
 Check-JsonField "Backend /health/ready" "$BackendUrl/api/v1/health/ready" "status" "ready"
+Check-JsonField "Backend /health/db"    "$BackendUrl/api/v1/health/db"    "status" "ok"
+Check-JsonField "Backend /health/redis" "$BackendUrl/api/v1/health/redis" "status" "ok"
 
-# Frontend routes
-$routes = @("/", "/pricing", "/features", "/faq", "/contact-us", "/login", "/register",
-            "/dashboard", "/admin", "/shops", "/listings")
-foreach ($route in $routes) {
+# Public marketing/auth routes
+$publicRoutes = @("/", "/pricing", "/features", "/faq", "/contact-us", "/login", "/private-beta")
+foreach ($route in $publicRoutes) {
+    Check-Url "Frontend $route" "$FrontendUrl$route"
+}
+
+# /register redirects to /private-beta while Private Beta is enabled (registration
+# paused). Invoke-WebRequest follows redirects by default, so -MaximumRedirection 0
+# is needed to see the 307 itself rather than the page it redirects to. If Private
+# Beta is ever disabled, change ExpectedStatus to 200 here.
+try {
+    $r = Invoke-WebRequest -Uri "$FrontendUrl/register" -UseBasicParsing -TimeoutSec 15 -MaximumRedirection 0 -ErrorAction Stop
+    $code = $r.StatusCode
+} catch {
+    $code = $_.Exception.Response.StatusCode.value__
+}
+if ($code -eq 307) {
+    $script:passed++
+    $script:report += "  PASS  Frontend /register (Private Beta redirect) ($code)"
+} else {
+    $script:failed++
+    $script:report += "  FAIL  Frontend /register (Private Beta redirect) - expected 307, got $code"
+}
+
+# Authenticated app shell routes — unauthenticated requests still get a 200 HTML
+# shell (client-side redirect to /login happens in the browser), so this only
+# proves the route/build exists, not that auth or data-loading works.
+$appRoutes = @("/dashboard", "/owner", "/account", "/shops", "/billing", "/listings",
+               "/listing-health", "/insights", "/bulk-edit", "/magic-revert",
+               "/media", "/variations", "/pricing-rules", "/video-generator")
+foreach ($route in $appRoutes) {
     Check-Url "Frontend $route" "$FrontendUrl$route"
 }
 
