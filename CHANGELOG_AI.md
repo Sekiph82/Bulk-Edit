@@ -18,6 +18,20 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-30 Dashboard onboarding tracking fix after owner live write tests
+
+**Owner completed both recommended live production write tests** — single-listing title write + Magic Revert (OK) and single-listing price write (`price_amount` 6000→6288) + Magic Revert (Apply success=1/failed=0/skipped=0, revert restored=1/failed=0/skipped=0, OK). Both run by the owner directly, not by Claude/Codex.
+
+**Bug found immediately after** (branch `fix/dashboard-onboarding-tracking-after-write-tests`, frontend-only): the Dashboard onboarding checklist's "Try bulk edit" and "Review available tools" steps had `done: false` hardcoded — wired to no data at all, so they stayed incomplete regardless of the account's 130 real bulk edits. Fixed: "Try bulk edit" now reads `bulk_edits_used > 0` from `GET /api/v1/billing/usage` (the real, server-side counter `bulk_edit_apply.py` already increments on every successful apply — durable across refresh/logout/device, not localStorage). "Review available tools" removed from the checklist entirely — the dashboard's existing `activeFeatures` tool grid already covers that purpose neutrally.
+
+**Also fixed, same round:** Bulk Edit Add Changes table showed `[object Object]` for find/replace rules (`formatVal()` had no object branch) — now renders `Find: "<text>" → Replace: "<text>"`. Display-only, no payload/apply/revert semantics changed.
+
+**Checks:** `npx tsc --noEmit`/`next lint`/`next build` clean, `git diff --check` clean, secret scan clean. No backend files changed.
+
+**Safety:** no Etsy API call, no Apply/Revert/Sync, no media upload/delete/replace, no video generation, no Stripe/DNS/Cloudflare/env change, no secrets printed, Private Beta unchanged by Claude/Codex. Variation apply/revert, media restore/revert, and video generation remain separate, optional, and not marked complete anywhere.
+
+---
+
 ## 2026-08-30 M19 — Beta readiness smoke matrix + owner runbooks (autonomous backlog PR 4/4, final)
 
 **Context:** owner away, this is the fourth and final PR in the selected autonomous backlog sequence (M10 → M03.04 → M13/M15 → M19, all now shipped). Branch `feature/m19-beta-readiness-smoke-matrix`, based on `origin/main` past PR #112's `10c7d54b3a1cbdf8577ce00c0524b76cce74d6de`. Docs and scripts only — zero frontend/backend application code touched.

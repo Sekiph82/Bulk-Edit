@@ -4,6 +4,16 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-30 (Dashboard onboarding tracking fix)
+
+### [PRODUCT] Onboarding checklist completion must be sourced from real server-side account state, never hardcoded or client-only
+`OnboardingChecklist.tsx`'s "Try bulk edit" and "Review available tools" steps had `done: false` hardcoded from the start — no data source at all, so they could never reflect real usage regardless of account activity (found after the owner had already performed 130 bulk edits). Fixed by wiring "Try bulk edit" to `bulk_edits_used > 0` from `GET /api/v1/billing/usage`, the same durable, cross-device, server-side counter already used on `/account` and `/account/usage`. Any future onboarding/checklist step must use real account/usage/activity evidence (an existing endpoint if one exists) — never a hardcoded boolean or localStorage-only state — since a step that can never complete for an active paying customer is a worse trust signal than not having the step at all.
+
+### [PRODUCT] "Review available tools" removed from onboarding completion tracking rather than given new completion logic
+Considered three options (plan-based completion, usage/navigation-tracking completion, or removal). Chose removal: the dashboard already renders a full, unconditional tool grid (`activeFeatures`) below the checklist, so a 4th completion gate added no real product value and would have required new tracking infrastructure (either a plan check that's already implicitly true for most paid accounts, or new page-visit tracking) just to avoid the same "permanently incomplete" trap the "Try bulk edit" step fell into. If a future onboarding rework wants this step back, it must use real evidence per the decision above, not a hardcoded flag.
+
+---
+
 ## 2026-08-30 (Owner QA polish; log/tracking discipline)
 
 ### [POLICY] Local log discipline: every future Claude/Codex task creates a local execution log before PR merge, and updates `LOG_INDEX.md` after merge

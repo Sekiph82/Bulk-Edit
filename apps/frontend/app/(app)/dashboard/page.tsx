@@ -36,6 +36,7 @@ export default function DashboardPage() {
   const [email, setEmail] = useState<string | null>(null);
   const [shopCount, setShopCount] = useState<number | null>(null);
   const [listingCount, setListingCount] = useState<number | null>(null);
+  const [bulkEditsUsed, setBulkEditsUsed] = useState<number | null>(null);
   const [healthSummary, setHealthSummary] = useState<ListingHealthSummary | null>(null);
   const [profitSummary, setProfitSummary] = useState<ProfitSummary | null>(null);
   const [actionQueue, setActionQueue] = useState<ActionItem[]>([]);
@@ -72,11 +73,18 @@ export default function DashboardPage() {
       .then((data) => { if (data?.items) setActionQueue(data.items); })
       .catch(() => {});
 
+    fetch(`${BACKEND_URL}/api/v1/billing/usage`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { setBulkEditsUsed(data?.usage?.bulk_edits_used ?? 0); })
+      .catch(() => { setBulkEditsUsed(0); });
+
     getListingHealthSummary().then(setHealthSummary).catch(() => {});
     getProfitSummary().then(setProfitSummary).catch(() => {});
   }, []);
 
-  const showChecklist = shopCount !== null && listingCount !== null;
+  const showChecklist = shopCount !== null && listingCount !== null && bulkEditsUsed !== null;
 
   return (
     <main className="max-w-7xl mx-auto px-8 py-10">
@@ -88,7 +96,7 @@ export default function DashboardPage() {
       </div>
 
       {showChecklist && (
-        <OnboardingChecklist shopCount={shopCount!} listingCount={listingCount!} />
+        <OnboardingChecklist shopCount={shopCount!} listingCount={listingCount!} bulkEditsUsed={bulkEditsUsed!} />
       )}
 
       {/* Health + Profit widgets */}

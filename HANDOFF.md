@@ -2,7 +2,35 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-30 (Owner QA polish before write tests — branch `fix/owner-qa-polish-before-write-tests`)
+## RESUME HERE — 2026-08-30 (Dashboard onboarding tracking fix after owner live write tests — branch `fix/dashboard-onboarding-tracking-after-write-tests`)
+
+**Owner completed the two live production write tests recommended by the previous round:**
+1. Single-listing title write + Magic Revert — Apply completed, Magic Revert completed, owner reports OK.
+2. Single-listing price write + Magic Revert — field-level preview `price_amount` 6000→6288; Apply success=1/failed=0/skipped=0; Magic Revert restored=1/failed=0/skipped=0; owner reports OK.
+
+**Bug found immediately after:** Dashboard `/dashboard` onboarding checklist still showed "Try bulk edit" and "Review available tools" as NOT complete, despite Account Usage showing 130/5,000 bulk edits used this month. Root cause: both steps had `done: false` hardcoded in `OnboardingChecklist.tsx` — wired to no data source at all (not a stale-cache/localStorage problem).
+
+**Fixed this round (PR #115's follow-up, branch above):**
+1. "Try bulk edit" now reads real server-side evidence: `bulk_edits_used > 0` from `GET /api/v1/billing/usage` (the same counter `bulk_edit_apply.py` increments on every successful apply — durable across refresh/logout/device).
+2. "Review available tools" removed from the completion checklist entirely — the dashboard's pre-existing `activeFeatures` tool grid (rendered unconditionally below the checklist) already serves that purpose neutrally; adding a 4th completion gate would have needed new, riskier tracking for no real benefit.
+3. Also fixed, same round: Bulk Edit Add Changes table showed `[object Object]` for find/replace rules (`formatVal()` had no object branch). Now renders `Find: "<text>" → Replace: "<text>"`. Display-only — no payload/apply/revert semantics touched.
+
+**Files changed:** `apps/frontend/components/onboarding/OnboardingChecklist.tsx`, `apps/frontend/app/(app)/dashboard/page.tsx`, `apps/frontend/app/(app)/bulk-edit/page.tsx`.
+
+**Checks:** `npx tsc --noEmit` clean, `npx next lint` no new warnings, `npx next build` clean, `git diff --check` clean, manual secret scan clean. No backend files changed.
+
+**Safety, explicit:** no Claude/Codex live Etsy action — both write+revert tests above were owner-run in production, not run by Claude/Codex. This round's fixes only read an existing usage endpoint and fixed a display bug; no new write paths added.
+
+**Remaining owner-live actions, still separate and optional, not marked complete anywhere in `TASKS.md`:**
+- Variation apply — no revert exists yet (M15.04).
+- Media upload/delete/replace — no restore endpoint yet (M13.04).
+- Video generation — never run.
+
+**Recommended next owner action:** refresh `/dashboard` and confirm the onboarding checklist now correctly shows "Try bulk edit" complete (3/3, checklist auto-hides once all steps done). No further live write test is required unless the owner wants an additional confirmation.
+
+---
+
+## Previously — 2026-08-30 (Owner QA polish before write tests — PR #115, merge `e2bfe46fb99674f92ccddab092cf7a97dd2eaa10`)
 
 **Owner ran a manual, non-destructive smoke test across 7 screens** (`/listing-health`, `/insights`, `/media`, `/variations`, `/video-generator`, `/magic-revert`, `/account/activity` + smoke routes) after the autonomous M10→M03.04→M13/M15→M19 sequence (PRs #110–#113) and the PR #114 CodeQL cleanup. **Most flows pass.** Four polish items fixed this round, frontend-only, no behavior change to any write/apply/revert/sync/media/video code path:
 
@@ -11,7 +39,7 @@ Purpose: only what the next session needs to resume safely. For full engineering
 3. **Video Generator thumbnail preview** — picking a listing filled the URL textarea with no visual confirmation. Fixed: a thumbnail grid (in image order) now renders below the picker; "No synced photos available for this listing." shown truthfully when empty. No video generation, no external provider call.
 4. **Dashboard onboarding copy** — "Explore paid features" was inconsistent with the PR #106 banner-removal policy. Relabeled "Review available tools", description softened from "Unlock…" to "See what's included in your plan…".
 
-**Last known merged PRs, in order:** #101 (H!veAI `TASKS.md` format, `092e02f`) → #107 (Magic Revert history/activity, `7ee420d`) → #108 (current-truth docs cleanup, retrospective log backfilled this round) → #109 (M08.07/M16.06 plan-gate, `fd7269e`) → #110 (M10 Listing Health/Insights, `f7d79e7`) → #111 (M03.04 shared `ListingPicker`, `9a220b0`) → #112 (M13/M15 media/variation depth, `10c7d54`) → #113 (M19 smoke matrix/runbooks, `e400272`) → #114 (CodeQL cleanup, `cbcbbc9`) → **this owner-QA-polish PR** (merge commit filled in below once merged).
+**Last known merged PRs, in order:** #101 (H!veAI `TASKS.md` format, `092e02f`) → #107 (Magic Revert history/activity, `7ee420d`) → #108 (current-truth docs cleanup, retrospective log backfilled this round) → #109 (M08.07/M16.06 plan-gate, `fd7269e`) → #110 (M10 Listing Health/Insights, `f7d79e7`) → #111 (M03.04 shared `ListingPicker`, `9a220b0`) → #112 (M13/M15 media/variation depth, `10c7d54`) → #113 (M19 smoke matrix/runbooks, `e400272`) → #114 (CodeQL cleanup, `cbcbbc9`) → #115 (owner-QA-polish, `e2bfe46`).
 
 **Owner manual QA results this round:**
 1. Listing Health — **conditional pass** (issue pills/View Product work; scoring-engine gap for zero-qty/variation/personalization issues is a known, separate, pre-existing limitation, not a bug).
