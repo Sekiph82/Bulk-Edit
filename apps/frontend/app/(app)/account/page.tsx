@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getAccessToken, ApiError } from "@/lib/api";
+import { getAccessToken, logout, ApiError } from "@/lib/api";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8100";
 
@@ -67,6 +67,13 @@ export default function AccountOverviewPage() {
   const [shops, setShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await logout();
+    router.push("/login");
+  }
 
   useEffect(() => {
     const token = getAccessToken();
@@ -135,6 +142,17 @@ export default function AccountOverviewPage() {
 
       <Card title="Recent Activity" action={<Link href="/account/activity" className="text-xs font-medium text-indigo-600 hover:underline">View all →</Link>}>
         <p className="text-sm text-gray-400">Activity & Audit will show Bulk Edit jobs, Magic Revert events, account changes, and future automation history.</p>
+      </Card>
+
+      <Card title="Account controls">
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-60"
+        >
+          {loggingOut ? "Signing out…" : "Sign out"}
+        </button>
       </Card>
     </div>
   );

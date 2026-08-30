@@ -32,6 +32,20 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-30 Account profile name fields + sidebar identity cleanup + beta-readiness/owner-control polish
+
+**Both owner live production write tests recorded as owner-run evidence** — single-listing title write + Magic Revert (OK) and single-listing price write (`price_amount` 6000→6288) + Magic Revert (Apply success=1/failed=0/skipped=0, revert restored=1/failed=0/skipped=0, OK). Not run by Claude/Codex.
+
+**Account profile (branch `feature/account-profile-and-beta-readiness-control`, frontend + backend):** owner asked for first/last name support, greetings by name instead of raw email, and a cleaner sidebar. Backend: `User.first_name`/`last_name` (migration `0026_add_user_name_fields.py`, nullable, no forced backfill), `User.display_name` property (deterministic fallback first+last → first → last → email → `"Account"`), `GET /api/v1/auth/me` extended, new `PATCH /api/v1/auth/me` (trims whitespace, blank → `null`). 5 new `test_auth.py` tests, all passing. Frontend: new `/account/profile` page, new `getMe()`/`updateProfile()`/`getGreetingName()` helpers in `lib/api.ts`, `/dashboard` greeting now uses the profile name (prefers first name, "Welcome, Şekip"), sidebar (`AppShell.tsx`) no longer shows email or Sign out (entire bottom footer block removed), Sign out relocated to `/account` (new "Account controls" card, new `logout()` helper).
+
+**Beta-readiness / owner-control polish (small, same branch):** static "Owner-verified production checks" card added to `/dashboard` (truthfully lists title/price write+revert as owner-verified, variation/media/video as not yet — explicitly not framed as automated). Variations apply-confirm modal gained one truthful line: Magic Revert doesn't support variation changes yet. Account structure reviewed — already coherent, no new large features added. Media/Magic Revert/Video Generator risk copy reviewed — already honest from prior rounds, no change needed.
+
+**Checks:** `npx tsc --noEmit`/`next lint`/`next build` clean (`/account/profile` confirmed in build output). Backend full suite: 1001 passed, 30 failed — all 30 the pre-existing `*_requires_auth`/`*_blocked_when_etsy_not_configured` 401-vs-403 baseline (same class as the previously-documented 9-failure baseline, grown with the suite, not regressed) plus 2 unrelated pre-existing `test_video_generator.py` failures. Zero new failures. `git diff --check` clean, secret scan clean.
+
+**Safety:** no Etsy API call, no Apply/Revert/Sync, no media upload/delete/replace, no video generation, no Stripe/DNS/Cloudflare/env change, no secrets printed, Private Beta unchanged by Claude/Codex. Variation apply/revert, media restore/revert, and video generation remain separate, optional, and not marked complete anywhere.
+
+---
+
 ## 2026-08-30 M19 — Beta readiness smoke matrix + owner runbooks (autonomous backlog PR 4/4, final)
 
 **Context:** owner away, this is the fourth and final PR in the selected autonomous backlog sequence (M10 → M03.04 → M13/M15 → M19, all now shipped). Branch `feature/m19-beta-readiness-smoke-matrix`, based on `origin/main` past PR #112's `10c7d54b3a1cbdf8577ce00c0524b76cce74d6de`. Docs and scripts only — zero frontend/backend application code touched.

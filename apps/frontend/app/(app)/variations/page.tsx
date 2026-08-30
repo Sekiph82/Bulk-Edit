@@ -564,7 +564,8 @@ export default function VariationsPage() {
             <h2 className="text-lg font-bold text-gray-900 mb-2">Confirm Apply Variations</h2>
             <p className="text-sm text-gray-600 mb-4">
               This will write variation changes to Etsy for <strong>{previewItems.length}</strong> listing(s).
-              A backup snapshot is created automatically before each write.
+              A backup snapshot is created automatically before each write, but <strong>Magic Revert does not support
+              variation changes yet</strong> — there is no one-click undo for this action.
             </p>
             <p className="text-xs text-gray-500 mb-3">
               Type <strong>APPLY VARIATIONS</strong> to confirm:

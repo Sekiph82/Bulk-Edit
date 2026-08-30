@@ -4,6 +4,16 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-30 (Account profile name fields + sidebar identity cleanup)
+
+### [PRODUCT] Display-name fallback chain is fixed and deterministic: first+last → first → last → email → "Account"; greeting copy is a separate, narrower rule that prefers first name alone
+Two different pieces of UI needed name text: the Account profile page wants the fullest available identity ("Şekip Hayıt"), while the Dashboard greeting wants something shorter and warmer ("Welcome, Şekip", not "Welcome, Şekip Hayıt"). Rather than add a second backend field, `User.display_name` (backend) returns the full-name fallback chain and a separate frontend-only `getGreetingName()` helper (in `lib/api.ts`) derives the greeting variant from the same `first_name`/`last_name`/`email` fields already on the response — no extra API surface, no duplicate source of truth. Any future user-facing "name" text must use one of these two, never re-derive its own ad hoc fallback logic.
+
+### [PRODUCT] Sidebar identity footer removed entirely rather than replaced with a smaller identity element
+The sidebar previously showed an avatar+email chip and a "Sign out" button in its bottom footer. Rather than replace it with a trimmed-down version (e.g. avatar only, or a name-only chip), the owner asked for it removed outright and moved into Account — so the fix removes the entire footer block rather than inventing a new smaller one. Account (`/account`, new "Account controls" card) is now the single place identity/session actions live; the sidebar itself carries only navigation. Any future sidebar work should not reintroduce identity display there — that's Account's job now.
+
+---
+
 ## 2026-08-30 (Dashboard onboarding tracking fix)
 
 ### [PRODUCT] Onboarding checklist completion must be sourced from real server-side account state, never hardcoded or client-only

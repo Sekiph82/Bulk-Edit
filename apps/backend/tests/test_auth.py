@@ -147,6 +147,62 @@ async def test_me_invalid_token(client):
     assert r.status_code == 401
 
 
+async def test_me_display_name_falls_back_to_email_with_no_names_set(client):
+    reg = await client.post(REGISTER_URL, json=VALID_USER)
+    access_token = reg.json()["access_token"]
+    r = await client.get(ME_URL, headers={"Authorization": f"Bearer {access_token}"})
+    data = r.json()["user"]
+    assert data["first_name"] is None
+    assert data["last_name"] is None
+    assert data["display_name"] == VALID_USER["email"]
+
+
+async def test_update_profile_sets_names_and_display_name(client):
+    reg = await client.post(REGISTER_URL, json=VALID_USER)
+    access_token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    r = await client.patch(ME_URL, json={"first_name": "Şekip", "last_name": "Hayıt"}, headers=headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["first_name"] == "Şekip"
+    assert data["last_name"] == "Hayıt"
+    assert data["display_name"] == "Şekip Hayıt"
+
+    me = await client.get(ME_URL, headers=headers)
+    assert me.json()["user"]["display_name"] == "Şekip Hayıt"
+
+
+async def test_update_profile_trims_whitespace(client):
+    reg = await client.post(REGISTER_URL, json=VALID_USER)
+    headers = {"Authorization": f"Bearer {reg.json()['access_token']}"}
+    r = await client.patch(ME_URL, json={"first_name": "  Şekip  ", "last_name": "  "}, headers=headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["first_name"] == "Şekip"
+    assert data["last_name"] is None
+    assert data["display_name"] == "Şekip"
+
+
+async def test_update_profile_allows_clearing_names(client):
+    reg = await client.post(REGISTER_URL, json=VALID_USER)
+    headers = {"Authorization": f"Bearer {reg.json()['access_token']}"}
+    await client.patch(ME_URL, json={"first_name": "Şekip", "last_name": "Hayıt"}, headers=headers)
+    r = await client.patch(ME_URL, json={"first_name": "", "last_name": ""}, headers=headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["first_name"] is None
+    assert data["last_name"] is None
+    assert data["display_name"] == VALID_USER["email"]
+
+
+async def test_update_profile_requires_auth(client):
+    r = await client.patch(ME_URL, json={"first_name": "Şekip"})
+    # Matches the pre-existing GET /me no-token behavior (test_me_no_token) —
+    # this app's auth dependency returns 401, not FastAPI's default 403.
+    assert r.status_code == 401
+
+
 # ---------------------------------------------------------------------------
 # DELETE /auth/me — account deletion
 #
