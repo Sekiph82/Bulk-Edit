@@ -2,7 +2,31 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-30 (Account profile name + sidebar cleanup + beta-readiness/owner-control polish — branch `feature/account-profile-and-beta-readiness-control`)
+## RESUME HERE — 2026-08-30 (TASKS.md full truth audit — branch `docs/tasks-md-full-truth-audit`)
+
+**Owner instruction: strict, docs-only truth audit of every line in `TASKS.md`. No feature work, no implementation of M03.02/M03.03/M04.03/M06.03/M08.04 or any other product feature — verification and correction only.**
+
+**What this audit found and corrected** (full evidence table in the execution log):
+1. The bottom-of-file "Milestone policy" summary was badly stale — it described M10/M12/M13/M14/M15/M16/M19 as "PLANNED — not started" and M11 as "the current major sprint," directly contradicting the detailed per-milestone sections just above it (most of which say SHIPPED/PARTIAL with real evidence). Rewritten to defer to each milestone's own closing line.
+2. **Two entire shipped, tested features had zero milestone tracking anywhere in `TASKS.md`:** CSV Import/Export (Sprint 14, 2026-06-26 — `apps/backend/app/api/v1/csv_tools.py`, 36 backend tests, safe "converts to a BulkEditSession draft, never writes Etsy directly" design) and Scheduled Jobs (Sprint 16, 2026-06-26 — `apps/backend/app/api/v1/scheduled_jobs.py`, 41 backend tests). Added as new packages M03.06 and M04.06.
+3. **M08.04 (Owner dashboard / comp grant management UI) was marked `[ ]`** with the note "currently owner-console/API-only" — false. A full owner frontend console already exists (`apps/frontend/app/owner/`, 14 real pages), backed by a 575-line, ~35-endpoint admin API, with a real working Grant/Revoke comp access UI and a comprehensive audit-log helper (`_write_owner_audit_log()`, called at 12 sites, safe by design) — 108 backend tests, 105 passing (3 failures are the same known local-venv 401-vs-403 artifact, not real). Original build: Sprint 19 "Internal Admin Business Dashboard." Upgraded to `[~]` — real and tested, but no owner click-through is recorded anywhere.
+4. **M12.02 (AI listing suggestions) and all of M14 (Dynamic Pricing/profit)** were marked `[ ]` "not started" — false. Both are real, tested, safety-checked features (Sprint 13 and Sprint 15, 2026-06-26 respectively) that convert approved suggestions into a draft `BulkEditSession` and never write to Etsy directly. Upgraded to `[~]`.
+5. M03.03 (listing status filters) and M04.03 (apply job state tracking) had real partial implementations that were marked `[ ]` — upgraded to `[~]` with the exact remaining gap named in each case.
+6. M12.03's second line, M08.06, and M18.01 got clarifying evidence notes; no marker changes (already accurate or already correctly `[ ]`).
+
+**What did NOT change:** M03.02 (full-status sync — only Etsy's `/listings/active` endpoint is ever called, confirmed via `etsy_sync.py:98`), M06.03 (no listing-staleness check in revert code, confirmed via grep), M08.05/M08.06 (Stripe review / beta invite management — genuinely not built, confirmed via grep), M09.04/M09.06 owner click-through (not in the scope of any recorded smoke test), M15.04 variation revert (does not exist), M13.04 media restore (does not exist). No item was ever marked owner-verified without a specific recorded owner action.
+
+**Files changed:** `TASKS.md` (new "Current Truth Snapshot" section, M03.03/M03.06/M04.03/M04.06/M06.04/M08.04/M08.06/M12.02/M12.03/M14.01-04/M17.02/M17.03/M18.01 edits, rewritten "Milestone policy"), `PROJECT_STATUS.md`, `HANDOFF.md`, `CHANGELOG_AI.md`, `DECISIONS.md`, `.hiveai/PROJECT_DASHBOARD.md`. Zero code files touched.
+
+**Checks:** `git diff --check` clean on `TASKS.md`; checkbox-marker sanity grep clean (no malformed `[?]` markers); each milestone's closing-line summary confirmed to appear exactly once (no duplicated/conflicting closing lines). No backend/frontend build checks needed — docs-only change, confirmed via `git status` before commit.
+
+**Safety, explicit:** read-only research only — no Etsy API call, no Apply/Revert/Sync, no media/video action, no Stripe/env/DNS change, no destructive DB action, no secrets read or printed. All evidence gathered via source-code grep/read, local test runs of already-existing test files, and reading this session's own prior logs — nothing new was built or deployed.
+
+**Recommended next owner action:** none required immediately — this is a documentation-truth correction, not a feature change. When convenient, an owner click-through of `/owner` (admin console), `/ai` (AI suggestions), `/pricing-rules` + `/profit` (Dynamic Pricing), `/csv`, and `/scheduled` would let those `[~]` items graduate to `[x]` in a future round.
+
+---
+
+## Previously — 2026-08-30 (Account profile name + sidebar cleanup + beta-readiness/owner-control polish — PR #117, branch `feature/account-profile-and-beta-readiness-control`, merge `96b9f02742af5ade337240eb6608170455517c4e`)
 
 **Owner request, after both live write tests passed (see previous round):** add first/last name to Account, use it for greetings instead of raw email, and clean up the sidebar footer (remove email + Sign out, move Sign out into Account).
 

@@ -4,6 +4,16 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-30 (TASKS.md full truth audit)
+
+### [POLICY] The H!veAI milestone conversion (PR #101) is not a reliable source of "what's actually built" on its own — every milestone must be periodically re-verified against real Sprint 0-27 history, not assumed complete or assumed absent based on the conversion alone
+This audit found that PR #101's conversion of `TASKS.md` into the M00-M20 H!veAI ledger captured the post-launch live-write-saga sprints in careful detail but did not backfill several major pre-existing Sprint 13/14/15/16/19 features (AI Tools, CSV Import/Export, Dynamic Pricing, Scheduled Jobs, the Internal Admin Business Dashboard) — they were either left at `[ ]` "not started" or missing from the file entirely, despite being real, tested, safety-checked, shipped code. Going forward: when a milestone's status looks surprising (either suspiciously complete or suspiciously absent), check `CHANGELOG_AI.md`'s Sprint-numbered history before trusting the milestone ledger's current marker — the ledger can lag behind reality in either direction.
+
+### [POLICY] Adopted the strict audit governance evidence rules from `docs/strict-audit-governance` (PR #118, not yet merged) for this and future TASKS.md-truth work, even before that PR merges
+PR #118 defines a strict audit contract (treat logs/PR bodies as claims not proof; a feature that exists only in test/mock code isn't complete; a manual acceptance step not performed stays `UNVERIFIED`, never `[x]`; don't mark `[x]` on a builder's self-report alone). This audit applied those rules directly — every upgrade in this round required source-code/test/migration evidence, and every upgraded item was capped at `[~]` (not `[x]`) specifically because no owner click-through was recorded, even where the code and tests were extensive and clean. Recorded here so the same bar applies even if PR #118 stays unmerged for a while.
+
+---
+
 ## 2026-08-30 (Account profile name fields + sidebar identity cleanup)
 
 ### [PRODUCT] Display-name fallback chain is fixed and deterministic: first+last → first → last → email → "Account"; greeting copy is a separate, narrower rule that prefers first name alone
