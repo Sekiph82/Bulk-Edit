@@ -2,7 +2,30 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-31 (Production sync 400 hotfix + M04/M06 write-safety foundation — branch `fix/sync-status-400-then-write-safety-foundation`)
+## RESUME HERE — 2026-08-31 (M06.03 revert conflict — expected-after-value remediation — branch `fix/revert-conflict-expected-after-value`)
+
+**PR #121 (sync hotfix + M04/M06 write-safety foundation) merged (`0d391d83`), deployed, all 9 safe route/health checks 200.** This round is a strict post-merge audit finding on that PR — CONDITIONAL PASS with one MAJOR M06.03 finding.
+
+**The bug:** M06.03's `detect_revert_conflict()` compared a fresh Etsy read against the *current local `Listing` row*, not against the apply job actually being reverted's own captured after-value. Unsafe scenario: Job A sets title `A`→`B`, Job B later (same listing, same app) sets title `B`→`C` — local `Listing.title` and live Etsy both now read `C`. The old check said "live == local == safe" and would have reverted Job A, overwriting Job B's `C` with Job A's pre-apply snapshot — destroying newer work while reporting success.
+
+**The fix:** new `build_expected_after_values()` in `apps/backend/app/services/bulk_edit_revert.py` resolves, per listing, the real expected-after value for each field the apply being reverted actually changed:
+1. Priority 1 — the M06.04 per-field `AuditLog` row (`apply_job_id` + this listing + `result_status="success"`) → `extra_data["after"]`.
+2. Priority 2 (older jobs predating that audit trail) — `BulkEditPreviewItem.diff[field]["after"]` for the same session+listing.
+The local `Listing` row is **never** used as a value source, not even as a last resort — `detect_revert_conflict()`'s signature changed to take `expected_after`/`changed_fields` directly rather than `listing`/`snapshot_data`, so there is no code path left that can silently fall back to it. A changed field with neither source is left out of `expected_after` and reported unverified (still blocks the revert), with the required copy: *"Cannot verify the expected post-apply value for this field, so automatic revert is blocked to avoid overwriting newer work."*
+
+**Tests:** `test_bulk_edit_revert_conflict.py` rewritten — 21 tests total (was 9), including `test_same_app_later_write_regression_blocks_revert_of_stale_job` (the exact audit scenario: fails against the pre-fix code, passes after), old-job-no-captured-after-value (unverified, blocked, no Etsy write), mixed-job partial revert (one safe item proceeds, one conflicted item is skipped, counts correct), and unsupported-field-with-a-real-value-still-blocked (having an after-value doesn't bypass the missing-comparator rule).
+
+**Files changed:** `apps/backend/app/services/bulk_edit_revert.py` (rewritten conflict-check section, `BulkEditChange` import removed, `BulkEditPreviewItem` import added), `apps/backend/tests/test_bulk_edit_revert_conflict.py` (rewritten). No frontend change — the existing amber "conflict" badge and per-row `error_message` display already surface the new reason text correctly.
+
+**Checks:** targeted suite (`test_bulk_edit_revert_conflict.py`, `test_bulk_edit_revert.py`, `test_bulk_edit_inventory.py`, `test_write_audit_trail.py`, `test_job_states.py`, `test_bulk_edit_apply.py`) — 174 passed, 6 failed (all 6 the established local-venv-only `requires_auth` 401-vs-403 artifact, unrelated files, not touched this round). Full suite run pending/see execution log for final count.
+
+**Safety, explicit:** no Etsy write/status-mutation endpoint called (the conflict check's Etsy call is GET-only, unchanged from PR #121); no listing activation/deactivation/renewal/deletion; no production shop sync, Bulk Edit Apply, or Magic Revert run by Claude/Codex; no secrets printed.
+
+**Recommended next owner action:** none required for this fix specifically (backend-internal correctness fix, no UI change) — the outstanding owner action is still the M03 production sync verification from the PR #121 round (see "Previously" section below), which is unaffected by this fix.
+
+---
+
+## Previously — 2026-08-31 (Production sync 400 hotfix + M04/M06 write-safety foundation — PR #121, branch `fix/sync-status-400-then-write-safety-foundation`, merge `0d391d83c44c02054be03e2a13b03759c6adebb9`)
 
 **Critical owner report:** after PR #120, clicking Sync in production returned `Sync failed: All listing statuses failed to sync` — a real Etsy `400 Bad Request` for every state, including `active` (which had worked for this app's entire history before PR #120). Per the task's explicit instruction, no other work started until this was fixed and tested.
 
