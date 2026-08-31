@@ -144,7 +144,7 @@ def _make_get_side_effect(
             assert params.get("includes") == "Images,MainImage", "active must keep the proven-working includes value"
         elif url.endswith("/listings"):
             state = params.get("state")
-            assert state in ("inactive", "draft", "expired", "sold_out"), f"unexpected state on general endpoint: {state}"
+            assert state in ("inactive", "edit", "draft", "expired", "sold_out"), f"unexpected state on general endpoint: {state}"
             assert "includes" not in params, "includes must not be sent to the general listings-by-shop endpoint (unverified there)"
         else:
             raise AssertionError(f"unexpected listings URL: {url}")
@@ -185,8 +185,11 @@ def _mock_client(get_side_effect):
     return mock_client
 
 
-async def test_full_status_sync_covers_all_five_states(client, db_session):
-    """M03.02: active/inactive/draft/expired/sold_out are all fetched and upserted."""
+async def test_full_status_sync_covers_all_six_states(client, db_session):
+    """M03.02: active/inactive/edit/draft/expired/sold_out are all fetched and
+    upserted. `edit` added 2026-08-31 — Etsy's seller-UI "Inactive" listings
+    can be returned under the API state value `edit`, not just `inactive`
+    (see DECISIONS.md and etsy_sync.py's LISTING_STATES note)."""
     from app.services.etsy_sync import sync_shop_listings
 
     token, org_id = await _register_and_get_org(client, db_session, "full_status@example.com")
@@ -195,6 +198,7 @@ async def test_full_status_sync_covers_all_five_states(client, db_session):
     listings_by_state = {
         "active": [_fake_listing(1, "active"), _fake_listing(2, "active")],
         "inactive": [_fake_listing(3, "inactive")],
+        "edit": [_fake_listing(7, "edit")],
         "draft": [_fake_listing(4, "draft")],
         "expired": [_fake_listing(5, "expired")],
         "sold_out": [_fake_listing(6, "sold_out")],
@@ -206,25 +210,30 @@ async def test_full_status_sync_covers_all_five_states(client, db_session):
         job = await sync_shop_listings(db_session, org_id, shop.id)
 
     assert job.status == "completed"
-    assert job.processed_items == 6
+    assert job.processed_items == 7
 
     from app.models.listing import Listing
     from sqlalchemy import select
     result = await db_session.execute(select(Listing.state, Listing.etsy_listing_id).where(Listing.etsy_shop_id == shop.id))
     rows = {(r[0], r[1]) for r in result.all()}
     assert rows == {
-        ("active", "1"), ("active", "2"), ("inactive", "3"),
+        ("active", "1"), ("active", "2"), ("inactive", "3"), ("edit", "7"),
         ("draft", "4"), ("expired", "5"), ("sold_out", "6"),
     }
+    # `edit` must be stored as its own raw state — never silently relabeled
+    # to "inactive" at the storage layer (that grouping happens only at the
+    # query/count layer in listings.py).
+    edit_row = next(r for r in rows if r[1] == "7")
+    assert edit_row[0] == "edit"
 
-    # active hits the dedicated endpoint (no state param); the other 4 hit
+    # active hits the dedicated endpoint (no state param); the other 5 hit
     # the general endpoint with a state param — exact real request shapes,
     # not the single unified shape that 400'd in production.
     active_calls = [c for c in get_side_effect.calls if c["url"].endswith("/listings/active")]
     assert len(active_calls) >= 1
     general_calls = [c for c in get_side_effect.calls if c["url"].endswith("/listings") and not c["url"].endswith("/listings/active")]
     queried_states = {c["params"].get("state") for c in general_calls}
-    assert queried_states == {"inactive", "draft", "expired", "sold_out"}
+    assert queried_states == {"inactive", "edit", "draft", "expired", "sold_out"}
 
 
 async def test_sync_never_calls_a_write_or_status_mutation_method(client, db_session):
@@ -388,6 +397,7 @@ async def test_active_sync_still_completes_when_all_other_states_400(client, db_
         listings_by_state,
         http_error_for_state={
             "inactive": (400, bad_request_body),
+            "edit": (400, bad_request_body),
             "draft": (400, bad_request_body),
             "expired": (400, bad_request_body),
             "sold_out": (400, bad_request_body),
@@ -400,7 +410,7 @@ async def test_active_sync_still_completes_when_all_other_states_400(client, db_
     assert job.status == "completed_with_errors"
     assert job.processed_items == 2
     assert job.error_message is not None
-    for s in ("inactive", "draft", "expired", "sold_out"):
+    for s in ("inactive", "edit", "draft", "expired", "sold_out"):
         assert s in job.error_message
     # Sanitized reason from Etsy's body must appear, not just a bare "400 Bad Request"
     assert "invalid state or includes parameter" in job.error_message
@@ -449,7 +459,7 @@ async def test_all_states_failing_marks_job_failed_without_raising(client, db_se
     token, org_id = await _register_and_get_org(client, db_session, "all_fail@example.com")
     shop = await _setup_shop_with_token(db_session, org_id)
 
-    mock_client = _mock_client(_make_get_side_effect({}, raise_for_state={"active", "inactive", "draft", "expired", "sold_out"}))
+    mock_client = _mock_client(_make_get_side_effect({}, raise_for_state={"active", "inactive", "edit", "draft", "expired", "sold_out"}))
 
     with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client), _valid_etsy_credentials():
         job = await sync_shop_listings(db_session, org_id, shop.id)
@@ -491,3 +501,114 @@ async def test_status_counts_endpoint_matches_synced_local_data(client, db_sessi
 async def test_status_counts_requires_auth(client):
     r = await client.get("/api/v1/listings/status-counts")
     assert r.status_code == 403
+
+
+# ── M03 hotfix (2026-08-31): Etsy "Inactive" UI listings under state=edit ───
+
+async def test_status_counts_groups_edit_into_inactive(client, db_session):
+    """Reproduces the owner's exact production screenshot ratio: Etsy's
+    seller UI showed Active 210 / Expired 157 / Inactive 180 / Draft 0 /
+    Sold out 0 — after PR #121's hotfix the app synced 210+157=367 total
+    with Inactive stuck at 0, because Etsy was returning the "Inactive"
+    listings under state=edit, which this app didn't fetch at all. This
+    fixture uses a smaller but same-shaped ratio to keep the test fast."""
+    from app.services.etsy_sync import sync_shop_listings
+
+    token, org_id = await _register_and_get_org(client, db_session, "edit_group@example.com")
+    shop = await _setup_shop_with_token(db_session, org_id)
+
+    listings_by_state = {
+        "active": [_fake_listing(i, "active") for i in range(100, 103)],  # 3
+        "expired": [_fake_listing(i, "expired") for i in range(200, 202)],  # 2
+        "edit": [_fake_listing(i, "edit") for i in range(300, 304)],  # 4
+        "inactive": [],
+        "draft": [],
+        "sold_out": [],
+    }
+    mock_client = _mock_client(_make_get_side_effect(listings_by_state))
+    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client), _valid_etsy_credentials():
+        await sync_shop_listings(db_session, org_id, shop.id)
+
+    r = await client.get("/api/v1/listings/status-counts", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    # Contract unchanged — still exactly these 6 keys, no separate "edit" key.
+    assert set(data.keys()) == {"all", "active", "inactive", "draft", "expired", "sold_out"}
+    assert data["active"] == 3
+    assert data["expired"] == 2
+    assert data["inactive"] == 4  # 0 raw "inactive" + 4 raw "edit", grouped
+    assert data["draft"] == 0
+    assert data["sold_out"] == 0
+    assert data["all"] == 9  # 3 + 2 + 4 — edit counted once, in the inactive bucket only
+
+
+async def test_edit_state_400_is_isolated_like_any_other_state(client, db_session):
+    """If Etsy rejects state=edit specifically, active/expired stay synced
+    and the job is completed_with_errors, not failed — same per-state
+    isolation as every other listing status."""
+    from app.services.etsy_sync import sync_shop_listings
+
+    token, org_id = await _register_and_get_org(client, db_session, "edit_400@example.com")
+    shop = await _setup_shop_with_token(db_session, org_id)
+
+    listings_by_state = {
+        "active": [_fake_listing(400, "active")],
+        "expired": [_fake_listing(401, "expired")],
+    }
+    bad_request_body = {"error": "invalid state parameter: edit"}
+    mock_client = _mock_client(_make_get_side_effect(
+        listings_by_state, http_error_for_state={"edit": (400, bad_request_body)},
+    ))
+
+    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client), _valid_etsy_credentials():
+        job = await sync_shop_listings(db_session, org_id, shop.id)
+
+    assert job.status == "completed_with_errors"
+    assert job.processed_items == 2  # active + expired unaffected
+    assert "edit" in job.error_message
+    assert "invalid state parameter" in job.error_message
+    assert "openapi.etsy.com" not in job.error_message
+    assert "valid_access_token" not in job.error_message
+
+    from app.models.listing import Listing
+    from sqlalchemy import select
+    result = await db_session.execute(select(Listing.etsy_listing_id).where(Listing.etsy_shop_id == shop.id))
+    synced_ids = {r[0] for r in result.all()}
+    assert synced_ids == {"400", "401"}
+
+
+async def test_same_listing_returned_under_inactive_and_edit_is_not_duplicated(client, db_session):
+    """Dedup: if the same etsy_listing_id is (hypothetically) returned by
+    both the inactive and edit fetches, upsert_listing() matches on
+    (shop, etsy_listing_id) — exactly one Listing row results, with state
+    following whichever fetch ran last, never two rows."""
+    from app.services.etsy_sync import sync_shop_listings
+
+    token, org_id = await _register_and_get_org(client, db_session, "dedup@example.com")
+    shop = await _setup_shop_with_token(db_session, org_id)
+
+    # Same listing_id (500) appears in BOTH the inactive and edit result sets.
+    listings_by_state = {
+        "inactive": [_fake_listing(500, "inactive")],
+        "edit": [_fake_listing(500, "edit")],
+    }
+    mock_client = _mock_client(_make_get_side_effect(listings_by_state))
+    with patch("app.services.etsy_sync.httpx.AsyncClient", return_value=mock_client), _valid_etsy_credentials():
+        job = await sync_shop_listings(db_session, org_id, shop.id)
+
+    assert job.status == "completed"
+
+    from app.models.listing import Listing
+    from sqlalchemy import select
+    result = await db_session.execute(select(Listing).where(Listing.etsy_shop_id == shop.id, Listing.etsy_listing_id == "500"))
+    rows = result.scalars().all()
+    assert len(rows) == 1  # exactly one local row, never duplicated
+    # LISTING_STATES iterates inactive before edit, so edit's fetch (which
+    # runs second) is the last upsert to touch this row — state follows the
+    # actual payload from that fetch, not a hardcoded value.
+    assert rows[0].state == "edit"
+
+    r = await client.get("/api/v1/listings/status-counts", headers={"Authorization": f"Bearer {token}"})
+    data = r.json()
+    assert data["inactive"] == 1  # counted once, not twice
+    assert data["all"] == 1

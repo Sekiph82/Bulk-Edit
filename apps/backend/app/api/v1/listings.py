@@ -25,7 +25,14 @@ VALID_SORT_COLS = {
     "etsy_updated_at", "last_synced_at", "updated_at", "created_at",
 }
 
-COUNTED_STATES = ("active", "inactive", "draft", "expired", "sold_out")
+# `edit` grouped into the "Inactive" UI bucket everywhere below — Etsy's own
+# API states an "Inactive" listing (in Etsy's seller UI) may be returned as
+# API state `edit`, not `inactive` (see etsy_sync.py's LISTING_STATES note
+# and DECISIONS.md). Never shown as a separate tab/count — the raw `edit`
+# value stays in Listing.state (never rewritten to `inactive`), only the
+# grouping at this query/count layer treats the two as one "Inactive" bucket.
+COUNTED_STATES = ("active", "inactive", "edit", "draft", "expired", "sold_out")
+INACTIVE_GROUPED_STATES = ("inactive", "edit")
 
 
 @router.get("", response_model=ListingPageResponse)
@@ -64,7 +71,13 @@ async def list_listings(
     if shop_id:
         query = query.where(Listing.etsy_shop_id == shop_id)
     if state:
-        query = query.where(Listing.state == state)
+        if state == "inactive":
+            # Etsy's "Inactive" UI bucket can be raw API state `inactive` or
+            # `edit` — grouped here so the tab matches what the owner sees in
+            # Etsy's own seller UI. See COUNTED_STATES/INACTIVE_GROUPED_STATES.
+            query = query.where(Listing.state.in_(INACTIVE_GROUPED_STATES))
+        else:
+            query = query.where(Listing.state == state)
     if search:
         query = query.where(Listing.title.ilike(f"%{search}%"))
     if tag:
@@ -149,9 +162,13 @@ async def get_listing_status_counts(
     _user=Depends(require_active_user),
 ):
     """Real per-status counts from synced local data — not hardcoded, not
-    page-limited. `all` is the total across the 5 counted statuses (a listing
-    not yet synced with any recognized state is excluded from `all`, same as
-    every per-status count, so the numbers stay internally consistent)."""
+    page-limited. `all` is the total across every counted raw state
+    (COUNTED_STATES) — a listing not yet synced with any recognized state is
+    excluded from `all`, same as every per-status count, so the numbers stay
+    internally consistent. `inactive` groups raw states `inactive` and
+    `edit` together (Etsy's "Inactive" UI bucket can return either) —
+    `all`'s sum still counts each raw state exactly once, so `inactive` +
+    every other bucket always equals `all`."""
     query = select(Listing.state, func.count()).where(Listing.organization_id == org_id)
     if shop_id:
         query = query.where(Listing.etsy_shop_id == shop_id)
@@ -162,7 +179,7 @@ async def get_listing_status_counts(
     return ListingStatusCountsResponse(
         all=sum(counts.get(s, 0) for s in COUNTED_STATES),
         active=counts.get("active", 0),
-        inactive=counts.get("inactive", 0),
+        inactive=sum(counts.get(s, 0) for s in INACTIVE_GROUPED_STATES),
         draft=counts.get("draft", 0),
         expired=counts.get("expired", 0),
         sold_out=counts.get("sold_out", 0),

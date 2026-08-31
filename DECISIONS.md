@@ -4,6 +4,16 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-31 (M03 hotfix — Etsy `edit` state grouped into Inactive)
+
+### [PRODUCT] The app's "Inactive" UI bucket groups raw Etsy listing states `inactive` and `edit` — the app must match what the owner sees in Etsy's own seller UI, not Etsy's raw API vocabulary
+The owner's production sync showed Active/Expired matching Etsy's seller UI exactly, but the app's Inactive count was 0 against Etsy's 180 — Etsy's own API documents an `edit` state value in addition to `inactive`, and the seller-UI "Inactive" label can correspond to either. Rather than exposing a separate, confusing "Edit" tab/count that would never appear in Etsy's own UI, the app groups both raw states into one "Inactive" bucket at the query/count layer only (`apps/backend/app/api/v1/listings.py`'s `INACTIVE_GROUPED_STATES`) — the raw `Listing.state` column keeps whatever Etsy actually returned (`edit` stored as `edit`, never rewritten), so this grouping is a presentation/filter-layer decision only, fully reversible if the mapping is ever found to be wrong. If a future owner-run production sync confirms `edit` is NOT what Etsy's "Inactive" UI listings actually resolve to, only this grouping constant needs to change — no data was destructively transformed to reach this decision.
+
+### [POLICY] An empty listings table must say why it's empty, not repeat one generic "connect and sync" message regardless of cause
+The owner's screenshot showed real synced counts (`All 367`, `Active 210`) alongside a status tab rendering "No listings yet — Connect a shop and sync..." — actively misleading once a shop is connected and synced. Any list/table page with a filterable empty state should distinguish at minimum: no data source connected, data source connected but nothing synced yet, and the current filter/search simply has zero matches among data that does exist. Copy that's correct in one case and wrong in the others erodes trust in every other status message the app shows.
+
+---
+
 ## 2026-08-31 (M06.03 revert conflict — expected-after-value remediation)
 
 ### [POLICY] A revert's changed-since-apply conflict check must compare against the apply job actually being reverted's own captured after-value — never the current local `Listing` row, even as a fallback
