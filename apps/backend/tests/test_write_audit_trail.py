@@ -290,6 +290,119 @@ async def test_export_no_secrets_in_csv(client, db_session):
     assert "x-api-key" not in body.lower()
 
 
+# ── date range boundary (2026-08-31, date_to end-of-day fix) ────────────────
+
+async def test_date_to_end_of_day_iso_includes_same_day_record(client, db_session):
+    """Backend contract the frontend's local-day-boundary fix relies on: a
+    record created at 10:30 UTC on 2026-08-31 must be included when
+    date_to is that same day's 23:59:59.999 (end of day), and excluded when
+    date_to is that same day's 00:00:00.000 (start of day) -- the exact bug
+    the old `new Date("2026-08-31").toISOString()` frontend code produced."""
+    token, org_id, apply_job_id, session_id, listing = await _setup_and_apply(
+        client, db_session, email="date_boundary@example.com", org_name="Date Boundary Org", etsy_prefix="datebnd",
+    )
+    from app.models.audit_log import AuditLog
+    from datetime import datetime, timezone
+
+    row = (await _get_field_audit_rows(db_session, org_id, apply_job_id))[0]
+    row.created_at = datetime(2026, 8, 31, 10, 30, 32, tzinfo=timezone.utc)
+    await db_session.commit()
+
+    r_end_of_day = await client.get(
+        f"/api/v1/bulk-edit/audit-trail?apply_job_id={apply_job_id}&date_to=2026-08-31T23:59:59.999Z",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r_end_of_day.json()["total"] == 1
+
+    r_start_of_day = await client.get(
+        f"/api/v1/bulk-edit/audit-trail?apply_job_id={apply_job_id}&date_to=2026-08-31T00:00:00.000Z",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r_start_of_day.json()["total"] == 0
+
+    r_export_end = await client.get(
+        f"{EXPORT_URL}?apply_job_id={apply_job_id}&date_to=2026-08-31T23:59:59.999Z",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert apply_job_id in r_export_end.text
+
+
+# ── not_reverted filter (2026-08-31) ─────────────────────────────────────────
+
+async def test_not_reverted_filter_list_and_export(client, db_session):
+    """revert_status=not_reverted is a sentinel meaning revert_status IS
+    NULL -- must return only rows never linked to a revert job, in both the
+    list endpoint and the CSV export, and must not disturb the existing
+    exact-match behavior of revert_status=completed."""
+    token, org_id, apply_job_a, session_id_a, listing_a = await _setup_and_apply(
+        client, db_session, email="notrev_filter@example.com", org_name="NotRev Filter Org", etsy_prefix="notrevf",
+    )
+    listing_b = await _setup_listing(db_session, org_id, "notrevf_02", title="Second Listing")
+    r = await client.post(SESSIONS_URL, json={"listing_ids": [listing_b.id]}, headers={"Authorization": f"Bearer {token}"})
+    session_id_b = r.json()["id"]
+    await client.post(
+        f"{SESSIONS_URL}/{session_id_b}/changes",
+        json={"field_name": "title", "operation": "append", "operation_value": " — B"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    await client.post(f"{SESSIONS_URL}/{session_id_b}/preview", headers={"Authorization": f"Bearer {token}"})
+    with patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()), \
+         patch("app.services.bulk_edit_apply.patch_etsy_listing", new_callable=AsyncMock, return_value={"state": "active"}):
+        r_apply_b = await client.post(f"{SESSIONS_URL}/{session_id_b}/apply", headers={"Authorization": f"Bearer {token}"})
+    apply_job_b = r_apply_b.json()["id"]
+
+    with (
+        patch("app.services.bulk_edit_revert.settings", _mock_etsy_settings()),
+        patch("app.services.bulk_edit_revert.patch_etsy_listing", new_callable=AsyncMock, return_value={"state": "active"}),
+        patch("app.services.bulk_edit_revert.fetch_current_listing_for_conflict_check", new_callable=AsyncMock, return_value=None),
+        patch(
+            "app.services.bulk_edit_revert.detect_revert_conflict",
+            return_value={"has_conflict": False, "conflicting_fields": [], "unverified_fields": [], "reason": None},
+        ),
+    ):
+        await client.post(f"{APPLY_JOBS_URL}/{apply_job_b}/revert", headers={"Authorization": f"Bearer {token}"})
+
+    r_list_not_reverted = await client.get(
+        "/api/v1/bulk-edit/audit-trail?revert_status=not_reverted",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    ids = {i["apply_job_id"] for i in r_list_not_reverted.json()["items"]}
+    assert apply_job_a in ids
+    assert apply_job_b not in ids
+
+    r_export_not_reverted = await client.get(
+        f"{EXPORT_URL}?revert_status=not_reverted", headers={"Authorization": f"Bearer {token}"},
+    )
+    assert apply_job_a in r_export_not_reverted.text
+    assert apply_job_b not in r_export_not_reverted.text
+
+    # existing exact-match behavior unaffected
+    r_reverted = await client.get(
+        "/api/v1/bulk-edit/audit-trail?revert_status=completed",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    ids_reverted = {i["apply_job_id"] for i in r_reverted.json()["items"]}
+    assert apply_job_b in ids_reverted
+    assert apply_job_a not in ids_reverted
+
+
+async def test_not_reverted_filter_is_org_scoped(client, db_session):
+    token_a, org_a, apply_job_a, _, _ = await _setup_and_apply(
+        client, db_session, email="notrev_org_a@example.com", org_name="NotRev Org A", etsy_prefix="notreva",
+    )
+    token_b, org_b, apply_job_b, _, _ = await _setup_and_apply(
+        client, db_session, email="notrev_org_b@example.com", org_name="NotRev Org B", etsy_prefix="notrevb",
+    )
+
+    r = await client.get(
+        "/api/v1/bulk-edit/audit-trail?revert_status=not_reverted",
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+    ids = {i["apply_job_id"] for i in r.json()["items"]}
+    assert apply_job_a in ids
+    assert apply_job_b not in ids
+
+
 async def test_export_object_values_are_not_object_object(client, db_session):
     """before/after that happen to be a dict/list must render as real JSON
     text, never a Python/JS-style '[object Object]'-equivalent placeholder."""

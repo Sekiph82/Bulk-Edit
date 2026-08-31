@@ -6,6 +6,26 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-31 PR #124 owner verification (M04.03/M06.04 → [x]) + Audit Trail date-range fix + Not-reverted filter + UI polish
+
+**Owner verification.** PR #124 (Audit Trail UI + CSV export + job-state UI polish) merged and deployed. Owner clicked through production: `/magic-revert` showed clear canonical states (Failed, Reverted, Partially failed) with correct item counts, and a failed job's expanded detail correctly showed a `skipped` item with the "variation inventory support deferred" reason. `/account/activity`'s new Write Audit Trail section rendered real records; the Price quick filter returned a real skipped-price-write-attempt row (`field_name=price_amount`, `before=7449`, `after=7599`, `result_status=skipped`); the Title quick filter behaved correctly with zero matches in the current dataset (owner accepted as PASS). Owner downloaded the CSV export and confirmed the same headers and the same row. **M04.03 and M06.04 promoted `[~]` → `[x]`.**
+
+The framing carried into `TASKS.md`/`DECISIONS.md` as a durable policy: a failed/skipped write attempt appearing correctly in the Audit Trail is valid evidence that the *audit/tracking* system works — it is explicit evidence *against* the underlying write being supported (variation price write remains unbuilt, M15.04), never evidence for it. Future audits must not conflate "the audit trail correctly recorded a failure" with "the feature that failed now works."
+
+**Date range bug fixed.** `<input type="date">` produces a bare `"YYYY-MM-DD"` string; the previous frontend code (`new Date(dateTo).toISOString()`) parsed that as UTC midnight, making `date_to` mean the *start*, not the end, of the selected day — silently excluding almost every record from it. Fixed with `localDayStartISO()`/`localDayEndISO()` helpers (`apps/frontend/app/(app)/account/activity/page.tsx`) that build a local-timezone `Date` for `00:00:00.000`/`23:59:59.999` and convert to ISO. Both the list request and the CSV export read from the same `filters` object, so the fix applies identically to both without separate wiring. 1 new backend test (`test_date_to_end_of_day_iso_includes_same_day_record`) proves the exact owner-observed scenario.
+
+**"Not reverted" filter implemented.** New sentinel `revert_status=not_reverted` in the shared `_field_audit_trail_query()` (`apps/backend/app/services/bulk_edit_apply.py`) filters `AuditLog.revert_status IS NULL` — org-scoped, works identically for list and export, doesn't touch the existing exact-match behavior for real values. New quick-filter button on `/account/activity`. 2 new backend tests (filter correctness + cross-org isolation).
+
+**"Conflict" filter deliberately deferred, not faked.** Investigated whether `AuditLog.revert_status` could answer "was this field's revert a conflict" — it can't: that column is set from the *revert job's overall* status (`revert_apply_job()`'s bulk `UPDATE`), never from the per-listing `RevertResult.status` a specific conflict actually lives on. Building a fake filter on the wrong column would silently mislead. Documented as a real, scoped future task (a join to `RevertResult` by apply_job_id+listing+field) rather than built this round.
+
+**Minor polish:** Audit Trail's "Listing" column now shows the listing title alongside the Etsy listing id (new cheap local join in `GET /audit-trail`, no live Etsy call, CSV columns unchanged); Error column widened; Magic Revert's status-filter dropdown relabeled to canonical wording (values unchanged).
+
+**Tests/checks:** `test_write_audit_trail.py` 16 passed/1 failed (known artifact); broader affected-area run 111 passed/7 failed (same known pattern); `tsc --noEmit`/`next lint`/`next build` all clean.
+
+**Safety:** no Etsy API call anywhere in this round; no production sync, Apply, or Revert run by Claude/Codex; no secrets printed.
+
+---
+
 ## 2026-08-31 PART A: M03.02/M03.03 owner verification correction + PART B: M06.04 Audit Trail UI/Export, M04.03 job-state UI polish
 
 **PART A — owner verification correction.** After PR #123 merged/deployed, the owner signed out, signed back in, and opened `/listings` **without running a new Sync** — production already showed `All 547 / Active 210 / Inactive 180 / Draft 0 / Expired 157 / Sold out 0`, matching Etsy's own seller UI exactly, with real listing rows visible under the Inactive tab carrying raw state badge `edit`. No resync was needed: the `edit`-state listings had already been synced into the local database during an earlier pass, they were just invisible to the Inactive bucket/count/filter until PR #123's grouping logic went live. This is sufficient owner evidence to promote **M03.02 and M03.03 from `[~]` to `[x]`** — see `TASKS.md` for the full 5-point evidence writeup. Folded into this round's PR per the task's instruction, no separate PR opened.

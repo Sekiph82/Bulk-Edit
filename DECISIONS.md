@@ -4,6 +4,22 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-31 (PR #124 owner verification + Audit Trail date-range fix + filter polish)
+
+### [POLICY] A failed/skipped write attempt correctly appearing in the Audit Trail is valid evidence that write-attempt tracking works — it is evidence AGAINST the underlying write being supported, never evidence for it
+The owner's M04.03/M06.04 verification included a real skipped variation-price write attempt (`price_amount` 7449→7599, `result_status=skipped`, reason "Variation inventory support deferred to Sprint 11") showing up correctly in both the Audit Trail UI and its CSV export. This is exactly the evidence M06.04 needed — it proves skipped/failed outcomes are captured and surfaced instead of silently disappearing. It must never be read, in this or any future audit, as evidence that variation price write itself is supported; the row's own `result_status` and `error_message` say the opposite. `TASKS.md` M15.04 (variation live apply) stays exactly as unsupported as it was before this verification.
+
+### [POLICY] Audit Trail CSV export is owner-verified based on a downloaded file matching the documented headers and a real known row — the same bar as any other owner-verification, no live Etsy call required
+The owner downloaded `bulk-edit-audit-trail-2026-08-31.csv` and confirmed both the exact header row (`created_at, organization_id, user_id, etsy_shop_id, listing_id, etsy_listing_id, field_name, operation, before, after, result_status, revert_status, apply_job_id, bulk_edit_session_id, revert_job_id, error_message`) and a real data row matching what the Audit Trail UI showed for the same write attempt. This is sufficient owner evidence for M06.04's export half — a CSV export doesn't need a "live write success" to be verified, only that it faithfully reflects data that's already known-correct.
+
+### [ARCHITECTURE] Audit Trail `date_to` includes the entire selected local day (23:59:59.999), not just its start
+Fixed a real bug: `<input type="date">` returns a bare `"YYYY-MM-DD"` string, and `new Date("YYYY-MM-DD").toISOString()` parses that as UTC midnight — meaning a naive `date_to` filter meant "the very start of the selected day," silently excluding almost every record from it. `apps/frontend/app/(app)/account/activity/page.tsx::localDayStartISO()`/`localDayEndISO()` construct explicit local-timezone `Date` objects for `00:00:00.000` and `23:59:59.999` before converting to ISO. Any future date-range UI in this app that reads from a plain `<input type="date">` should reuse this pattern (or extract it to a shared util if a second consumer appears), never `new Date(dateString).toISOString()` directly.
+
+### [POLICY] "Not reverted" is a real, truthful filter (`revert_status IS NULL`); "Conflict" is deliberately deferred because the current data model cannot truthfully support it
+`AuditLog.revert_status` is set once, in bulk, from the *revert job's overall* status (`revert_apply_job()`'s bulk `UPDATE ... revert_status=revert_job.status`) — it answers "what happened to the revert job this field's write was part of," not "was this specific field's revert a conflict." A per-item conflict only exists on `RevertResult.status` for that specific listing within a revert job, which `AuditLog` rows are not joined to. Implementing `revert_status=not_reverted` (an `IS NULL` check) is truthful and was shipped. Implementing a `revert_status=conflict` filter on the same column would silently misreport rows — it was deliberately not built. A future sprint that needs this must add a real join from `AuditLog` (by apply_job_id + listing/entity_id + field_name) to the matching `RevertResult` row, not repurpose `revert_status`.
+
+---
+
 ## 2026-08-31 (M06.04 Audit Trail Export + M04.03 job-state UI polish)
 
 ### [POLICY] Owner verification does not require a *new* action of the same kind that produced the evidence — the app's live state matching the owner's independent source of truth (Etsy's own UI) is itself the verification

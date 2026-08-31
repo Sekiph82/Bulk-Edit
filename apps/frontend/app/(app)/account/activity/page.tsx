@@ -118,11 +118,36 @@ function CopyableId({ id }: { id: string | null }) {
 
 const AUDIT_PER_PAGE = 25;
 
-type QuickFilterKey = "failed" | "reverted" | "price" | "title";
+// A <input type="date"> value is a bare "YYYY-MM-DD" string with no
+// timezone. `new Date("2026-08-31")` parses that as UTC midnight, which
+// silently makes date_to mean "the very start of the selected day" instead
+// of its end -- excluding nearly every record from the day the user
+// actually picked. Parsing the parts and constructing a *local*-timezone
+// Date instead means the boundaries follow the day as the user's own
+// browser/clock understands it, in both directions.
+function localDayStartISO(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
+}
+
+function localDayEndISO(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
+}
+
+// "Conflict" is deliberately not a quick filter here: AuditLog.revert_status
+// is set from the *revert job's* overall status (see
+// bulk_edit_apply.py::_field_audit_trail_query()'s docstring), not from the
+// per-listing RevertResult.status a specific conflict actually lives on --
+// a row's revert_status cannot truthfully answer "was THIS field's revert a
+// conflict." Faking it here would silently mislead. Deferred to a future
+// sprint that joins to RevertResult -- see DECISIONS.md/TASKS.md M06.03.
+type QuickFilterKey = "failed" | "reverted" | "not_reverted" | "price" | "title";
 
 const QUICK_FILTERS: { key: QuickFilterKey; label: string; filters: Partial<AuditTrailFilters> }[] = [
   { key: "failed", label: "Failed", filters: { result_status: "failed" } },
   { key: "reverted", label: "Reverted", filters: { revert_status: "completed" } },
+  { key: "not_reverted", label: "Not reverted", filters: { revert_status: "not_reverted" } },
   { key: "price", label: "Price", filters: { field_name: "price_amount" } },
   { key: "title", label: "Title", filters: { field_name: "title" } },
 ];
@@ -152,8 +177,8 @@ function AuditTrailSection() {
     field_name: fieldName || undefined,
     result_status: resultStatus || undefined,
     revert_status: revertStatus || undefined,
-    date_from: dateFrom ? new Date(dateFrom).toISOString() : undefined,
-    date_to: dateTo ? new Date(dateTo).toISOString() : undefined,
+    date_from: dateFrom ? localDayStartISO(dateFrom) : undefined,
+    date_to: dateTo ? localDayEndISO(dateTo) : undefined,
   };
   const hasActiveFilters = Object.values(filters).some((v) => v !== undefined);
 
@@ -278,12 +303,12 @@ function AuditTrailSection() {
           <option value="skipped">Skipped</option>
         </select>
         <input
-          type="date" value={dateFrom} title="From date"
+          type="date" value={dateFrom} title="From date — includes the entire selected day"
           onChange={(e) => setDateFrom(e.target.value)}
           className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
         />
         <input
-          type="date" value={dateTo} title="To date"
+          type="date" value={dateTo} title="To date — includes the entire selected day"
           onChange={(e) => setDateTo(e.target.value)}
           className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
         />
@@ -322,8 +347,15 @@ function AuditTrailSection() {
                 {items.map((row) => (
                   <tr key={row.id} className="text-gray-700">
                     <td className="py-2 pr-3 whitespace-nowrap text-gray-500">{new Date(row.created_at).toLocaleString()}</td>
-                    <td className="py-2 pr-3">
-                      {row.extra_data?.etsy_listing_id ? `#${row.extra_data.etsy_listing_id}` : <span className="text-gray-300">—</span>}
+                    <td className="py-2 pr-3 max-w-[160px]">
+                      {row.extra_data?.etsy_listing_id ? (
+                        <span title={row.listing_title ?? undefined} className="block truncate">
+                          {row.listing_title ? `${row.listing_title} ` : ""}
+                          <span className="text-gray-400">#{row.extra_data.etsy_listing_id}</span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
                     </td>
                     <td className="py-2 pr-3 font-medium">{row.field_name ?? "—"}</td>
                     <td className="py-2 pr-3 text-gray-500">{row.extra_data?.operation ?? "—"}</td>
@@ -332,7 +364,7 @@ function AuditTrailSection() {
                     <td className="py-2 pr-3"><ResultStatusBadge status={row.result_status} /></td>
                     <td className="py-2 pr-3"><RevertStatusBadge status={row.revert_status} /></td>
                     <td className="py-2 pr-3"><CopyableId id={row.apply_job_id} /></td>
-                    <td className="py-2 max-w-[220px] truncate text-gray-500" title={row.extra_data?.error_message ?? row.message ?? undefined}>
+                    <td className="py-2 max-w-[280px] truncate text-gray-500" title={row.extra_data?.error_message ?? row.message ?? undefined}>
                       {row.extra_data?.error_message ?? "—"}
                     </td>
                   </tr>

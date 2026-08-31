@@ -187,8 +187,8 @@ export default function MagicRevertPage() {
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
         >
           <option value="">All statuses</option>
-          <option value="completed">Completed</option>
-          <option value="completed_with_errors">Completed with errors</option>
+          <option value="completed">Succeeded</option>
+          <option value="completed_with_errors">Partially failed</option>
           <option value="failed">Failed</option>
         </select>
         <label className="flex items-center gap-1.5 text-sm text-gray-600">
