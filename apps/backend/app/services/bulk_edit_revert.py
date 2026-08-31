@@ -35,7 +35,7 @@ from app.core.config import settings
 from app.models.audit_log import AuditLog
 from app.models.bulk_edit_apply_job import BulkEditApplyJob
 from app.models.bulk_edit_apply_result import BulkEditApplyResult
-from app.models.bulk_edit_change import BulkEditChange
+from app.models.bulk_edit_preview_item import BulkEditPreviewItem
 from app.models.etsy_shop import EtsyShop
 from app.models.listing import Listing
 from app.models.listing_backup_snapshot import ListingBackupSnapshot
@@ -113,26 +113,31 @@ def build_etsy_revert_payload(snapshot_data: dict[str, Any]) -> dict[str, Any]:
     return build_etsy_patch_payload(diff)
 
 
-# M06.03 changed-since-apply conflict detection (2026-08-31).
+# M06.03 changed-since-apply conflict detection — remediated 2026-08-31
+# after a strict post-merge audit of PR #121 found a MAJOR correctness bug.
 #
-# `snapshot.snapshot_data` is the PRE-apply state (the revert target, not
-# the after-value). The correct "expected after apply" value is the local
-# `Listing` row's current column value -- it is only ever updated after an
-# Etsy write succeeds (apply, revert, or a real sync), so under normal
-# operation it should equal what the last successful write actually set on
-# Etsy. Comparing a fresh, read-only Etsy GET against that local value is
-# what actually detects "something changed this listing without going
-# through this app since we last touched it" -- a seller edit on Etsy
-# directly, another app, or a job this app doesn't know about.
+# PR #121's original version compared the fresh Etsy read to the CURRENT
+# local `Listing` row. That is wrong whenever a later write (a second apply
+# job, another Magic Revert, a real sync) already moved the local row past
+# what THIS apply job actually set:
+#
+#   Job A: title "A" -> "B" (this is the job being reverted)
+#   Job B: title "B" -> "C" (a later, unrelated apply)
+#   local Listing.title and live Etsy title are now both "C"
+#
+# The old check compared live "C" to local "C" -> "no conflict" -> would
+# have overwritten Job B's work. The correct question is "does live Etsy
+# still hold what Job A itself wrote (\"B\")?" -- it does not, so Job A's
+# revert must be refused. The expected-current value for a field is that
+# field's captured AFTER value from the apply job actually being reverted,
+# never the local Listing row's current value (see build_expected_after_values()).
 #
 # Text fields are compared normalized (HTML-entity-decoded, whitespace-
 # trimmed) so decode-only differences never produce a false conflict.
 # price_amount/quantity are compared as exact integers. Every other field
 # this revert could touch (the rest of _SNAPSHOT_TO_LISTING) is NOT verified
-# here yet -- per this task's explicit instruction, an unverified field is
-# treated as a conflict rather than assumed safe. This is exactly why
-# M06.03 stays `[~]`, not `[x]`: title/description/sku/price/quantity are
-# fully covered, everything else in _SNAPSHOT_TO_LISTING is not.
+# here yet -- an unverified field is treated as a conflict rather than
+# assumed safe. This is exactly why M06.03 stays `[~]`, not `[x]`.
 _CONFLICT_CHECK_TEXT_FIELDS = {"title", "description", "sku"}
 _CONFLICT_CHECK_NUMERIC_FIELDS = {"price_amount", "quantity"}
 
@@ -161,27 +166,84 @@ async def fetch_current_listing_for_conflict_check(
         return resp.json()
 
 
-def detect_revert_conflict(
-    listing: Listing,
-    snapshot_data: dict[str, Any],
-    current_etsy_data: dict[str, Any] | None,
-    changed_fields: set[str] | None = None,
-) -> dict[str, Any]:
-    """Compares the live current Etsy value for each field *this apply
-    actually changed* against the locally-known value. A mismatch, or a
-    changed field this check can't yet verify, is a conflict -- never
-    assumed safe by default. Returns a JSON-safe dict, no secrets.
+async def build_expected_after_values(
+    db: AsyncSession,
+    organization_id: str,
+    apply_job_id: str,
+    bulk_edit_session_id: str,
+    listing_ids: list[str],
+) -> dict[str, tuple[dict[str, Any], set[str]]]:
+    """Batch-computes, per listing_id, (expected_after, changed_fields) for
+    the M06.03 conflict check.
 
-    `changed_fields` MUST be the set of field names the original session's
-    BulkEditChange rows actually touched -- NOT every key in snapshot_data.
-    snapshot_data (build_before_data()) captures the listing's *entire*
-    state before the write, for restore purposes, regardless of what was
-    actually changed; iterating all of its keys here would flag every
-    revert as a conflict on totally untouched fields (tags, section_id,
-    processing times, etc.) that this checker doesn't verify, defeating the
-    feature. If `changed_fields` is not provided, falls back to every key in
-    snapshot_data (safe-by-default, but overly broad -- callers should
-    always pass the real changed-field set)."""
+    changed_fields is the real, per-listing set of fields THIS apply job
+    actually touched. expected_after has a value only for fields where a
+    reliable source was found -- a field in changed_fields but missing from
+    expected_after is unverified, never silently treated as safe.
+
+    Source priority (never falls back to the local Listing row):
+      1. The M06.04 per-field AuditLog row for this apply_job_id + this
+         listing (entity_id) + result_status="success" -- extra_data["after"].
+         Most direct: the exact per-field, per-listing outcome the write
+         audit trail already records.
+      2. BulkEditPreviewItem.diff for this session+listing -- diff[field]["after"].
+         Covers apply jobs that predate the AuditLog migration (0027) and
+         this feature entirely; the apply only ever wrote diff's "after"
+         value, so it's equally trustworthy for a listing whose apply
+         result was "success" (revert_apply_job() only considers those).
+    A field with neither source is left out of expected_after entirely --
+    detect_revert_conflict() marks it unverified, not safe."""
+    audit_q = await db.execute(
+        select(AuditLog.entity_id, AuditLog.field_name, AuditLog.extra_data).where(
+            AuditLog.organization_id == organization_id,
+            AuditLog.apply_job_id == apply_job_id,
+            AuditLog.event_type == "bulk_edit_field_write",
+            AuditLog.result_status == "success",
+            AuditLog.entity_id.in_(listing_ids),
+        )
+    )
+    audit_after: dict[str, dict[str, Any]] = {}
+    for entity_id, field_name, extra_data in audit_q.all():
+        if not field_name:
+            continue
+        audit_after.setdefault(entity_id, {})[field_name] = (extra_data or {}).get("after")
+
+    preview_q = await db.execute(
+        select(BulkEditPreviewItem).where(
+            BulkEditPreviewItem.bulk_edit_session_id == bulk_edit_session_id,
+            BulkEditPreviewItem.listing_id.in_(listing_ids),
+        )
+    )
+    preview_by_listing: dict[str, BulkEditPreviewItem] = {p.listing_id: p for p in preview_q.scalars().all()}
+
+    result: dict[str, tuple[dict[str, Any], set[str]]] = {}
+    for listing_id in listing_ids:
+        listing_audit_after = audit_after.get(listing_id, {})
+        preview_item = preview_by_listing.get(listing_id)
+        diff = (preview_item.diff or {}) if preview_item else {}
+
+        changed_fields = set(listing_audit_after.keys()) | set(diff.keys())
+        expected_after: dict[str, Any] = {}
+        for field in changed_fields:
+            if field in listing_audit_after:
+                expected_after[field] = listing_audit_after[field]
+            elif isinstance(diff.get(field), dict) and "after" in diff[field]:
+                expected_after[field] = diff[field]["after"]
+        result[listing_id] = (expected_after, changed_fields)
+    return result
+
+
+def detect_revert_conflict(
+    expected_after: dict[str, Any],
+    changed_fields: set[str],
+    current_etsy_data: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Compares the live current Etsy value for each field this apply
+    actually changed against that field's captured AFTER value from the
+    apply job being reverted (see build_expected_after_values() — never the
+    local Listing row). A mismatch, or a changed field this check can't
+    verify, is a conflict — never assumed safe by default. Returns a
+    JSON-safe dict, no secrets."""
     if current_etsy_data is None:
         return {
             "has_conflict": True,
@@ -190,35 +252,47 @@ def detect_revert_conflict(
             "reason": "Could not read the listing's current Etsy state to verify it hasn't changed.",
         }
 
+    if not changed_fields:
+        return {
+            "has_conflict": True,
+            "conflicting_fields": [],
+            "unverified_fields": ["*"],
+            "reason": (
+                "Cannot verify the expected post-apply value for this field, so automatic "
+                "revert is blocked to avoid overwriting newer work. (no captured after-value "
+                "found for this apply job — likely an older job predating the write audit trail)"
+            ),
+        }
+
     conflicting: list[str] = []
     unverified: list[str] = []
     price = current_etsy_data.get("price") or {}
 
-    fields_to_check = (
-        [f for f in snapshot_data.keys() if f in changed_fields]
-        if changed_fields is not None
-        else list(snapshot_data.keys())
-    )
-    for field in fields_to_check:
+    for field in changed_fields:
+        if field not in expected_after:
+            unverified.append(field)
+            continue
+        expected = expected_after[field]
         if field in _CONFLICT_CHECK_TEXT_FIELDS:
-            expected = _normalize_text_for_conflict_check(getattr(listing, field, None))
             actual = _normalize_text_for_conflict_check(current_etsy_data.get(field))
-            if expected != actual:
+            if _normalize_text_for_conflict_check(expected) != actual:
                 conflicting.append(field)
         elif field == "price_amount":
-            if getattr(listing, "price_amount", None) != price.get("amount"):
+            if expected != price.get("amount"):
                 conflicting.append(field)
         elif field == "quantity":
-            if getattr(listing, "quantity", None) != current_etsy_data.get("quantity"):
+            if expected != current_etsy_data.get("quantity"):
                 conflicting.append(field)
-        elif field in _SNAPSHOT_TO_LISTING:
+        else:
             unverified.append(field)
-        # else: not a field this revert path touches at all — ignore
 
     if conflicting:
         reason = f"This listing changed after the original apply (field(s): {', '.join(conflicting)}). Reverting may overwrite newer work."
     elif unverified:
-        reason = f"Field(s) {', '.join(unverified)} cannot yet be verified as unchanged since apply — reverting is blocked to avoid a silent overwrite."
+        reason = (
+            f"Cannot verify the expected post-apply value for field(s) {', '.join(unverified)}, "
+            "so automatic revert is blocked to avoid overwriting newer work."
+        )
     else:
         reason = None
 
@@ -323,16 +397,6 @@ async def revert_apply_job(
 
     apply_job = await validate_apply_job_revertable(db, organization_id, apply_job_id)
 
-    # M06.03: the set of fields this apply's session actually intended to
-    # change -- used to scope the changed-since-apply conflict check to real
-    # writes, not every field build_before_data() captured for restore.
-    changes_q = await db.execute(
-        select(BulkEditChange.field_name).where(
-            BulkEditChange.bulk_edit_session_id == apply_job.bulk_edit_session_id
-        )
-    )
-    changed_fields: set[str] = {row[0] for row in changes_q.all()}
-
     # Load only successful apply results
     apply_results_q = await db.execute(
         select(BulkEditApplyResult).where(
@@ -396,6 +460,13 @@ async def revert_apply_job(
             )
         )
         snapshots_map = {s.id: s for s in snaps_q.scalars().all()}
+
+    # M06.03: per-listing (expected_after, changed_fields) for the
+    # changed-since-apply conflict check -- see build_expected_after_values()
+    # for the source priority. Batched once here, not per-listing in the loop.
+    expected_after_map = await build_expected_after_values(
+        db, organization_id, apply_job_id, apply_job.bulk_edit_session_id, listing_ids,
+    )
 
     # Load shops + tokens
     shop_ids = list({l.etsy_shop_id for l in listings_map.values()})
@@ -546,13 +617,16 @@ async def revert_apply_job(
 
         # M06.03: refuse to revert if the listing appears to have changed
         # since the original apply — read-only Etsy GET, no write attempted
-        # for a conflicted item.
+        # for a conflicted item. Compares against THIS apply job's own
+        # captured after-values, never the local Listing row — see
+        # build_expected_after_values()/detect_revert_conflict() docstrings.
         try:
             current_etsy_data = await fetch_current_listing_for_conflict_check(access_token, listing.etsy_listing_id)
         except Exception as exc:
             logger.warning("Conflict check GET failed for listing %s: %s", listing.etsy_listing_id, exc)
             current_etsy_data = None
-        conflict = detect_revert_conflict(listing, snapshot_data, current_etsy_data, changed_fields)
+        expected_after, expected_changed_fields = expected_after_map.get(listing.id, ({}, set()))
+        conflict = detect_revert_conflict(expected_after, expected_changed_fields, current_etsy_data)
         if conflict["has_conflict"]:
             skipped_count += 1
             rr.status = "conflict"

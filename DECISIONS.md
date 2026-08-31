@@ -4,6 +4,16 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-31 (M06.03 revert conflict — expected-after-value remediation)
+
+### [POLICY] A revert's changed-since-apply conflict check must compare against the apply job actually being reverted's own captured after-value — never the current local `Listing` row, even as a fallback
+PR #121's first M06.03 implementation compared a fresh Etsy read to the current local `Listing` row. That is wrong whenever a later write (a second apply job on the same listing, another Magic Revert, a real sync) has already moved the local row past what the job being reverted actually set: Job A sets title `A`→`B`, Job B later sets title `B`→`C` — local `Listing.title` and live Etsy both now read `C`. The old check said "live == local == safe" and would have reverted Job A by overwriting Job B's `C` with Job A's snapshot, destroying newer work while reporting success. The correct question is "does live Etsy still hold what THIS apply job itself wrote?" The fix, `build_expected_after_values()`, resolves each field's expected-after value from sources tied to the specific apply job being reverted (M06.04 `AuditLog` row's `extra_data["after"]`, or `BulkEditPreviewItem.diff[field]["after"]` for older jobs) — the local `Listing` row is never consulted as a value source, not even as a last resort, because doing so silently reintroduces the exact bug this fixes. A field with no reliable per-job source is left unverified (still a conflict), not defaulted to "assume safe."
+
+### [POLICY] A strict post-merge audit is not a suggestion to re-litigate a shipped feature from scratch — it is a required gate before further work builds on top of it
+This bug was found by an explicit, dedicated post-merge audit pass on PR #121, not by a user report or a production incident. Any future write-safety feature (variation revert, media revert, etc.) that reuses or extends M06.03's conflict-check pattern must be reviewed against this same "compare to what, exactly?" question before shipping — the failure mode here (comparing against a value that happens to coincide with "safe" under the common case, but is wrong under a realistic multi-job sequence) is easy to miss in tests that only exercise a single apply+revert pair.
+
+---
+
 ## 2026-08-31 (Production sync 400 hotfix + M04/M06 write-safety foundation)
 
 ### [POLICY] A hard-coded Etsy endpoint/parameter assumption is not "done" until an owner has run it against production — code review and mocked tests are necessary but not sufficient for a live third-party API contract
