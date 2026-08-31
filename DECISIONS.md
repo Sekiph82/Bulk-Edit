@@ -4,6 +4,22 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-31 (M08 deferred; M13 Media Safety & Video Workflow sprint)
+
+### [PRODUCT] M08 (owner/admin/beta management) is deferred until customer-facing user modules are completed — an explicit owner scheduling decision, not a truth/marker change
+The owner wants the photo/media editor, video workflow, AI usage/suggestions, variations, and other customer-facing workflows finished before further owner/admin console investment. `TASKS.md` M08.04 (owner console) and M08.06 (private beta invite management) keep exactly the markers/evidence they already had (`[~]` and `[ ]` respectively) — nothing about their actual completeness changed. Future sessions must not present M08 as the current/active sprint unless the owner reopens it.
+
+### [ARCHITECTURE] Destructive media operations are gated by a real backend flag (`MEDIA_DESTRUCTIVE_ACTIONS_ENABLED`), not just a disabled frontend option
+Before this round, `replace_image`/`delete_image`/`replace_video`/`delete_video` were fully implemented and callable via `POST /bulk-edit/media/jobs` — the *only* thing preventing a live Etsy destructive write was a disabled option in the frontend `<select>`. A direct API call, a script, or a future frontend bug had a clear, real path to a real destructive Etsy write with zero server-side protection. `settings.MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` (default `False`) is now checked at both job creation (`create_media_job()`) and apply (`apply_media_job()`) for every operation in `DESTRUCTIVE_OPERATION_TYPES` (`replace_image`, `delete_image`, `replace_video`, `delete_video`, `restore_images`). This flag must never be set `True` by Claude/Codex — only an explicit owner decision, after a live-verified restore path, should change it. Any future destructive media/write feature in this app should follow the same pattern: a real backend flag, not a frontend-only disabled state, standing between "implemented" and "actually reachable in production."
+
+### [ARCHITECTURE] Media restore re-uses the existing media-job/result/backup infrastructure as a new operation type (`restore_images`), not a parallel restore system
+`restore_media_backup()` creates an ordinary `BulkEditMediaJob` with `operation_type="restore_images"` and `payload={"backup_id": ...}` — it goes through the exact same create → apply → per-listing-result → audit-log pipeline every other media operation already uses, including the safety-first "backup + per-item result" contract, and gets job history, item-level results, and org-scoping for free. The only new pieces are the operation's own execution logic (re-upload from the backup's stored image URLs) and the idempotency tracking on the snapshot itself (`restored_at`/`restore_media_job_id`). Any future recovery/restore feature elsewhere in this app should look for an existing job/result model to extend the same way before inventing a new one.
+
+### [POLICY] Video restore (re-uploading a backed-up video to Etsy) is out of scope until a download-and-stage step exists — do not fake it via the stored CDN URL
+`ListingMediaBackupSnapshot.videos_snapshot` stores `video_url`, an Etsy CDN URL — but `etsy_media_write.upload_etsy_listing_video()` requires a local file path (matching how the Product Video Generator already produces videos: render/upload locally, then hand Etsy a file, never a URL). Restoring a video would need a new download-to-temp-file step before the existing upload function could be reused. Not built this round — image restore was the priority (it's the data-loss scenario `etsy_media_write.py`'s own docstring already flags as the reason image reorder was never offered). A future sprint adding video restore should reuse `upload_etsy_listing_video()` unchanged, just add the download step.
+
+---
+
 ## 2026-08-31 (PR #124 owner verification + Audit Trail date-range fix + filter polish)
 
 ### [POLICY] A failed/skipped write attempt correctly appearing in the Audit Trail is valid evidence that write-attempt tracking works — it is evidence AGAINST the underlying write being supported, never evidence for it

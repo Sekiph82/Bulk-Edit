@@ -24,3 +24,10 @@ class ListingMediaBackupSnapshot(Base, TimestampMixin):
     raw_snapshot: Mapped[object | None] = mapped_column(JSON, nullable=True)
 
     created_by_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    # M13.04 restore tracking. Set only once a restore_images job for this
+    # backup actually finishes with at least one success (see
+    # bulk_edit_media.py::apply_media_job()) -- never at request time, so a
+    # job that never gets applied doesn't permanently block a real retry.
+    restored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    restore_media_job_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("bulk_edit_media_jobs.id", ondelete="SET NULL"), nullable=True)

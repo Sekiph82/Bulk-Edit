@@ -9,6 +9,8 @@ import {
   applyMediaJob,
   getMediaResults,
   getMediaBackups,
+  listAllMediaBackups,
+  restoreMediaBackup,
   listVideoRenders,
   uploadVideoFile,
   getListing,
@@ -16,6 +18,7 @@ import {
   ApiError,
   type MediaJob,
   type MediaResult,
+  type MediaBackupSnapshot,
   type VideoRenderSummary,
   type ListingDetail,
   type ListingImage,
@@ -372,18 +375,21 @@ function LocalUploadPanel({ onVideoUploaded }: { onVideoUploaded: (render: Video
 }
 
 // M13.04: add_image/add_video are purely additive (no existing asset is ever
-// lost) and stay enabled. replace_*/delete_* overwrite or remove an existing
-// asset — a MediaBackup row is created before the write (see getMediaBackups()
-// below), but there is no restore/revert endpoint yet, so a customer cannot
-// self-recover through this app if they change their mind. Disabled here
-// until that recovery story exists — see TASKS.md M13.04.
+// lost) and stay enabled. replace_*/delete_*/restore_images overwrite or
+// remove existing Etsy media. A MediaBackup snapshot is created before every
+// write, and a real restore endpoint now exists (re-uploads a backup's
+// images in original rank order) — but it has not been owner-verified
+// against a live Etsy listing yet, so the backend still refuses all of
+// these (403, MEDIA_DESTRUCTIVE_ACTIONS_ENABLED). Keep this list truthful:
+// say "restore path implemented, owner live test required" — never "no
+// restore yet", which stopped being true this round. See TASKS.md M13.04.
 const OPERATION_OPTIONS = [
   { value: "add_image", label: "Add Image", implemented: true },
-  { value: "replace_image", label: "Replace Image (at rank) — coming soon, no restore yet", implemented: false },
-  { value: "delete_image", label: "Delete Image — coming soon, no restore yet", implemented: false },
+  { value: "replace_image", label: "Replace Image (at rank) — disabled until restore is owner-verified", implemented: false },
+  { value: "delete_image", label: "Delete Image — disabled until restore is owner-verified", implemented: false },
   { value: "add_video", label: "Add Video", implemented: true },
-  { value: "replace_video", label: "Replace Video — coming soon, no restore yet", implemented: false },
-  { value: "delete_video", label: "Delete Video — coming soon, no restore yet", implemented: false },
+  { value: "replace_video", label: "Replace Video — disabled until restore is owner-verified", implemented: false },
+  { value: "delete_video", label: "Delete Video — disabled until restore is owner-verified", implemented: false },
 ];
 
 function StatusBadge({ status }: { status: string }) {
@@ -418,6 +424,10 @@ export default function MediaPage() {
   const [selectedAddVideoId, setSelectedAddVideoId] = useState("");
   const [jobs, setJobs] = useState<MediaJob[]>([]);
   const [results, setResults] = useState<MediaResult[]>([]);
+  const [backups, setBackups] = useState<MediaBackupSnapshot[]>([]);
+  const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
+  const [restoreErr, setRestoreErr] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
@@ -439,7 +449,28 @@ export default function MediaPage() {
     } catch {
       setVideoRenders([]);
     }
+    try {
+      const page = await listAllMediaBackups({ per_page: 50 });
+      setBackups(page.items);
+    } catch {
+      setBackups([]);
+    }
   }, []);
+
+  const handleRestore = async (backupId: string) => {
+    setRestoreErr(null);
+    setRestoreMsg(null);
+    setRestoringId(backupId);
+    try {
+      const job = await restoreMediaBackup(backupId);
+      setRestoreMsg(`Restore job ${job.id.slice(0, 8)}… created (pending) — applying is disabled until an owner runs a live restore test.`);
+      await load();
+    } catch (e) {
+      setRestoreErr(e instanceof ApiError ? e.message : "Could not start restore.");
+    } finally {
+      setRestoringId(null);
+    }
+  };
 
   useEffect(() => {
     const token = getAccessToken();
@@ -482,7 +513,7 @@ export default function MediaPage() {
     setMsg(null);
     if (selectedIds.size === 0) { setError("Select at least one listing."); return; }
     const op = OPERATION_OPTIONS.find(o => o.value === operationType);
-    if (!op?.implemented) { setError("This operation isn't available yet — restoring a replaced or deleted asset isn't supported yet, so it's disabled until that exists."); return; }
+    if (!op?.implemented) { setError("This operation is disabled — restore infrastructure now exists (backups can be re-uploaded), but it has not been owner-verified against a live Etsy listing yet."); return; }
     if ((operationType === "add_image" || operationType === "replace_image") && !imageUrl) {
       setError("Image URL is required."); return;
     }
@@ -865,6 +896,64 @@ export default function MediaPage() {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Backups & Restore (M13.04) */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-gray-800">Backups &amp; Restore</h2>
+            <span className="text-xs text-gray-400">Restore infrastructure implemented — disabled until owner-verified against a live listing</span>
+          </div>
+          {restoreMsg && <p className="text-xs text-green-700 mb-2">{restoreMsg}</p>}
+          {restoreErr && <p className="text-xs text-red-600 mb-2">{restoreErr}</p>}
+          {backups.length === 0 ? (
+            <p className="text-sm text-gray-400">No backups yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                    <th className="pb-2 pr-4">Created</th>
+                    <th className="pb-2 pr-4">Listing</th>
+                    <th className="pb-2 pr-4">Images</th>
+                    <th className="pb-2 pr-4">Restore status</th>
+                    <th className="pb-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {backups.map((b) => {
+                    const imageCount = Array.isArray(b.images_snapshot) ? b.images_snapshot.length : 0;
+                    return (
+                      <tr key={b.id} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-2 pr-4 text-gray-400 text-xs">{new Date(b.created_at).toLocaleString()}</td>
+                        <td className="py-2 pr-4 text-gray-700">#{b.etsy_listing_id}</td>
+                        <td className="py-2 pr-4 text-gray-600">{imageCount > 0 ? `${imageCount} image${imageCount === 1 ? "" : "s"}` : "no image data"}</td>
+                        <td className="py-2 pr-4">
+                          {b.restored_at ? (
+                            <span className="text-xs text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
+                              Restored {new Date(b.restored_at).toLocaleDateString()}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-500">Not restored</span>
+                          )}
+                        </td>
+                        <td className="py-2">
+                          <button
+                            onClick={() => handleRestore(b.id)}
+                            disabled={!!b.restored_at || restoringId === b.id || imageCount === 0}
+                            title="Restore is implemented but disabled until an owner runs a live restore test — this will show a clear 'disabled' message."
+                            className="text-xs text-indigo-600 hover:underline disabled:text-gray-300 disabled:no-underline disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded"
+                          >
+                            {restoringId === b.id ? "Starting…" : "Restore"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -63,6 +63,7 @@ interface RenderStatus {
   download_url: string | null;
   created_at: string;
   completed_at: string | null;
+  source?: string; // "generated" (Product Video Generator) | "uploaded" (own MP4 file)
 }
 
 const FALLBACK_ASPECT_RATIOS: AspectRatioOption[] = [
@@ -266,11 +267,19 @@ function VideoGeneratorContent() {
   const [pickedImages, setPickedImages] = useState<ListingImage[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [renderJob, setRenderJob] = useState<RenderStatus | null>(null);
+  const [history, setHistory] = useState<RenderStatus[]>([]);
 
   const [unavailableModalOpen, setUnavailableModalOpen] = useState(false);
   const [unavailableReason, setUnavailableReason] = useState<"disabled" | "dependency_missing">("disabled");
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function loadHistory() {
+    authFetch("/api/v1/video-generator/renders?all_statuses=true")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: RenderStatus[]) => setHistory(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }
 
   useEffect(() => {
     if (!getAccessToken()) { router.push("/login"); return; }
@@ -286,6 +295,7 @@ function VideoGeneratorContent() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    loadHistory();
   }, []);
 
   useEffect(() => {
@@ -322,6 +332,7 @@ function VideoGeneratorContent() {
             setRenderJob(data);
             if (data.status === "completed" || data.status === "failed") {
               if (pollRef.current) clearInterval(pollRef.current);
+              loadHistory();
             }
           }
         } catch { /* ignore */ }
@@ -382,10 +393,9 @@ function VideoGeneratorContent() {
     }
   }
 
-  function handleDownload() {
-    if (!renderJob?.download_url) return;
+  function downloadRender(downloadUrl: string, renderId: string) {
     const token = getAccessToken();
-    fetch(`${BACKEND_URL}${renderJob.download_url}`, {
+    fetch(`${BACKEND_URL}${downloadUrl}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.blob())
@@ -393,11 +403,16 @@ function VideoGeneratorContent() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `product_video_${renderJob.id.slice(0, 8)}.mp4`;
+        a.download = `product_video_${renderId.slice(0, 8)}.mp4`;
         a.click();
         URL.revokeObjectURL(url);
       })
       .catch(() => alert("Download failed."));
+  }
+
+  function handleDownload() {
+    if (!renderJob?.download_url) return;
+    downloadRender(renderJob.download_url, renderJob.id);
   }
 
   if (loading) {
@@ -643,6 +658,70 @@ function VideoGeneratorContent() {
             )}
           </div>
         )}
+
+        {/* Render history (M13.05) */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-900">Recent Videos</h2>
+          {history.length === 0 ? (
+            <p className="text-sm text-gray-400">No videos generated yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                    <th className="pb-2 pr-4">Created</th>
+                    <th className="pb-2 pr-4">Template</th>
+                    <th className="pb-2 pr-4">Source</th>
+                    <th className="pb-2 pr-4">Photos</th>
+                    <th className="pb-2 pr-4">Status</th>
+                    <th className="pb-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((h) => (
+                    <tr key={h.id} className="border-b border-gray-50">
+                      <td className="py-2 pr-4 text-gray-400 text-xs">{new Date(h.created_at).toLocaleString()}</td>
+                      <td className="py-2 pr-4 text-gray-700">{h.template_id}</td>
+                      <td className="py-2 pr-4 text-gray-500 text-xs">{h.source === "uploaded" ? "Uploaded file" : "Generated"}</td>
+                      <td className="py-2 pr-4 text-gray-600">{h.image_count > 0 ? h.image_count : "—"}</td>
+                      <td className="py-2 pr-4">
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded font-medium ${
+                            h.status === "completed"
+                              ? "bg-green-100 text-green-700"
+                              : h.status === "failed"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
+                          {h.status}
+                        </span>
+                        {h.status === "failed" && h.error_message && (
+                          <p className="text-xs text-red-600 mt-0.5">{h.error_message}</p>
+                        )}
+                      </td>
+                      <td className="py-2">
+                        {h.status === "completed" && h.download_url ? (
+                          <button
+                            onClick={() => downloadRender(h.download_url as string, h.id)}
+                            className="text-xs text-indigo-600 hover:underline"
+                          >
+                            Download
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="text-xs text-gray-400">
+            Bulk Edit App does not auto-upload videos to Etsy. Download and review each video, then publish manually on Etsy.
+          </p>
+        </div>
       </div>
 
       <VideoUnavailableModal

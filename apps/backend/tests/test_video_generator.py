@@ -368,6 +368,42 @@ async def test_list_renders_etsy_ready_only_filter(client: AsyncClient, db_sessi
     assert resp.json()[0]["is_etsy_ready"] is True
 
 
+@pytest.mark.anyio
+async def test_list_renders_all_statuses_powers_history_view(client: AsyncClient, db_session):
+    """M13.05: the default (all_statuses=False, unchanged) still hides
+    pending/failed renders for the replace_video picker; all_statuses=True
+    (used by the Video Generator's own render history) must include them."""
+    from app.models.video_render import VideoRender
+    from sqlalchemy import select
+    from app.models.organization_member import OrganizationMember
+
+    token = await _register_and_login(client, "vid_list_all@test.com", "VidListAll")
+    org_id = (await db_session.execute(
+        select(OrganizationMember).order_by(OrganizationMember.created_at.asc()).limit(1)
+    )).scalar_one().organization_id
+
+    db_session.add(VideoRender(organization_id=org_id, template_id="clean_zoom", status="completed", is_etsy_ready=True, file_path="/tmp/done.mp4"))
+    db_session.add(VideoRender(organization_id=org_id, template_id="clean_zoom", status="pending"))
+    db_session.add(VideoRender(organization_id=org_id, template_id="clean_zoom", status="failed", error_message="Render error"))
+    await db_session.commit()
+
+    resp_default = await client.get(
+        "/api/v1/video-generator/renders",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert len(resp_default.json()) == 1
+
+    resp_all = await client.get(
+        "/api/v1/video-generator/renders?all_statuses=true",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp_all.status_code == 200
+    statuses = {r["status"] for r in resp_all.json()}
+    assert statuses == {"completed", "pending", "failed"}
+    failed = next(r for r in resp_all.json() if r["status"] == "failed")
+    assert failed["error_message"] == "Render error"
+
+
 # --- Upload endpoint ---
 
 @pytest.mark.anyio

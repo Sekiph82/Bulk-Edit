@@ -2,7 +2,39 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-31 (Owner verification of PR #124 + Audit Trail date-range fix + filter polish — branch `fix/audit-date-range-and-owner-verification-polish`)
+## RESUME HERE — 2026-08-31 (M13 Media Safety & Video Workflow sprint — branch `feature/m13-media-restore-video-workflow`)
+
+**PR #125 merged (`2aae4282`), deployed, all 9 safe route/health checks 200.** Owner then sent final re-confirmation evidence: a second screenshot and CSV download using the "Not reverted" quick filter + `date_to=31.08.2026` together — the same skipped-price audit row remained correctly visible. This confirms PR #125's two fixes work together in production, not just individually (M06.04 stays `[x]`, already promoted last round — this is re-confirmation, not a new promotion).
+
+**Owner decision: M08 deferred.** Owner explicitly asked to defer M08 (owner/admin/beta management) until customer-facing user modules (media/video/AI/variations) are further along. No code or marker change — recorded in `TASKS.md`'s M08 section header. Do not present M08 as the active/current sprint until the owner reopens it.
+
+**M13 Media Safety & Video Workflow sprint — implementation complete this round.**
+
+**Media restore foundation:** new `restore_images` media-job operation (`apps/backend/app/services/bulk_edit_media.py::restore_media_backup()`) re-uploads a `ListingMediaBackupSnapshot`'s `images_snapshot` in original rank order after deleting whatever is currently on the listing (same delete-then-reupload data-loss window `replace_image` already has). New `GET /bulk-edit/media/backups` (org-wide backup history) and `POST /bulk-edit/media/backups/{id}/restore` (creates a PENDING job; the existing `POST /jobs/{id}/apply` runs it — same two-step contract every media job already uses). Idempotency via new `restored_at`/`restore_media_job_id` columns (migration `0028`) — set only once a restore job actually succeeds for at least one listing, so a job that's created but never applied doesn't permanently block a real retry. Video restore is **not** implemented — `videos_snapshot` only stores an Etsy CDN `video_url`, and re-uploading to Etsy needs a local file, which is a separate task.
+
+**Real backend safety gap found and fixed:** before this round, `replace_image`/`delete_image`/`replace_video`/`delete_video` had **zero backend-level protection** — only the frontend's disabled dropdown option stood between a direct API call and a real live Etsy destructive write. New `settings.MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` (default `False`) is now checked at job creation and again at apply, for every destructive operation including the new `restore_images`. This flag must stay `False` in production until an owner explicitly runs a live destructive test — Claude/Codex must never set it `True`.
+
+**UI:** new "Backups & Restore" section on `/media` — lists every backup (created date, listing, image count, restore status), Restore button calls the real endpoint (currently always 403s in production, which is correct/expected). Frontend copy corrected from stale "coming soon, no restore yet" to truthful "disabled until restore is owner-verified" everywhere it appears.
+
+**Video Generator:** the render pipeline was already fully real (local ffmpeg, confirmed no external AI/video provider call anywhere, never auto-uploads to Etsy) — it just had no history view. New "Recent Videos" section on `/video-generator` lists every render (template, source, photo count, status, download link, error) via a new `GET /video-generator/renders?all_statuses=true` param (default stays completed-only, unchanged, still used by the Replace Video picker).
+
+**Tests:** 16 new/updated backend tests across `test_bulk_edit_media.py` and `test_video_generator.py` — destructive-gate blocks every op type by default, `add_image`/`add_video` never blocked, apply-time defense-in-depth, restore auth/org-scope/no-data/create/double-restore/apply-success/apply-failure-doesn't-mark-restored, org-wide backups list+isolation, render-history `all_statuses` filter. `tsc --noEmit`/`next lint`/`next build` all clean.
+
+**M13.04 and M13.05 both stay `[~]`** — real, tested, but neither destructive media restore nor video generation has been owner-run live yet.
+
+**Safety, explicit:** no Etsy API call anywhere in this round's code (restore/history only read/write local DB state and mocked-Etsy test paths); `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` stays `False`; no production sync, Bulk Edit Apply, or Magic Revert run by Claude/Codex; no live media upload/delete/replace; no live video generation; no Etsy video upload; no auto-Etsy-publish; no secrets printed.
+
+**Recommended next owner action:**
+1. Open `/media`, select a listing, review Current Media and the new "Backups & Restore" section.
+2. Confirm the destructive-operation labels ("disabled until restore is owner-verified") read as truthful, not misleading.
+3. Do NOT run a live media replace/delete/restore unless explicitly ready to test that separately.
+4. Open `/video-generator`, select listing photos, confirm the selected-photo preview, "Recent Videos" history, and manual-publish copy all read correctly.
+5. Do NOT generate/upload a video unless explicitly ready.
+6. No live write/revert/sync/media/video action is required for any of the above — this is a UI/backend-safety review, not a live test.
+
+---
+
+## Previously — 2026-08-31 (Owner verification of PR #124 + Audit Trail date-range fix + filter polish — PR #125, branch `fix/audit-date-range-and-owner-verification-polish`, merge `2aae4282957864b33c5c247a9b8fd1dcfa293af5`)
 
 **PART A — owner verification recorded.** PR #124 merged (`8edc2570`), deployed. Owner then clicked through production: `/magic-revert` shows canonical job states clearly (Failed, Reverted, Partially failed) with real item counts, and expanding a failed job showed correct per-item detail (Etsy listing id, `skipped` status, "variation inventory support deferred" reason). `/account/activity`'s Write Audit Trail section works — Price quick filter returned a real record, Title quick filter behaved correctly even with no matches in the current dataset (owner accepted this as PASS). The recorded row was a real skipped variation-price write attempt: `field_name=price_amount`, `before=7449`, `after=7599`, `result_status=skipped`, `revert_status` empty. Owner downloaded the CSV export (`bulk-edit-audit-trail-2026-08-31.csv`) and confirmed headers + the same row. **M04.03 and M06.04 both promoted `[x]`.** Critical framing, carried into `TASKS.md`/`DECISIONS.md`: this proves write *attempts* (including skipped/failed ones) are tracked and surfaced correctly — it does **not** mean variation price write is supported. That remains unbuilt (M15.04).
 

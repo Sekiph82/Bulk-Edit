@@ -13,6 +13,7 @@ VALID_OPERATION_TYPES = {
     "add_video",
     "replace_video",
     "delete_video",
+    "restore_images",
 }
 
 
@@ -95,10 +96,19 @@ class MediaBackupSnapshotOut(BaseModel):
     snapshot_type: str
     images_snapshot: Any | None
     videos_snapshot: Any | None
+    restored_at: datetime | None = None
+    restore_media_job_id: str | None = None
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class MediaBackupPageOut(BaseModel):
+    items: list[MediaBackupSnapshotOut]
+    page: int
+    per_page: int
+    total: int
 
 
 class MediaJobWithResultsOut(MediaJobOut):
