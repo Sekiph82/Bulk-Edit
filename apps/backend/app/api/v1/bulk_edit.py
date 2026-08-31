@@ -370,16 +370,32 @@ async def get_field_audit_trail(
     db: AsyncSession = Depends(get_db),
 ):
     """M06.04 per-item write audit trail — searchable, org-scoped, read-only.
-    Export is not built this sprint; this is the read/search surface a
-    future export would reuse."""
+    See also GET /audit-trail/export.csv (same filters, CSV output)."""
     items, total = await list_field_audit_trail(
         db, org_id,
         apply_job_id=apply_job_id, listing_id=listing_id, field_name=field_name,
         result_status=result_status, revert_status=revert_status,
         date_from=date_from, date_to=date_to, page=page, per_page=per_page,
     )
+    # Decorate with the listing's current title (cheap local join, no live
+    # Etsy call) — purely a UI convenience so the Audit Trail table doesn't
+    # have to show a bare listing id. Never included in the CSV export,
+    # which keeps its documented, stable column set.
+    listing_ids = {i.entity_id for i in items if i.entity_id}
+    titles: dict[str, str] = {}
+    if listing_ids:
+        from sqlalchemy import select as _select
+        from app.models.listing import Listing
+        title_rows = await db.execute(
+            _select(Listing.id, Listing.title).where(Listing.id.in_(listing_ids))
+        )
+        titles = {lid: title for lid, title in title_rows.all() if title}
+
     return FieldAuditLogPageOut(
-        items=[FieldAuditLogOut.model_validate(i) for i in items],
+        items=[
+            FieldAuditLogOut.model_validate(i).model_copy(update={"listing_title": titles.get(i.entity_id)})
+            for i in items
+        ],
         page=page, per_page=per_page, total=total,
     )
 

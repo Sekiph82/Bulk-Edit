@@ -2,7 +2,34 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-31 (M06.04 Audit Trail UI + Export, M04.03 job-state UI polish — branch `feature/m03-verified-audit-trail-ui-export`)
+## RESUME HERE — 2026-08-31 (Owner verification of PR #124 + Audit Trail date-range fix + filter polish — branch `fix/audit-date-range-and-owner-verification-polish`)
+
+**PART A — owner verification recorded.** PR #124 merged (`8edc2570`), deployed. Owner then clicked through production: `/magic-revert` shows canonical job states clearly (Failed, Reverted, Partially failed) with real item counts, and expanding a failed job showed correct per-item detail (Etsy listing id, `skipped` status, "variation inventory support deferred" reason). `/account/activity`'s Write Audit Trail section works — Price quick filter returned a real record, Title quick filter behaved correctly even with no matches in the current dataset (owner accepted this as PASS). The recorded row was a real skipped variation-price write attempt: `field_name=price_amount`, `before=7449`, `after=7599`, `result_status=skipped`, `revert_status` empty. Owner downloaded the CSV export (`bulk-edit-audit-trail-2026-08-31.csv`) and confirmed headers + the same row. **M04.03 and M06.04 both promoted `[x]`.** Critical framing, carried into `TASKS.md`/`DECISIONS.md`: this proves write *attempts* (including skipped/failed ones) are tracked and surfaced correctly — it does **not** mean variation price write is supported. That remains unbuilt (M15.04).
+
+**PART B — date range bug fixed.** The Audit Trail's `date_to` filter had a real bug: `<input type="date">` gives a bare `"YYYY-MM-DD"` string, and the old frontend code (`new Date(dateTo).toISOString()`) parsed that as UTC midnight — meaning `date_to = 2026-08-31` actually filtered up to `2026-08-31T00:00:00.000Z`, the *start* of that day, silently excluding nearly every record from it. Fixed with two small local helpers in `apps/frontend/app/(app)/account/activity/page.tsx` (`localDayStartISO()`/`localDayEndISO()`) that construct a local-timezone `Date` for `00:00:00.000`/`23:59:59.999` and convert to ISO — both the list request and the CSV export read the fix from the same shared `filters` object, so they can never diverge. 1 new backend test proves the exact owner scenario (a `10:30:32Z` record included when `date_to` is that day's end, excluded when `date_to` is that day's start).
+
+**PART C — filter/UI polish:**
+- **"Not reverted" quick filter implemented** — new `revert_status=not_reverted` sentinel in `_field_audit_trail_query()` filters `AuditLog.revert_status IS NULL`, org-scoped, works for both list and export, doesn't change `revert_status=completed`'s existing exact-match behavior. 2 new backend tests.
+- **"Conflict" quick filter deliberately NOT implemented** — `AuditLog.revert_status` reflects the *revert job's overall* outcome (set by `revert_apply_job()`'s bulk UPDATE), not the per-listing `RevertResult.status` a specific conflict actually lives on. Faking this filter would silently mislead. Documented as a real, scoped future task (needs a join to `RevertResult` by apply_job_id+listing+field) in `TASKS.md`/`DECISIONS.md`, not built this round.
+- **Listing title added** to the Audit Trail list view (`GET /audit-trail` now decorates rows with `listing_title` via a cheap local `Listing` lookup, no live Etsy call) — CSV export columns unchanged.
+- **Magic Revert status-filter dropdown** relabeled to canonical wording ("Succeeded"/"Partially failed"/"Failed") — same underlying values, still filters the real backend column.
+- Revertable-only checkbox, Account Activity → Magic Revert links, and the absence of any Cancel button were all reviewed and confirmed unchanged/correct — no further action needed.
+
+**Tests:** 1 new date-boundary test + 2 new not-reverted-filter tests in `test_write_audit_trail.py` — 16 passed, 1 failed (known local-venv `requires_auth` artifact) in that file; broader affected-area run (apply/revert/revert-conflict/job-states) 111 passed, 7 failed (same known pattern). `tsc --noEmit`/`next lint`/`next build` all clean.
+
+**M04.03 and M06.04 are now `[x]`** — no longer pending owner click-through.
+
+**Safety, explicit:** no Etsy API call anywhere in this round (only reads/filters already-synced local data); no production sync, Bulk Edit Apply, or Magic Revert run by Claude/Codex; no secrets printed; no media/video/Stripe/env/DNS changes.
+
+**Recommended next owner action / next sprint (pick one, none urgent):**
+1. Spot-check the date-range fix: open `/account/activity`, set Date to = today, confirm today's records are still visible (they should be, unlike before); export CSV again and confirm the row is still included.
+2. Try the new "Not reverted" quick filter with existing data (no live revert needed).
+3. Consider the next real sprint: variation write/revert architecture design (M15.04 — no live write, currently correctly refuses/skips), or M08 owner/admin beta management, or the "Conflict" audit filter's `RevertResult` join (documented above, not urgent).
+4. No live write/revert/sync action is required for any of the above.
+
+---
+
+## Previously — 2026-08-31 (M06.04 Audit Trail UI + Export, M04.03 job-state UI polish — PR #124, branch `feature/m03-verified-audit-trail-ui-export`, merge `8edc2570c43929e92d7689bc3b86b13d66c2a315`)
 
 **PART A — M03.02/M03.03 owner verification correction:** PR #123 merged (`297183d0`), deployed. Owner then signed out, signed back in, opened `/listings` **without running a new Sync** — production already showed `All 547 / Active 210 / Inactive 180 / Draft 0 / Expired 157 / Sold out 0`, exactly matching Etsy's own seller UI, with real listing rows under the Inactive tab carrying raw state badge `edit`. No resync was needed — the `edit`-state listings were already sitting in the local database from an earlier sync; PR #123 only needed to correctly interpret data that was already there (fetch it if missing, group it into the Inactive bucket/count/filter). **M03.02 and M03.03 both promoted `[x]`** — see `TASKS.md` for the full evidence writeup. This correction is folded into this round's PR (no separate PR opened for it, per the task's explicit instruction).
 

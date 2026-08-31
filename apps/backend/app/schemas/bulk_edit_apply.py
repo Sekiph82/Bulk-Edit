@@ -102,6 +102,7 @@ class FieldAuditLogOut(BaseModel):
     organization_id: str
     user_id: str | None
     entity_id: str | None  # internal listing id
+    listing_title: str | None = None  # decorated in from Listing.title, not a real AuditLog column
     field_name: str | None
     result_status: str | None
     apply_job_id: str | None

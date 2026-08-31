@@ -603,6 +603,7 @@ export interface FieldAuditLog {
   organization_id: string;
   user_id: string | null;
   entity_id: string | null; // internal listing id
+  listing_title: string | null;
   field_name: string | null;
   result_status: string | null;
   apply_job_id: string | null;

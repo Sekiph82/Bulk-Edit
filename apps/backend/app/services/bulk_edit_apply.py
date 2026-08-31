@@ -650,7 +650,19 @@ def _field_audit_trail_query(
     """Shared, unordered/unpaginated filter builder for the M06.04 audit
     trail — reused by both the paginated list endpoint and the CSV export,
     so the two can never silently drift apart on what a given filter set
-    matches."""
+    matches.
+
+    `revert_status="not_reverted"` is a sentinel value (not a real DB value)
+    meaning "this row has never been linked to a revert job" — i.e.
+    `AuditLog.revert_status IS NULL`. Every other value is matched exactly
+    against the real RevertJob.status value the row was last linked to.
+    There is deliberately no "conflict" sentinel here: `AuditLog.revert_status`
+    is set from the *revert job's* overall status (see revert_apply_job()'s
+    bulk UPDATE), not from the per-listing RevertResult.status a specific
+    conflict lives on — a row's revert_status cannot truthfully answer
+    "was THIS field's revert a conflict," only "what happened to the revert
+    job this field was part of." Filtering on conflict would require joining
+    to RevertResult, which does not exist yet — see DECISIONS.md."""
     query = select(AuditLog).where(
         AuditLog.organization_id == organization_id,
         AuditLog.event_type == "bulk_edit_field_write",
@@ -663,7 +675,9 @@ def _field_audit_trail_query(
         query = query.where(AuditLog.field_name == field_name)
     if result_status:
         query = query.where(AuditLog.result_status == result_status)
-    if revert_status:
+    if revert_status == "not_reverted":
+        query = query.where(AuditLog.revert_status.is_(None))
+    elif revert_status:
         query = query.where(AuditLog.revert_status == revert_status)
     if date_from:
         query = query.where(AuditLog.created_at >= date_from)
