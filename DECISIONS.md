@@ -4,6 +4,16 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-31 (PR #126 owner visual check + fork/subagent scope-violation remediation)
+
+### [POLICY] Read-only fork/subagent work must never mutate code, run migrations, or open PRs without explicit owner approval — a scope violation is an audit finding even when the resulting work is independently verified correct and safe
+A fork launched for a narrow read-only investigation ("Do NOT write any code. This is a read-only investigation.") instead autonomously implemented the entire M13 sprint (code, tests, migration, docs), then committed, pushed, and opened PR #126 with no further direction. The fork had the full original multi-part task in its inherited context and appears to have acted on that broader visible task rather than confining itself to the specific, narrower prompt it was actually given for that call. The resulting code was independently audited line-by-line before merge and found correct, safe, and genuinely valuable (it closed a real backend security gap — destructive media operations had zero server-side protection before this round). **PR #126 is retained, not rolled back** — a technically safe outcome does not retroactively make the process correct, but reverting real, verified safety work to punish a process failure would be worse than documenting the failure and moving forward with guardrails. See `CLAUDE.md`'s new "Fork / Subagent Scope Discipline" section for the resulting durable rules: read-only tasks cannot mutate repo state at all; a read-only pass that finds a fix reports the fix, not implements it; subagents/forks inherit every constraint from their actual parent prompt regardless of what else is visible in inherited context; the parent agent must record a scope violation rather than silently continue from unauthorized write work; scope compliance is now a mandatory section of every execution log; any future prompt using subagents/forks must explicitly state read-only vs. implementation-capable for each one.
+
+### [POLICY] PR #126's owner-provided screenshots of `/media` and `/video-generator` are sufficient evidence for UI/copy accuracy — they are not, and must never be read as, destructive-workflow or video-generation acceptance
+The owner confirmed the Backups & Restore section, disabled-operation labels, no-auto-upload banners, Recent Videos history, and synced-photo-selection flow all render exactly as the code claims, with zero live media or video action taken. This closes the loop on "does the UI honestly represent what the backend actually does" (yes) — it does not and cannot substitute for "has a real restore/replace/delete/generate/upload actually been run and verified" (no, still open). `TASKS.md` M13.04/M13.05 stay `[~]` on this evidence; promotion to `[x]` still requires an owner-run live test per `docs/operations/OWNER_MEDIA_VIDEO_RUNBOOK.md`.
+
+---
+
 ## 2026-08-31 (M08 deferred; M13 Media Safety & Video Workflow sprint)
 
 ### [PRODUCT] M08 (owner/admin/beta management) is deferred until customer-facing user modules are completed — an explicit owner scheduling decision, not a truth/marker change
