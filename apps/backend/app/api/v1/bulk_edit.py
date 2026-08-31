@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_org_id, require_active_user, get_current_user
@@ -51,6 +52,7 @@ from app.services.bulk_edit_apply import (
     get_apply_results,
     list_backup_snapshots_for_session,
     list_field_audit_trail,
+    export_field_audit_trail_csv,
 )
 from app.services.bulk_edit_revert import (
     revert_apply_job,
@@ -379,4 +381,38 @@ async def get_field_audit_trail(
     return FieldAuditLogPageOut(
         items=[FieldAuditLogOut.model_validate(i) for i in items],
         page=page, per_page=per_page, total=total,
+    )
+
+
+@router.get("/audit-trail/export.csv")
+async def export_audit_trail_csv(
+    apply_job_id: str | None = Query(None),
+    listing_id: str | None = Query(None),
+    field_name: str | None = Query(None),
+    result_status: str | None = Query(None),
+    revert_status: str | None = Query(None),
+    date_from: datetime | None = Query(None),
+    date_to: datetime | None = Query(None),
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """M06.04 CSV export — same filters as GET /audit-trail, org-scoped,
+    read-only. See export_field_audit_trail_csv() for the row cap and
+    safe-value flattening."""
+    csv_text = await export_field_audit_trail_csv(
+        db, org_id,
+        apply_job_id=apply_job_id, listing_id=listing_id, field_name=field_name,
+        result_status=result_status, revert_status=revert_status,
+        date_from=date_from, date_to=date_to,
+    )
+    filename = f"bulk-edit-audit-trail-{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.csv"
+
+    def _iter():
+        yield csv_text.encode("utf-8")
+
+    return StreamingResponse(
+        _iter(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

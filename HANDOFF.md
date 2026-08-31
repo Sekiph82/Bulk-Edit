@@ -2,7 +2,34 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-31 (M03 hotfix: Etsy `edit` state → Inactive grouping + empty-state copy fix — branch `fix/m03-inactive-edit-status-sync`)
+## RESUME HERE — 2026-08-31 (M06.04 Audit Trail UI + Export, M04.03 job-state UI polish — branch `feature/m03-verified-audit-trail-ui-export`)
+
+**PART A — M03.02/M03.03 owner verification correction:** PR #123 merged (`297183d0`), deployed. Owner then signed out, signed back in, opened `/listings` **without running a new Sync** — production already showed `All 547 / Active 210 / Inactive 180 / Draft 0 / Expired 157 / Sold out 0`, exactly matching Etsy's own seller UI, with real listing rows under the Inactive tab carrying raw state badge `edit`. No resync was needed — the `edit`-state listings were already sitting in the local database from an earlier sync; PR #123 only needed to correctly interpret data that was already there (fetch it if missing, group it into the Inactive bucket/count/filter). **M03.02 and M03.03 both promoted `[x]`** — see `TASKS.md` for the full evidence writeup. This correction is folded into this round's PR (no separate PR opened for it, per the task's explicit instruction).
+
+**PART B — M06.04 Audit Trail UI + Export, M04.03 job-state UI polish:**
+- **Backend export (M06.04):** new `GET /api/v1/bulk-edit/audit-trail/export.csv` (`apps/backend/app/services/bulk_edit_apply.py::export_field_audit_trail_csv()`) — same org-scoping/filters as the existing list endpoint via a shared `_field_audit_trail_query()` builder (extracted so list and export can never silently drift apart on what a filter matches), capped at 5000 rows, CSV columns exactly `created_at, organization_id, user_id, etsy_shop_id, listing_id, etsy_listing_id, field_name, operation, before, after, result_status, revert_status, apply_job_id, bulk_edit_session_id, revert_job_id, error_message`. Before/after values are JSON-flattened (`_csv_safe_value()`) so an object/array never renders as a raw placeholder. No secrets are ever in this table to begin with (only bulk-edit field diffs — title/price/tags/etc.).
+- **Frontend Audit Trail UI (M06.04):** new "Write Audit Trail" section on `/account/activity` — filter inputs (apply job id, listing id, field name, result status, date range), 4 quick-filter buttons (Failed, Reverted, Price, Title — "Conflict" and "Not reverted" were deliberately skipped, see TASKS.md M06.04 for why), backend-driven pagination (25/page, real total), safe before/after rendering (`AuditValueCell` — JSON-stringifies objects, truncates long text with a native tooltip, never `[object Object]`), copyable apply-job-id cells, and an "Export CSV" button. The export button uses `fetch()` with the bearer token and hands the browser a `blob:` URL — deliberately does **not** copy the pre-existing, unrelated `/csv/export`'s pattern of putting an access token in the URL query string (`_token=`), which never actually authenticates against that endpoint's `HTTPBearer`-only auth dependency — a pre-existing bug in a different, untouched feature, noted here but not fixed (out of this task's scope).
+- **Job-state UI polish (M04.03):** canonical-state labels/badge colors extracted into a shared `apps/frontend/lib/jobStates.ts` — friendly capitalized labels (`partially_failed`→"Partially failed", etc.) instead of a naive `.replace(/_/g, " ")`. Used in `/magic-revert` (unchanged visual behavior, now via the shared helper), `/account/activity` (Recent Activity rows previously showed raw lowercase status), and `/bulk-edit` (apply/revert result banners now show the canonical label as primary text, raw DB status as parenthetical secondary text). No fake Cancel button anywhere — `cancelled` stays documented-unreachable.
+- **Magic Revert item-level revert results (B3/B4):** the job-detail expansion on `/magic-revert` previously only showed apply-time per-listing results; it now also fetches and shows the linked revert job's per-listing results (including `status="conflict"` rows from M06.03) when a job has been reverted — closes the gap where a conflicted item's outcome was recorded server-side but never actually visible anywhere in the UI.
+- **No new job-detail route (B4):** per the task's own fallback instruction ("if too large, don't build a full new route — make Account Activity/Audit Trail good enough"), no dedicated `/bulk-edit/jobs/[job_id]` route was built this round. Recorded as a future task, not silently dropped.
+
+**Tests:** 7 new backend tests in `test_write_audit_trail.py` (export auth/org-scope/filters/headers/before-after/no-secrets/object-values) — 13 passed, 1 failed (known local-venv `requires_auth` artifact). `tsc --noEmit`/`next lint`/`next build` all clean.
+
+**M06.04 and M04.03 stay `[~]`** — implemented and tested, no owner click-through yet.
+
+**Safety, explicit:** no Etsy API call anywhere in this round's code (the export/UI only reads already-synced local `AuditLog`/`ApplyJob`/`RevertJob` data); no production sync, Bulk Edit Apply, or Magic Revert run by Claude/Codex; no secrets printed; no media/video/Stripe/env/DNS changes.
+
+**Recommended next owner action:**
+1. Open `/account/activity` — scroll to the new "Write Audit Trail" section.
+2. Confirm the records are readable (dates, listing numbers, field names, before/after values — no `[object Object]` or raw JSON garbage).
+3. Try a filter or quick-filter button without changing any data (read-only).
+4. Click "Export CSV" and open the downloaded file — confirm the columns match and there's nothing secret-looking in it.
+5. Open `/magic-revert` — confirm canonical state labels read clearly ("Succeeded", "Partially failed", etc.), and if any job was reverted, expand its details and confirm both an "Apply results" and a "Revert results" table appear.
+6. No live write/revert/sync action is required for any of the above.
+
+---
+
+## Previously — 2026-08-31 (M03 hotfix: Etsy `edit` state → Inactive grouping + empty-state copy fix — PR #123, branch `fix/m03-inactive-edit-status-sync`, merge `297183d0445232c0024fafca29be5587d146fe1a`)
 
 **PR #122 (M06.03 expected-after-value remediation) merged (`76add81f`), deployed, all 9 safe route/health checks 200.** This round is a queued M03 hotfix, started only after that remediation was fully complete/merged/deployed/logged per explicit sequencing instructions.
 

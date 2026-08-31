@@ -23,6 +23,9 @@ Write flow per listing:
 Variation listings: inventory write skipped (Sprint 11); text fields still applied.
 Photo/video writes: deferred to Sprint 11.
 """
+import csv
+import io
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -634,8 +637,7 @@ async def list_backup_snapshots_for_session(
     return list(result.scalars().all())
 
 
-async def list_field_audit_trail(
-    db: AsyncSession,
+def _field_audit_trail_query(
     organization_id: str,
     apply_job_id: str | None = None,
     listing_id: str | None = None,
@@ -644,13 +646,11 @@ async def list_field_audit_trail(
     revert_status: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
-    page: int = 1,
-    per_page: int = 50,
-) -> tuple[list[AuditLog], int]:
-    """M06.04: searchable per-item write audit trail. Org-scoped always —
-    cross-org isolation is enforced by the organization_id filter below, not
-    by the caller. Export is not built this sprint; this is the read/search
-    surface that a future export would reuse."""
+):
+    """Shared, unordered/unpaginated filter builder for the M06.04 audit
+    trail — reused by both the paginated list endpoint and the CSV export,
+    so the two can never silently drift apart on what a given filter set
+    matches."""
     query = select(AuditLog).where(
         AuditLog.organization_id == organization_id,
         AuditLog.event_type == "bulk_edit_field_write",
@@ -669,6 +669,29 @@ async def list_field_audit_trail(
         query = query.where(AuditLog.created_at >= date_from)
     if date_to:
         query = query.where(AuditLog.created_at <= date_to)
+    return query
+
+
+async def list_field_audit_trail(
+    db: AsyncSession,
+    organization_id: str,
+    apply_job_id: str | None = None,
+    listing_id: str | None = None,
+    field_name: str | None = None,
+    result_status: str | None = None,
+    revert_status: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    page: int = 1,
+    per_page: int = 50,
+) -> tuple[list[AuditLog], int]:
+    """M06.04: searchable per-item write audit trail. Org-scoped always —
+    cross-org isolation is enforced by the organization_id filter below, not
+    by the caller."""
+    query = _field_audit_trail_query(
+        organization_id, apply_job_id, listing_id, field_name,
+        result_status, revert_status, date_from, date_to,
+    )
 
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar_one()
@@ -676,3 +699,80 @@ async def list_field_audit_trail(
     query = query.order_by(AuditLog.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
     result = await db.execute(query)
     return list(result.scalars().all()), total
+
+
+_AUDIT_EXPORT_HEADERS = [
+    "created_at", "organization_id", "user_id", "etsy_shop_id",
+    "listing_id", "etsy_listing_id", "field_name", "operation",
+    "before", "after", "result_status", "revert_status",
+    "apply_job_id", "bulk_edit_session_id", "revert_job_id", "error_message",
+]
+# ponytail: single-file, non-streamed export capped at this many rows. Add
+# real streaming/chunked export if an org's audit trail ever grows past this
+# in one filtered request.
+_EXPORT_ROW_CAP = 5000
+_CSV_VALUE_MAX_LEN = 2000
+
+
+def _csv_safe_value(value: Any) -> str:
+    """Flattens a before/after value for CSV — objects/arrays become compact
+    JSON text (never a raw Python repr like "[object Object]"-equivalent),
+    everything else is str()'d, and anything implausibly long is truncated.
+    These values only ever come from bulk-edit field diffs (title, price,
+    tags, etc.) — never tokens/credentials — but length-capping stays as a
+    defensive measure against a pathologically large field value."""
+    if value is None:
+        return ""
+    text = json.dumps(value, ensure_ascii=False, default=str) if isinstance(value, (dict, list)) else str(value)
+    if len(text) > _CSV_VALUE_MAX_LEN:
+        text = text[:_CSV_VALUE_MAX_LEN] + "…(truncated)"
+    return text
+
+
+async def export_field_audit_trail_csv(
+    db: AsyncSession,
+    organization_id: str,
+    apply_job_id: str | None = None,
+    listing_id: str | None = None,
+    field_name: str | None = None,
+    result_status: str | None = None,
+    revert_status: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+) -> str:
+    """M06.04 CSV export — same filters and org-scoping as
+    list_field_audit_trail() (shared query builder), just unpaginated up to
+    _EXPORT_ROW_CAP. Never includes tokens/OAuth codes/x-api-key/secret env
+    values — the only Etsy-facing values ever stored here are bulk-edit
+    field diffs (title/price/tags/etc.), not credentials."""
+    query = _field_audit_trail_query(
+        organization_id, apply_job_id, listing_id, field_name,
+        result_status, revert_status, date_from, date_to,
+    ).order_by(AuditLog.created_at.desc()).limit(_EXPORT_ROW_CAP)
+    result = await db.execute(query)
+    rows = list(result.scalars().all())
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=_AUDIT_EXPORT_HEADERS)
+    writer.writeheader()
+    for row in rows:
+        extra = row.extra_data if isinstance(row.extra_data, dict) else {}
+        writer.writerow({
+            "created_at": row.created_at.isoformat() if row.created_at else "",
+            "organization_id": row.organization_id,
+            "user_id": row.user_id or "",
+            "etsy_shop_id": extra.get("etsy_shop_id") or "",
+            "listing_id": row.entity_id or "",
+            "etsy_listing_id": extra.get("etsy_listing_id") or "",
+            "field_name": row.field_name or "",
+            "operation": extra.get("operation") or "",
+            "before": _csv_safe_value(extra.get("before")),
+            "after": _csv_safe_value(extra.get("after")),
+            "result_status": row.result_status or "",
+            "revert_status": row.revert_status or "",
+            "apply_job_id": row.apply_job_id or "",
+            "bulk_edit_session_id": extra.get("bulk_edit_session_id") or "",
+            "revert_job_id": row.revert_job_id or "",
+            "error_message": extra.get("error_message") or "",
+        })
+    return output.getvalue()

@@ -5,27 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getAccessToken, ApiError,
-  getApplyJobHistory, getApplyJobDetail, revertApplyJob,
-  type ApplyJobHistoryItem, type ApplyResult,
+  getApplyJobHistory, getApplyJobDetail, revertApplyJob, getRevertJob,
+  type ApplyJobHistoryItem, type ApplyResult, type RevertResult,
 } from "@/lib/api";
-
-// Canonical presentation states (M04.03) — DB status stays completed/
-// completed_with_errors/failed/etc. underneath (see app/core/job_states.py);
-// this maps the *canonical_state* field the API now also returns.
-const STATUS_BADGE: Record<string, string> = {
-  succeeded: "bg-green-100 text-green-700",
-  partially_failed: "bg-orange-100 text-orange-700",
-  failed: "bg-red-100 text-red-700",
-  rate_limited: "bg-orange-100 text-orange-700",
-  running: "bg-blue-100 text-blue-700",
-  pending: "bg-gray-100 text-gray-600",
-  reverted: "bg-purple-100 text-purple-700",
-  revert_failed: "bg-red-100 text-red-700",
-  cancelled: "bg-gray-100 text-gray-500",
-  // Raw DB values, kept for any row canonical_state didn't cover (older API responses)
-  completed: "bg-green-100 text-green-700",
-  completed_with_errors: "bg-orange-100 text-orange-700",
-};
+import { jobStateLabel, jobStateBadgeClass } from "@/lib/jobStates";
 
 const RESULT_STATUS_BADGE: Record<string, string> = {
   success: "bg-green-100 text-green-700",
@@ -40,8 +23,8 @@ const RESULT_STATUS_BADGE: Record<string, string> = {
 
 function StatusBadge({ status }: { status: string }) {
   return (
-    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[status] ?? "bg-gray-100 text-gray-600"}`}>
-      {status.replace(/_/g, " ")}
+    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${jobStateBadgeClass(status)}`}>
+      {jobStateLabel(status)}
     </span>
   );
 }
@@ -57,22 +40,11 @@ function revertLabel(item: ApplyJobHistoryItem): string {
   return item.revert_blocked_reason ?? "Not reversible";
 }
 
-function JobDetail({ jobId }: { jobId: string }) {
-  const [results, setResults] = useState<ApplyResult[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    getApplyJobDetail(jobId)
-      .then((d) => setResults(d.results))
-      .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load job details."));
-  }, [jobId]);
-
-  if (error) return <p className="text-xs text-red-600 px-4 py-3">{error}</p>;
-  if (!results) return <p className="text-xs text-gray-400 px-4 py-3">Loading item results…</p>;
-  if (results.length === 0) return <p className="text-xs text-gray-400 px-4 py-3">No item results recorded.</p>;
-
+function ResultsTable({ title, results }: { title: string; results: { id: string; etsy_listing_id: string; status: string; error_message: string | null }[] }) {
+  if (results.length === 0) return null;
   return (
-    <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+    <div className="mb-3 last:mb-0">
+      <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1">{title}</h4>
       <table className="w-full text-xs">
         <thead>
           <tr className="text-gray-400">
@@ -95,6 +67,46 @@ function JobDetail({ jobId }: { jobId: string }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function JobDetail({ jobId, revertJobId }: { jobId: string; revertJobId: string | null }) {
+  const [results, setResults] = useState<ApplyResult[] | null>(null);
+  const [revertResults, setRevertResults] = useState<RevertResult[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getApplyJobDetail(jobId)
+      .then((d) => setResults(d.results))
+      .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load job details."));
+    if (revertJobId) {
+      getRevertJob(revertJobId)
+        .then((d) => setRevertResults(d.results))
+        .catch(() => setRevertResults([])); // non-fatal — apply results still show
+    } else {
+      setRevertResults(null);
+    }
+  }, [jobId, revertJobId]);
+
+  if (error) return <p className="text-xs text-red-600 px-4 py-3">{error}</p>;
+  if (!results) return <p className="text-xs text-gray-400 px-4 py-3">Loading item results…</p>;
+  if (results.length === 0 && (!revertResults || revertResults.length === 0)) {
+    return <p className="text-xs text-gray-400 px-4 py-3">No item results recorded.</p>;
+  }
+
+  return (
+    <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+      <ResultsTable
+        title={revertJobId ? "Apply results" : "Item results"}
+        results={results.map((r) => ({ id: r.id, etsy_listing_id: r.etsy_listing_id, status: r.status, error_message: r.error_message }))}
+      />
+      {revertJobId && revertResults && (
+        <ResultsTable
+          title="Revert results"
+          results={revertResults.map((r) => ({ id: r.id, etsy_listing_id: r.etsy_listing_id, status: r.status, error_message: r.error_message }))}
+        />
+      )}
     </div>
   );
 }
@@ -244,7 +256,7 @@ export default function MagicRevertPage() {
                   {expandedId === item.id && (
                     <tr>
                       <td colSpan={5} className="p-0">
-                        <JobDetail jobId={item.id} />
+                        <JobDetail jobId={item.id} revertJobId={item.revert_job_id} />
                       </td>
                     </tr>
                   )}
