@@ -2,7 +2,36 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-31 (M06.03 revert conflict — expected-after-value remediation — branch `fix/revert-conflict-expected-after-value`)
+## RESUME HERE — 2026-08-31 (M03 hotfix: Etsy `edit` state → Inactive grouping + empty-state copy fix — branch `fix/m03-inactive-edit-status-sync`)
+
+**PR #122 (M06.03 expected-after-value remediation) merged (`76add81f`), deployed, all 9 safe route/health checks 200.** This round is a queued M03 hotfix, started only after that remediation was fully complete/merged/deployed/logged per explicit sequencing instructions.
+
+**Owner production evidence (after PR #121):** clicking Sync on `/listings` now partially works — no more blanket 400. Local app showed `All 367 / Active 210 / Inactive 0 / Draft 0 / Expired 157 / Sold out 0`. Etsy's own seller UI showed `Active 210 / Draft 0 / Expired 157 / Sold Out 0 / Inactive 180`. Active and Expired match exactly; Inactive is 0 locally vs 180 on Etsy — and `210 + 157 = 367` (the app's exact total), while `210 + 157 + 180 = 547` (what the total should be if Inactive were syncing). Inactive listings are provably not entering local synced data at all.
+
+**Root cause:** `LISTING_STATES` in `apps/backend/app/services/etsy_sync.py` only ever fetched `active`/`inactive`/`draft`/`expired`/`sold_out`. Etsy's own API documentation describes an additional listing-state value, `edit` — Etsy's seller-UI "Inactive" label can correspond to the API state value `edit`, not (only) `inactive`. This app never fetched `edit` at all, so any listing Etsy classifies that way was silently never synced.
+
+**Fix:**
+- `edit` added to `LISTING_STATES` — fetched via the same general endpoint + `state=edit` param, with the same per-state failure isolation every other status already has (a 400 on `edit` alone doesn't fail the whole sync).
+- `Listing.state` stores Etsy's raw returned value truthfully — `edit` is stored as `edit`, never silently relabeled `inactive`.
+- Grouping into the app's "Inactive" UI bucket happens only at the query/count layer, in `apps/backend/app/api/v1/listings.py`: new `INACTIVE_GROUPED_STATES = ("inactive", "edit")` — `GET /listings/status-counts`'s `inactive` value sums both raw states, `GET /listings?state=inactive` filters on both. `all` still counts each raw state exactly once (no double-count). API/UI contract unchanged — still exactly 6 keys/tabs (`all`/`active`/`inactive`/`draft`/`expired`/`sold_out`), no new "Edit" tab exposed.
+- Dedup is a non-issue by construction — `upsert_listing()` already matches on `(shop, etsy_listing_id)`, so even a listing hypothetically returned under two state queries produces exactly one row.
+- Frontend (M03.03): fixed the Listings page's static "No listings yet — Connect a shop and sync..." empty-state message, which was misleading whenever a connected/synced shop's selected tab or filters simply had zero matches (exactly the situation the owner's Inactive-tab screenshot showed before this fix). New `EmptyListingsState` component in `apps/frontend/app/(app)/listings/page.tsx` picks from 4 messages by cause (no shop / no listings synced at all / this status has none / search-filters have none). Added a tooltip on the Inactive tab: "Includes Etsy API states \"inactive\" and \"edit\"."
+
+**Not confirmed against live Etsy this round** — `edit` as the correct API state for Etsy's "Inactive" UI label is the most defensible read of Etsy's documented state values plus the owner's exact count mismatch, but no production sync was run by Claude (forbidden by this task).
+
+**Tests:** 6 new backend tests (`test_full_status_sync_covers_all_six_states`, `test_status_counts_groups_edit_into_inactive` — reproduces the owner's exact ratio, `test_edit_state_400_is_isolated_like_any_other_state`, `test_same_listing_returned_under_inactive_and_edit_is_not_duplicated`, `test_filter_state_inactive_includes_edit_state`); targeted suite (`test_etsy_sync_status.py` + `test_listings.py`) 50 passed, 2 failed (known auth artifact, unrelated). Frontend `tsc --noEmit`/`next lint`/`next build` all clean.
+
+**M03.02/M03.03 stay `[~]`** — no owner verification this round.
+
+**Files changed:** `apps/backend/app/services/etsy_sync.py`, `apps/backend/app/api/v1/listings.py`, `apps/backend/tests/test_etsy_sync_status.py`, `apps/backend/tests/test_listings.py`, `apps/frontend/app/(app)/listings/page.tsx`.
+
+**Safety, explicit:** the new `edit`-state fetch is GET-only, same as every other state (proven by the existing write-method-raises mock in `test_etsy_sync_status.py`); no listing activation/deactivation/renewal/deletion; no production shop sync, Bulk Edit Apply, or Magic Revert run by Claude/Codex; no secrets printed.
+
+**Recommended next owner action:** open `/dashboard`, confirm nothing regressed; open `/listings`; **run Sync Listings manually**; report the exact sync banner message (`completed`/`completed_with_errors`/`failed` + text); confirm the resulting counts — target is roughly `All≈547 / Active≈210 / Inactive≈180 / Expired≈157` if Etsy's own numbers haven't changed since the last screenshot; click the Inactive tab and confirm real listings now appear (not the old empty-state message); send screenshots of the status tabs/counts.
+
+---
+
+## Previously — 2026-08-31 (M06.03 revert conflict — expected-after-value remediation — PR #122, branch `fix/revert-conflict-expected-after-value`, merge `76add81f895215f5a571f4b685e5bdf9eecdbd6f`)
 
 **PR #121 (sync hotfix + M04/M06 write-safety foundation) merged (`0d391d83`), deployed, all 9 safe route/health checks 200.** This round is a strict post-merge audit finding on that PR — CONDITIONAL PASS with one MAJOR M06.03 finding.
 

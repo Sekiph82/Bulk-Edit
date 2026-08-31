@@ -6,6 +6,26 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-31 M03 hotfix — Etsy `edit` state grouped into Inactive + empty-state copy fix (queued after PR #122)
+
+**Owner production evidence (post-PR #121):** a real Sync Listings run showed `All 367 / Active 210 / Inactive 0 / Draft 0 / Expired 157 / Sold out 0` locally, against Etsy's own seller UI showing `Active 210 / Draft 0 / Expired 157 / Sold Out 0 / Inactive 180`. Active and Expired matched exactly (`210 + 157 = 367`, the app's exact total); Inactive listings were provably never entering local synced data — Etsy's true total (`210 + 157 + 180 = 547`) confirms it.
+
+**Root cause:** `LISTING_STATES` (`apps/backend/app/services/etsy_sync.py`) only fetched `active`/`inactive`/`draft`/`expired`/`sold_out`. Etsy's own documented API state values include `edit` in addition to `inactive` — the seller-UI "Inactive" label the owner sees can correspond to the API state value `edit`. This app never queried that state at all.
+
+**Fix:** `edit` added as a 6th fetched raw state, same general endpoint + per-state failure isolation as every other non-active status (a 400 on `edit` alone doesn't fail the sync). `Listing.state` stores Etsy's raw value truthfully (never relabeled). Grouping into the app's "Inactive" bucket happens only at the query/count layer — new `INACTIVE_GROUPED_STATES = ("inactive", "edit")` in `apps/backend/app/api/v1/listings.py`, used by `GET /listings/status-counts` (`inactive` sums both raw states, `all` counts each raw state once) and `GET /listings?state=inactive` (filters on both). API/UI contract unchanged — still exactly 6 keys/tabs, no separate "Edit" tab. Dedup is a non-issue by construction (`upsert_listing()` already matches on `(shop, etsy_listing_id)`).
+
+**Frontend (M03.03) empty-state fix:** the Listings page's static "No listings yet — Connect a shop and sync..." message was misleading whenever a connected, already-synced shop's selected tab or filters simply had zero matches — exactly what the owner's Inactive-tab screenshot showed before the sync fix above. New `EmptyListingsState` component (`apps/frontend/app/(app)/listings/page.tsx`) renders one of 4 messages depending on cause: no shop connected, shop connected but zero listings synced at all, the selected status has zero matches (other listings exist), or search/other filters are also involved. Added a tooltip on the Inactive tab clarifying it includes both raw states.
+
+**Not confirmed against live Etsy this round** — no production sync was run by Claude (forbidden by this task); `edit` is the most defensible read of Etsy's documented states plus the owner's exact count mismatch, pending an owner-run sync to confirm.
+
+Tests: 6 new backend tests (`test_full_status_sync_covers_all_six_states`, `test_status_counts_groups_edit_into_inactive`, `test_edit_state_400_is_isolated_like_any_other_state`, `test_same_listing_returned_under_inactive_and_edit_is_not_duplicated`, `test_filter_state_inactive_includes_edit_state`, plus updates to 3 existing tests to include `edit` in their state sets). Targeted suite (`test_etsy_sync_status.py` + `test_listings.py`): 50 passed, 2 failed (established local-venv `requires_auth` artifact, unrelated). Frontend `tsc --noEmit`/`next lint`/`next build` all clean.
+
+M03.02/M03.03 stay `[~]` — no owner verification this round.
+
+**Safety:** the `edit`-state fetch is GET-only, proven by the same write-method-raises mock every other state's test uses; no listing mutation of any kind; no production sync, Apply, or Revert run by Claude/Codex; no secrets printed.
+
+---
+
 ## 2026-08-31 M06.03 revert conflict — expected-after-value remediation (post-merge audit finding on PR #121)
 
 **Strict audit of PR #121 (merged, deployed) found a MAJOR correctness bug in M06.03's changed-since-apply conflict check** (branch `fix/revert-conflict-expected-after-value`). The shipped `detect_revert_conflict()` compared a fresh Etsy read to the *current local `Listing` row* rather than to the apply job actually being reverted's own captured after-value. Unsafe scenario: Job A sets a listing's title `A`→`B`; Job B, a later and unrelated apply on the same listing, sets it `B`→`C`. Local `Listing.title` and live Etsy now both read `C`. The old check compared live `C` to local `C`, concluded "no conflict," and would have reverted Job A — silently overwriting Job B's `C` with Job A's pre-apply snapshot and reporting success, exactly the "changed-since-apply" scenario M06.03 exists to prevent.

@@ -267,6 +267,42 @@ function DetailSidebar({ listingId, onClose }: { listingId: string; onClose: () 
   );
 }
 
+// Distinct empty-state copy per cause — a connected, already-synced shop
+// whose current tab/filters just has zero matches must never say "Connect a
+// shop and sync", which is misleading when counts elsewhere show listings.
+function EmptyListingsState({
+  hasConnectedShop, hasAnySyncedListings, hasOnlyStateFilter,
+}: {
+  hasConnectedShop: boolean;
+  hasAnySyncedListings: boolean;
+  hasOnlyStateFilter: boolean;
+}) {
+  let title: string;
+  let body: string;
+  if (!hasConnectedShop) {
+    title = "No listings yet";
+    body = "Connect a shop and sync to import your listings.";
+  } else if (!hasAnySyncedListings) {
+    title = "No listings synced yet";
+    body = "Run Sync Listings to import your listings.";
+  } else if (hasOnlyStateFilter) {
+    title = "No listings match this status";
+    body = "Try All or another status.";
+  } else {
+    title = "No listings match your search or filters";
+    body = "Try adjusting your search or filters.";
+  }
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
+      <h3 className="text-lg font-semibold text-gray-800 mb-2">{title}</h3>
+      <p className="text-gray-500 text-sm mb-5">{body}</p>
+      {!hasConnectedShop && (
+        <Link href="/shops" className="text-indigo-600 text-sm font-medium hover:underline">Go to Shops →</Link>
+      )}
+    </div>
+  );
+}
+
 // ---- Main content ----
 
 function ListingsContent() {
@@ -559,6 +595,7 @@ function ListingsContent() {
               <button
                 key={tab}
                 onClick={() => { setStateTab(tab); }}
+                title={tab === "inactive" ? "Includes Etsy API states \"inactive\" and \"edit\"" : undefined}
                 className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${stateTab === tab ? "bg-indigo-600 text-white" : "text-gray-500 hover:text-gray-700"}`}
               >
                 {STATE_TAB_LABELS[tab]}
@@ -726,11 +763,15 @@ function ListingsContent() {
             <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : listings.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">No listings yet</h3>
-            <p className="text-gray-500 text-sm mb-5">Connect a shop and sync to import your listings.</p>
-            <Link href="/shops" className="text-indigo-600 text-sm font-medium hover:underline">Go to Shops →</Link>
-          </div>
+          <EmptyListingsState
+            hasConnectedShop={shops.length > 0}
+            hasAnySyncedListings={(statusCounts?.all ?? 0) > 0}
+            hasOnlyStateFilter={
+              stateTab !== "All" && !search && !tag && !priceMin && !priceMax &&
+              !qtyMin && !qtyMax && !sectionId && !taxonomyId &&
+              hasVariations === "" && isPersonalizable === "" && isCustomizable === ""
+            }
+          />
         ) : (
           <>
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">

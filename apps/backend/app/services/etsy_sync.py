@@ -45,9 +45,21 @@ TOKEN_REFRESH_BUFFER_SECONDS = 300
 # sold_out is a real, native Etsy listing state (not derived from quantity)
 # — same as inactive/draft/expired. "active" uses Etsy's dedicated, long-
 # confirmed-working active-listings endpoint (see fetch_shop_listings()); the
-# other four use the general listings-by-shop endpoint with a `state` filter,
-# which is unverified against live Etsy as of 2026-08-31 (see DECISIONS.md).
-LISTING_STATES = ("active", "inactive", "draft", "expired", "sold_out")
+# rest use the general listings-by-shop endpoint with a `state` filter, which
+# is unverified against live Etsy as of 2026-08-31 (see DECISIONS.md).
+#
+# `edit` added 2026-08-31: after the sync-400 hotfix (PR #121), the owner's
+# first real production sync showed Etsy's seller UI "Inactive" count (180)
+# not matching this app's synced `inactive` count (0) — Active (210) and
+# Expired (157) matched exactly. Etsy's own API docs describe listing states
+# as active/inactive-or-"edit"/sold_out/draft/expired, i.e. Etsy's "Inactive"
+# UI label can correspond to the API state value `edit`, not (only)
+# `inactive`. Fetched here as its own raw state — never relabeled to
+# `inactive` in storage — and grouped into the app's "Inactive" UI bucket at
+# the query/count layer (see listings.py). If `edit` 400s, that state alone
+# is marked failed (existing per-state isolation in sync_shop_listings())
+# and active/expired/etc. are unaffected.
+LISTING_STATES = ("active", "inactive", "edit", "draft", "expired", "sold_out")
 
 
 def _auth_headers(access_token: str) -> dict[str, str]:

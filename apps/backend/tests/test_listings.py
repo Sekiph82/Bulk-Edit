@@ -111,12 +111,13 @@ def _mock_listings_response(count: int = 2) -> dict:
 
 def _make_mock_http_client(listings_data: dict):
     """`listings_data` is returned only for the dedicated `/listings/active`
-    call; every other status (inactive/draft/expired/sold_out, via the
+    call; every other status (inactive/edit/draft/expired/sold_out, via the
     general `/listings?state=...` endpoint) — and any images/videos/
-    inventory sub-call — gets an empty result. Sync now queries all 5
-    statuses (M03.02), so a state-blind mock would multiply every fixture's
-    listing count by 5. `active` uses the dedicated endpoint with no `state`
-    param (2026-08-31 production-400 hotfix — see etsy_sync.py)."""
+    inventory sub-call — gets an empty result. Sync now queries all 6
+    statuses (M03.02 + the 2026-08-31 `edit`-state hotfix), so a state-blind
+    mock would multiply every fixture's listing count. `active` uses the
+    dedicated endpoint with no `state` param (2026-08-31 production-400
+    hotfix — see etsy_sync.py)."""
     empty_resp = MagicMock()
     empty_resp.raise_for_status = MagicMock()
     empty_resp.is_success = True
@@ -761,6 +762,34 @@ async def test_filter_by_tag(client, db_session):
     data = r.json()
     assert data["total"] == 1
     assert data["items"][0]["title"] == "Handmade Mug"
+
+
+async def test_filter_state_inactive_includes_edit_state(client, db_session):
+    """M03 hotfix (2026-08-31): Etsy's "Inactive" seller-UI listings can be
+    returned under raw API state `edit`, not just `inactive`. Requesting
+    `state=inactive` must return both, and `state=edit` directly (an
+    internal value never exposed as its own UI tab) must still work as an
+    exact filter, and other states must be unaffected by the grouping."""
+    from app.models.listing import Listing
+    token, org_id, shop = await _setup_filter_org(client, db_session, "f_state_inactive")
+
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="si001",
+                            title="Raw Inactive", state="inactive"))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="si002",
+                            title="Raw Edit", state="edit"))
+    db_session.add(Listing(organization_id=org_id, etsy_shop_id=shop.id, etsy_listing_id="si003",
+                            title="Draft Listing", state="draft"))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/listings?state=inactive", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 2
+    titles = {i["title"] for i in data["items"]}
+    assert titles == {"Raw Inactive", "Raw Edit"}
+
+    r_draft = await client.get("/api/v1/listings?state=draft", headers={"Authorization": f"Bearer {token}"})
+    assert r_draft.json()["total"] == 1  # unaffected by the inactive/edit grouping
 
 
 async def test_filter_by_has_variations_true(client, db_session):
