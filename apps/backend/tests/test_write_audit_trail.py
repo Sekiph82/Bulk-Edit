@@ -183,3 +183,133 @@ async def test_audit_trail_no_secrets_in_extra_data(client, db_session):
     assert "fake_revert_token" not in payload_text
     assert "Bearer" not in payload_text
     assert "x-api-key" not in payload_text.lower()
+
+
+# ── M06.04 CSV export (2026-08-31, sprint after PR #123) ────────────────────
+
+EXPORT_URL = "/api/v1/bulk-edit/audit-trail/export.csv"
+
+
+async def test_export_requires_auth(client):
+    r = await client.get(EXPORT_URL)
+    assert r.status_code == 403
+
+
+async def test_export_is_org_scoped(client, db_session):
+    token_a, org_a, apply_job_a, _, _ = await _setup_and_apply(
+        client, db_session, email="export_org_a@example.com", org_name="Export Org A", etsy_prefix="exporga",
+    )
+    token_b, org_b, apply_job_b, _, _ = await _setup_and_apply(
+        client, db_session, email="export_org_b@example.com", org_name="Export Org B", etsy_prefix="exporgb",
+    )
+
+    r = await client.get(EXPORT_URL, headers={"Authorization": f"Bearer {token_a}"})
+    assert r.status_code == 200
+    body = r.text
+    assert apply_job_a in body
+    assert apply_job_b not in body
+
+
+async def test_export_filters_apply(client, db_session):
+    token, org_id, apply_job_id, session_id, listing = await _setup_and_apply(
+        client, db_session, email="export_filter@example.com", org_name="Export Filter Org", etsy_prefix="exfilt",
+    )
+
+    r_match = await client.get(
+        f"{EXPORT_URL}?apply_job_id={apply_job_id}&result_status=success",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r_match.status_code == 200
+    lines_match = [l for l in r_match.text.splitlines() if l]
+    assert len(lines_match) == 2  # header + 1 data row
+
+    r_none = await client.get(
+        f"{EXPORT_URL}?apply_job_id={apply_job_id}&result_status=failed",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    lines_none = [l for l in r_none.text.splitlines() if l]
+    assert len(lines_none) == 1  # header only, no matching rows
+
+
+async def test_export_csv_headers_and_content_type(client, db_session):
+    token, org_id, apply_job_id, session_id, listing = await _setup_and_apply(
+        client, db_session, email="export_headers@example.com", org_name="Export Headers Org", etsy_prefix="exhdr",
+    )
+    r = await client.get(EXPORT_URL, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    assert "text/csv" in r.headers["content-type"]
+    assert "attachment" in r.headers["content-disposition"]
+    assert "bulk-edit-audit-trail-" in r.headers["content-disposition"]
+
+    header_line = r.text.splitlines()[0]
+    assert header_line == (
+        "created_at,organization_id,user_id,etsy_shop_id,listing_id,etsy_listing_id,"
+        "field_name,operation,before,after,result_status,revert_status,"
+        "apply_job_id,bulk_edit_session_id,revert_job_id,error_message"
+    )
+
+
+async def test_export_before_after_values_appear_correctly(client, db_session):
+    token = await _register_and_login(client, {
+        "email": "export_price@example.com", "password": "password123",
+        "full_name": "Export Price Tester", "organization_name": "Export Price Org",
+    })
+    org_id = await _get_org_id_for_user(db_session, "export_price@example.com")
+    listing = await _setup_listing(db_session, org_id, "exprice_01", price_amount=6000, quantity=3, currency_code="USD", price_divisor=100)
+
+    r = await client.post(SESSIONS_URL, json={"listing_ids": [listing.id]}, headers={"Authorization": f"Bearer {token}"})
+    session_id = r.json()["id"]
+    await client.post(
+        f"{SESSIONS_URL}/{session_id}/changes",
+        json={"field_name": "price_amount", "operation": "set", "operation_value": 6288},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    await client.post(f"{SESSIONS_URL}/{session_id}/preview", headers={"Authorization": f"Bearer {token}"})
+    with (
+        patch("app.services.bulk_edit_apply.settings", _mock_etsy_settings()),
+        patch("app.services.bulk_edit_apply.apply_single_listing_price_quantity", new_callable=AsyncMock, return_value={"ok": True}),
+    ):
+        r_apply = await client.post(f"{SESSIONS_URL}/{session_id}/apply", headers={"Authorization": f"Bearer {token}"})
+    apply_job_id = r_apply.json()["id"]
+
+    r = await client.get(f"{EXPORT_URL}?apply_job_id={apply_job_id}", headers={"Authorization": f"Bearer {token}"})
+    body = r.text
+    assert "price_amount" in body
+    assert "6000" in body  # before
+    assert "6288" in body  # after
+
+
+async def test_export_no_secrets_in_csv(client, db_session):
+    token, org_id, apply_job_id, session_id, listing = await _setup_and_apply(
+        client, db_session, email="export_secrets@example.com", org_name="Export Secrets Org", etsy_prefix="exsec",
+    )
+    r = await client.get(f"{EXPORT_URL}?apply_job_id={apply_job_id}", headers={"Authorization": f"Bearer {token}"})
+    body = r.text
+    assert "fake_revert_token" not in body
+    assert "Bearer" not in body
+    assert "x-api-key" not in body.lower()
+
+
+async def test_export_object_values_are_not_object_object(client, db_session):
+    """before/after that happen to be a dict/list must render as real JSON
+    text, never a Python/JS-style '[object Object]'-equivalent placeholder."""
+    from app.services.bulk_edit_apply import export_field_audit_trail_csv
+    from app.models.audit_log import AuditLog
+
+    token = await _register_and_login(client, {
+        "email": "export_object@example.com", "password": "password123",
+        "full_name": "Export Object Tester", "organization_name": "Export Object Org",
+    })
+    org_id = await _get_org_id_for_user(db_session, "export_object@example.com")
+
+    db_session.add(AuditLog(
+        organization_id=org_id, user_id=None, event_type="bulk_edit_field_write",
+        entity_type="listing", entity_id="listing-obj-1", apply_job_id="job-obj-1",
+        field_name="tags", result_status="success",
+        extra_data={"before": ["old", "tags"], "after": ["new", "tags", "here"]},
+    ))
+    await db_session.commit()
+
+    csv_text = await export_field_audit_trail_csv(db_session, org_id, apply_job_id="job-obj-1")
+    assert "object Object" not in csv_text
+    assert "old" in csv_text and "tags" in csv_text and "new" in csv_text

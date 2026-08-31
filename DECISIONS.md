@@ -4,6 +4,22 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-08-31 (M06.04 Audit Trail Export + M04.03 job-state UI polish)
+
+### [POLICY] Owner verification does not require a *new* action of the same kind that produced the evidence — the app's live state matching the owner's independent source of truth (Etsy's own UI) is itself the verification
+M03.02/M03.03 were kept `[~]` pending "an owner-run production sync." The owner instead signed in and simply looked at already-synced data, which by coincidence of timing already reflected the fix (the `edit`-state listings were already in the database from an earlier sync; PR #123 only fixed how they were counted/displayed). This is still valid, sufficient verification — the requirement was never literally "click the Sync button again," it was "confirm the fix produces correct results against real production data," which the owner's screenshot did unambiguously (`547 = 210+180+157`, matching Etsy's own UI exactly). Future promotion decisions should judge by "does the owner's observation confirm the fix works against real data," not by whether a specific button was re-clicked.
+
+### [ARCHITECTURE] The M06.04 audit-trail CSV export reuses the list endpoint's exact filter logic via one shared query-builder function, never a second, hand-copied filter block
+`_field_audit_trail_query()` in `bulk_edit_apply.py` is the single source of truth for "what does filter set X match" — both `list_field_audit_trail()` (paginated) and `export_field_audit_trail_csv()` (capped, unpaginated) call it. Any future filter added to the audit trail must go into this one function, not be duplicated into both call sites, or the list view and the export will silently start disagreeing about which rows match a given filter.
+
+### [PRODUCT] The audit-trail CSV export uses fetch()+blob download, not a token-in-URL direct link, and does not follow the existing `/csv/export`'s pattern
+While building this, `apps/frontend/lib/api.ts::exportCSV()` (Sprint 14, listings CSV export) was found to append the access token as a `_token` URL query parameter for a plain `<a href>` download — but the backend `GET /csv/export` endpoint's auth dependency (`HTTPBearer`) only ever reads the `Authorization` header, never a query parameter, meaning that download link has almost certainly never actually authenticated successfully in production. This is a pre-existing bug in an unrelated feature and was left as-is (out of this task's scope to fix), but the new audit-trail export was deliberately built the correct way instead: `fetch()` with a real `Authorization` header, then a `blob:` object URL handed to the browser — never putting the token in a URL at all. Any future export/download feature in this app should copy this pattern, not the old CSV one.
+
+### [POLICY] Canonical job-state presentation labels live in one shared frontend module, not copy-pasted per page
+`apps/frontend/lib/jobStates.ts` is now the single source for both the friendly label (`jobStateLabel()`) and badge color (`jobStateBadgeClass()`) for every apply/revert job state, raw or canonical. Three pages (`/magic-revert`, `/account/activity`, `/bulk-edit`) previously had (or would have needed) their own copies of this mapping. Any future page that shows a job/revert status must import from here, not redefine its own `STATUS_BADGE`-style record.
+
+---
+
 ## 2026-08-31 (M03 hotfix — Etsy `edit` state grouped into Inactive)
 
 ### [PRODUCT] The app's "Inactive" UI bucket groups raw Etsy listing states `inactive` and `edit` — the app must match what the owner sees in Etsy's own seller UI, not Etsy's raw API vocabulary

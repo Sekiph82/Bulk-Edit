@@ -586,6 +586,102 @@ export function getRevertResults(
   return apiFetch(`/api/v1/bulk-edit/revert-jobs/${revertJobId}/results${q ? `?${q}` : ""}`);
 }
 
+// ---- Field Audit Trail Types (M06.04) ----
+
+export interface FieldAuditLogExtraData {
+  etsy_shop_id?: string | null;
+  etsy_listing_id?: string | null;
+  bulk_edit_session_id?: string | null;
+  operation?: string | null;
+  before?: unknown;
+  after?: unknown;
+  error_message?: string | null;
+}
+
+export interface FieldAuditLog {
+  id: string;
+  organization_id: string;
+  user_id: string | null;
+  entity_id: string | null; // internal listing id
+  field_name: string | null;
+  result_status: string | null;
+  apply_job_id: string | null;
+  revert_job_id: string | null;
+  revert_status: string | null;
+  message: string | null;
+  extra_data: FieldAuditLogExtraData | null;
+  created_at: string;
+}
+
+export interface FieldAuditLogPage {
+  items: FieldAuditLog[];
+  page: number;
+  per_page: number;
+  total: number;
+}
+
+export interface AuditTrailFilters {
+  apply_job_id?: string;
+  listing_id?: string;
+  field_name?: string;
+  result_status?: string;
+  revert_status?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
+function auditTrailQueryString(filters: AuditTrailFilters, extra: Record<string, string | number> = {}): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) {
+    if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+  }
+  for (const [k, v] of Object.entries(extra)) {
+    qs.set(k, String(v));
+  }
+  return qs.toString();
+}
+
+export function getAuditTrail(
+  filters: AuditTrailFilters = {},
+  params: { page?: number; per_page?: number } = {},
+): Promise<FieldAuditLogPage> {
+  const q = auditTrailQueryString(filters, {
+    ...(params.page ? { page: params.page } : {}),
+    ...(params.per_page ? { per_page: params.per_page } : {}),
+  });
+  return apiFetch(`/api/v1/bulk-edit/audit-trail${q ? `?${q}` : ""}`);
+}
+
+// Direct browser navigation with a token in the query string never reaches
+// this backend (GET /audit-trail/export.csv only accepts a real
+// Authorization header, same as every other endpoint) -- fetch the CSV with
+// the bearer token, then hand the browser a blob: URL to save. Avoids
+// putting the access token in a URL/query string at all.
+export async function exportAuditTrailCSV(filters: AuditTrailFilters = {}): Promise<void> {
+  const token = getAccessToken();
+  const q = auditTrailQueryString(filters);
+  const res = await fetch(`${BACKEND_URL}/api/v1/bulk-edit/audit-trail/export.csv${q ? `?${q}` : ""}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.detail ?? res.statusText);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get("content-disposition") ?? "";
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : `bulk-edit-audit-trail-${new Date().toISOString().slice(0, 10)}.csv`;
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ---- Media Job Types ----
 
 export interface MediaJob {

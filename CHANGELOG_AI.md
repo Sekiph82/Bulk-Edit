@@ -6,6 +6,30 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-31 PART A: M03.02/M03.03 owner verification correction + PART B: M06.04 Audit Trail UI/Export, M04.03 job-state UI polish
+
+**PART A — owner verification correction.** After PR #123 merged/deployed, the owner signed out, signed back in, and opened `/listings` **without running a new Sync** — production already showed `All 547 / Active 210 / Inactive 180 / Draft 0 / Expired 157 / Sold out 0`, matching Etsy's own seller UI exactly, with real listing rows visible under the Inactive tab carrying raw state badge `edit`. No resync was needed: the `edit`-state listings had already been synced into the local database during an earlier pass, they were just invisible to the Inactive bucket/count/filter until PR #123's grouping logic went live. This is sufficient owner evidence to promote **M03.02 and M03.03 from `[~]` to `[x]`** — see `TASKS.md` for the full 5-point evidence writeup. Folded into this round's PR per the task's instruction, no separate PR opened.
+
+**PART B — M06.04 Audit Trail UI + Export, M04.03 job-state UI polish.**
+
+Backend: new `GET /api/v1/bulk-edit/audit-trail/export.csv` (`export_field_audit_trail_csv()` in `bulk_edit_apply.py`) — org-scoped, same filters as the existing list endpoint via a newly-extracted shared `_field_audit_trail_query()` builder (so list and export can never silently diverge on what a filter set matches), capped at 5000 rows (documented ceiling, not silently unbounded), 16-column CSV with before/after values JSON-flattened via `_csv_safe_value()` so an object/array value is always real JSON text, never a raw placeholder. No secrets are ever stored in this table to begin with (only bulk-edit field diffs), so no additional redaction logic was needed.
+
+Frontend: new "Write Audit Trail" section on `/account/activity` — apply-job-id/listing-id/field-name/result-status/date-range filters, 4 quick-filter buttons (Failed, Reverted, Price, Title), backend-driven pagination (25/page, real total), safe value rendering with truncation + native tooltip for the full value, copyable job-id cells, and an "Export CSV" button. The export deliberately uses `fetch()` + a `blob:` URL rather than putting the access token in the download URL's query string — noticed along the way that the pre-existing, unrelated `/csv/export` (listings CSV, from Sprint 14) does exactly that (`_token=` query param) against an endpoint whose auth dependency (`HTTPBearer`) only reads the `Authorization` header, meaning that feature's direct-link download has likely never actually authenticated correctly. Documented as a known pre-existing bug, deliberately not fixed here (out of scope), and not copied into the new feature.
+
+Canonical apply/revert job-state labels and badge colors extracted into a new shared `apps/frontend/lib/jobStates.ts` (`jobStateLabel()`/`jobStateBadgeClass()`) and wired into `/magic-revert`, `/account/activity`, and `/bulk-edit` consistently — friendly capitalized labels instead of a naive `status.replace(/_/g, " ")`, and the Bulk Edit apply/revert result banners now show the canonical label as primary text with the raw DB status as secondary/debug text. No fake Cancel button was added anywhere — `cancelled` stays documented-unreachable, unchanged from M04.03's original implementation.
+
+Also closed a real UI gap: `/magic-revert`'s job-detail expansion previously only ever showed apply-time per-listing results — a reverted job's actual per-listing revert outcome (including `status="conflict"` rows from M06.03) was recorded server-side but never rendered anywhere. It now fetches and shows a second "Revert results" table when a job has a linked revert.
+
+No dedicated job-detail route (`/bulk-edit/jobs/[job_id]`) was built — per the task's own fallback instruction, Account Activity/Magic Revert were made good enough instead, and a full detail page is recorded as a future task, not silently dropped.
+
+**Tests:** 7 new backend tests (`test_write_audit_trail.py`) covering export auth, org-scoping, filters, CSV headers, before/after correctness, no-secrets, and object-value rendering. `tsc --noEmit`/`next lint`/`next build` all clean.
+
+M06.04 and M04.03 both stay `[~]` — real, tested, no owner click-through yet.
+
+**Safety:** no Etsy API call anywhere in this round (the new UI/export only reads already-synced local data); no production sync, Apply, or Revert run by Claude/Codex; no secrets printed.
+
+---
+
 ## 2026-08-31 M03 hotfix — Etsy `edit` state grouped into Inactive + empty-state copy fix (queued after PR #122)
 
 **Owner production evidence (post-PR #121):** a real Sync Listings run showed `All 367 / Active 210 / Inactive 0 / Draft 0 / Expired 157 / Sold out 0` locally, against Etsy's own seller UI showing `Active 210 / Draft 0 / Expired 157 / Sold Out 0 / Inactive 180`. Active and Expired matched exactly (`210 + 157 = 367`, the app's exact total); Inactive listings were provably never entering local synced data — Etsy's true total (`210 + 157 + 180 = 547`) confirms it.

@@ -13,6 +13,7 @@ import {
   type ApplyJob, type RevertJob, type ApplyResult,
 } from "@/lib/api";
 import { decodeEntities } from "@/lib/decodeEntities";
+import { jobStateLabel } from "@/lib/jobStates";
 
 const FAILURE_REASON_CATEGORY: Array<{ match: (msg: string) => boolean; category: string }> = [
   { match: (m) => /429/.test(m), category: "Etsy rate limit exceeded" },
@@ -819,8 +820,11 @@ function BulkEditContent() {
             {/* Apply result */}
             {applyJob && (
               <div className={`rounded-xl border px-5 py-4 text-sm ${applyJob.status === "completed" ? "bg-green-50 border-green-200 text-green-800" : applyJob.status === "failed" ? "bg-red-50 border-red-200 text-red-800" : "bg-yellow-50 border-yellow-200 text-yellow-800"}`}>
-                <p className="font-semibold mb-1">Apply complete — {applyJob.status}</p>
-                <p>Success: {applyJob.success_count} · Failed: {applyJob.failure_count} · Skipped: {applyJob.skipped_count}</p>
+                <p className="font-semibold mb-1">
+                  Apply complete — {jobStateLabel(applyJob.canonical_state ?? applyJob.status)}
+                  <span className="ml-1.5 font-normal opacity-60 text-xs">({applyJob.status})</span>
+                </p>
+                <p>Total: {applyJob.total_items} · Success: {applyJob.success_count} · Failed: {applyJob.failure_count} · Skipped: {applyJob.skipped_count}</p>
                 {applyJob.error_message && <p className="mt-1 text-xs">{applyJob.error_message}</p>}
                 <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 text-xs">
                   <Link href="/magic-revert" className="font-medium underline underline-offset-2 hover:opacity-80">
@@ -874,7 +878,9 @@ function BulkEditContent() {
             {/* Revert result */}
             {revertJob && (
               <div className={`rounded-xl border px-5 py-4 text-sm ${revertJob.status === "completed" ? "bg-green-50 border-green-200 text-green-800" : revertJob.status === "failed" ? "bg-red-50 border-red-200 text-red-800" : "bg-yellow-50 border-yellow-200 text-yellow-800"}`}>
-                <p className="font-semibold mb-1">Revert complete — {revertJob.status}</p>
+                <p className="font-semibold mb-1">
+                  Revert complete — {jobStateLabel(revertJob.status)}
+                </p>
                 <p>Restored: {revertJob.success_count} · Failed: {revertJob.failure_count} · Skipped: {revertJob.skipped_count}</p>
                 {revertJob.error_message && <p className="mt-1 text-xs">{revertJob.error_message}</p>}
               </div>
