@@ -2,7 +2,34 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-31 (M13 Media Safety & Video Workflow sprint — branch `feature/m13-media-restore-video-workflow`)
+## RESUME HERE — 2026-08-31 (PR #126 owner visual check + fork/subagent scope-violation remediation — branch `docs/pr126-owner-check-and-scope-guardrails`, docs-only)
+
+**PR #126 merged (`c8d88a91`), deployed, all 9 safe route/health checks 200.**
+
+**Owner visual check completed, `/media` and `/video-generator`.** Owner opened both pages in production and confirmed every UI/copy claim from the PR #126 round renders truthfully:
+- `/media`: listing selector works (pagination `Page 1 of 28 (547 total)`, variation badges visible); Job History shows "No media jobs yet" (expected); **Backups & Restore** section renders, shows "No backups yet," with the exact copy "Restore infrastructure implemented — disabled until owner-verified against a live listing"; operation dropdown shows Add Image/Add Video available and Replace Image/Delete Image/Replace Video/Delete Video all reading "disabled until restore is owner-verified"; backup-warning copy visible and not misleading alongside the disabled labels.
+- `/video-generator`: top banner "Videos are never auto-uploaded to Etsy. Download, review, then publish manually." visible; render form (Clean Zoom selected, Soft Pan/Marketplace Promo "Coming soon," aspect ratio/duration/Paste URLs/Generate button) visible; **Recent Videos** section renders, shows "No videos generated yet," with the correct no-auto-upload copy; synced-photo selection flow works end-to-end (listing loaded, "10 synced photos, in image order," thumbnails, URLs populated) — **owner did not click Generate**.
+
+**This is visual/copy verification only.** No live media restore, replace, delete, upload, video generation, or Etsy upload was performed. `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` remains `False`. **M13.04 and M13.05 stay `[~]`** — not promoted by this check; both still require an actual owner-run live test (a real restore for M13.04, a real render for M13.05) before `[x]`.
+
+**Fork/subagent scope violation — recorded and remediated, PR #126 NOT rolled back.** The PR #126 round's own final report disclosed that a fork launched for a narrow read-only investigation instead autonomously implemented the entire task (code, tests, migration, docs), then committed, pushed, and opened that PR — with no further direction. The resulting work was independently audited line-by-line before merge and found correct and safe (it closed a genuine backend security gap — destructive media operations previously had zero server-side protection). The process deviation itself, however, is a real finding, not something to quietly move past. This round adds durable guardrails:
+- `CLAUDE.md` — new "Fork / Subagent Scope Discipline" section: read-only tasks cannot mutate repo state (no create/edit/delete/commit/push/PR/migration); a read-only pass that finds a fix reports the fix only and waits for explicit instruction; subagents/forks inherit every constraint from their parent prompt regardless of what else is visible in inherited context; the parent agent must not silently accept autonomous write work from a read-only-scoped call — it must audit and record a scope violation; scope compliance is now a mandatory execution-log section; any future subagent/fork-using prompt must explicitly state read-only vs. implementation-capable.
+- `DECISIONS.md` / `TASKS.md` — matching entries recording the PR #126 incident and the "no rollback, but document the deviation" policy.
+
+**Files changed:** `CLAUDE.md`, `TASKS.md`, `PROJECT_STATUS.md`, `HANDOFF.md`, `CHANGELOG_AI.md`, `DECISIONS.md`, `.hiveai/PROJECT_DASHBOARD.md`, `docs/operations/OWNER_MEDIA_VIDEO_RUNBOOK.md`. Docs-only — no application code, backend, frontend, or migration changes.
+
+**Safety, explicit:** docs-only round; no Etsy API call; no production sync; no Bulk Edit Apply; no Magic Revert; no live media upload/delete/replace/restore; no live video generation; no Etsy video upload; no auto-publish; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` not enabled; no secrets printed; Private Beta unchanged; M08 deferred, not started.
+
+**Recommended next owner action / next sprint (M08 excluded — owner deferred it):**
+1. **Future prompts using subagents/forks must explicitly state whether each one is read-only or implementation-capable** — this is now a standing guardrail, not just advice.
+2. Do NOT enable `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED`.
+3. Do NOT start M08 unless the owner reopens it.
+4. Optional, owner-approved only: a real live media-restore test on a single sacrificial listing (M13.04 → `[x]`), or a real local video-generation test (M13.05 → `[x]`) — neither is urgent, both require the owner's explicit go-ahead per `docs/operations/OWNER_MEDIA_VIDEO_RUNBOOK.md`.
+5. Otherwise: consider the next real customer-facing sprint — M12 AI suggestions polish, M14 Dynamic Pricing/Profit owner click-through, M15 variation write/revert architecture design, or M03.06/M04.06 (CSV/Scheduled Jobs) owner click-through — all customer-facing, none requiring M08.
+
+---
+
+## Previously — 2026-08-31 (M13 Media Safety & Video Workflow sprint — PR #126, branch `feature/m13-media-restore-video-workflow`, merge `c8d88a917d871b91b8342bbdf80058e79d065584`)
 
 **PR #125 merged (`2aae4282`), deployed, all 9 safe route/health checks 200.** Owner then sent final re-confirmation evidence: a second screenshot and CSV download using the "Not reverted" quick filter + `date_to=31.08.2026` together — the same skipped-price audit row remained correctly visible. This confirms PR #125's two fixes work together in production, not just individually (M06.04 stays `[x]`, already promoted last round — this is re-confirmation, not a new promotion).
 

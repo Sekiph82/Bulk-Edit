@@ -11,6 +11,16 @@
 - Video restore does **not** exist — only images can be restored from a backup.
 - The Product Video Generator renders real MP4s locally (ffmpeg) and never auto-uploads to Etsy under any circumstance. Uploading a generated video to a listing is a separate, explicit action (Add Video / Replace Video on `/media`), itself gated by the same destructive-actions flag for the replace case.
 
+## Current verified state (2026-08-31, post PR #126 owner visual check)
+
+**UI/copy visual check completed by the owner** (production screenshots of `/media` and `/video-generator`) — this confirms the pages render and every truthfulness claim below actually matches what the UI shows. It does **not** substitute for any of the live tests in Part 1/Part 2 below.
+
+- `/media`: listing selector, Job History ("No media jobs yet" — expected, no live job has run), and the **Backups & Restore** section ("No backups yet," exact copy "Restore infrastructure implemented — disabled until owner-verified against a live listing") all confirmed rendering correctly. Operation dropdown confirmed: Add Image/Add Video available; Replace Image/Delete Image/Replace Video/Delete Video all reading "disabled until restore is owner-verified."
+- `/video-generator`: no-auto-upload banner, render form, and empty **Recent Videos** section (correct copy) confirmed rendering correctly. The "Select from a listing's synced photos" flow was exercised end-to-end (a listing's 10 synced photos loaded, thumbnails and URLs populated correctly) with **Generate not clicked**.
+- **No live media action performed.** No replace, delete, restore, or upload was run.
+- **No live video generation performed.** No render was triggered, no video was created or downloaded.
+- `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` **must remain `False`** until the owner explicitly initiates the Part 1 procedure below — this visual check is not that authorization.
+
 ## Part 1 — Media restore (owner-only, requires flag enabled)
 
 This section only applies once you have decided to test the restore path live. Until then, `/media`'s "Backups & Restore" section is read-only — you can see what backups exist and what their restore status is, but clicking Restore will show a clear "disabled" message.

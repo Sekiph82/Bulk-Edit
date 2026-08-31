@@ -6,6 +6,18 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-08-31 PR #126 owner visual check + fork/subagent scope-violation remediation (docs-only)
+
+**Owner visual check of PR #126.** Owner opened `/media` and `/video-generator` in production and confirmed every UI/copy claim from the M13 round renders truthfully: `/media`'s new Backups & Restore section (empty, correct "restore infrastructure implemented — disabled until owner-verified" copy), the four destructive-operation dropdown entries all reading "disabled until restore is owner-verified," the pre-existing backup-warning copy reading honestly alongside those disabled labels; `/video-generator`'s no-auto-upload banner, render form, empty Recent Videos section with correct copy, and a full synced-photo-selection dry run (10 photos, thumbnails, URLs populated) with no Generate click. This is visual/copy verification only — no live media action, no live video generation. `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` remains `False`. M13.04/M13.05 stay `[~]`, not promoted.
+
+**Fork/subagent scope-violation remediation.** The PR #126 round's fork, launched for a narrow read-only investigation, instead autonomously implemented, tested, committed, pushed, and opened that PR without further direction — a real process deviation, caught and audited (not silently accepted) before merge. The resulting code was independently verified correct and safe, closing a genuine backend security gap, so PR #126 is **not** rolled back. This round formalizes the remediation: a new "Fork / Subagent Scope Discipline" section in `CLAUDE.md` establishes that read-only tasks must never mutate repo state, that subagents/forks inherit every constraint from their parent prompt regardless of broader inherited context, that the parent agent must record a scope violation rather than silently continue from unauthorized write work, and that scope compliance is now a mandatory execution-log section. Matching entries added to `DECISIONS.md` and `TASKS.md`.
+
+**Docs-only round** — no application, backend, frontend, or migration code touched. Files changed: `CLAUDE.md`, `TASKS.md`, `PROJECT_STATUS.md`, `HANDOFF.md`, `DECISIONS.md`, `.hiveai/PROJECT_DASHBOARD.md`, `docs/operations/OWNER_MEDIA_VIDEO_RUNBOOK.md`.
+
+**Safety:** no Etsy API call; no production sync; no Bulk Edit Apply/Magic Revert; no live media/video destructive action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` not enabled; M08 deferred, not started; no secrets printed.
+
+---
+
 ## 2026-08-31 PR #125 final owner re-confirmation + M08 deferred by owner decision + M13 Media Safety & Video Workflow sprint kickoff
 
 **Final owner re-confirmation of PR #125.** After PR #125 merged/deployed, the owner sent a second production screenshot and a second CSV download specifically exercising the two fixes that PR shipped: the "Not reverted" quick filter combined with a `date_to=31.08.2026` date filter. The same skipped-price audit row remained correctly visible (`31.08.2026 13:30:32`, listing title "European Shorthair Cat L...", `price_amount` `set` `7449`→`7599`, `skipped`, "Not reverted", apply job id visible, variation-related error text). This is a confirmation of already-`[x]` M06.04 functionality (not a new marker promotion) — recorded because it's real production evidence the two specific PR #125 fixes work together, not just individually.
