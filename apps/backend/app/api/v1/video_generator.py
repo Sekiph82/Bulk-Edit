@@ -286,16 +286,20 @@ async def create_render(
 @router.get("/renders", response_model=list[RenderStatusResponse])
 async def list_renders(
     etsy_ready_only: bool = False,
+    all_statuses: bool = False,
     org_id: str = Depends(get_current_org_id),
     _user=Depends(require_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List this org's video renders, newest first — used to pick a render
-    to upload to a listing (see bulk-edit/media replace_video)."""
-    query = select(VideoRender).where(
-        VideoRender.organization_id == org_id,
-        VideoRender.status == "completed",
-    )
+    """List this org's video renders, newest first. Default (all_statuses=
+    False) — completed only — is used to pick a render to upload to a
+    listing (see bulk-edit/media replace_video). all_statuses=True powers
+    the Video Generator's own render history view (M13.05), which also
+    needs to show pending/rendering/failed renders, not just ones ready to
+    use."""
+    query = select(VideoRender).where(VideoRender.organization_id == org_id)
+    if not all_statuses:
+        query = query.where(VideoRender.status == "completed")
     if etsy_ready_only:
         query = query.where(VideoRender.is_etsy_ready.is_(True))
     query = query.order_by(VideoRender.created_at.desc()).limit(50)

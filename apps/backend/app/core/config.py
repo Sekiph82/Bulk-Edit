@@ -143,6 +143,15 @@ class Settings(BaseSettings):
     VIDEO_MAX_DURATION_SECONDS: int = 30
     VIDEO_MAX_IMAGES: int = 20
 
+    # M13.04 — destructive media ops (replace_image/delete_image/replace_video/
+    # delete_video) actually call live Etsy write endpoints with no backend
+    # gate other than this flag. Restore/revert infrastructure exists
+    # (ListingMediaBackupSnapshot + POST /bulk-edit/media/backups/{id}/restore
+    # for images), but has not been owner-verified against a live Etsy
+    # listing yet — default False until that happens. add_image/add_video are
+    # additive-only (no existing media destroyed) and are never gated here.
+    MEDIA_DESTRUCTIVE_ACTIONS_ENABLED: bool = False
+
     # Email delivery (password reset, contact form). "disabled" is the safe
     # default — no email is ever sent, callers get a clear not-configured
     # result instead of a crash. "smtp" enables generic SMTP delivery.

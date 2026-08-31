@@ -94,6 +94,21 @@ def _etsy_settings_mock():
     return m
 
 
+@pytest.fixture(autouse=True)
+def _enable_destructive_media_actions():
+    """M13.04: destructive media ops (replace_image/delete_image/
+    replace_video/delete_video/restore_images) are gated behind
+    settings.MEDIA_DESTRUCTIVE_ACTIONS_ENABLED (default False in production —
+    no owner-live test has happened yet, see core/config.py). Every test in
+    this file mocks the real Etsy HTTP layer, so it's safe to enable the
+    flag for the whole file — these tests exercise the destructive-operation
+    code paths themselves, not production safety, which is covered
+    separately by test_media_destructive_actions_disabled_by_default() and
+    friends."""
+    with patch("app.services.bulk_edit_media.settings.MEDIA_DESTRUCTIVE_ACTIONS_ENABLED", True):
+        yield
+
+
 # ── auth gate ─────────────────────────────────────────────────────────────────
 
 async def test_create_media_job_requires_auth(client, db_session):
@@ -1281,3 +1296,305 @@ async def test_apply_add_video_endpoint_not_implemented_surfaces_clearly(client,
     assert r2.json()["failure_count"] == 1
     r3 = await client.get(f"{JOBS_URL}/{job_id}/results", headers={"Authorization": f"Bearer {token}"})
     assert "HTTP 501" in r3.json()["items"][0]["error_message"]
+
+
+# ── M13.04 (2026-08-31): MEDIA_DESTRUCTIVE_ACTIONS_ENABLED production gate ──
+
+async def test_create_destructive_media_job_blocked_when_flag_disabled(client, db_session):
+    """Production safety: the whole file enables the flag via the autouse
+    fixture (to test destructive-op mechanics against mocked Etsy), but a
+    bare default (flag False, real production posture until an owner runs a
+    live destructive test) must actually block job CREATION for every
+    destructive operation type."""
+    token = await _register_and_login(client, {
+        "email": "mdisabled@example.com", "password": "password123",
+        "full_name": "Disabled", "organization_name": "Disabled Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, _ = await _setup_listing_with_token(db_session, org_id, "90099")
+
+    for op, payload in (
+        ("replace_image", {"image_url": "https://example.com/new.jpg", "target_rank": 1}),
+        ("delete_image", {"image_id": "IMG001"}),
+        ("replace_video", {"video_render_id": "fake-render-id"}),
+        ("delete_video", {}),
+        ("restore_images", {"backup_id": "fake-backup-id"}),
+    ):
+        with patch("app.services.bulk_edit_media.settings.MEDIA_DESTRUCTIVE_ACTIONS_ENABLED", False):
+            r = await client.post(JOBS_URL, json={
+                "listing_ids": [listing.id], "operation_type": op, "payload": payload,
+            }, headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 403, f"{op} should be blocked, got {r.status_code}: {r.text}"
+        assert "disabled" in r.json()["detail"].lower()
+
+
+async def test_create_add_image_job_not_blocked_when_destructive_disabled(client, db_session):
+    """add_image/add_video are additive-only — never gated, regardless of
+    the flag, since nothing existing is ever destroyed."""
+    token = await _register_and_login(client, {
+        "email": "maddok@example.com", "password": "password123",
+        "full_name": "AddOK", "organization_name": "AddOK Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, _ = await _setup_listing_with_token(db_session, org_id, "90098")
+
+    with patch("app.services.bulk_edit_media.settings.MEDIA_DESTRUCTIVE_ACTIONS_ENABLED", False):
+        r = await client.post(JOBS_URL, json={
+            "listing_ids": [listing.id],
+            "operation_type": "add_image",
+            "payload": {"image_url": "https://example.com/new.jpg"},
+        }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201
+
+
+async def test_apply_blocked_when_flag_disabled_after_job_already_created(client, db_session):
+    """Defense in depth: a destructive job created while the flag happened
+    to be on must still be refused at apply time if the flag is off by
+    then."""
+    token = await _register_and_login(client, {
+        "email": "mapplygate@example.com", "password": "password123",
+        "full_name": "ApplyGate", "organization_name": "ApplyGate Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, _ = await _setup_listing_with_token(db_session, org_id, "90097")
+    await _add_listing_image(db_session, listing, "GATE001", rank=1)
+
+    r = await client.post(JOBS_URL, json={
+        "listing_ids": [listing.id],
+        "operation_type": "delete_image",
+        "payload": {"image_id": "GATE001"},
+    }, headers={"Authorization": f"Bearer {token}"})
+    job_id = r.json()["id"]
+
+    with (
+        patch("app.services.bulk_edit_media.settings", _etsy_settings_mock()),
+        patch("app.services.bulk_edit_media.settings.MEDIA_DESTRUCTIVE_ACTIONS_ENABLED", False),
+    ):
+        r2 = await client.post(f"{JOBS_URL}/{job_id}/apply", headers={"Authorization": f"Bearer {token}"})
+    assert r2.status_code == 403
+
+
+# ── M13.04: restore/revert foundation ────────────────────────────────────────
+
+BACKUPS_URL = "/api/v1/bulk-edit/media/backups"
+
+
+async def _make_backup_snapshot(db_session, org_id, listing, shop, images_snapshot):
+    from app.models.listing_media_backup_snapshot import ListingMediaBackupSnapshot
+
+    snap = ListingMediaBackupSnapshot(
+        organization_id=org_id,
+        listing_id=listing.id,
+        etsy_shop_id=shop.id,
+        etsy_listing_id=listing.etsy_listing_id,
+        snapshot_type="pre_media_write",
+        images_snapshot=images_snapshot,
+    )
+    db_session.add(snap)
+    await db_session.commit()
+    await db_session.refresh(snap)
+    return snap
+
+
+async def test_restore_backup_requires_auth(client, db_session):
+    r = await client.post(f"{BACKUPS_URL}/fake-id/restore")
+    assert r.status_code == 403
+
+
+async def test_restore_backup_not_found_wrong_org(client, db_session):
+    token_a = await _register_and_login(client, {
+        "email": "mrestore_a@example.com", "password": "password123",
+        "full_name": "RestoreA", "organization_name": "RestoreA Org",
+    })
+    org_a = await _get_org_id(db_session)
+    listing_a, shop_a = await _setup_listing_with_token(db_session, org_a, "90001")
+    backup = await _make_backup_snapshot(
+        db_session, org_a, listing_a, shop_a,
+        [{"etsy_image_id": "R001", "rank": 1, "url_fullxfull": "https://etsy.com/r001.jpg"}],
+    )
+
+    token_b = await _register_and_login(client, {
+        "email": "mrestore_b@example.com", "password": "password123",
+        "full_name": "RestoreB", "organization_name": "RestoreB Org",
+    })
+
+    r = await client.post(f"{BACKUPS_URL}/{backup.id}/restore", headers={"Authorization": f"Bearer {token_b}"})
+    assert r.status_code == 404
+
+
+async def test_restore_backup_no_image_data_rejected(client, db_session):
+    token = await _register_and_login(client, {
+        "email": "mrestore_empty@example.com", "password": "password123",
+        "full_name": "RestoreEmpty", "organization_name": "RestoreEmpty Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, shop = await _setup_listing_with_token(db_session, org_id, "90002")
+    backup = await _make_backup_snapshot(db_session, org_id, listing, shop, [])
+
+    r = await client.post(f"{BACKUPS_URL}/{backup.id}/restore", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 400
+
+
+async def test_restore_backup_creates_pending_job(client, db_session):
+    token = await _register_and_login(client, {
+        "email": "mrestore_create@example.com", "password": "password123",
+        "full_name": "RestoreCreate", "organization_name": "RestoreCreate Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, shop = await _setup_listing_with_token(db_session, org_id, "90003")
+    backup = await _make_backup_snapshot(
+        db_session, org_id, listing, shop,
+        [{"etsy_image_id": "R001", "rank": 1, "url_fullxfull": "https://etsy.com/r001.jpg"}],
+    )
+
+    r = await client.post(f"{BACKUPS_URL}/{backup.id}/restore", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201
+    data = r.json()
+    assert data["operation_type"] == "restore_images"
+    assert data["status"] == "pending"
+
+
+async def test_restore_backup_double_restore_request_blocked(client, db_session):
+    token = await _register_and_login(client, {
+        "email": "mrestore_double@example.com", "password": "password123",
+        "full_name": "RestoreDouble", "organization_name": "RestoreDouble Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, shop = await _setup_listing_with_token(db_session, org_id, "90004")
+    backup = await _make_backup_snapshot(
+        db_session, org_id, listing, shop,
+        [{"etsy_image_id": "R001", "rank": 1, "url_fullxfull": "https://etsy.com/r001.jpg"}],
+    )
+
+    r1 = await client.post(f"{BACKUPS_URL}/{backup.id}/restore", headers={"Authorization": f"Bearer {token}"})
+    assert r1.status_code == 201
+
+    # A second restore request for the same backup while the first job is
+    # still pending (never applied) must be refused, not silently allowed
+    # to create a duplicate job.
+    r2 = await client.post(f"{BACKUPS_URL}/{backup.id}/restore", headers={"Authorization": f"Bearer {token}"})
+    assert r2.status_code == 409
+
+
+async def test_restore_backup_apply_reuploads_images_and_marks_restored(client, db_session):
+    """End-to-end: create the restore job, apply it (Etsy fully mocked),
+    confirm the backup is marked restored_at only after success, and a
+    second restore request afterward is blocked with the already-restored
+    message."""
+    token = await _register_and_login(client, {
+        "email": "mrestore_apply@example.com", "password": "password123",
+        "full_name": "RestoreApply", "organization_name": "RestoreApply Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, shop = await _setup_listing_with_token(db_session, org_id, "90005")
+    await _add_listing_image(db_session, listing, "CURRENT001", rank=1)
+    backup = await _make_backup_snapshot(
+        db_session, org_id, listing, shop,
+        [{"etsy_image_id": "BACKED_UP001", "rank": 1, "url_fullxfull": "https://etsy.com/backed_up001.jpg", "alt_text": None}],
+    )
+
+    r = await client.post(f"{BACKUPS_URL}/{backup.id}/restore", headers={"Authorization": f"Bearer {token}"})
+    job_id = r.json()["id"]
+
+    fake_restored_image = {"listing_image_id": "NEW999", "rank": 1, "url_fullxfull": "https://etsy.com/backed_up001.jpg"}
+
+    with (
+        patch("app.services.bulk_edit_media.settings", _etsy_settings_mock()),
+        patch("app.services.bulk_edit_media.delete_etsy_listing_image", new_callable=AsyncMock) as mock_delete,
+        patch("app.services.bulk_edit_media.upload_etsy_listing_image", new_callable=AsyncMock) as mock_upload,
+        patch("app.services.bulk_edit_media.upsert_listing_images", new_callable=AsyncMock),
+    ):
+        mock_upload.return_value = fake_restored_image
+        r2 = await client.post(f"{JOBS_URL}/{job_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    assert r2.status_code == 200
+    assert mock_delete.called  # current image deleted before restore re-upload
+    assert mock_upload.called
+    assert r2.json()["success_count"] == 1
+
+    from app.models.listing_media_backup_snapshot import ListingMediaBackupSnapshot
+    backup_id = backup.id  # capture as plain str before expire_all() below
+    db_session.expire_all()
+    refreshed = (await db_session.execute(
+        select(ListingMediaBackupSnapshot).where(ListingMediaBackupSnapshot.id == backup_id)
+    )).scalar_one()
+    assert refreshed.restored_at is not None
+    assert refreshed.restore_media_job_id == job_id
+
+    # Now blocked as already-restored, not just "in progress."
+    r3 = await client.post(f"{BACKUPS_URL}/{backup.id}/restore", headers={"Authorization": f"Bearer {token}"})
+    assert r3.status_code == 409
+    assert "already restored" in r3.json()["detail"].lower()
+
+
+async def test_restore_backup_failed_apply_does_not_mark_restored(client, db_session):
+    """If the restore's Etsy write fails entirely, restored_at must stay
+    unset so a real retry is still possible."""
+    token = await _register_and_login(client, {
+        "email": "mrestore_fail@example.com", "password": "password123",
+        "full_name": "RestoreFail", "organization_name": "RestoreFail Org",
+    })
+    org_id = await _get_org_id(db_session)
+    listing, shop = await _setup_listing_with_token(db_session, org_id, "90006")
+    backup = await _make_backup_snapshot(
+        db_session, org_id, listing, shop,
+        [{"etsy_image_id": "R001", "rank": 1, "url_fullxfull": "https://etsy.com/r001.jpg"}],
+    )
+
+    r = await client.post(f"{BACKUPS_URL}/{backup.id}/restore", headers={"Authorization": f"Bearer {token}"})
+    job_id = r.json()["id"]
+
+    from app.services.etsy_media_write import EtsyMediaWriteError
+
+    with (
+        patch("app.services.bulk_edit_media.settings", _etsy_settings_mock()),
+        patch(
+            "app.services.bulk_edit_media.upload_etsy_listing_image",
+            new_callable=AsyncMock,
+            side_effect=EtsyMediaWriteError("Etsy rejected upload", status_code=400),
+        ),
+    ):
+        r2 = await client.post(f"{JOBS_URL}/{job_id}/apply", headers={"Authorization": f"Bearer {token}"})
+
+    assert r2.json()["failure_count"] == 1
+
+    from app.models.listing_media_backup_snapshot import ListingMediaBackupSnapshot
+    backup_id = backup.id  # capture as plain str before expire_all() below
+    db_session.expire_all()
+    refreshed = (await db_session.execute(
+        select(ListingMediaBackupSnapshot).where(ListingMediaBackupSnapshot.id == backup_id)
+    )).scalar_one()
+    assert refreshed.restored_at is None
+
+    # A retry must still be allowed since restored_at was never set.
+    r3 = await client.post(f"{BACKUPS_URL}/{backup.id}/restore", headers={"Authorization": f"Bearer {token}"})
+    assert r3.status_code == 201
+
+
+async def test_list_all_backups_endpoint_org_scoped(client, db_session):
+    token_a = await _register_and_login(client, {
+        "email": "mbackups_a@example.com", "password": "password123",
+        "full_name": "BackupsA", "organization_name": "BackupsA Org",
+    })
+    org_a = await _get_org_id(db_session)
+    listing_a, shop_a = await _setup_listing_with_token(db_session, org_a, "90007")
+    await _make_backup_snapshot(db_session, org_a, listing_a, shop_a, [{"etsy_image_id": "A1", "rank": 1, "url_fullxfull": "https://etsy.com/a1.jpg"}])
+
+    token_b = await _register_and_login(client, {
+        "email": "mbackups_b@example.com", "password": "password123",
+        "full_name": "BackupsB", "organization_name": "BackupsB Org",
+    })
+    org_b = await _get_org_id(db_session)
+    listing_b, shop_b = await _setup_listing_with_token(db_session, org_b, "90008")
+    await _make_backup_snapshot(db_session, org_b, listing_b, shop_b, [{"etsy_image_id": "B1", "rank": 1, "url_fullxfull": "https://etsy.com/b1.jpg"}])
+
+    r = await client.get(BACKUPS_URL, headers={"Authorization": f"Bearer {token_a}"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] == 1
+    assert data["items"][0]["listing_id"] == listing_a.id
+
+
+async def test_list_all_backups_requires_auth(client):
+    r = await client.get(BACKUPS_URL)
+    assert r.status_code == 403

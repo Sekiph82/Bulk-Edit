@@ -9,6 +9,7 @@ from app.schemas.bulk_edit_media import (
     MediaJobWithResultsOut,
     MediaResultPageOut,
     MediaBackupSnapshotOut,
+    MediaBackupPageOut,
 )
 from app.services.bulk_edit_media import (
     create_media_job,
@@ -17,6 +18,8 @@ from app.services.bulk_edit_media import (
     list_media_jobs,
     get_media_results,
     get_media_backups,
+    list_all_backups,
+    restore_media_backup,
 )
 
 router = APIRouter(prefix="/bulk-edit/media", tags=["bulk-edit-media"])
@@ -101,3 +104,30 @@ async def get_job_backups(
     db: AsyncSession = Depends(get_db),
 ):
     return await get_media_backups(db=db, organization_id=org_id, media_job_id=job_id)
+
+
+@router.get("/backups", response_model=MediaBackupPageOut)
+async def list_backups(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    org_id: str = Depends(get_current_org_id),
+    user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """M13.04: org-wide backup history (not scoped to one job) — powers the
+    /media 'Backups & Restore' UI."""
+    return await list_all_backups(db=db, organization_id=org_id, page=page, per_page=per_page)
+
+
+@router.post("/backups/{backup_id}/restore", response_model=MediaJobOut, status_code=201)
+async def restore_backup(
+    backup_id: str,
+    org_id: str = Depends(get_current_org_id),
+    user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """M13.04: creates a PENDING restore_images job for this backup. Callers
+    must still POST /jobs/{id}/apply to run it — same two-step contract as
+    every other media job. Blocked entirely unless
+    MEDIA_DESTRUCTIVE_ACTIONS_ENABLED is set."""
+    return await restore_media_backup(db=db, organization_id=org_id, user_id=str(user.id), backup_id=backup_id)

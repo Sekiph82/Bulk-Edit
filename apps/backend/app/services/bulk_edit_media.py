@@ -66,7 +66,19 @@ VALID_OPERATION_TYPES = {
     "add_video",
     "replace_video",
     "delete_video",
+    "restore_images",
 }
+
+# M13.04: these operations destroy existing Etsy media (delete outright, or
+# delete-then-reupload). add_image/add_video only ever add — nothing existing
+# is destroyed, so they are never gated. restore_images is gated too: it
+# deletes the listing's current images before re-uploading the backed-up
+# ones, the same delete-then-reupload data-loss window replace_image has.
+# Blocked at job *creation* (and again defensively at apply), not just
+# hidden in the frontend, because apply_media_job() has no other
+# backend-level check standing between this call and a real Etsy write — see
+# MEDIA_DESTRUCTIVE_ACTIONS_ENABLED's docstring in core/config.py.
+DESTRUCTIVE_OPERATION_TYPES = {"replace_image", "delete_image", "replace_video", "delete_video", "restore_images"}
 
 
 async def _write_audit_log(
@@ -111,6 +123,15 @@ async def create_media_job(
         raise HTTPException(
             status_code=400,
             detail=f"Invalid operation_type '{operation_type}'. Must be one of: {', '.join(sorted(VALID_OPERATION_TYPES))}.",
+        )
+
+    if operation_type in DESTRUCTIVE_OPERATION_TYPES and not settings.MEDIA_DESTRUCTIVE_ACTIONS_ENABLED:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"'{operation_type}' is disabled — restore infrastructure exists but has not been "
+                "owner-verified against a live Etsy listing yet. Adding new images/video is still available."
+            ),
         )
 
     # Validate all listing_ids belong to org
@@ -173,6 +194,19 @@ async def apply_media_job(
     job = job_q.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Media job not found.")
+
+    if job.operation_type in DESTRUCTIVE_OPERATION_TYPES and not settings.MEDIA_DESTRUCTIVE_ACTIONS_ENABLED:
+        # Defense in depth: create_media_job() already blocks this at
+        # creation, but a job created while the flag was briefly on (or a
+        # future call site that skips create_media_job) must not be able to
+        # apply a destructive write just because it already exists.
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"'{job.operation_type}' is disabled — restore infrastructure exists but has not been "
+                "owner-verified against a live Etsy listing yet."
+            ),
+        )
 
     if job.status not in ("pending",):
         raise HTTPException(
@@ -365,6 +399,24 @@ async def apply_media_job(
         else "failed"
     )
     db.add(job)
+
+    # M13.04: mark the source backup restored only once this job actually
+    # succeeded for at least one listing — a job that never gets applied, or
+    # fails entirely, must not permanently block a real retry.
+    if operation_type == "restore_images" and success_count > 0:
+        backup_id = payload.get("backup_id")
+        if backup_id:
+            snap_q = await db.execute(
+                select(ListingMediaBackupSnapshot).where(
+                    ListingMediaBackupSnapshot.id == backup_id,
+                    ListingMediaBackupSnapshot.organization_id == organization_id,
+                )
+            )
+            snapshot = snap_q.scalar_one_or_none()
+            if snapshot:
+                snapshot.restored_at = datetime.now(timezone.utc)
+                snapshot.restore_media_job_id = job.id
+                db.add(snapshot)
 
     await _write_audit_log(
         db,
@@ -691,6 +743,63 @@ async def _apply_one_operation(
 
         return [], {"deleted_video_id": etsy_video_id}
 
+    elif operation_type == "restore_images":
+        backup_id = payload.get("backup_id")
+        if not backup_id:
+            raise EtsyMediaWriteError("restore_images requires 'backup_id' in payload.", status_code=400)
+
+        snap_q = await db.execute(
+            select(ListingMediaBackupSnapshot).where(
+                ListingMediaBackupSnapshot.id == backup_id,
+                ListingMediaBackupSnapshot.listing_id == listing.id,
+            )
+        )
+        snapshot = snap_q.scalar_one_or_none()
+        if not snapshot:
+            raise EtsyMediaWriteError("Backup snapshot not found for this listing.", status_code=404)
+
+        images_to_restore = sorted(snapshot.images_snapshot or [], key=lambda i: i.get("rank") or 0)
+        if not images_to_restore:
+            return [], {"restored_count": 0, "note": "Backup had no image data to restore."}
+
+        # Same delete-then-reupload shape as replace_image, and the same
+        # real, uneliminable data-loss window documented in
+        # etsy_media_write.py — restore is gated by
+        # MEDIA_DESTRUCTIVE_ACTIONS_ENABLED for exactly this reason.
+        current_q = await db.execute(select(ListingImage).where(ListingImage.listing_id == listing.id))
+        for current_img in list(current_q.scalars().all()):
+            if current_img.etsy_image_id:
+                try:
+                    await delete_etsy_listing_image(
+                        access_token=access_token, shop_etsy_id=shop_etsy_id,
+                        listing_etsy_id=listing_etsy_id, image_id=current_img.etsy_image_id,
+                    )
+                except EtsyMediaWriteError:
+                    pass  # best-effort — still attempt to restore from backup
+            await db.delete(current_img)
+        await db.flush()
+
+        restored_responses: list[dict[str, Any]] = []
+        for backed_up_image in images_to_restore:
+            image_url = backed_up_image.get("url_fullxfull") or backed_up_image.get("url_570xN")
+            if not image_url:
+                continue
+            etsy_response = await upload_etsy_listing_image(
+                access_token=access_token, shop_etsy_id=shop_etsy_id, listing_etsy_id=listing_etsy_id,
+                image_url=image_url, rank=backed_up_image.get("rank"), overwrite=True,
+                alt_text=backed_up_image.get("alt_text"),
+            )
+            restored_responses.append(etsy_response)
+
+        await upsert_listing_images(db, listing, restored_responses)
+        await db.flush()
+
+        updated_q = await db.execute(
+            select(ListingImage).where(ListingImage.listing_id == listing.id).order_by(ListingImage.rank)
+        )
+        after_images = [_image_to_dict(img) for img in updated_q.scalars().all()]
+        return after_images, {"restored_count": len(restored_responses), "backup_id": backup_id}
+
     raise EtsyMediaWriteError(f"Unknown operation: {operation_type}", status_code=400)
 
 
@@ -819,3 +928,91 @@ async def get_media_backups(
         ).order_by(ListingMediaBackupSnapshot.created_at.asc())
     )
     return list(q.scalars().all())
+
+
+async def list_all_backups(
+    db: AsyncSession,
+    organization_id: str,
+    page: int = 1,
+    per_page: int = 50,
+) -> dict:
+    """M13.04: org-wide backup history — not scoped to one job — powers the
+    /media 'Backups & Restore' UI. Every row here is a real pre-write
+    snapshot; `restored_at`/`restore_media_job_id` (null until a restore
+    actually succeeds) tell the UI whether Restore is still offered."""
+    base_q = select(ListingMediaBackupSnapshot).where(
+        ListingMediaBackupSnapshot.organization_id == organization_id,
+    )
+    count_q = await db.execute(select(func.count()).select_from(base_q.subquery()))
+    total = count_q.scalar_one()
+
+    paged_q = base_q.order_by(ListingMediaBackupSnapshot.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+    result_q = await db.execute(paged_q)
+    items = list(result_q.scalars().all())
+
+    return {"items": items, "page": page, "per_page": per_page, "total": total}
+
+
+async def restore_media_backup(
+    db: AsyncSession,
+    organization_id: str,
+    user_id: str,
+    backup_id: str,
+) -> BulkEditMediaJob:
+    """M13.04: creates a pending `restore_images` media job for a backup
+    snapshot — re-uploads its `images_snapshot` in original rank order after
+    deleting whatever is currently on the listing. Returns a PENDING job;
+    callers must still POST .../jobs/{id}/apply to actually run it (the same
+    two-step create-then-apply contract every other media job already uses).
+
+    Blocked entirely while MEDIA_DESTRUCTIVE_ACTIONS_ENABLED is False (via
+    create_media_job()'s destructive-operation gate) — restore deletes
+    existing images before re-uploading, the same risk profile as
+    replace_image.
+
+    Video restore is NOT implemented: videos_snapshot only stores an Etsy
+    CDN video_url, and re-uploading a video to Etsy requires a local file
+    (see etsy_media_write.upload_etsy_listing_video) — downloading and
+    staging a video file for restore is a separate, real task, not built
+    this sprint."""
+    snap_q = await db.execute(
+        select(ListingMediaBackupSnapshot).where(
+            ListingMediaBackupSnapshot.id == backup_id,
+            ListingMediaBackupSnapshot.organization_id == organization_id,
+        )
+    )
+    snapshot = snap_q.scalar_one_or_none()
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="Backup snapshot not found.")
+
+    if snapshot.restored_at is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"This backup was already restored on {snapshot.restored_at.isoformat()}.",
+        )
+
+    if not snapshot.images_snapshot:
+        raise HTTPException(status_code=400, detail="This backup has no image data to restore.")
+
+    # Block a second restore request for the same backup while one is
+    # already pending/running — restored_at alone can't catch this since it
+    # is only set once a restore *succeeds*.
+    in_flight_q = await db.execute(
+        select(BulkEditMediaJob).where(
+            BulkEditMediaJob.organization_id == organization_id,
+            BulkEditMediaJob.operation_type == "restore_images",
+            BulkEditMediaJob.status.in_(("pending", "running")),
+        )
+    )
+    for existing in in_flight_q.scalars().all():
+        if (existing.operation_payload or {}).get("backup_id") == backup_id:
+            raise HTTPException(status_code=409, detail="A restore for this backup is already in progress.")
+
+    return await create_media_job(
+        db=db,
+        organization_id=organization_id,
+        user_id=user_id,
+        operation_type="restore_images",
+        listing_ids=[snapshot.listing_id],
+        payload={"backup_id": backup_id},
+    )

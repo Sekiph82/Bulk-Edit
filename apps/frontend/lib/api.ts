@@ -740,8 +740,17 @@ export interface MediaBackupSnapshot {
   snapshot_type: string;
   images_snapshot: unknown;
   videos_snapshot: unknown;
+  restored_at: string | null;
+  restore_media_job_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface MediaBackupPage {
+  items: MediaBackupSnapshot[];
+  page: number;
+  per_page: number;
+  total: number;
 }
 
 export interface VideoRenderSummary {
@@ -825,6 +834,27 @@ export function getMediaResults(
 
 export function getMediaBackups(jobId: string): Promise<MediaBackupSnapshot[]> {
   return apiFetch(`/api/v1/bulk-edit/media/jobs/${jobId}/backups`);
+}
+
+// M13.04: org-wide backup history (not scoped to one job) — powers the
+// /media "Backups & Restore" section.
+export function listAllMediaBackups(
+  params: { page?: number; per_page?: number } = {},
+): Promise<MediaBackupPage> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined) qs.set(k, String(v));
+  }
+  const q = qs.toString();
+  return apiFetch(`/api/v1/bulk-edit/media/backups${q ? `?${q}` : ""}`);
+}
+
+// Creates a PENDING restore_images job for this backup. Callers must still
+// call applyMediaJob() to run it (same two-step contract as every other
+// media job). Currently always 403s in production —
+// MEDIA_DESTRUCTIVE_ACTIONS_ENABLED is off until an owner-run live test.
+export function restoreMediaBackup(backupId: string): Promise<MediaJob> {
+  return apiFetch(`/api/v1/bulk-edit/media/backups/${backupId}/restore`, { method: "POST" });
 }
 
 // ---- Variation Job Types ----
