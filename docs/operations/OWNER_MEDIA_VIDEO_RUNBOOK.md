@@ -71,6 +71,25 @@ This part never touches Etsy and can be tested any time, with no flag and no ris
 
 **Stop conditions:** render stuck in rendering far beyond expected, a failed render with an unclear error, any UI text implying the video was uploaded/published to Etsy, or the Upload to Etsy button being clickable/enabled → stop and report; none of these should happen. No Etsy upload occurs at any step of Part 2.
 
+### Part 2b — In-app preview + branding options owner check (M13.05B, no upload)
+
+Added 2026-09-03. Still never touches Etsy.
+
+**In-app video player:**
+1. On a completed render's result card, an embedded video player appears — play it. The video plays inside the browser (it is fetched locally, never from Etsy).
+2. Confirm the **result checklist** updates: "Review the video" checks once you play; "Download to your computer" checks once you click Download.
+3. In **Recent Videos**, click **Preview** on a completed row — the same player opens in a modal (it does not start a second render). Close it.
+4. Expected fallback: if a file is missing, the card shows "Preview unavailable. Download the video to review it." — not a crash.
+
+**Branding options (preview-only this release):**
+5. Open the **Branding options** card. Confirm it clearly reads "preview-only in this release — not yet rendered into the MP4, never uploaded to Etsy," and "Branding overlay rendering is coming soon."
+6. Enter a logo URL (a small logo preview appears), headline, slogan, outro, CTA; pick logo position, text placement, brand color. Confirm the character counters cap input (60/80/80/30) and the branding summary reflects your choices.
+7. Confirm nothing about branding uploads or publishes anything — it is form-state only in this release.
+
+**Evidence to capture:** in-app player screenshot (mid-play), checklist showing Review + Download checked, Recent Videos Preview modal screenshot, Branding options card screenshot.
+
+**Stop conditions:** any branding UI implying it will upload/publish to Etsy, any player attempt to reach Etsy, or the Upload button becoming enabled → stop and report. No Etsy upload at any step.
+
 ## Part 3 — Owner-only video upload test plan (future, owner-approved live write)
 
 **Status: NOT yet enabled.** The Video Generator's "Upload to Etsy" button is a disabled placeholder. This plan is the procedure to follow *if and when* the owner decides to build/enable a live generated-video upload path. Claude/Codex must never run any step of this — it is owner-initiated only.
