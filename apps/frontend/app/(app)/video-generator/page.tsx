@@ -246,6 +246,76 @@ function EtsyReadyChecklist({
 }
 
 // ---------------------------------------------------------------------------
+// RenderDetails — generated-video result fields
+// ---------------------------------------------------------------------------
+
+function RenderDetails({ render }: { render: RenderStatus }) {
+  const rows: [string, string][] = [
+    ["Render ID", render.id.slice(0, 8)],
+    ["Created", new Date(render.created_at).toLocaleString()],
+    ["Status", render.status],
+    ["Template", render.template_id],
+    ["Source", render.source === "uploaded" ? "Uploaded file" : "Generated (listing photos)"],
+    ["Aspect ratio", render.aspect_ratio ?? "—"],
+    ["Duration", render.duration_seconds != null ? `${render.duration_seconds.toFixed(1)}s` : "—"],
+    ["Photos", render.image_count > 0 ? String(render.image_count) : "—"],
+  ];
+  return (
+    <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+      {rows.map(([k, v]) => (
+        <div key={k} className="flex justify-between gap-2 border-b border-gray-50 py-1">
+          <dt className="text-gray-400">{k}</dt>
+          <dd className="text-gray-700 font-medium text-right truncate" title={v}>{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// UploadToEtsyGateModal — Upload to Etsy is not enabled yet (Option A gate)
+// ---------------------------------------------------------------------------
+
+function UploadToEtsyGateModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-5 border-b border-gray-100">
+          <h3 className="text-base font-semibold text-gray-900">Upload to Etsy</h3>
+        </div>
+        <div className="p-5 space-y-3 text-sm text-gray-700">
+          <p className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+            Upload to Etsy is coming after owner-approved live video upload testing. It is not enabled yet — no video is sent to Etsy from here.
+          </p>
+          <p>For now, use <strong>Download to your computer</strong>, then upload the video through the Etsy listing editor.</p>
+          <div className="text-xs text-gray-500 space-y-1">
+            <p className="font-medium text-gray-600">When enabled, uploading will:</p>
+            <ul className="list-disc list-inside space-y-0.5">
+              <li>Let you pick the target listing.</li>
+              <li>Add the video, or replace an existing one (Etsy allows one video per listing).</li>
+              <li>Back up the current video before any replace.</li>
+              <li>Require explicit confirmation — it is a live Etsy write, never automatic.</li>
+            </ul>
+          </div>
+        </div>
+        <div className="p-5 pt-0">
+          <button
+            onClick={onClose}
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main content
 // ---------------------------------------------------------------------------
 
@@ -271,6 +341,7 @@ function VideoGeneratorContent() {
 
   const [unavailableModalOpen, setUnavailableModalOpen] = useState(false);
   const [unavailableReason, setUnavailableReason] = useState<"disabled" | "dependency_missing">("disabled");
+  const [uploadGateOpen, setUploadGateOpen] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -633,22 +704,33 @@ function VideoGeneratorContent() {
 
             {renderJob.status === "completed" && (
               <div className="space-y-3">
+                <div className="px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                  <strong>Your video was generated.</strong> Review it before publishing. Videos are never auto-uploaded to Etsy.
+                </div>
+
+                <RenderDetails render={renderJob} />
+
                 <EtsyReadyChecklist render={renderJob} specs={etsySpecs} />
 
                 <div className="px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
                   Review the video before uploading. Do not upload to Etsy without checking it first.
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <button
                     onClick={handleDownload}
                     className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                   >
-                    Download MP4
+                    Download to your computer
                   </button>
-                  <span className="text-xs text-gray-400">
-                    Then upload manually via Etsy listing editor.
-                  </span>
+                  <button
+                    onClick={() => setUploadGateOpen(true)}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-500 text-sm font-medium px-4 py-2 rounded-lg transition-colors cursor-not-allowed"
+                    title="Upload to Etsy is coming after owner-approved live video upload testing."
+                    aria-disabled="true"
+                  >
+                    Upload to Etsy
+                  </button>
                 </div>
               </div>
             )}
@@ -702,12 +784,22 @@ function VideoGeneratorContent() {
                       </td>
                       <td className="py-2">
                         {h.status === "completed" && h.download_url ? (
-                          <button
-                            onClick={() => downloadRender(h.download_url as string, h.id)}
-                            className="text-xs text-indigo-600 hover:underline"
-                          >
-                            Download
-                          </button>
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => downloadRender(h.download_url as string, h.id)}
+                              className="text-xs text-indigo-600 hover:underline"
+                              title="Download to your computer"
+                            >
+                              Download
+                            </button>
+                            <button
+                              onClick={() => setUploadGateOpen(true)}
+                              className="text-xs text-gray-400 hover:underline cursor-not-allowed"
+                              title="Upload to Etsy is coming after owner-approved live video upload testing."
+                            >
+                              Upload to Etsy
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-xs text-gray-300">—</span>
                         )}
@@ -719,7 +811,7 @@ function VideoGeneratorContent() {
             </div>
           )}
           <p className="text-xs text-gray-400">
-            Bulk Edit App does not auto-upload videos to Etsy. Download and review each video, then publish manually on Etsy.
+            After a video is generated you have two choices: <strong>Download to your computer</strong>, or <strong>Upload to Etsy</strong> (coming after owner-approved live upload testing). Videos are never auto-uploaded to Etsy — download, review, then publish.
           </p>
         </div>
       </div>
@@ -730,6 +822,8 @@ function VideoGeneratorContent() {
         isSuperuser={isSuperuser}
         onClose={() => setUnavailableModalOpen(false)}
       />
+
+      <UploadToEtsyGateModal open={uploadGateOpen} onClose={() => setUploadGateOpen(false)} />
     </main>
   );
 }

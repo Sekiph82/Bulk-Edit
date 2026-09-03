@@ -4,6 +4,22 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-09-03 (M13 Video Upload UX Architecture Sprint)
+
+### [PRODUCT] The Video Generator's final UX target is two explicit user actions after a video exists — Download to your computer, and Upload to Etsy
+Not one action, not an auto-flow. Both are surfaced on the generated-video result screen (and Recent Videos rows). This is the durable product shape; future work fills in the upload half, it does not replace the model.
+
+### [PRODUCT] Upload to Etsy is always an explicit, confirmed user action — never automatic
+Generating a video must never create a media job, queue an upload, or send anything to Etsy. Enforced/proved by `test_generate_render_does_not_create_media_upload_job`. The result and history UI carry "Videos are never auto-uploaded to Etsy" copy. No generation success handler or background job may ever upload a generated video.
+
+### [SAFETY] Upload to Etsy stays a gated placeholder (Option A) until an owner-approved live upload path is built and tested
+This sprint shipped a visible-but-disabled "Upload to Etsy" button + explanatory modal, calling no Etsy write endpoint. Option B (live gated job creation from the Video Generator) was deliberately not wired. The existing `/media` add_video/replace_video path is separate; wiring the Video Generator to it, or building a dedicated video-upload job, requires an owner-approved live test first (see `docs/operations/OWNER_MEDIA_VIDEO_RUNBOOK.md` Part 3).
+
+### [ARCHITECTURE] Video restore stays separate from image restore — no video restore until a re-uploadable local-file backup strategy exists
+Preserved from PR #126: media backups store only an Etsy CDN `video_url`, not a re-uploadable local file, so a replaced/deleted video cannot be restored through the app. Prefer additive Add Video over Replace Video for any first live test. Do not claim video restore works.
+
+---
+
 ## 2026-08-31 (PR #126 owner visual check + fork/subagent scope-violation remediation)
 
 ### [POLICY] Read-only fork/subagent work must never mutate code, run migrations, or open PRs without explicit owner approval — a scope violation is an audit finding even when the resulting work is independently verified correct and safe

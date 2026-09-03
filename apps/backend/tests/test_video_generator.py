@@ -505,3 +505,147 @@ async def test_upload_video_rejects_unprobeable_file(client: AsyncClient, monkey
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 400
+
+
+# --- Download endpoint (M13.05: "Download to your computer") ---
+
+@pytest.mark.anyio
+async def test_download_requires_auth(client: AsyncClient):
+    resp = await client.get("/api/v1/video-generator/renders/some-id/download")
+    assert resp.status_code in (401, 403)
+
+
+@pytest.mark.anyio
+async def test_download_completed_render_succeeds(client: AsyncClient, db_session, tmp_path):
+    from app.models.video_render import VideoRender
+    from sqlalchemy import select
+    from app.models.organization_member import OrganizationMember
+
+    token = await _register_and_login(client, "vid_dl_ok@test.com", "VidDlOk")
+    org_id = (await db_session.execute(
+        select(OrganizationMember).order_by(OrganizationMember.created_at.asc()).limit(1)
+    )).scalar_one().organization_id
+
+    mp4 = tmp_path / "done.mp4"
+    mp4.write_bytes(b"\x00\x00\x00\x18ftypmp42fake")
+    render = VideoRender(organization_id=org_id, template_id="clean_zoom", status="completed",
+                         is_etsy_ready=True, file_path=str(mp4))
+    db_session.add(render)
+    await db_session.commit()
+    await db_session.refresh(render)
+
+    resp = await client.get(
+        f"/api/v1/video-generator/renders/{render.id}/download",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "video/mp4"
+    # Safe filename derived from the render id only — no user input, no secrets.
+    assert f"product_video_{render.id[:8]}.mp4" in resp.headers.get("content-disposition", "")
+
+
+@pytest.mark.anyio
+async def test_download_rejects_non_completed_render(client: AsyncClient, db_session):
+    from app.models.video_render import VideoRender
+    from sqlalchemy import select
+    from app.models.organization_member import OrganizationMember
+
+    token = await _register_and_login(client, "vid_dl_pending@test.com", "VidDlPending")
+    org_id = (await db_session.execute(
+        select(OrganizationMember).order_by(OrganizationMember.created_at.asc()).limit(1)
+    )).scalar_one().organization_id
+
+    render = VideoRender(organization_id=org_id, template_id="clean_zoom", status="rendering")
+    db_session.add(render)
+    await db_session.commit()
+    await db_session.refresh(render)
+
+    resp = await client.get(
+        f"/api/v1/video-generator/renders/{render.id}/download",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_download_missing_file_returns_410(client: AsyncClient, db_session):
+    from app.models.video_render import VideoRender
+    from sqlalchemy import select
+    from app.models.organization_member import OrganizationMember
+
+    token = await _register_and_login(client, "vid_dl_gone@test.com", "VidDlGone")
+    org_id = (await db_session.execute(
+        select(OrganizationMember).order_by(OrganizationMember.created_at.asc()).limit(1)
+    )).scalar_one().organization_id
+
+    render = VideoRender(organization_id=org_id, template_id="clean_zoom", status="completed",
+                         file_path="/tmp/does-not-exist-xyz.mp4")
+    db_session.add(render)
+    await db_session.commit()
+    await db_session.refresh(render)
+
+    resp = await client.get(
+        f"/api/v1/video-generator/renders/{render.id}/download",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 410
+
+
+@pytest.mark.anyio
+async def test_download_isolated_across_orgs(client: AsyncClient, db_session, tmp_path):
+    """A render belonging to org A must not be downloadable by org B."""
+    from app.models.video_render import VideoRender
+    from sqlalchemy import select
+    from app.models.organization_member import OrganizationMember
+
+    token_a = await _register_and_login(client, "vid_dl_a@test.com", "VidDlOrgA")
+    token_b = await _register_and_login(client, "vid_dl_b@test.com", "VidDlOrgB")
+    org_a = (await db_session.execute(
+        select(OrganizationMember).order_by(OrganizationMember.created_at.asc()).limit(1)
+    )).scalar_one().organization_id
+
+    mp4 = tmp_path / "a.mp4"
+    mp4.write_bytes(b"fake")
+    render = VideoRender(organization_id=org_a, template_id="clean_zoom", status="completed", file_path=str(mp4))
+    db_session.add(render)
+    await db_session.commit()
+    await db_session.refresh(render)
+
+    resp = await client.get(
+        f"/api/v1/video-generator/renders/{render.id}/download",
+        headers={"Authorization": f"Bearer {token_b}"},
+    )
+    assert resp.status_code == 404
+
+
+# --- No-auto-upload guarantee (M13.05 hard product rule) ---
+
+@pytest.mark.anyio
+async def test_generate_render_does_not_create_media_upload_job(client: AsyncClient, db_session, monkeypatch):
+    """Creating a render must NEVER create a media job or otherwise queue an
+    Etsy upload. Upload to Etsy is an explicit, separate user action."""
+    from app.models.bulk_edit_media_job import BulkEditMediaJob
+    from sqlalchemy import select, func
+
+    monkeypatch.setattr("app.api.v1.video_generator.check_ffmpeg", lambda path=None: ("working", "ok"))
+
+    # Neutralize the background render task — it opens its own DB/HTTP clients
+    # against real services; we only care that the render *endpoint* never
+    # queues an Etsy upload / media job.
+    async def _noop_render(**kwargs):
+        return None
+    monkeypatch.setattr("app.api.v1.video_generator._run_render", _noop_render)
+
+    token = await _register_and_login(client, "vid_noauto@test.com", "VidNoAuto")
+    before = (await db_session.execute(select(func.count()).select_from(BulkEditMediaJob))).scalar()
+
+    resp = await client.post(
+        "/api/v1/video-generator/render",
+        json={"template_id": "clean_zoom", "image_urls": ["https://example.com/a.jpg"],
+              "aspect_ratio": "9:16", "duration_seconds": 10},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 202
+
+    after = (await db_session.execute(select(func.count()).select_from(BulkEditMediaJob))).scalar()
+    assert after == before, "Generating a video must not create any media upload job."
