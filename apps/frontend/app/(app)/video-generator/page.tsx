@@ -316,6 +316,54 @@ function UploadToEtsyGateModal({ open, onClose }: { open: boolean; onClose: () =
 }
 
 // ---------------------------------------------------------------------------
+// ConfirmGenerateModal — lightweight "generate local MP4?" confirm (C2)
+// ---------------------------------------------------------------------------
+
+function ConfirmGenerateModal({
+  open,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onCancel}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-5 border-b border-gray-100">
+          <h3 className="text-base font-semibold text-gray-900">Generate local MP4?</h3>
+        </div>
+        <div className="p-5 space-y-2 text-sm text-gray-700">
+          <p>This will create a local video file from the selected images.</p>
+          <p className="text-xs px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
+            It will <strong>not</strong> upload to Etsy. You can review and download it after generation.
+          </p>
+        </div>
+        <div className="p-5 pt-0 flex gap-2">
+          <button
+            onClick={onConfirm}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            Generate
+          </button>
+          <button
+            onClick={onCancel}
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main content
 // ---------------------------------------------------------------------------
 
@@ -342,6 +390,7 @@ function VideoGeneratorContent() {
   const [unavailableModalOpen, setUnavailableModalOpen] = useState(false);
   const [unavailableReason, setUnavailableReason] = useState<"disabled" | "dependency_missing">("disabled");
   const [uploadGateOpen, setUploadGateOpen] = useState(false);
+  const [confirmGenerateOpen, setConfirmGenerateOpen] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -412,7 +461,7 @@ function VideoGeneratorContent() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [renderJob?.id, renderJob?.status]);
 
-  async function handleRender(e: React.FormEvent) {
+  function handleRender(e: React.FormEvent) {
     e.preventDefault();
     const urls = imageUrlsText.split("\n").map((u) => u.trim()).filter(Boolean);
     if (!urls.length) return;
@@ -427,7 +476,15 @@ function VideoGeneratorContent() {
       setUnavailableModalOpen(true);
       return;
     }
+    // Lightweight confirm — reinforce that this creates a local MP4 only and
+    // never uploads to Etsy, before any render starts.
+    setConfirmGenerateOpen(true);
+  }
 
+  async function confirmAndRender() {
+    const urls = imageUrlsText.split("\n").map((u) => u.trim()).filter(Boolean);
+    if (!urls.length) return;
+    setConfirmGenerateOpen(false);
     setSubmitting(true);
     setRenderJob(null);
     try {
@@ -668,6 +725,16 @@ function VideoGeneratorContent() {
             rows={5}
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 font-mono resize-y focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
+          {/* Pre-generation safety panel (C1) */}
+          <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 space-y-1">
+            <p className="font-medium text-slate-700">Before you generate:</p>
+            <ul className="list-disc list-inside space-y-0.5">
+              <li>Generation creates a <strong>local MP4 only</strong> — it does <strong>not</strong> upload to Etsy.</li>
+              <li>No Etsy listing changes happen from Generate Video.</li>
+              <li>After generation you can <strong>Download to your computer</strong> or open the gated Upload to Etsy info.</li>
+              <li>Upload to Etsy is <strong>not enabled yet</strong>.</li>
+            </ul>
+          </div>
           <button
             type="submit"
             disabled={submitting || !imageUrlsText.trim()}
@@ -711,6 +778,16 @@ function VideoGeneratorContent() {
                 <RenderDetails render={renderJob} />
 
                 <EtsyReadyChecklist render={renderJob} specs={etsySpecs} />
+
+                {/* Owner result checklist (C3) */}
+                <div className="rounded-lg border border-gray-200 p-3 space-y-1 text-xs">
+                  <p className="font-medium text-gray-700">Result checklist:</p>
+                  <p className="text-green-700">✓ Video generated</p>
+                  <p className="text-gray-600">☐ Review the video</p>
+                  <p className="text-gray-600">☐ Download to your computer</p>
+                  <p className="text-gray-500">• Upload to Etsy is gated / not enabled yet</p>
+                  <p className="text-gray-500">• No Etsy upload occurred</p>
+                </div>
 
                 <div className="px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
                   Review the video before uploading. Do not upload to Etsy without checking it first.
@@ -824,6 +901,12 @@ function VideoGeneratorContent() {
       />
 
       <UploadToEtsyGateModal open={uploadGateOpen} onClose={() => setUploadGateOpen(false)} />
+
+      <ConfirmGenerateModal
+        open={confirmGenerateOpen}
+        onConfirm={confirmAndRender}
+        onCancel={() => setConfirmGenerateOpen(false)}
+      />
     </main>
   );
 }

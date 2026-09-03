@@ -2,7 +2,32 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-09-03 (M13 Video Upload UX Architecture Sprint — branch `feature/m13-video-upload-ux-architecture`, PR TBD)
+## RESUME HERE — 2026-09-03 (PR #128 audit + video owner-test readiness + build-artifact hygiene — branch `fix/pr128-owner-check-and-video-test-readiness`, PR TBD)
+
+**PR #128 audited = PASS** (result screen + "Download to your computer" + gated Upload to Etsy + no-auto-upload proof; M13.05 stays `[~]`, M13.03 `[!]`, M13.04 `[~]`, M08 deferred). Recorded in TASKS/PROJECT_STATUS/CHANGELOG_AI.
+
+**Build-artifact hygiene fixed.** `apps/frontend/tsconfig.tsbuildinfo` was tracked accidentally since Sprint 20 → added `*.tsbuildinfo` to `.gitignore` + `git rm --cached` (local file kept). No longer dirties `git status` after tsc/build.
+
+**Video owner-test readiness (no live generation run).** `/video-generator` now has: pre-generation safety panel (local MP4 only, not uploaded to Etsy), lightweight Generate confirm modal, result-state owner checklist, and no-auto-upload copy in five places. Recent Videos unchanged (already correct). Frontend `tsc`/`lint`/`build` green. No backend/migration change.
+
+**Scope compliance:** no subagents/forks used.
+
+**Safety:** no Etsy API call; no live video generation; no Etsy upload; no auto-upload/publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` untouched; no Stripe/env/DNS change; no secrets printed; Private Beta unchanged; M08 not started.
+
+**Next owner action:**
+1. Open `/video-generator`.
+2. Select listing synced photos.
+3. Read the pre-generation safety panel.
+4. Generate a video **only when ready** (owner-run only).
+5. Confirm the Generate confirm modal, then that no Etsy upload happens.
+6. Review the result screen (details grid + owner checklist).
+7. Click **Download to your computer**.
+8. Open the **Upload to Etsy** gate modal.
+9. Confirm no live Etsy upload is possible. **Do not upload to Etsy.**
+
+---
+
+## Previously — 2026-09-03 (M13 Video Upload UX Architecture Sprint — branch `feature/m13-video-upload-ux-architecture`, PR #128, merge `600c83b1`)
 
 Advanced the Video Generator toward its intended final UX: after a generated video exists, the user sees **two explicit choices — Download to your computer, and Upload to Etsy.**
 

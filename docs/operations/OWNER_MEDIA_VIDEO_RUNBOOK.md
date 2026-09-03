@@ -57,13 +57,19 @@ This part never touches Etsy and can be tested any time, with no flag and no ris
 
 1. Open `/video-generator`, pick "Select from a listing's synced photos," choose a listing.
 2. Confirm the selected-photo preview grid shows the right photos in the right order.
-3. Choose a template/aspect ratio/duration, click Generate.
-4. Wait for the render to complete (status badge updates automatically).
-5. Confirm the **result screen** — the completed-render card shows "Your video was generated," the render details grid (render id, created, status, template, source, aspect ratio, duration, photo count), the Etsy-ready checklist, and the review warning.
-6. **Do not skip this:** click "Download to your computer" and actually watch the video before doing anything else with it.
-7. Confirm the **Upload to Etsy** button is present but disabled — clicking it opens a modal saying upload is coming after owner-approved live testing, and directs you to download + upload via Etsy's editor. Nothing is sent to Etsy.
-8. Check the **Recent Videos** section — your new render should appear with the correct template, source, photo count, a working Download link, and the same gated Upload to Etsy affordance.
-9. The app explicitly does **not** upload this video to Etsy for you — publish it manually through Etsy's own listing editor if you're satisfied with it.
+3. Choose a template/aspect ratio/duration.
+4. **Read the pre-generation safety panel** above the Generate button — it states generation creates a local MP4 only, does not upload to Etsy, makes no Etsy listing changes, and that Upload to Etsy is not enabled yet. Screenshot it.
+5. Click **Generate Video** → a lightweight confirm modal appears ("Generate local MP4? … It will not upload to Etsy"). Confirm the copy, then click Generate.
+6. Wait for the render to complete (status badge updates automatically).
+7. Confirm the **result screen** — the completed-render card shows "Your video was generated," the render details grid (render id, created, status, template, source, aspect ratio, duration, photo count), the Etsy-ready checklist, the **result-state owner checklist** (video generated / review / download / upload gated-not-enabled / no Etsy upload occurred), and the review warning. Screenshot it.
+8. **Do not skip this:** click "Download to your computer" and actually watch the downloaded MP4 before doing anything else with it. Expected: the browser saves `product_video_<id>.mp4`.
+9. Confirm the **Upload to Etsy** button is present but disabled — clicking it opens a modal saying upload is coming after owner-approved live testing, directs you to download + upload via Etsy's editor, and confirms nothing is sent to Etsy. Screenshot the gate modal.
+10. Check the **Recent Videos** section — your new render should appear with the correct template, source, photo count, a working Download link, and the same gated Upload to Etsy affordance. Failed renders show a clear error and no download/upload actions.
+11. The app explicitly does **not** upload this video to Etsy for you — publish it manually through Etsy's own listing editor if you're satisfied with it.
+
+**Evidence to capture:** safety-panel screenshot, confirm-modal screenshot, result-screen screenshot, the downloaded MP4 filename, gate-modal screenshot.
+
+**Stop conditions:** render stuck in rendering far beyond expected, a failed render with an unclear error, any UI text implying the video was uploaded/published to Etsy, or the Upload to Etsy button being clickable/enabled → stop and report; none of these should happen. No Etsy upload occurs at any step of Part 2.
 
 ## Part 3 — Owner-only video upload test plan (future, owner-approved live write)
 

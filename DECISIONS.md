@@ -4,6 +4,14 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-09-03 (PR #128 audit + video owner-test readiness + build-artifact hygiene)
+
+### [HYGIENE] TypeScript build artifacts (`*.tsbuildinfo`) are not tracked in git
+`apps/frontend/tsconfig.tsbuildinfo` had been committed accidentally since Sprint 20 and re-dirtied on every `tsc`/`build`, adding noise to unrelated diffs (it appeared in PR #128). Added `*.tsbuildinfo` to `.gitignore` and removed it from the index (`git rm --cached`, local file kept). Build artifacts are regenerated locally and must never be committed.
+
+### [PRODUCT] Generate Video creates a local MP4 only and never implies an Etsy upload
+The Video Generator's Generate action renders a local file (ffmpeg) and does nothing to Etsy. This is reinforced in the UI (pre-generation safety panel, Generate confirm modal, result checklist) so an owner testing generation cannot mistake it for a publish. Uploading remains a separate, explicit, still-gated action.
+
 ## 2026-09-03 (M13 Video Upload UX Architecture Sprint)
 
 ### [PRODUCT] The Video Generator's final UX target is two explicit user actions after a video exists — Download to your computer, and Upload to Etsy
