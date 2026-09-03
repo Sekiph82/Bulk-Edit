@@ -6,7 +6,29 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
-## 2026-09-03 M13 Video Upload UX Architecture Sprint (PR TBD, branch `feature/m13-video-upload-ux-architecture`)
+## 2026-09-03 PR #128 audit + video owner-test readiness + build-artifact hygiene (PR TBD, branch `fix/pr128-owner-check-and-video-test-readiness`)
+
+**PR #128 strict audit = PASS.** Recorded across `TASKS.md`/`PROJECT_STATUS.md`/`HANDOFF.md`: result screen renders for completed renders; download button reads "Download to your computer"; Upload to Etsy visible but gated; gate modal states no video is sent to Etsy; no Etsy upload wired; no-auto-upload guarantee tested; no subagents/forks; CI green; deploy safe checks 200. M13.05 stays `[~]`, M13.03 `[!]`, M13.04 `[~]`, M08 deferred.
+
+**Build-artifact hygiene.** `apps/frontend/tsconfig.tsbuildinfo` had been tracked since Sprint 20 (d4bb0e9) and re-dirtied on every tsc/build — it showed up in PR #128's diff. Fixed: added `*.tsbuildinfo` to `.gitignore` (Node/Next.js section) and `git rm --cached apps/frontend/tsconfig.tsbuildinfo` (local file kept). Confirmed `git check-ignore` matches and `git status` stays clean after a full `next build`.
+
+**Video owner-test readiness (no live generation run).** `apps/frontend/app/(app)/video-generator/page.tsx`:
+- **Pre-generation safety panel** above Generate: creates a local MP4 only, does not upload to Etsy, no Etsy listing changes, download/gated-upload after, upload not enabled yet.
+- **Lightweight `ConfirmGenerateModal`** on Generate ("Generate local MP4? … It will not upload to Etsy") — `handleRender` now validates + opens the confirm; `confirmAndRender` runs the POST.
+- **Result-state owner checklist** on the completed card (video generated / review / download / upload gated / no Etsy upload occurred).
+- No-auto-upload copy now in five places: top banner, pre-gen panel, completed card, upload gate modal, Recent Videos footer. Recent Videos rows already showed correct status/download/gate/error — unchanged.
+
+No backend change, no migration. Frontend `tsc --noEmit`/`next lint`/`next build` clean; only pre-existing useEffect-dep warnings. `git diff --check` clean; secret scan clean.
+
+**Files changed:** `.gitignore`, `apps/frontend/tsconfig.tsbuildinfo` (untracked), `apps/frontend/app/(app)/video-generator/page.tsx`, docs (`TASKS.md`, `PROJECT_STATUS.md`, `HANDOFF.md`, `DECISIONS.md`, `.hiveai/PROJECT_DASHBOARD.md`, `docs/operations/OWNER_MEDIA_VIDEO_RUNBOOK.md`).
+
+**Scope compliance:** no subagents/forks used — all work by the main agent directly.
+
+**Safety:** no Etsy API call; no live video generation; no Etsy video upload; no auto-upload/auto-publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` untouched (`False`); no Stripe/env/DNS change; no secrets printed; Private Beta unchanged; M08 not started.
+
+---
+
+## 2026-09-03 M13 Video Upload UX Architecture Sprint (PR #128, merge `600c83b1`, branch `feature/m13-video-upload-ux-architecture`)
 
 Advanced the Product Video Generator toward its intended final UX: after a generated video exists the user sees two explicit choices — **Download to your computer** and **Upload to Etsy**.
 

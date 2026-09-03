@@ -57,6 +57,7 @@ coverage.xml
 node_modules/
 .next/
 out/
+*.tsbuildinfo
 .npm
 *.tgz
 npm-debug.log*
