@@ -6,6 +6,26 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
+## 2026-09-03 M13 Video Upload UX Architecture Sprint (PR TBD, branch `feature/m13-video-upload-ux-architecture`)
+
+Advanced the Product Video Generator toward its intended final UX: after a generated video exists the user sees two explicit choices — **Download to your computer** and **Upload to Etsy**.
+
+**Result screen.** The completed-render card now leads with "Your video was generated. Review it before publishing. Videos are never auto-uploaded to Etsy." and a new `RenderDetails` grid (render id, created_at, status, template, source, aspect ratio, duration, photo count), above the existing Etsy-ready checklist and review warning.
+
+**Download to your computer.** Relabeled from "Download MP4". Reuses the existing safe endpoint `GET /api/v1/video-generator/renders/{id}/download` — already auth-required, org-scoped, completed-only, safe id-derived filename (`product_video_{id[:8]}.mp4`), `file_path` never exposed. No duplicate endpoint created, no migration. Appears on the result card and in each Recent Videos row.
+
+**Upload to Etsy — Option A gated placeholder.** A visible-but-disabled "Upload to Etsy" button on the result card and Recent Videos rows opens `UploadToEtsyGateModal`: "Upload to Etsy is coming after owner-approved live video upload testing… no video is sent to Etsy from here," directs the user to download + upload via Etsy's editor, and documents the intended enabled flow (pick listing, add/replace — one video per listing, back up before replace, explicit confirmation, live write never automatic). **No Etsy write endpoint is called from the Video Generator.** Option B (live gated job creation) deliberately not wired this sprint — the `/media` add_video/replace_video path is separate and untouched.
+
+**Tests.** 6 new backend tests in `test_video_generator.py`: download requires auth / completed download succeeds with safe content-type+filename / non-completed → 409 / missing file → 410 / cross-org → 404; `test_generate_render_does_not_create_media_upload_job` proves generating a render never queues a media/Etsy-upload job (no-auto-upload guarantee). Full file: 30 passed, 2 pre-existing failures (background-task-hits-real-services in local sandbox, confirmed failing on base branch too, unrelated). Frontend `tsc --noEmit`/`next lint`/`next build` clean.
+
+**Files changed:** `apps/frontend/app/(app)/video-generator/page.tsx`, `apps/backend/tests/test_video_generator.py`, plus docs (`TASKS.md`, `PROJECT_STATUS.md`, `HANDOFF.md`, `DECISIONS.md`, `.hiveai/PROJECT_DASHBOARD.md`, `docs/operations/OWNER_MEDIA_VIDEO_RUNBOOK.md`). No backend app code, no migration.
+
+**Scope compliance:** no subagents or forks used — all work performed directly by the main agent.
+
+**Safety:** no Etsy API call; no live video generation; no Etsy video upload; no auto-upload/auto-publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` untouched (`False`); no Stripe/env/DNS change; no secrets printed; Private Beta unchanged; M08 not started. M13.05 stays `[~]`; M13.03 stays blocked.
+
+---
+
 ## 2026-08-31 PR #126 owner visual check + fork/subagent scope-violation remediation (docs-only)
 
 **Owner visual check of PR #126.** Owner opened `/media` and `/video-generator` in production and confirmed every UI/copy claim from the M13 round renders truthfully: `/media`'s new Backups & Restore section (empty, correct "restore infrastructure implemented — disabled until owner-verified" copy), the four destructive-operation dropdown entries all reading "disabled until restore is owner-verified," the pre-existing backup-warning copy reading honestly alongside those disabled labels; `/video-generator`'s no-auto-upload banner, render form, empty Recent Videos section with correct copy, and a full synced-photo-selection dry run (10 photos, thumbnails, URLs populated) with no Generate click. This is visual/copy verification only — no live media action, no live video generation. `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` remains `False`. M13.04/M13.05 stay `[~]`, not promoted.

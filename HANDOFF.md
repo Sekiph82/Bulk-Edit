@@ -2,7 +2,32 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-08-31 (PR #126 owner visual check + fork/subagent scope-violation remediation — branch `docs/pr126-owner-check-and-scope-guardrails`, docs-only)
+## RESUME HERE — 2026-09-03 (M13 Video Upload UX Architecture Sprint — branch `feature/m13-video-upload-ux-architecture`, PR TBD)
+
+Advanced the Video Generator toward its intended final UX: after a generated video exists, the user sees **two explicit choices — Download to your computer, and Upload to Etsy.**
+
+**What shipped:**
+- **Result screen** (`apps/frontend/app/(app)/video-generator/page.tsx`): completed-render card now leads with "Your video was generated. Review before publishing. Never auto-uploaded to Etsy." + a `RenderDetails` grid (render id, created, status, template, source, aspect ratio, duration, photo count).
+- **Download to your computer**: relabeled button, reuses the existing safe endpoint (`GET /video-generator/renders/{id}/download` — auth, org-scoped, completed-only, safe filename, no `file_path` leak). On result card + Recent Videos rows. No new endpoint, no migration.
+- **Upload to Etsy**: visible-but-**disabled** Option-A gated placeholder → `UploadToEtsyGateModal` explaining it's coming after owner-approved live testing, directs to download + manual Etsy upload, documents the intended enabled flow. **No Etsy write endpoint called.**
+- 6 new backend tests (download auth/org/status-gating/cross-org + `test_generate_render_does_not_create_media_upload_job` no-auto-upload proof). `tsc`/`lint`/`build` clean; video test file 30 passed, 2 pre-existing base failures only.
+
+**M13.05 stays `[~]`** — no owner-run render yet; upload is a placeholder. **M13.03 stays blocked.** `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` untouched (`False`).
+
+**Scope compliance:** no subagents/forks used — all work by the main agent directly.
+
+**Safety, explicit:** no Etsy API call; no live video generation; no Etsy video upload; no auto-upload/auto-publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` not enabled; no Stripe/env/DNS change; no secrets printed; Private Beta unchanged; M08 not started.
+
+**Recommended next owner action:**
+1. Open `/video-generator`.
+2. Generate a video only if ready (owner-run only — Claude does not run it).
+3. Confirm the generated result screen (details grid + "your video was generated" copy).
+4. Click **Download to your computer** and watch the file.
+5. Confirm **Upload to Etsy** is disabled and its modal copy is clear — **do not upload to Etsy** unless explicitly approving a live write test (then follow `docs/operations/OWNER_MEDIA_VIDEO_RUNBOOK.md` Part 3).
+
+---
+
+## Previously — 2026-08-31 (PR #126 owner visual check + fork/subagent scope-violation remediation — branch `docs/pr126-owner-check-and-scope-guardrails`, docs-only)
 
 **PR #126 merged (`c8d88a91`), deployed, all 9 safe route/health checks 200.**
 
