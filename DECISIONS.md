@@ -4,6 +4,17 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-09-03 (M13.05B video preview + branding foundation; M13.05 owner-verified)
+
+### [PRODUCT] M13.05 local video generation / download / gated-upload UX is owner-verified `[x]`
+Owner generated a real MP4 in production, downloaded it, played it in Windows, and confirmed the Upload-to-Etsy gate sends nothing to Etsy. This promotes only the local-generation/download/gated-upload-UX/no-auto-upload half of M13.05. Real Etsy video upload stays a separate, still-blocked task (M13.03); destructive media stays M13.04 `[~]`.
+
+### [PRODUCT] Generated videos must be reviewable inside the app before any future Etsy upload flow is enabled
+"Review the video" is only meaningful with an in-app player. The result card and Recent Videos now play the video locally (blob fetch of the auth-protected file, never Etsy). Any future Etsy-upload flow comes after in-app review, and remains explicit and gated — never automatic.
+
+### [PRODUCT] Branding overlay is a customer-facing feature built before M08, and must never imply Etsy upload/publishing
+A preview-only branding-options foundation (logo, headline, slogan, outro, CTA, placement, brand color) ships now as UI/form-state only. It is not rendered into the MP4 yet and is never uploaded/published. Copy states "preview-only in this release / rendering coming soon." Full branded-overlay rendering is a later sprint; it still precedes the deferred M08 admin work.
+
 ## 2026-09-03 (PR #128 audit + video owner-test readiness + build-artifact hygiene)
 
 ### [HYGIENE] TypeScript build artifacts (`*.tsbuildinfo`) are not tracked in git

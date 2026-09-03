@@ -2,7 +2,34 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-09-03 (PR #128 audit + video owner-test readiness + build-artifact hygiene — branch `fix/pr128-owner-check-and-video-test-readiness`, PR TBD)
+## RESUME HERE — 2026-09-03 (M13.05B video preview + branding foundation; M13.05 owner-verified — branch `feature/m13-video-preview-branding-foundation`, PR #130)
+
+**M13.05 owner-verified → local-generation/download/gated-upload UX promoted `[x]`.** Owner generated + downloaded + played a real MP4 in production and confirmed the Upload-to-Etsy gate sends nothing to Etsy. Real Etsy upload stays M13.03 `[!]`; destructive media stays M13.04 `[~]`.
+
+**M13.05B shipped (frontend-only):**
+- In-app video player on the result card (blob-fetched HTML5 `<video>`, never contacts Etsy).
+- Recent Videos "Preview" opens the same player in a modal.
+- Interactive result checklist (Review auto-checks on play, Download on click).
+- Preview-only branding-options foundation (logo URL, headline/slogan/outro/CTA, logo position, text placement, brand color) — UI/form-state only, not rendered into MP4, never uploaded; copy says "preview-only / rendering coming soon."
+- Upload gate wording updated. No backend/migration change. `tsc`/`lint`/`build` clean.
+
+**Scope compliance:** no subagents/forks used.
+
+**Safety:** no Etsy API call; no live generation by Claude; no Etsy upload; no auto-upload/publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` untouched; no Stripe/env/DNS change; no secrets; Private Beta unchanged; M08 not started.
+
+**Next owner action:**
+1. Open `/video-generator`.
+2. Open a completed render (from a new generation, or Recent Videos → Preview).
+3. Play the video in the in-app player.
+4. Confirm "Review the video" checklist item checks.
+5. Click Download to your computer → confirm the Download checklist item checks.
+6. Review the Branding options card — confirm it reads "preview-only" (not rendered into the MP4, not uploaded).
+7. Confirm Upload to Etsy remains gated and no upload happens.
+No Etsy upload. No destructive media test.
+
+---
+
+## Previously — 2026-09-03 (PR #128 audit + video owner-test readiness + build-artifact hygiene — branch `fix/pr128-owner-check-and-video-test-readiness`, PR #129, merge `52841992`)
 
 **PR #128 audited = PASS** (result screen + "Download to your computer" + gated Upload to Etsy + no-auto-upload proof; M13.05 stays `[~]`, M13.03 `[!]`, M13.04 `[~]`, M08 deferred). Recorded in TASKS/PROJECT_STATUS/CHANGELOG_AI.
 

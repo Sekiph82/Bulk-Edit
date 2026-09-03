@@ -6,7 +6,26 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
-## 2026-09-03 PR #128 audit + video owner-test readiness + build-artifact hygiene (PR TBD, branch `fix/pr128-owner-check-and-video-test-readiness`)
+## 2026-09-03 M13.05B video preview + branding foundation; M13.05 owner-verified (PR #130, branch `feature/m13-video-preview-branding-foundation`)
+
+**Owner verification (PR #129 flow).** Owner ran the first real production Video Generator test end-to-end: selected a listing's 10 synced photos, read the pre-generation safety panel, confirmed the Generate modal, generated (Queued → Rendering → Ready), saw the completed result card (clean_zoom, 9:16, 10.0s, 10 photos, ~1.1 MB, 1080×1920, MP4 H.264), downloaded a `product_video_…mp4` (~1,148 KB) that **played in Windows**, saw it in Recent Videos, and opened the Upload-to-Etsy gate confirming nothing is sent to Etsy. → **M13.05 local-generation/download/gated-upload UX promoted `[x]`.** Real Etsy upload (M13.03 `[!]`), destructive media (M13.04 `[~]`) unchanged.
+
+**M13.05B implementation (frontend-only).** `apps/frontend/app/(app)/video-generator/page.tsx`:
+- **In-app video player** (`VideoPreview`): completed renders embed an HTML5 `<video controls>` that fetches the auth-protected file as a blob and plays it locally — never contacts Etsy, no autoplay/loop, accessible label, object URL revoked on unmount, "Preview unavailable. Download to review." fallback.
+- **Recent Videos "Preview"**: each completed row opens the same player in a `PreviewModal` (no second render); Download + gated Upload retained.
+- **Interactive result checklist**: "Review the video" auto-checks on `<video>` play; "Download to your computer" auto-checks on download click; both reset per render (UI-only, no persistence).
+- **Branding options foundation (preview-only)**: logo URL (live `<img>` preview), headline (≤60)/slogan (≤80)/outro (≤80)/CTA (≤30) with counters, logo position + text placement selects, brand color, live summary. UI/form-state only — not sent to backend, not rendered into MP4, never uploaded. Copy: "preview-only in this release / overlay rendering coming soon."
+- **Upload gate wording**: added "You can preview the video in this app before downloading" and "Upload to Etsy remains disabled until owner-approved live upload testing."
+
+No backend change, no migration (branding is Option A UI-only — no schema change, so no backend tests needed). Frontend `tsc`/`lint`/`build` clean (only pre-existing useEffect-dep warnings). `git diff --check` clean; secret scan clean; `tsconfig.tsbuildinfo` stays untracked.
+
+**Scope compliance:** no subagents/forks used.
+
+**Safety:** no Etsy API call; no live video generation by Claude; no Etsy upload; no auto-upload/publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` untouched; no Stripe/env/DNS change; no secrets; Private Beta unchanged; M08 not started.
+
+---
+
+## 2026-09-03 PR #128 audit + video owner-test readiness + build-artifact hygiene (PR #129, merge `52841992`, branch `fix/pr128-owner-check-and-video-test-readiness`)
 
 **PR #128 strict audit = PASS.** Recorded across `TASKS.md`/`PROJECT_STATUS.md`/`HANDOFF.md`: result screen renders for completed renders; download button reads "Download to your computer"; Upload to Etsy visible but gated; gate modal states no video is sent to Etsy; no Etsy upload wired; no-auto-upload guarantee tested; no subagents/forks; CI green; deploy safe checks 200. M13.05 stays `[~]`, M13.03 `[!]`, M13.04 `[~]`, M08 deferred.
 

@@ -289,9 +289,9 @@ function UploadToEtsyGateModal({ open, onClose }: { open: boolean; onClose: () =
         </div>
         <div className="p-5 space-y-3 text-sm text-gray-700">
           <p className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-            Upload to Etsy is coming after owner-approved live video upload testing. It is not enabled yet — no video is sent to Etsy from here.
+            Upload to Etsy remains disabled until owner-approved live upload testing. It is not enabled yet — no video is sent to Etsy from here.
           </p>
-          <p>For now, use <strong>Download to your computer</strong>, then upload the video through the Etsy listing editor.</p>
+          <p>You can <strong>preview the video in this app</strong> before downloading. For now, use <strong>Download to your computer</strong>, then upload the video through the Etsy listing editor.</p>
           <div className="text-xs text-gray-500 space-y-1">
             <p className="font-medium text-gray-600">When enabled, uploading will:</p>
             <ul className="list-disc list-inside space-y-0.5">
@@ -364,6 +364,253 @@ function ConfirmGenerateModal({
 }
 
 // ---------------------------------------------------------------------------
+// Branding overlay foundation (preview-only this release)
+// ---------------------------------------------------------------------------
+
+type LogoPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+type TextPlacement = "bottom" | "center" | "intro-card" | "outro-card";
+
+interface Branding {
+  logoUrl: string;
+  headline: string;
+  slogan: string;
+  outro: string;
+  cta: string;
+  logoPosition: LogoPosition;
+  textPlacement: TextPlacement;
+  brandColor: string;
+}
+
+const DEFAULT_BRANDING: Branding = {
+  logoUrl: "",
+  headline: "",
+  slogan: "",
+  outro: "",
+  cta: "",
+  logoPosition: "bottom-right",
+  textPlacement: "bottom",
+  brandColor: "#4f46e5",
+};
+
+const BRANDING_LIMITS = { headline: 60, slogan: 80, outro: 80, cta: 30 } as const;
+
+// ---------------------------------------------------------------------------
+// VideoPreview — in-app player. Fetches the auth-protected file as a blob and
+// plays it locally; never contacts Etsy. Object URL is revoked on unmount.
+// ---------------------------------------------------------------------------
+
+function VideoPreview({
+  downloadUrl,
+  onReviewed,
+}: {
+  downloadUrl: string;
+  onReviewed?: () => void;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [err, setErr] = useState(false);
+
+  useEffect(() => {
+    let obj: string | null = null;
+    let cancelled = false;
+    setUrl(null);
+    setErr(false);
+    const token = getAccessToken();
+    fetch(`${BACKEND_URL}${downloadUrl}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => {
+        if (!r.ok) throw new Error("preview failed");
+        return r.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        obj = URL.createObjectURL(blob);
+        setUrl(obj);
+      })
+      .catch(() => {
+        if (!cancelled) setErr(true);
+      });
+    return () => {
+      cancelled = true;
+      if (obj) URL.revokeObjectURL(obj);
+    };
+  }, [downloadUrl]);
+
+  if (err) {
+    return (
+      <p className="text-xs text-gray-500 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+        Preview unavailable. Download the video to review it.
+      </p>
+    );
+  }
+  if (!url) {
+    return <p className="text-xs text-gray-400">Loading preview…</p>;
+  }
+  return (
+    // eslint-disable-next-line jsx-a11y/media-has-caption
+    <video
+      src={url}
+      controls
+      onPlay={onReviewed}
+      aria-label="Generated product video preview"
+      className="w-full max-h-[480px] rounded-lg bg-black"
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PreviewModal — plays a Recent Videos render in a modal (no second render)
+// ---------------------------------------------------------------------------
+
+function PreviewModal({ render, onClose }: { render: RenderStatus | null; onClose: () => void }) {
+  if (!render || !render.download_url) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-900">Video preview</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-sm" aria-label="Close preview">✕</button>
+        </div>
+        <div className="p-4 space-y-2">
+          <VideoPreview downloadUrl={render.download_url} />
+          <p className="text-xs text-gray-400">Preview only — this video is not uploaded to Etsy.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BrandingSection — branding overlay foundation (preview-only, M13.05B)
+// ---------------------------------------------------------------------------
+
+function BrandingSection({
+  branding,
+  setBranding,
+}: {
+  branding: Branding;
+  setBranding: React.Dispatch<React.SetStateAction<Branding>>;
+}) {
+  const set = <K extends keyof Branding>(k: K, v: Branding[K]) =>
+    setBranding((b) => ({ ...b, [k]: v }));
+
+  const hasAny =
+    branding.logoUrl || branding.headline || branding.slogan || branding.outro || branding.cta;
+
+  const field = (
+    key: "headline" | "slogan" | "outro" | "cta",
+    label: string,
+    placeholder: string,
+  ) => (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-gray-700" htmlFor={`branding-${key}`}>
+        {label} <span className="text-gray-400">(optional)</span>
+      </label>
+      <input
+        id={`branding-${key}`}
+        type="text"
+        maxLength={BRANDING_LIMITS[key]}
+        value={branding[key]}
+        onChange={(e) => set(key, e.target.value)}
+        placeholder={placeholder}
+        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      />
+      <p className="text-[11px] text-gray-400 text-right">{branding[key].length}/{BRANDING_LIMITS[key]}</p>
+    </div>
+  );
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+      <div>
+        <h2 className="text-sm font-semibold text-gray-900">Branding options</h2>
+        <p className="text-xs px-3 py-2 mt-1 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
+          Branding options are <strong>preview-only in this release</strong> — they are not yet rendered into the MP4, and are never uploaded to Etsy.
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-gray-700" htmlFor="branding-logo">
+          Shop logo URL <span className="text-gray-400">(optional)</span>
+        </label>
+        <input
+          id="branding-logo"
+          type="url"
+          value={branding.logoUrl}
+          onChange={(e) => set("logoUrl", e.target.value)}
+          placeholder="https://…/logo.png"
+          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+        {branding.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={branding.logoUrl} alt="Logo preview" className="mt-1 h-12 w-auto rounded border border-gray-200 object-contain bg-gray-50" />
+        ) : null}
+      </div>
+
+      {field("headline", "Headline text", "e.g. Handmade Ceramic Mug")}
+      {field("slogan", "Slogan", "e.g. Crafted to last a lifetime")}
+      {field("outro", "Outro text", "e.g. Thanks for visiting our shop")}
+      {field("cta", "Call to action", "e.g. Shop now")}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-700" htmlFor="branding-logopos">Logo position</label>
+          <select
+            id="branding-logopos"
+            value={branding.logoPosition}
+            onChange={(e) => set("logoPosition", e.target.value as LogoPosition)}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="top-left">Top left</option>
+            <option value="top-right">Top right</option>
+            <option value="bottom-left">Bottom left</option>
+            <option value="bottom-right">Bottom right</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-700" htmlFor="branding-textplace">Text placement</label>
+          <select
+            id="branding-textplace"
+            value={branding.textPlacement}
+            onChange={(e) => set("textPlacement", e.target.value as TextPlacement)}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="bottom">Lower third (bottom)</option>
+            <option value="center">Center</option>
+            <option value="intro-card">Intro card</option>
+            <option value="outro-card">Outro card</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-gray-700" htmlFor="branding-color">Brand color</label>
+        <input
+          id="branding-color"
+          type="color"
+          value={branding.brandColor}
+          onChange={(e) => set("brandColor", e.target.value)}
+          className="h-9 w-16 border border-gray-200 rounded cursor-pointer"
+        />
+      </div>
+
+      {hasAny && (
+        <div className="rounded-lg border border-gray-200 p-3 text-xs space-y-0.5">
+          <p className="font-medium text-gray-700">Branding summary (preview-only):</p>
+          {branding.logoUrl && <p className="text-gray-600">Logo: {branding.logoPosition}</p>}
+          {branding.headline && <p className="text-gray-600">Headline: “{branding.headline}”</p>}
+          {branding.slogan && <p className="text-gray-600">Slogan: “{branding.slogan}”</p>}
+          {branding.cta && <p className="text-gray-600">CTA: “{branding.cta}”</p>}
+          {branding.outro && <p className="text-gray-600">Outro: “{branding.outro}”</p>}
+          <p className="text-gray-600">Text placement: {branding.textPlacement}</p>
+          <p className="text-gray-500">Branding overlay rendering is coming soon.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main content
 // ---------------------------------------------------------------------------
 
@@ -391,6 +638,15 @@ function VideoGeneratorContent() {
   const [unavailableReason, setUnavailableReason] = useState<"disabled" | "dependency_missing">("disabled");
   const [uploadGateOpen, setUploadGateOpen] = useState(false);
   const [confirmGenerateOpen, setConfirmGenerateOpen] = useState(false);
+
+  // Result checklist interaction (UI-only, resets per render)
+  const [reviewed, setReviewed] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+  // Recent Videos preview modal
+  const [previewModalRender, setPreviewModalRender] = useState<RenderStatus | null>(null);
+
+  // Branding overlay foundation (preview-only this release — not rendered into MP4)
+  const [branding, setBranding] = useState<Branding>(DEFAULT_BRANDING);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -487,6 +743,8 @@ function VideoGeneratorContent() {
     setConfirmGenerateOpen(false);
     setSubmitting(true);
     setRenderJob(null);
+    setReviewed(false);
+    setDownloaded(false);
     try {
       const r = await authFetch("/api/v1/video-generator/render", {
         method: "POST",
@@ -541,6 +799,7 @@ function VideoGeneratorContent() {
   function handleDownload() {
     if (!renderJob?.download_url) return;
     downloadRender(renderJob.download_url, renderJob.id);
+    setDownloaded(true);
   }
 
   if (loading) {
@@ -744,6 +1003,8 @@ function VideoGeneratorContent() {
           </button>
         </form>
 
+        <BrandingSection branding={branding} setBranding={setBranding} />
+
         {/* Render progress */}
         {renderJob && (
           <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
@@ -777,14 +1038,26 @@ function VideoGeneratorContent() {
 
                 <RenderDetails render={renderJob} />
 
+                {/* In-app video preview/player (M13.05B) */}
+                {renderJob.download_url ? (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-gray-700">Preview (plays in your browser — not uploaded to Etsy):</p>
+                    <VideoPreview downloadUrl={renderJob.download_url} onReviewed={() => setReviewed(true)} />
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                    Preview unavailable. Download the video to review it.
+                  </p>
+                )}
+
                 <EtsyReadyChecklist render={renderJob} specs={etsySpecs} />
 
-                {/* Owner result checklist (C3) */}
+                {/* Owner result checklist (C3) — interactive (M13.05B) */}
                 <div className="rounded-lg border border-gray-200 p-3 space-y-1 text-xs">
                   <p className="font-medium text-gray-700">Result checklist:</p>
                   <p className="text-green-700">✓ Video generated</p>
-                  <p className="text-gray-600">☐ Review the video</p>
-                  <p className="text-gray-600">☐ Download to your computer</p>
+                  <p className={reviewed ? "text-green-700" : "text-gray-600"}>{reviewed ? "✓" : "☐"} Review the video</p>
+                  <p className={downloaded ? "text-green-700" : "text-gray-600"}>{downloaded ? "✓" : "☐"} Download to your computer</p>
                   <p className="text-gray-500">• Upload to Etsy is gated / not enabled yet</p>
                   <p className="text-gray-500">• No Etsy upload occurred</p>
                 </div>
@@ -863,6 +1136,13 @@ function VideoGeneratorContent() {
                         {h.status === "completed" && h.download_url ? (
                           <div className="flex items-center gap-3">
                             <button
+                              onClick={() => setPreviewModalRender(h)}
+                              className="text-xs text-indigo-600 hover:underline"
+                              title="Preview the video in your browser"
+                            >
+                              Preview
+                            </button>
+                            <button
                               onClick={() => downloadRender(h.download_url as string, h.id)}
                               className="text-xs text-indigo-600 hover:underline"
                               title="Download to your computer"
@@ -907,6 +1187,8 @@ function VideoGeneratorContent() {
         onConfirm={confirmAndRender}
         onCancel={() => setConfirmGenerateOpen(false)}
       />
+
+      <PreviewModal render={previewModalRender} onClose={() => setPreviewModalRender(null)} />
     </main>
   );
 }
