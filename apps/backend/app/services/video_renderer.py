@@ -223,6 +223,15 @@ async def render_slideshow_mp4(
         vf_base = (
             f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
             f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black,"
+            # Force limited/TV color range + yuv420p. JPEG inputs decode as
+            # full-range yuvj420p, and `format=yuv420p` alone keeps the
+            # full-range flag (output stays yuvj420p / color_range=pc). Some
+            # browsers refuse to decode yuvj420p H.264 in <video> even though
+            # desktop players accept it — the "plays in Windows, not in the
+            # browser" preview bug. scale=out_range=tv converts to limited
+            # range so the output is true yuv420p (color_range=tv), which
+            # browsers decode reliably. Duration is unaffected (no fps change).
+            f"scale=out_range=tv,"
             f"format=yuv420p"
         )
 
@@ -243,6 +252,9 @@ async def render_slideshow_mp4(
                 "-c:v", "libx264",
                 "-preset", "fast",
                 "-crf", "23",
+                # Belt-and-suspenders with the vf format filter: guarantees the
+                # encoder input is 8-bit yuv420p (browser-safe H.264).
+                "-pix_fmt", "yuv420p",
                 "-movflags", "+faststart",
                 "-an",
                 output_path,

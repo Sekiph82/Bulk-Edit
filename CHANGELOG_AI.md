@@ -6,7 +6,29 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
-## 2026-09-04 PR #131 owner recheck + in-app video preview CSP hotfix (PR #132, branch `fix/pr131-video-preview-playback-hotfix`)
+## 2026-09-04 PR #132 recheck — REAL video-preview root cause (yuvj420p) + render fix (PR #134, branch `fix/pr132-video-preview-production-player`)
+
+**Owner recheck of PR #132.** Dashboard onboarding **PASS** (Get Started card gone). In-app player **still FAILED** — Preview modal showed "Preview could not load"; download still worked. So the CSP `media-src` fix, while real and necessary, was not the cause.
+
+**Investigation (byte-level, no more guessing).** ffmpeg is available locally, so I reproduced the exact generated MP4 with the app's real command and probed it: output `pix_fmt=yuvj420p`, `color_range=pc` (full range) — NOT `yuv420p`. JPEG listing photos decode as full-range and the existing `format=yuv420p` filter preserves the full-range flag, so libx264 emitted `yuvj420p`. Chrome/Firefox commonly refuse to decode `yuvj420p` H.264 in `<video>` while Windows players accept it — exactly the "download works + plays in Windows, in-app preview fails" symptom. Also verified (all already correct, ruling them out): production CSP header includes `media-src 'self' blob:` (single header, no Cloudflare override), CORS preflight allows GET + authorization from the web origin, and download/preview use the identical authenticated fetch; a real in-app-browser blob-player smoke played a generated MP4 (readyState 4 / playing).
+
+**Fix (backend render only).** `apps/backend/app/services/video_renderer.py`: add `scale=out_range=tv` before `format=yuv420p` in the filter chain + explicit `-pix_fmt yuv420p` output flag. Re-probe confirms `pix_fmt=yuv420p`, `color_range=tv`, duration unchanged (10.04s — no fps change; an `fps=30` variant was rejected because it corrupted duration). No frontend change (the player + diagnostics from PR #131/#133 are correct); no endpoint/migration change.
+
+**Scope note.** Only NEW renders get the fixed pixel format; renders created before this fix stay `yuvj420p` and may still not preview — owner verifies by generating a new video.
+
+**Tests/checks.** 2 new backend argv-capture tests (`test_video_render_output.py`) assert the render command includes `scale=out_range=tv`, `format=yuv420p`, `-pix_fmt yuv420p`, `+faststart`, and uses an argv list (no shell) — subprocess mocked, CI-safe. Video suites: 46 passed, 2 pre-existing sandbox failures. Player-specific browser smoke: ran the generated MP4 through a blob `<video>` in the in-app Chromium → played. Frontend unchanged. `git diff --check` clean; secret scan clean; `tsconfig.tsbuildinfo` untracked.
+
+**Files changed:** `apps/backend/app/services/video_renderer.py`, `apps/backend/tests/test_video_render_output.py` (new), docs.
+
+**Markers:** dashboard onboarding PASS; in-app player render-fixed, **owner recheck pending** (not owner-verified); M13.05C `[~]`; M13.03 `[!]` not started; M13.04 `[~]`; M08 deferred.
+
+**Scope compliance:** no subagents/forks used.
+
+**Safety:** no Etsy API call; no live generation by Claude; no Etsy upload; no auto-upload/publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` + `ETSY_VIDEO_UPLOAD_ENABLED` untouched; no Stripe/env/DNS change; no secrets; Private Beta unchanged; M08 + M13.03 not started.
+
+---
+
+## 2026-09-04 PR #131 owner recheck + in-app video preview CSP hotfix (PR #132, merge `f3d4c09f`, branch `fix/pr131-video-preview-playback-hotfix`)
 
 **Owner recheck of PR #131.** Dashboard onboarding **PASS** — Get Started card gone from `/dashboard` (3/3). In-app video player **still FAILED** — the Recent Videos Preview modal showed the fallback "Preview could not load. Download the video to review it." (PR #131's new `onError` handler surfaced it), while Download still worked and the MP4 opened locally. So PR #131's client-side blob-MIME retype did not fix playback.
 

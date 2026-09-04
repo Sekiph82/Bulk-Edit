@@ -2,7 +2,34 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-09-04 (PR #131 recheck + in-app video preview CSP hotfix — branch `fix/pr131-video-preview-playback-hotfix`, PR #132)
+## RESUME HERE — 2026-09-04 (PR #132 recheck + REAL video-preview fix: yuvj420p→yuv420p — branch `fix/pr132-video-preview-production-player`, PR #134)
+
+**Owner rechecked PR #132: dashboard onboarding PASS; in-app player STILL FAILED** ("Preview could not load"). The CSP fix was real but not the cause.
+
+**Real root cause (found by reproducing the MP4 with ffmpeg + ffprobe):** generated video was `pix_fmt=yuvj420p` (full-range) — browsers refuse to decode full-range H.264 in `<video>`, though Windows plays it. Matches every symptom (download works, plays in Windows, in-app preview fails).
+
+**Fix (backend render only):** force limited-range `yuv420p` — `scale=out_range=tv` + `-pix_fmt yuv420p`. Duration unchanged. Verified: re-probe shows `yuv420p`/`color_range=tv`, and an in-app-browser blob-player smoke played the generated MP4. Confirmed CSP/CORS/download all already correct. 2 new argv-capture tests.
+
+**IMPORTANT — only NEW renders get the fix.** Renders made before this deploy stay yuvj420p and may still not preview. Owner must **generate a new video** to verify.
+
+**Status:** player render-fixed, **owner recheck pending**; M13.05C `[~]`; M13.03 `[!]` (not started); M13.04 `[~]`; M08 deferred.
+**Scope compliance:** no subagents/forks.
+**Safety:** no Etsy API call; no live generation by Claude; no Etsy upload; no auto-upload/publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` + `ETSY_VIDEO_UPLOAD_ENABLED` untouched; no Stripe/env/DNS change; no secrets; Private Beta unchanged; M08 + M13.03 not started.
+
+**Next owner action (after deploy):**
+1. Hard-refresh `/video-generator` (Ctrl+Shift+R).
+2. **Generate a NEW video** (the fix only applies to new renders).
+3. On the result card, confirm the player **loads and plays** in the browser (press play).
+4. Confirm "Review the video" checks only after playback.
+5. Recent Videos → **Preview** the new render → confirm the modal player plays.
+6. Confirm the fallback ("Preview could not load") does NOT appear for the new render.
+7. Download still works; add headline/slogan/CTA → confirm branding text shows in the new video's preview + download.
+8. Confirm Upload to Etsy remains gated. Do not upload to Etsy.
+9. If a new render STILL fails, screenshot the on-screen **"Reason:"** line (from the PR #133 diagnostics) — it names the exact error code.
+
+---
+
+## Previously — 2026-09-04 (PR #131 recheck + in-app video preview CSP hotfix — branch `fix/pr131-video-preview-playback-hotfix`, PR #132)
 
 **Owner recheck of PR #131:** dashboard onboarding **PASS** (Get Started card gone); in-app video player **still FAILED** ("Preview could not load"; download worked). PR #131's blob-MIME retype didn't fix it.
 
