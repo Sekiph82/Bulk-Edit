@@ -20,6 +20,8 @@ from app.core.config import settings
 from app.core.deps import get_current_org_id, require_active_user
 from app.db.session import get_db, AsyncSessionLocal
 from app.models.video_render import VideoRender
+from app.models.listing import Listing
+from app.models.listing_video import ListingVideo
 from app.services.video_renderer import (
     ASPECT_RATIO_PRESETS,
     ETSY_MAX_FILE_SIZE_BYTES,
@@ -584,6 +586,126 @@ async def download_render(
         path=render.file_path,
         media_type="video/mp4",
         filename=f"product_video_{render_id[:8]}.mp4",
+    )
+
+
+# --- M13.03: gated Etsy video-upload intent (dry-run plan; never uploads) ---
+
+class EtsyUploadIntentRequest(BaseModel):
+    listing_id: Optional[str] = None  # target listing (org-scoped); omit for a generic plan
+
+
+class EtsyUploadIntentResponse(BaseModel):
+    enabled: bool                      # ETSY_VIDEO_UPLOAD_ENABLED
+    allowed: bool                      # whether a real upload could proceed right now
+    disabled_reason: Optional[str] = None
+    render_id: str
+    render_ready: bool
+    listing_id: Optional[str] = None
+    listing_title: Optional[str] = None
+    video_slot_synced: bool            # do we know the listing's current video state?
+    has_existing_video: Optional[bool] = None
+    operation: Optional[str] = None    # "add_video" | "replace_video"
+    replace_supported: bool            # replace also needs MEDIA_DESTRUCTIVE_ACTIONS_ENABLED + re-uploadable backup
+    no_auto_upload: bool = True
+    message: str
+
+
+@router.post("/renders/{render_id}/etsy-upload-intent", response_model=EtsyUploadIntentResponse)
+async def etsy_upload_intent(
+    render_id: str,
+    req: EtsyUploadIntentRequest,
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """M13.03 architecture — a READ-ONLY dry-run that powers the Upload to Etsy
+    modal. It NEVER calls Etsy and NEVER creates or applies an upload job; it
+    only reports what a future, owner-approved upload would do (target listing,
+    current video slot, add vs replace, and why it is disabled). Real upload is
+    a separate, explicit, feature-flagged action through the media-job path."""
+    render_q = await db.execute(
+        select(VideoRender).where(
+            VideoRender.id == render_id,
+            VideoRender.organization_id == org_id,
+        )
+    )
+    render = render_q.scalar_one_or_none()
+    if not render:
+        raise HTTPException(status_code=404, detail="Render not found.")
+    render_ready = render.status == "completed" and bool(render.file_path)
+    if render.status != "completed":
+        raise HTTPException(status_code=409, detail=f"Render is not ready (status: {render.status}).")
+
+    listing_title: Optional[str] = None
+    video_slot_synced = False
+    has_existing_video: Optional[bool] = None
+    operation: Optional[str] = None
+
+    if req.listing_id:
+        listing_q = await db.execute(
+            select(Listing).where(
+                Listing.id == req.listing_id,
+                Listing.organization_id == org_id,
+            )
+        )
+        listing = listing_q.scalar_one_or_none()
+        if not listing:
+            raise HTTPException(status_code=404, detail="Listing not found or not in your organization.")
+        listing_title = listing.title
+        # Current video slot from locally-synced ListingVideo (populated by sync).
+        vid_q = await db.execute(select(ListingVideo).where(ListingVideo.listing_id == listing.id))
+        existing = vid_q.scalars().first()
+        # We can only claim the slot is "known" for a listing that has actually
+        # been synced; treat presence/absence of a row as the synced state.
+        video_slot_synced = True
+        has_existing_video = existing is not None
+        operation = "replace_video" if has_existing_video else "add_video"
+
+    enabled = settings.ETSY_VIDEO_UPLOAD_ENABLED
+    # replace needs BOTH the video flag and the destructive flag (it destroys
+    # the current video) AND a re-uploadable backup, which does not exist yet.
+    replace_supported = False
+    allowed = False
+    disabled_reason: Optional[str] = None
+
+    if not enabled:
+        disabled_reason = (
+            "Etsy video upload is not enabled yet. No video is sent to Etsy from this screen. "
+            "When enabled it will require explicit confirmation; generated videos are never auto-uploaded."
+        )
+    elif operation == "replace_video":
+        disabled_reason = (
+            "Replacing an existing listing video is not available yet — video restore has no re-uploadable "
+            "backup, so a replace could not be safely undone. Only adding a video to a listing with no video "
+            "will be supported first."
+        )
+    elif not render_ready:
+        disabled_reason = "Render is not ready."
+    elif operation == "add_video":
+        allowed = True  # would be allowed once a real confirmed upload flow is wired
+
+    if enabled and operation == "add_video":
+        message = "Ready to add this video to the listing (explicit confirmation still required)."
+    elif not req.listing_id:
+        message = "Select a target listing to see whether the video can be added or would replace an existing one."
+    else:
+        message = disabled_reason or "Upload plan prepared."
+
+    return EtsyUploadIntentResponse(
+        enabled=enabled,
+        allowed=allowed,
+        disabled_reason=disabled_reason,
+        render_id=render.id,
+        render_ready=render_ready,
+        listing_id=req.listing_id,
+        listing_title=listing_title,
+        video_slot_synced=video_slot_synced,
+        has_existing_video=has_existing_video,
+        operation=operation,
+        replace_supported=replace_supported,
+        no_auto_upload=True,
+        message=message,
     )
 
 

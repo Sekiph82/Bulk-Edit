@@ -120,7 +120,7 @@ Added 2026-09-04, after PR #130's owner check found the in-app player didn't pla
 
 ## Part 3 — Owner-only video upload test plan (future, owner-approved live write)
 
-**Status: NOT yet enabled.** The Video Generator's "Upload to Etsy" button is a disabled placeholder. This plan is the procedure to follow *if and when* the owner decides to build/enable a live generated-video upload path. Claude/Codex must never run any step of this — it is owner-initiated only.
+**Status: NOT yet enabled.** As of M13.03 (PR #135) the gated architecture is in place: the Video Generator's "Upload to Etsy" button opens a modal that shows the target listing, the current video slot (add vs replace), and a **disabled** Start button. It is powered by a read-only dry-run endpoint (`POST /video-generator/renders/{id}/etsy-upload-intent`) that **never calls Etsy**. Live upload is gated by a dedicated flag **`ETSY_VIDEO_UPLOAD_ENABLED` (default False)** — separate from `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED`. Both `add_video` and `replace_video` are refused (403) while it is off. This plan is the procedure to follow *if and when* the owner decides to run a live test. Claude/Codex must never enable the flag or run any step — it is owner-initiated only.
 
 **Prerequisites**
 - A dedicated **sacrificial test listing** — never a high-value or best-selling listing on the first run.
@@ -130,7 +130,7 @@ Added 2026-09-04, after PR #130's owner check found the in-app player didn't pla
 **Procedure (owner)**
 1. Screenshot the listing's current video/media state in Etsy Shop Manager (before-state).
 2. Choose **Download to your computer** first — always have the file locally before any upload attempt.
-3. Only if explicitly approving a live write: proceed to the upload path (currently `/media` → Add Video for a listing with no existing video; Replace Video remains gated by `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` and needs the Part 1 flag procedure).
+3. Only if explicitly approving a live write: set `ETSY_VIDEO_UPLOAD_ENABLED=true` (owner-only), then proceed to the upload path — **Add Video only**, to a listing with **no existing video**. Replace Video also needs `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` AND has no re-uploadable backup, so do not use it for a first test.
 4. Screenshot the upload confirmation modal before confirming.
 5. Confirm, then capture the item-level result (job id, success/failure/skipped counts, any `error_message`).
 6. Screenshot the result screen, then screenshot the listing in Etsy Shop Manager (after-state) and compare.
@@ -146,13 +146,15 @@ Added 2026-09-04, after PR #130's owner check found the in-app player didn't pla
 
 ### If you also want to test uploading the generated video to a listing (Add Video)
 
-Add Video is **not** gated by `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` (it's additive — the listing must not already have a video, or it fails cleanly rather than silently replacing one). This can be tested without the flag:
+As of M13.03, Add Video **is** gated by `ETSY_VIDEO_UPLOAD_ENABLED` (default False) — it will 403 until the owner enables the flag. It's additive (the listing must have no existing video, or it fails cleanly rather than replacing).
 
-1. On `/media`, choose Add Video, select your completed render from the "Generated" tab.
-2. Pick a listing with **no existing video** (Etsy allows exactly one video per listing).
-3. Apply, confirm the item-level result, then check the listing in Etsy Shop Manager.
+1. Owner sets `ETSY_VIDEO_UPLOAD_ENABLED=true` (owner-only; never Claude/Codex; never leave on).
+2. On `/media`, choose Add Video, select your completed render from the "Generated" tab.
+3. Pick a listing with **no existing video** (Etsy allows exactly one video per listing).
+4. Apply, confirm the item-level result, then check the listing in Etsy Shop Manager.
+5. Turn `ETSY_VIDEO_UPLOAD_ENABLED` back off after the test.
 
-Replace Video (for a listing that already has one) IS gated the same way as the other destructive operations — follow Part 1's procedure for that.
+Replace Video needs BOTH `ETSY_VIDEO_UPLOAD_ENABLED` and `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED`, and has no re-uploadable backup — avoid it for first tests.
 
 ## Evidence to capture, every time
 

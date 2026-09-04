@@ -758,3 +758,134 @@ async def test_render_with_branding_does_not_create_media_job(client: AsyncClien
     assert resp.status_code == 202
     after = (await db_session.execute(select(func.count()).select_from(BulkEditMediaJob))).scalar()
     assert after == before
+
+
+# --- M13.03 gated Etsy video-upload intent + media gate ---
+
+async def _org_id_for(db_session):
+    from sqlalchemy import select as _sel
+    from app.models.organization_member import OrganizationMember
+    return (await db_session.execute(
+        _sel(OrganizationMember).order_by(OrganizationMember.created_at.asc()).limit(1)
+    )).scalar_one().organization_id
+
+
+def _completed_render(org_id, tmp_path):
+    from app.models.video_render import VideoRender
+    p = tmp_path / "r.mp4"; p.write_bytes(b"\x00\x00\x00\x18ftypmp42")
+    return VideoRender(organization_id=org_id, template_id="clean_zoom", status="completed",
+                       is_etsy_ready=True, file_path=str(p))
+
+
+def _listing(org_id, etsy_listing_id="111", title="Test Listing"):
+    from app.models.listing import Listing
+    return Listing(organization_id=org_id, etsy_shop_id="shop-x",
+                   etsy_listing_id=etsy_listing_id, title=title, state="active")
+
+
+@pytest.mark.anyio
+async def test_upload_intent_requires_auth(client: AsyncClient):
+    resp = await client.post("/api/v1/video-generator/renders/x/etsy-upload-intent", json={})
+    assert resp.status_code in (401, 403)
+
+
+@pytest.mark.anyio
+async def test_upload_intent_completed_render_is_gated_no_listing(client: AsyncClient, db_session, tmp_path):
+    token = await _register_and_login(client, "intent_ok@test.com", "IntentOk")
+    org = await _org_id_for(db_session)
+    r = _completed_render(org, tmp_path); db_session.add(r); await db_session.commit(); await db_session.refresh(r)
+    resp = await client.post(f"/api/v1/video-generator/renders/{r.id}/etsy-upload-intent",
+                             json={}, headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    d = resp.json()
+    assert d["enabled"] is False
+    assert d["allowed"] is False
+    assert d["no_auto_upload"] is True
+    assert d["operation"] is None  # no listing selected
+
+
+@pytest.mark.anyio
+async def test_upload_intent_pending_render_rejected(client: AsyncClient, db_session):
+    from app.models.video_render import VideoRender
+    token = await _register_and_login(client, "intent_pending@test.com", "IntentPending")
+    org = await _org_id_for(db_session)
+    r = VideoRender(organization_id=org, template_id="clean_zoom", status="rendering")
+    db_session.add(r); await db_session.commit(); await db_session.refresh(r)
+    resp = await client.post(f"/api/v1/video-generator/renders/{r.id}/etsy-upload-intent",
+                             json={}, headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_upload_intent_cross_org_render_404(client: AsyncClient, db_session, tmp_path):
+    await _register_and_login(client, "intent_a@test.com", "IntentOrgA")
+    token_b = await _register_and_login(client, "intent_b@test.com", "IntentOrgB")
+    org_a = await _org_id_for(db_session)  # earliest = A
+    r = _completed_render(org_a, tmp_path); db_session.add(r); await db_session.commit(); await db_session.refresh(r)
+    resp = await client.post(f"/api/v1/video-generator/renders/{r.id}/etsy-upload-intent",
+                             json={}, headers={"Authorization": f"Bearer {token_b}"})
+    assert resp.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_upload_intent_add_vs_replace(client: AsyncClient, db_session, tmp_path):
+    from app.models.listing_video import ListingVideo
+    token = await _register_and_login(client, "intent_slot@test.com", "IntentSlot")
+    org = await _org_id_for(db_session)
+    r = _completed_render(org, tmp_path)
+    l_novideo = _listing(org, "1001", "No Video Listing")
+    l_hasvideo = _listing(org, "1002", "Has Video Listing")
+    db_session.add_all([r, l_novideo, l_hasvideo]); await db_session.commit()
+    await db_session.refresh(r); await db_session.refresh(l_novideo); await db_session.refresh(l_hasvideo)
+    db_session.add(ListingVideo(listing_id=l_hasvideo.id, etsy_video_id="v1", video_url="https://cdn/x.mp4"))
+    await db_session.commit()
+
+    # listing with no video → add_video
+    resp1 = await client.post(f"/api/v1/video-generator/renders/{r.id}/etsy-upload-intent",
+                              json={"listing_id": l_novideo.id}, headers={"Authorization": f"Bearer {token}"})
+    assert resp1.status_code == 200
+    d1 = resp1.json()
+    assert d1["operation"] == "add_video"
+    assert d1["video_slot_synced"] is True
+    assert d1["has_existing_video"] is False
+    assert d1["allowed"] is False  # flag still off
+    assert d1["enabled"] is False
+
+    # listing with a video → replace_video, not supported
+    resp2 = await client.post(f"/api/v1/video-generator/renders/{r.id}/etsy-upload-intent",
+                              json={"listing_id": l_hasvideo.id}, headers={"Authorization": f"Bearer {token}"})
+    d2 = resp2.json()
+    assert d2["operation"] == "replace_video"
+    assert d2["has_existing_video"] is True
+    assert d2["replace_supported"] is False
+    assert d2["allowed"] is False
+
+
+@pytest.mark.anyio
+async def test_upload_intent_cross_org_listing_rejected(client: AsyncClient, db_session, tmp_path):
+    token = await _register_and_login(client, "intent_xlist_a@test.com", "IntentXA")
+    org_a = await _org_id_for(db_session)
+    r = _completed_render(org_a, tmp_path)
+    other_listing = _listing("some-other-org", "2001")
+    db_session.add_all([r, other_listing]); await db_session.commit()
+    await db_session.refresh(r); await db_session.refresh(other_listing)
+    resp = await client.post(f"/api/v1/video-generator/renders/{r.id}/etsy-upload-intent",
+                             json={"listing_id": other_listing.id}, headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_media_add_video_gated_by_flag(db_session):
+    """add_video / replace_video media jobs are refused while
+    ETSY_VIDEO_UPLOAD_ENABLED is off (default)."""
+    from fastapi import HTTPException
+    from app.services.bulk_edit_media import create_media_job
+    from app.core.config import settings
+    assert settings.ETSY_VIDEO_UPLOAD_ENABLED is False
+    # The video-upload flag gate is checked before org/listing validation, so a
+    # literal org id + listing id is enough to prove the gate blocks the op.
+    for op in ("add_video", "replace_video"):
+        with pytest.raises(HTTPException) as exc:
+            await create_media_job(db_session, "org-x", "u1", op, ["listing-x"], {"video_render_id": "x"})
+        assert exc.value.status_code == 403
+        assert "video upload" in exc.value.detail.lower() or "disabled" in exc.value.detail.lower()

@@ -278,12 +278,51 @@ function RenderDetails({ render }: { render: RenderStatus }) {
 // UploadToEtsyGateModal — Upload to Etsy is not enabled yet (Option A gate)
 // ---------------------------------------------------------------------------
 
-function UploadToEtsyGateModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null;
+interface UploadIntent {
+  enabled: boolean;
+  allowed: boolean;
+  disabled_reason?: string | null;
+  render_id: string;
+  render_ready: boolean;
+  listing_id?: string | null;
+  listing_title?: string | null;
+  video_slot_synced: boolean;
+  has_existing_video?: boolean | null;
+  operation?: string | null;
+  replace_supported: boolean;
+  no_auto_upload: boolean;
+  message: string;
+}
+
+function UploadToEtsyGateModal({ render, onClose }: { render: RenderStatus | null; onClose: () => void }) {
+  const [pickedListing, setPickedListing] = useState<Set<string>>(new Set());
+  const [intent, setIntent] = useState<UploadIntent | null>(null);
+  const [loadingIntent, setLoadingIntent] = useState(false);
+
+  const listingId = Array.from(pickedListing)[0];
+
+  useEffect(() => {
+    if (!render) return;
+    setLoadingIntent(true);
+    setIntent(null);
+    authFetch(`/api/v1/video-generator/renders/${render.id}/etsy-upload-intent`, {
+      method: "POST",
+      body: JSON.stringify({ listing_id: listingId ?? null }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: UploadIntent | null) => setIntent(data))
+      .catch(() => setIntent(null))
+      .finally(() => setLoadingIntent(false));
+  }, [render, listingId]);
+
+  if (!render) return null;
+
+  const opLabel = intent?.operation === "replace_video" ? "Replace existing video" : intent?.operation === "add_video" ? "Add video" : "—";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5 border-b border-gray-100">
@@ -291,18 +330,54 @@ function UploadToEtsyGateModal({ open, onClose }: { open: boolean; onClose: () =
         </div>
         <div className="p-5 space-y-3 text-sm text-gray-700">
           <p className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-            Upload to Etsy remains disabled until owner-approved live upload testing. It is not enabled yet — no video is sent to Etsy from here.
+            Upload to Etsy is <strong>not enabled yet</strong>. No video is sent to Etsy from this screen in the current release. When enabled it will require explicit confirmation — generated videos are never auto-uploaded.
           </p>
-          <p>You can <strong>preview the video in this app</strong> before downloading. For now, use <strong>Download to your computer</strong>, then upload the video through the Etsy listing editor.</p>
-          <div className="text-xs text-gray-500 space-y-1">
-            <p className="font-medium text-gray-600">When enabled, uploading will:</p>
-            <ul className="list-disc list-inside space-y-0.5">
-              <li>Let you pick the target listing.</li>
-              <li>Add the video, or replace an existing one (Etsy allows one video per listing).</li>
-              <li>Back up the current video before any replace.</li>
-              <li>Require explicit confirmation — it is a live Etsy write, never automatic.</li>
-            </ul>
+
+          <div className="text-xs text-gray-500">
+            <span className="text-gray-400">Video:</span> product_video_{render.id.slice(0, 8)}
           </div>
+
+          <div>
+            <p className="text-xs font-medium text-gray-700 mb-1">Target listing</p>
+            <div className="border border-gray-200 rounded-lg p-2 bg-gray-50">
+              <ListingPicker selectedIds={pickedListing} onSelectionChange={setPickedListing} multiSelect={false} pageSize={8} />
+            </div>
+          </div>
+
+          {loadingIntent && <p className="text-xs text-gray-400">Checking listing video slot…</p>}
+
+          {intent && listingId && (
+            <div className="rounded-lg border border-gray-200 p-3 text-xs space-y-1">
+              <p><span className="text-gray-400">Listing:</span> {intent.listing_title ?? listingId}</p>
+              <p>
+                <span className="text-gray-400">Current video slot:</span>{" "}
+                {intent.video_slot_synced
+                  ? (intent.has_existing_video ? "Has a video already" : "No video yet")
+                  : "Not synced yet"}
+              </p>
+              <p><span className="text-gray-400">Planned operation:</span> {opLabel}</p>
+              {intent.operation === "replace_video" && (
+                <p className="text-amber-600">Replace is not available yet — no re-uploadable video backup exists, so it could not be safely undone.</p>
+              )}
+              {intent.disabled_reason && <p className="text-gray-500">{intent.disabled_reason}</p>}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              disabled
+              aria-disabled="true"
+              title={intent?.disabled_reason ?? "Upload to Etsy is not enabled yet."}
+              className="bg-gray-100 text-gray-400 text-sm font-medium px-4 py-2 rounded-lg cursor-not-allowed"
+            >
+              Start upload
+            </button>
+            <span className="text-xs text-gray-400">Disabled — download and upload via the Etsy listing editor for now.</span>
+          </div>
+
+          <p className="text-xs text-gray-400">
+            You can preview the video in this app before downloading. Generated videos are never auto-uploaded to Etsy.
+          </p>
         </div>
         <div className="p-5 pt-0">
           <button
@@ -650,7 +725,7 @@ function VideoGeneratorContent() {
 
   const [unavailableModalOpen, setUnavailableModalOpen] = useState(false);
   const [unavailableReason, setUnavailableReason] = useState<"disabled" | "dependency_missing">("disabled");
-  const [uploadGateOpen, setUploadGateOpen] = useState(false);
+  const [uploadRender, setUploadRender] = useState<RenderStatus | null>(null);
   const [confirmGenerateOpen, setConfirmGenerateOpen] = useState(false);
 
   // Result checklist interaction (UI-only, resets per render)
@@ -1116,7 +1191,7 @@ function VideoGeneratorContent() {
                     Download to your computer
                   </button>
                   <button
-                    onClick={() => setUploadGateOpen(true)}
+                    onClick={() => setUploadRender(renderJob)}
                     className="bg-gray-100 hover:bg-gray-200 text-gray-500 text-sm font-medium px-4 py-2 rounded-lg transition-colors cursor-not-allowed"
                     title="Upload to Etsy is coming after owner-approved live video upload testing."
                     aria-disabled="true"
@@ -1192,7 +1267,7 @@ function VideoGeneratorContent() {
                               Download
                             </button>
                             <button
-                              onClick={() => setUploadGateOpen(true)}
+                              onClick={() => setUploadRender(h)}
                               className="text-xs text-gray-400 hover:underline cursor-not-allowed"
                               title="Upload to Etsy is coming after owner-approved live video upload testing."
                             >
@@ -1222,7 +1297,7 @@ function VideoGeneratorContent() {
         onClose={() => setUnavailableModalOpen(false)}
       />
 
-      <UploadToEtsyGateModal open={uploadGateOpen} onClose={() => setUploadGateOpen(false)} />
+      <UploadToEtsyGateModal render={uploadRender} onClose={() => setUploadRender(null)} />
 
       <ConfirmGenerateModal
         open={confirmGenerateOpen}
