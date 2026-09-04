@@ -94,6 +94,8 @@ Added 2026-09-03. Still never touches Etsy.
 
 Added 2026-09-04, after PR #130's owner check found the in-app player didn't play and dashboard onboarding regressed.
 
+> **Browser preview vs. download are two different tests — check both.** Download success does NOT prove the in-app player works: they use different browser paths. The in-app player failure through PR #131 was a **CSP `media-src` gap** (fixed in PR #132: `media-src 'self' blob:`), which blocked the `blob:` video source in Chrome while download (a different request type) kept working. When rechecking, explicitly (a) press play in the result-card player, (b) press play in the Recent Videos Preview modal, AND (c) download and open the file — all three must pass. If the player shows "Preview could not load" but download works, suspect CSP/media delivery, not the MP4 itself.
+
 **Dashboard onboarding:**
 1. Open `/dashboard`. If the "Get started" card still shows, confirm **"Try bulk edit" is checked** and it reads **3/3** (the card auto-hides once all three are done, which is also correct). This now uses durable all-time evidence (any past successful bulk edit, even reverted ones), not the monthly usage counter — so it must not regress after a new billing month.
 

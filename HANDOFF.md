@@ -2,7 +2,28 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-09-04 (PR #130 remediation + M13.05C branding render — branch `fix/pr130-video-preview-dashboard-onboarding-then-branding-render`, PR #131)
+## RESUME HERE — 2026-09-04 (PR #131 recheck + in-app video preview CSP hotfix — branch `fix/pr131-video-preview-playback-hotfix`, PR #132)
+
+**Owner recheck of PR #131:** dashboard onboarding **PASS** (Get Started card gone); in-app video player **still FAILED** ("Preview could not load"; download worked). PR #131's blob-MIME retype didn't fix it.
+
+**Real root cause = CSP.** `apps/frontend/next.config.mjs` had no `media-src` directive, so `<video>` `blob:` URLs fell back to `default-src 'self'` and Chrome blocked them (download unaffected — `connect-src`). **Fix: added `media-src 'self' blob:`** (+ empty-blob guard in `VideoPreview`). Frontend-only, no backend/migration/ffmpeg change.
+
+**Status:** player **code-fixed, owner recheck pending** (do NOT mark owner-verified yet). M13.05C branding render stays `[~]`. M13.03 `[!]` (not started), M13.04 `[~]`, M08 deferred.
+
+**Scope compliance:** no subagents/forks used.
+**Safety:** no Etsy API call; no live generation by Claude; no Etsy upload; no auto-upload/publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` + `ETSY_VIDEO_UPLOAD_ENABLED` untouched; no Stripe/env/DNS change; no secrets; Private Beta unchanged; M08 + M13.03 not started.
+
+**Next owner action (after deploy):**
+1. Open `/video-generator` → open a completed render result card → confirm the in-app player **loads and plays** (this is the CSP fix under test).
+2. Confirm "Review the video" checks **only after** playback.
+3. Recent Videos → **Preview** → confirm the modal player loads and plays.
+4. Generate a branded text video (headline/slogan/CTA/outro) → confirm the **text overlay is visible in the in-app preview**.
+5. **Download** → confirm the overlay is in the MP4 and the Download checklist checks.
+6. Confirm Upload to Etsy remains gated. Do not upload to Etsy.
+
+---
+
+## Previously — 2026-09-04 (PR #130 remediation + M13.05C branding render — branch `fix/pr130-video-preview-dashboard-onboarding-then-branding-render`, PR #131, merge `855360d9`)
 
 **Fixed two PR #130 owner-check failures, then rendered branding text into the MP4.**
 

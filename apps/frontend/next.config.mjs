@@ -23,6 +23,13 @@ const ContentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
+  // media-src must list blob: explicitly — <video>/<audio> are NOT covered by
+  // img-src and fall back to default-src ('self'), which blocks the blob: URLs
+  // the in-app video preview player uses (the generated MP4 is fetched with a
+  // bearer token, then played from an object URL). Without this, Chrome blocks
+  // the blob source and the player shows "Preview could not load" even though
+  // the download (governed by connect-src) works. See M13.05 preview hotfix.
+  "media-src 'self' blob:",
   `connect-src 'self' ${BACKEND_URL} https://api.stripe.com`,
   "frame-src https://js.stripe.com https://hooks.stripe.com",
   "object-src 'none'",

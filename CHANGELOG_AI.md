@@ -6,7 +6,27 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
-## 2026-09-04 PR #130 remediation (player + onboarding) + M13.05C branding render (PR #131, branch `fix/pr130-video-preview-dashboard-onboarding-then-branding-render`)
+## 2026-09-04 PR #131 owner recheck + in-app video preview CSP hotfix (PR #132, branch `fix/pr131-video-preview-playback-hotfix`)
+
+**Owner recheck of PR #131.** Dashboard onboarding **PASS** — Get Started card gone from `/dashboard` (3/3). In-app video player **still FAILED** — the Recent Videos Preview modal showed the fallback "Preview could not load. Download the video to review it." (PR #131's new `onError` handler surfaced it), while Download still worked and the MP4 opened locally. So PR #131's client-side blob-MIME retype did not fix playback.
+
+**Real root cause (finally).** The frontend CSP in `apps/frontend/next.config.mjs` declared `default-src 'self'` and an `img-src` that allows `blob:`, but **no `media-src` directive**. `<video>`/`<audio>` are not governed by `img-src`; with no `media-src` they fall back to `default-src 'self'`, which does not include `blob:`. Chrome therefore **blocked the `blob:` object URL** the preview player assigns to `<video>` → media error → the fallback. Download was never affected because it travels through `connect-src` (which lists the backend) / a navigation, not `media-src`. This is exactly why the earlier MIME-retype attempts couldn't help — the browser refused the blob source before any decode step.
+
+**Fix.** Added one CSP directive: `media-src 'self' blob:`. Also added an empty-blob guard (`blob.size === 0` → error) in `VideoPreview`. No backend/endpoint/ffmpeg/migration change — the MP4 already uses `+faststart` and the blob is fully in memory before playback, so no range/stream endpoint was needed. The player, Recent Videos Preview modal, checklist-on-play, and download are all unchanged in behavior; the CSP was the only blocker.
+
+**Tests/checks.** No backend change → no backend tests added (stated). Frontend `npx tsc --noEmit` exit 0; `npx next lint` only pre-existing useEffect-dep warnings; `npx next build` clean; verified the built header string contains `media-src 'self' blob:`. `git diff --check` clean; secret scan clean; `tsconfig.tsbuildinfo` stayed untracked.
+
+**Files changed:** `apps/frontend/next.config.mjs`, `apps/frontend/app/(app)/video-generator/page.tsx`, docs.
+
+**Marker changes:** dashboard onboarding owner-recheck PASS (`[x]`); in-app player code-fixed but **owner recheck pending** (not owner-verified); M13.05C branding text render stays `[~]`; M13.03 `[!]`, M13.04 `[~]`, M08 deferred. **M13.03 not started.**
+
+**Scope compliance:** no subagents/forks used.
+
+**Safety:** no Etsy API call; no live video generation by Claude; no Etsy video upload; no auto-upload/publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` untouched; `ETSY_VIDEO_UPLOAD_ENABLED` untouched; no Stripe/env/DNS change; no secrets; Private Beta unchanged; M08 + M13.03 not started.
+
+---
+
+## 2026-09-04 PR #130 remediation (player + onboarding) + M13.05C branding render (PR #131, merge `855360d9`, branch `fix/pr130-video-preview-dashboard-onboarding-then-branding-render`)
 
 **PR #130 owner check (Phase A).** Owner confirmed on production: branding options card visible + correctly labeled; Download works and the downloaded MP4 plays in Windows; Recent Videos row + gated Upload preserved. **But the in-app `<video>` player — on the result card AND the Recent Videos Preview modal — did not load/play the video in the browser.** Also: dashboard `Get started` showed `2/3`, "Try bulk edit" unchecked despite completed live bulk edits. Recorded truthfully; player NOT owner-verified.
 
