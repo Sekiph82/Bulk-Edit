@@ -4,6 +4,17 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-09-04 (PR #132 recheck — real video-preview root cause = yuvj420p)
+
+### [TECH] Generated MP4 must be limited-range `yuv420p`, not `yuvj420p` — browsers refuse full-range H.264 in `<video>`
+JPEG inputs decode as full-range (`yuvj420p` / `color_range=pc`), and `format=yuv420p` alone keeps the full-range flag, so libx264 emitted `yuvj420p`. Chrome/Firefox often refuse to decode `yuvj420p` H.264 in `<video>` even though desktop players accept it — this was the true "plays in Windows, not in the browser" cause (not MIME, not CSP). Renders now force `scale=out_range=tv` + `-pix_fmt yuv420p`. Any future encoding path must keep output limited-range yuv420p.
+
+### [PROCESS] Reproduce media bugs at the byte level before fixing — do not theorize from symptoms
+Three fixes (blob MIME, CSP media-src, diagnostics) preceded finding the actual cause, which took generating the exact MP4 with ffmpeg and running `ffprobe`. CSP and MIME were real gaps worth closing, but the player bug was the pixel format. Route-200 checks and "download works" are not evidence of in-app playback; probe the artifact and test in a real browser.
+
+### [SCOPE] A render-encoding fix only affects NEW renders
+Renders created before the fix keep their old (yuvj420p) encoding and may still not preview in-browser. Acceptable per the hotfix scope; the owner verifies by generating a new video. A backfill re-encode of existing files is a separate, non-trivial task (touches stored production files) and was not done.
+
 ## 2026-09-04 (PR #131 in-app video preview CSP hotfix)
 
 ### [TECH] `<video>`/`<audio>` need `media-src` in CSP — they do NOT inherit from `img-src`
