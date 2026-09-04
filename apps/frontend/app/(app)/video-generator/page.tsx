@@ -409,34 +409,32 @@ function VideoPreview({
   onReviewed?: () => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
-  const [err, setErr] = useState(false);
+  const [reason, setReason] = useState<string | null>(null); // non-null = failed, holds diagnostic
 
   useEffect(() => {
     let obj: string | null = null;
     let cancelled = false;
     setUrl(null);
-    setErr(false);
+    setReason(null);
     const token = getAccessToken();
-    fetch(`${BACKEND_URL}${downloadUrl}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => {
-        if (!r.ok) throw new Error("preview failed");
-        return r.blob();
+    const fullUrl = `${BACKEND_URL}${downloadUrl}`;
+    fetch(fullUrl, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const blob = await r.blob();
+        if (!blob || blob.size === 0) throw new Error("empty response (0 bytes)");
+        return blob;
       })
       .then((blob) => {
         if (cancelled) return;
-        if (!blob || blob.size === 0) throw new Error("empty preview");
-        // Force video/mp4 so the <video> element decodes it. The download
-        // endpoint returns the file with Content-Disposition: attachment, and
-        // some proxies hand the fetched blob back with a generic/empty MIME
-        // type — which downloads fine but leaves <video> unable to play it.
-        // Re-wrapping with the known type (these are always MP4 H.264) fixes
-        // in-browser playback while download keeps working unchanged.
+        // Force video/mp4 so <video> decodes it regardless of the response's
+        // MIME type. Kept from the earlier hotfix; harmless if already mp4.
         const playable = blob.type === "video/mp4" ? blob : new Blob([blob], { type: "video/mp4" });
         obj = URL.createObjectURL(playable);
         setUrl(obj);
       })
-      .catch(() => {
-        if (!cancelled) setErr(true);
+      .catch((e) => {
+        if (!cancelled) setReason(`fetch: ${e instanceof Error ? e.message : "network error"}`);
       });
     return () => {
       cancelled = true;
@@ -444,11 +442,12 @@ function VideoPreview({
     };
   }, [downloadUrl]);
 
-  if (err) {
+  if (reason) {
     return (
-      <p className="text-xs text-gray-500 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-        Preview could not load. Download the video to review it.
-      </p>
+      <div className="text-xs text-gray-500 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg space-y-1">
+        <p>Preview could not load. Download the video to review it.</p>
+        <p className="text-gray-400" data-testid="preview-error-reason">Reason: {reason}</p>
+      </div>
     );
   }
   if (!url) {
@@ -461,7 +460,10 @@ function VideoPreview({
       controls
       preload="metadata"
       onPlay={onReviewed}
-      onError={() => setErr(true)}
+      onError={(e) => {
+        const code = (e.currentTarget as HTMLVideoElement).error?.code;
+        setReason(`playback error (media error code ${code ?? "unknown"})`);
+      }}
       aria-label="Generated product video preview"
       className="w-full max-h-[480px] rounded-lg bg-black"
     />
