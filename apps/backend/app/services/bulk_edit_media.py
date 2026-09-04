@@ -80,6 +80,16 @@ VALID_OPERATION_TYPES = {
 # MEDIA_DESTRUCTIVE_ACTIONS_ENABLED's docstring in core/config.py.
 DESTRUCTIVE_OPERATION_TYPES = {"replace_image", "delete_image", "replace_video", "delete_video", "restore_images"}
 
+# M13.03: uploading a generated video to a real Etsy listing (add or replace)
+# is gated by its own flag, ETSY_VIDEO_UPLOAD_ENABLED (default False), on top of
+# any destructive gate. Before this, add_video was ungated — a direct API call
+# could push a video to a live listing with no backend check. Both ops now
+# require ETSY_VIDEO_UPLOAD_ENABLED at creation and again at apply; replace_video
+# additionally requires MEDIA_DESTRUCTIVE_ACTIONS_ENABLED (it destroys the
+# current video). No auto-upload path exists — a render never becomes a job on
+# its own.
+VIDEO_UPLOAD_OPERATION_TYPES = {"add_video", "replace_video"}
+
 
 async def _write_audit_log(
     db: AsyncSession,
@@ -131,6 +141,16 @@ async def create_media_job(
             detail=(
                 f"'{operation_type}' is disabled — restore infrastructure exists but has not been "
                 "owner-verified against a live Etsy listing yet. Adding new images/video is still available."
+            ),
+        )
+
+    if operation_type in VIDEO_UPLOAD_OPERATION_TYPES and not settings.ETSY_VIDEO_UPLOAD_ENABLED:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"'{operation_type}' is disabled — Etsy video upload has not been owner-verified with a "
+                "live test yet (ETSY_VIDEO_UPLOAD_ENABLED is off). Generated videos are never auto-uploaded; "
+                "download the video and upload it via the Etsy listing editor for now."
             ),
         )
 
@@ -205,6 +225,18 @@ async def apply_media_job(
             detail=(
                 f"'{job.operation_type}' is disabled — restore infrastructure exists but has not been "
                 "owner-verified against a live Etsy listing yet."
+            ),
+        )
+
+    if job.operation_type in VIDEO_UPLOAD_OPERATION_TYPES and not settings.ETSY_VIDEO_UPLOAD_ENABLED:
+        # Defense in depth for video upload — same reasoning as the destructive
+        # gate above: a job must not apply a live Etsy video write unless the
+        # dedicated flag is on.
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"'{job.operation_type}' is disabled — Etsy video upload has not been owner-verified with a "
+                "live test yet (ETSY_VIDEO_UPLOAD_ENABLED is off)."
             ),
         )
 

@@ -4,6 +4,20 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-09-04 (PR #134 owner verification + M13.03 gated Etsy-upload architecture)
+
+### [PRODUCT] M13.05C is owner-verified: new renders play in-browser + text branding renders into the MP4
+Owner generated two new videos after the yuvj420p→yuv420p fix and confirmed in-app playback (result card + Recent Videos Preview), checklist behavior, branding text burned into the MP4, and download. Marked `[x]`. **Logo overlay stays deferred** (SSRF — not rendered server-side). **Old pre-#134 renders may remain download-only** (encoded full-range before the fix); browser preview should be verified on newly generated videos.
+
+### [PRODUCT/SAFETY] Etsy video upload is an explicit, gated, never-automatic action behind its own flag
+`ETSY_VIDEO_UPLOAD_ENABLED` (default False) is a dedicated gate, separate from `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED`. Both `add_video` and `replace_video` are gated by it at media-job creation AND apply. This closed a real prior gap where `add_video` was ungated (a direct API call could have uploaded a video to a live listing). A generated video never becomes an upload job on its own — no auto-upload path exists.
+
+### [ARCHITECTURE] The Upload to Etsy modal is powered by a read-only dry-run endpoint that never touches Etsy
+`POST /video-generator/renders/{id}/etsy-upload-intent` reports the plan (target listing, current video slot from synced `ListingVideo`, add vs replace, enabled/allowed/disabled reason) but never calls Etsy and never creates or applies a job, regardless of the flag. Real upload remains a separate, explicit, feature-flagged media-job action requiring an owner-approved live test.
+
+### [ARCHITECTURE] Replace-video stays unsupported until a re-uploadable video backup exists; add-video-only first
+Video restore has no re-uploadable local backup (only a CDN URL), so a replace could not be safely undone. When live upload is eventually enabled, only adding a video to a listing with no existing video will be supported first. `replace_video` additionally requires `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED`.
+
 ## 2026-09-04 (PR #132 recheck — real video-preview root cause = yuvj420p)
 
 ### [TECH] Generated MP4 must be limited-range `yuv420p`, not `yuvj420p` — browsers refuse full-range H.264 in `<video>`

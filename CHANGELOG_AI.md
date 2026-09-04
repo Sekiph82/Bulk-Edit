@@ -6,7 +6,31 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
-## 2026-09-04 PR #132 recheck — REAL video-preview root cause (yuvj420p) + render fix (PR #134, branch `fix/pr132-video-preview-production-player`)
+## 2026-09-04 PR #134 owner verification + M13.03 gated Etsy-upload architecture (PR #135, branch `feature/m13-etsy-video-upload-architecture`)
+
+**Part A — PR #134 owner verification (M13.05C → `[x]`).** Owner generated two new videos after the yuvj420p→yuv420p fix and confirmed: both generate; the result-card player and Recent Videos Preview **play in the browser**; "Review the video" checks after playback; "Download to your computer" checks after download; download opens locally; one branded video shows the text overlay burned into the MP4 ("Wear your stories" / "Buy it now!"); Upload to Etsy gated; no Etsy upload. Dashboard onboarding also confirmed fixed. M13.05C promoted `[x]` (logo overlay stays deferred/preview-only; old pre-#134 renders may be download-only). Does NOT verify real Etsy upload / slot sync / backup-replace / restore.
+
+**Part B — M13.03 gated Etsy video-upload architecture (no live upload).** The upload primitives already existed (`etsy_media_write.upload_etsy_listing_video`; `bulk_edit_media` `add_video`/`replace_video`; `ListingVideo` populated by sync). Added the safe gate + dry-run layer:
+- **`ETSY_VIDEO_UPLOAD_ENABLED` flag** (default False, `core/config.py`), separate from `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED`. `add_video` + `replace_video` now gated by it at media-job **creation and apply** (`VIDEO_UPLOAD_OPERATION_TYPES` in `bulk_edit_media.py`). Closes a real prior gap: `add_video` was previously ungated. `replace_video` still also needs the destructive flag.
+- **Dry-run intent endpoint** `POST /video-generator/renders/{id}/etsy-upload-intent`: auth + org-scoped; render completed + own-org; optional listing own-org; reports current video slot (from `ListingVideo` → add vs replace), `enabled`/`allowed`/`disabled_reason`/`no_auto_upload`. **Never calls Etsy, never creates/applies a job.**
+- **Frontend Upload-to-Etsy modal** rebuilt: render + `ListingPicker` + live intent lookup + current video-slot state + planned add/replace + **disabled** Start button + gated copy. Replace shown unavailable (no re-uploadable video backup).
+- **Limitations preserved:** replace-video unsupported first (no re-uploadable backup); logo render deferred (SSRF). Follow-up **M13.03A** noted: targeted video-slot re-sync before enabling live upload.
+
+**Tests/checks.** 7 new backend tests (intent auth/cross-org-render/pending-render/add-vs-replace/cross-org-listing + add_video/replace_video flag gate). Existing media video-op tests updated (autouse fixture now also enables `ETSY_VIDEO_UPLOAD_ENABLED` since they mock Etsy). Media+video suites: 98 passed, 5 pre-existing local-env/sandbox failures (2 known video background-task, 2 `*_requires_auth` 401-vs-403, 1 add_image etsy-configured local artifact — none touch video-only code). Frontend `tsc`/`lint`/`build` clean. `git diff --check` clean; secret scan clean; `tsconfig.tsbuildinfo` untracked.
+
+**Files changed:** `apps/backend/app/core/config.py`, `app/api/v1/video_generator.py`, `app/services/bulk_edit_media.py`, `tests/test_video_generator.py`, `tests/test_bulk_edit_media.py`, `apps/frontend/app/(app)/video-generator/page.tsx`, docs.
+
+**DB migration:** none.
+
+**Markers:** M13.05C `[x]` (owner-verified); M13.03 `[~]` (architecture only — `ETSY_VIDEO_UPLOAD_ENABLED` False, owner live test required for `[x]`); M13.04 `[~]`; M08 deferred.
+
+**Scope compliance:** no subagents/forks used.
+
+**Safety:** no Etsy API call; no live video generation by Claude; no Etsy video upload; no auto-upload/publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` untouched; `ETSY_VIDEO_UPLOAD_ENABLED` stays False (never enabled in prod); no Stripe/env/DNS change; no secrets; Private Beta unchanged; M08 not started.
+
+---
+
+## 2026-09-04 PR #132 recheck — REAL video-preview root cause (yuvj420p) + render fix (PR #134, merge `fc163f79`, branch `fix/pr132-video-preview-production-player`)
 
 **Owner recheck of PR #132.** Dashboard onboarding **PASS** (Get Started card gone). In-app player **still FAILED** — Preview modal showed "Preview could not load"; download still worked. So the CSP `media-src` fix, while real and necessary, was not the cause.
 

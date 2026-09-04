@@ -2,7 +2,29 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-09-04 (PR #132 recheck + REAL video-preview fix: yuvj420p→yuv420p — branch `fix/pr132-video-preview-production-player`, PR #134)
+## RESUME HERE — 2026-09-04 (PR #134 owner verification + M13.03 gated Etsy-upload architecture — branch `feature/m13-etsy-video-upload-architecture`, PR #135)
+
+**Part A — PR #134 OWNER-VERIFIED.** Owner generated two new videos: both **play in the in-app player** (result card + Recent Videos Preview), checklist works, **branding text appears inside the MP4**, download works, Upload to Etsy gated, no Etsy upload. Dashboard onboarding confirmed fixed. → **M13.05C promoted `[x]`.** The video preview/player saga is resolved for new renders. (Logo overlay still deferred; old pre-#134 renders may be download-only.)
+
+**Part B — M13.03 gated Etsy-upload architecture shipped (NO live upload).**
+- New flag `ETSY_VIDEO_UPLOAD_ENABLED` (default False) gates `add_video`+`replace_video` at create+apply (closes a prior gap where add_video was ungated).
+- Read-only dry-run endpoint `POST /video-generator/renders/{id}/etsy-upload-intent` (never calls Etsy, never creates a job) powers the modal.
+- Upload-to-Etsy modal rebuilt: listing picker + current video-slot state + add/replace plan + disabled Start + gated copy.
+- Replace stays unsupported (no re-uploadable video backup); logo render deferred (SSRF).
+- 7 new backend tests. No migration. **M13.03 `[~]` — architecture only.**
+
+**Status:** M13.05C `[x]`; M13.03 `[~]` (owner-approved live upload test required for `[x]`); M13.04 `[~]`; M08 deferred. `ETSY_VIDEO_UPLOAD_ENABLED` + `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` both False.
+**Scope compliance:** no subagents/forks.
+**Safety:** no Etsy API call; no live upload; no auto-upload/publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; both media flags untouched (False); no Stripe/env/DNS change; no secrets; Private Beta unchanged; M08 not started.
+
+**Next owner action:**
+1. Review the Upload to Etsy modal on `/video-generator` (result card or Recent Videos → Upload to Etsy): confirm it shows the target-listing picker, current video-slot state, planned Add/Replace, and a **disabled** Start button with clear "not enabled yet / never auto-uploaded" copy.
+2. **Do NOT enable `ETSY_VIDEO_UPLOAD_ENABLED`** and do not run a live Etsy upload yet.
+3. When ready for the first live test, follow `docs/operations/OWNER_MEDIA_VIDEO_RUNBOOK.md` → "Owner-only Etsy video upload test plan" (sacrificial listing, add-video-only, screenshots, stop conditions). Only then can M13.03 move toward `[x]`.
+
+---
+
+## Previously — 2026-09-04 (PR #132 recheck + REAL video-preview fix: yuvj420p→yuv420p — branch `fix/pr132-video-preview-production-player`, PR #134, merge `fc163f79`)
 
 **Owner rechecked PR #132: dashboard onboarding PASS; in-app player STILL FAILED** ("Preview could not load"). The CSP fix was real but not the cause.
 

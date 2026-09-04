@@ -152,6 +152,16 @@ class Settings(BaseSettings):
     # additive-only (no existing media destroyed) and are never gated here.
     MEDIA_DESTRUCTIVE_ACTIONS_ENABLED: bool = False
 
+    # M13.03 — Etsy listing VIDEO upload (add_video / replace_video) sends a
+    # generated MP4 to a real live Etsy listing. Dedicated gate, separate from
+    # MEDIA_DESTRUCTIVE_ACTIONS_ENABLED, so video upload stays off even if image
+    # destructive ops are later enabled. Default False until an owner performs
+    # an explicit, approved live upload test on a sacrificial listing.
+    # replace_video ALSO requires MEDIA_DESTRUCTIVE_ACTIONS_ENABLED (it destroys
+    # the current video); add_video requires only this flag. Claude/Codex must
+    # never set this True in production.
+    ETSY_VIDEO_UPLOAD_ENABLED: bool = False
+
     # Email delivery (password reset, contact form). "disabled" is the safe
     # default — no email is ever sent, callers get a clear not-configured
     # result instead of a crash. "smtp" enables generic SMTP delivery.

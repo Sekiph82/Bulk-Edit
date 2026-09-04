@@ -104,8 +104,15 @@ def _enable_destructive_media_actions():
     flag for the whole file — these tests exercise the destructive-operation
     code paths themselves, not production safety, which is covered
     separately by test_media_destructive_actions_disabled_by_default() and
-    friends."""
-    with patch("app.services.bulk_edit_media.settings.MEDIA_DESTRUCTIVE_ACTIONS_ENABLED", True):
+    friends.
+
+    M13.03: add_video/replace_video are additionally gated behind
+    settings.ETSY_VIDEO_UPLOAD_ENABLED (default False). Same reasoning — these
+    tests mock Etsy and exercise the upload mechanics, so enable it here; the
+    production gate is covered separately (test_media_add_video_gated_by_flag in
+    test_video_generator.py)."""
+    with patch("app.services.bulk_edit_media.settings.MEDIA_DESTRUCTIVE_ACTIONS_ENABLED", True), \
+         patch("app.services.bulk_edit_media.settings.ETSY_VIDEO_UPLOAD_ENABLED", True):
         yield
 
 
@@ -1329,8 +1336,9 @@ async def test_create_destructive_media_job_blocked_when_flag_disabled(client, d
 
 
 async def test_create_add_image_job_not_blocked_when_destructive_disabled(client, db_session):
-    """add_image/add_video are additive-only — never gated, regardless of
-    the flag, since nothing existing is ever destroyed."""
+    """add_image is additive-only and never gated by MEDIA_DESTRUCTIVE_ACTIONS_ENABLED.
+    (add_video is additive too but is separately gated by ETSY_VIDEO_UPLOAD_ENABLED
+    since M13.03 — see test_media_add_video_gated_by_flag; this test covers add_image.)"""
     token = await _register_and_login(client, {
         "email": "maddok@example.com", "password": "password123",
         "full_name": "AddOK", "organization_name": "AddOK Org",
