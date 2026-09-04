@@ -45,7 +45,6 @@ _FONT_CANDIDATES = (
     "/usr/share/fonts/TTF/DejaVuSans.ttf",
 )
 
-_BRANDING_TEXT_FIELDS = ("headline", "slogan", "cta", "outro")
 _BRANDING_MAX_LEN = {"headline": 60, "slogan": 80, "cta": 30, "outro": 80}
 _HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
@@ -285,6 +284,8 @@ async def render_slideshow_mp4(
                 try:
                     os.unlink(_tmp)
                 except OSError:
+                    # Best-effort temp cleanup — a leftover scratch file must
+                    # never mask a real render result or raise from finally.
                     pass
 
 

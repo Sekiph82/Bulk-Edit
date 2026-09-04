@@ -43,7 +43,10 @@ def test_text_builds_drawtext_with_textfile_and_expansion_none(tmp_path):
     assert "fontcolor=#112233" in joined
     # textfiles actually written with the sanitized content
     assert len(files) == 2
-    contents = "".join(open(f, encoding="utf-8").read() for f in files)
+    contents = ""
+    for f in files:
+        with open(f, encoding="utf-8") as fh:
+            contents += fh.read()
     assert "Handmade Mug" in contents and "Shop now" in contents
 
 
@@ -56,7 +59,9 @@ def test_injection_text_goes_to_file_not_command(tmp_path):
     assert len(filters) == 1
     # The evil string is in the file, not the filter args.
     assert "PWNED" not in filters[0]
-    assert "PWNED" in open(files[0], encoding="utf-8").read()
+    with open(files[0], encoding="utf-8") as fh:
+        file_content = fh.read()
+    assert "PWNED" in file_content
 
 
 def test_sanitize_strips_control_chars_and_clamps():
