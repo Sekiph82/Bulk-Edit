@@ -30,6 +30,128 @@ class RenderError(Exception):
     pass
 
 
+# --- Branding overlay (M13.05C) --------------------------------------------
+
+import re
+
+# Candidate system fonts (Linux prod containers). Logo is NOT rendered
+# server-side — fetching arbitrary logo URLs is an SSRF risk with no safe
+# allowlist/proxy yet, so logo stays preview-only (see docs/runbook).
+_FONT_CANDIDATES = (
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/TTF/DejaVuSans.ttf",
+)
+
+_BRANDING_TEXT_FIELDS = ("headline", "slogan", "cta", "outro")
+_BRANDING_MAX_LEN = {"headline": 60, "slogan": 80, "cta": 30, "outro": 80}
+_HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def find_branding_font() -> str | None:
+    """First existing system font, or None. Text overlay is skipped (not
+    failed) when no font is available."""
+    for path in _FONT_CANDIDATES:
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def sanitize_branding_text(value: object, field: str) -> str:
+    """Strip control chars and clamp to the field's max length. The result is
+    written to a drawtext *textfile* (never the command line) and drawn with
+    expansion=none, so it cannot inject ffmpeg options — this is defense in
+    depth on top of that."""
+    if not isinstance(value, str):
+        return ""
+    cleaned = "".join(ch for ch in value if ch == "\n" or (ord(ch) >= 32 and ch != "\x7f"))
+    cleaned = cleaned.strip()
+    return cleaned[: _BRANDING_MAX_LEN.get(field, 80)]
+
+
+def _safe_hex_color(value: object) -> str:
+    if isinstance(value, str) and _HEX_COLOR_RE.match(value):
+        return value
+    return "#FFFFFF"
+
+
+def _escape_ff_path(path: str) -> str:
+    """Escape a filesystem path for use inside an ffmpeg filtergraph option
+    value (forward slashes everywhere; escape the option separator)."""
+    return path.replace("\\", "/").replace(":", "\\:")
+
+
+def build_branding_drawtext(
+    branding: dict | None,
+    width: int,
+    height: int,
+    work_dir: str,
+    render_id: str,
+    font_path: str | None,
+) -> tuple[list[str], list[str]]:
+    """Build drawtext filter strings + the temp textfiles they reference.
+    Returns ([], []) when there is no branding text or no usable font — the
+    caller then renders the plain slideshow unchanged. Text is passed via
+    `textfile=` with `expansion=none`, so user text never touches the command
+    line or filter parser."""
+    if not branding or not font_path:
+        return [], []
+
+    color = _safe_hex_color(branding.get("brand_color"))
+    placement = branding.get("text_placement") or "bottom"
+    font_opt = _escape_ff_path(font_path)
+
+    # Primary block (headline + slogan) and secondary block (cta + outro).
+    primary = [t for t in (sanitize_branding_text(branding.get("headline"), "headline"),
+                           sanitize_branding_text(branding.get("slogan"), "slogan")) if t]
+    secondary = [t for t in (sanitize_branding_text(branding.get("cta"), "cta"),
+                             sanitize_branding_text(branding.get("outro"), "outro")) if t]
+    if not primary and not secondary:
+        return [], []
+
+    fontsize = max(24, int(width * 0.05))
+
+    # Primary block Y by placement; secondary always near the bottom.
+    if placement == "center":
+        primary_y = "(h-text_h)/2"
+    elif placement in ("intro-card", "outro-card"):
+        # MVP: no separate card clip yet — treat as a lower-third overlay.
+        primary_y = "h*0.75"
+    else:  # bottom
+        primary_y = "h*0.78"
+
+    filters: list[str] = []
+    temp_files: list[str] = []
+
+    def _add(lines: list[str], idx: int, y_expr: str) -> None:
+        text = "\n".join(lines)
+        tf = os.path.join(work_dir, f"{render_id}_brand{idx}.txt")
+        with open(tf, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        temp_files.append(tf)
+        filters.append(
+            "drawtext="
+            f"fontfile='{font_opt}':"
+            f"textfile='{_escape_ff_path(tf)}':"
+            "expansion=none:"
+            f"fontcolor={color}:"
+            f"fontsize={fontsize}:"
+            "line_spacing=8:"
+            "box=1:boxcolor=black@0.5:boxborderw=16:"
+            "x=(w-text_w)/2:"
+            f"y={y_expr}"
+        )
+
+    if primary:
+        _add(primary, 0, primary_y)
+    if secondary:
+        _add(secondary, 1, "h*0.90")
+
+    return filters, temp_files
+
+
 def check_ffmpeg(ffmpeg_path: str | None = None) -> tuple[str, str]:
     """Returns (state, message). state: 'disabled' | 'dependency_missing' | 'working'."""
     if not settings.VIDEO_RENDERER_ENABLED:
@@ -52,11 +174,18 @@ async def render_slideshow_mp4(
     aspect_ratio: str = "9:16",
     title_text: str | None = None,
     ffmpeg_path: str | None = None,
+    branding: dict | None = None,
 ) -> dict:
     """
     Render a slideshow MP4 from local image paths.
-    Returns dict: {output_path, file_size_bytes, width, height}.
+    Returns dict: {output_path, file_size_bytes, width, height, branding_text_rendered}.
     subprocess args are always a list — shell=True is never used.
+
+    When `branding` carries text fields, they are burned in via ffmpeg
+    drawtext (text passed through a textfile with expansion=none — never the
+    command line). If the overlay attempt fails, or no system font is
+    available, the plain slideshow is rendered instead so generation never
+    breaks; `branding_text_rendered` reports what actually happened.
     """
     state, message = check_ffmpeg(ffmpeg_path)
     if state != "working":
@@ -81,6 +210,7 @@ async def render_slideshow_mp4(
     render_id = str(uuid.uuid4())
     output_path = os.path.join(output_dir, f"{render_id}.mp4")
     concat_path = os.path.join(output_dir, f"{render_id}_concat.txt")
+    branding_text_files: list[str] = []
 
     try:
         with open(concat_path, "w") as f:
@@ -91,36 +221,48 @@ async def render_slideshow_mp4(
             f.write(f"file '{images[-1]}'\n")
 
         _ffmpeg = ffmpeg_path or settings.FFMPEG_PATH or "ffmpeg"
-        vf = (
+        vf_base = (
             f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
             f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black,"
             f"format=yuv420p"
         )
-        cmd = [
-            _ffmpeg,
-            "-y",
-            "-f", "concat",
-            "-safe", "0",
-            "-i", concat_path,
-            "-vf", vf,
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "23",
-            "-movflags", "+faststart",
-            "-an",
-            output_path,
-        ]
+
+        font_path = find_branding_font()
+        drawtext_filters, branding_text_files = build_branding_drawtext(
+            branding, width, height, output_dir, render_id, font_path
+        )
+        vf_branded = vf_base + ("," + ",".join(drawtext_filters) if drawtext_filters else "")
+
+        def _build_cmd(vf: str) -> list[str]:
+            return [
+                _ffmpeg,
+                "-y",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", concat_path,
+                "-vf", vf,
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "23",
+                "-movflags", "+faststart",
+                "-an",
+                output_path,
+            ]
 
         loop = asyncio.get_event_loop()
-        proc_result = await loop.run_in_executor(
-            None,
-            lambda: subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=120,
-            ),
-        )
+
+        def _run(vf: str):
+            return subprocess.run(_build_cmd(vf), capture_output=True, text=True, timeout=120)
+
+        proc_result = await loop.run_in_executor(None, lambda: _run(vf_branded))
+
+        branding_text_rendered = False
+        if drawtext_filters and proc_result.returncode == 0:
+            branding_text_rendered = True
+        elif drawtext_filters and proc_result.returncode != 0:
+            # Graceful degradation: never let a branding-overlay failure break
+            # generation — retry the plain slideshow.
+            proc_result = await loop.run_in_executor(None, lambda: _run(vf_base))
 
         if proc_result.returncode != 0:
             raise RenderError(f"ffmpeg failed (exit {proc_result.returncode}).")
@@ -134,14 +276,16 @@ async def render_slideshow_mp4(
             "file_size_bytes": file_size_bytes,
             "width": width,
             "height": height,
+            "branding_text_rendered": branding_text_rendered,
         }
 
     finally:
-        if os.path.exists(concat_path):
-            try:
-                os.unlink(concat_path)
-            except OSError:
-                pass
+        for _tmp in [concat_path, *branding_text_files]:
+            if _tmp and os.path.exists(_tmp):
+                try:
+                    os.unlink(_tmp)
+                except OSError:
+                    pass
 
 
 def check_ffprobe(ffprobe_path: str | None = None) -> tuple[str, str]:

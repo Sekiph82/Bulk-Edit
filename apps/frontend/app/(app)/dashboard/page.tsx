@@ -44,7 +44,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [shopCount, setShopCount] = useState<number | null>(null);
   const [listingCount, setListingCount] = useState<number | null>(null);
-  const [bulkEditsUsed, setBulkEditsUsed] = useState<number | null>(null);
+  const [hasBulkEdit, setHasBulkEdit] = useState<boolean | null>(null);
   const [healthSummary, setHealthSummary] = useState<ListingHealthSummary | null>(null);
   const [profitSummary, setProfitSummary] = useState<ProfitSummary | null>(null);
   const [actionQueue, setActionQueue] = useState<ActionItem[]>([]);
@@ -78,18 +78,21 @@ export default function DashboardPage() {
       .then((data) => { if (data?.items) setActionQueue(data.items); })
       .catch(() => {});
 
-    fetch(`${BACKEND_URL}/api/v1/billing/usage`, {
+    // Durable, all-time signal for the "Try bulk edit" onboarding step —
+    // NOT the monthly usage counter (which resets each billing period and
+    // regressed this step to unchecked after a rollover).
+    fetch(`${BACKEND_URL}/api/v1/bulk-edit/onboarding-status`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { setBulkEditsUsed(data?.usage?.bulk_edits_used ?? 0); })
-      .catch(() => { setBulkEditsUsed(0); });
+      .then((data) => { setHasBulkEdit(data?.has_completed_bulk_edit === true); })
+      .catch(() => { setHasBulkEdit(false); });
 
     getListingHealthSummary().then(setHealthSummary).catch(() => {});
     getProfitSummary().then(setProfitSummary).catch(() => {});
   }, []);
 
-  const showChecklist = shopCount !== null && listingCount !== null && bulkEditsUsed !== null;
+  const showChecklist = shopCount !== null && listingCount !== null && hasBulkEdit !== null;
 
   return (
     <main className="max-w-7xl mx-auto px-8 py-10">
@@ -101,7 +104,7 @@ export default function DashboardPage() {
       </div>
 
       {showChecklist && (
-        <OnboardingChecklist shopCount={shopCount!} listingCount={listingCount!} bulkEditsUsed={bulkEditsUsed!} />
+        <OnboardingChecklist shopCount={shopCount!} listingCount={listingCount!} hasBulkEdit={hasBulkEdit!} />
       )}
 
       {/* Health + Profit widgets */}

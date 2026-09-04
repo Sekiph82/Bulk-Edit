@@ -12,7 +12,7 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -89,11 +89,72 @@ class TemplatesResponse(BaseModel):
     renderer_available: bool
 
 
+LOGO_POSITIONS = {"top-left", "top-right", "bottom-left", "bottom-right"}
+TEXT_PLACEMENTS = {"bottom", "center", "intro-card", "outro-card"}
+_HEX_COLOR_RE = __import__("re").compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+class BrandingInput(BaseModel):
+    """Optional branding overlay (M13.05C). Text fields are burned into the
+    local MP4 via ffmpeg drawtext; logo_url is accepted/stored but NOT rendered
+    server-side (SSRF risk without a safe allowlist/proxy) — logo stays
+    preview-only. Nothing here is ever uploaded to Etsy."""
+    logo_url: Optional[str] = Field(default=None, max_length=2000)
+    headline: Optional[str] = Field(default=None, max_length=60)
+    slogan: Optional[str] = Field(default=None, max_length=80)
+    outro_text: Optional[str] = Field(default=None, max_length=80)
+    cta_text: Optional[str] = Field(default=None, max_length=30)
+    logo_position: str = Field(default="bottom-right")
+    text_placement: str = Field(default="bottom")
+    brand_color: Optional[str] = Field(default=None)
+
+    @field_validator("logo_position")
+    @classmethod
+    def _valid_logo_position(cls, v: str) -> str:
+        if v not in LOGO_POSITIONS:
+            raise ValueError(f"logo_position must be one of {sorted(LOGO_POSITIONS)}")
+        return v
+
+    @field_validator("text_placement")
+    @classmethod
+    def _valid_text_placement(cls, v: str) -> str:
+        if v not in TEXT_PLACEMENTS:
+            raise ValueError(f"text_placement must be one of {sorted(TEXT_PLACEMENTS)}")
+        return v
+
+    @field_validator("brand_color")
+    @classmethod
+    def _valid_color(cls, v: Optional[str]) -> Optional[str]:
+        if v in (None, ""):
+            return None
+        if not _HEX_COLOR_RE.match(v):
+            raise ValueError("brand_color must be a #RRGGBB hex color")
+        return v
+
+    def has_text(self) -> bool:
+        return any(bool((getattr(self, f) or "").strip())
+                   for f in ("headline", "slogan", "outro_text", "cta_text"))
+
+    def to_render_dict(self) -> dict:
+        """Map to the renderer's branding keys (headline/slogan/cta/outro/…)."""
+        return {
+            "headline": self.headline or "",
+            "slogan": self.slogan or "",
+            "cta": self.cta_text or "",
+            "outro": self.outro_text or "",
+            "brand_color": self.brand_color or "",
+            "text_placement": self.text_placement,
+            "logo_position": self.logo_position,
+            "logo_url": self.logo_url or "",
+        }
+
+
 class RenderRequest(BaseModel):
     template_id: str
     image_urls: list[str]
     aspect_ratio: str = Field(default="9:16")
     duration_seconds: float = Field(default=10.0, ge=1.0, le=60.0)
+    branding: Optional[BrandingInput] = None
 
 
 class RenderResponse(BaseModel):
@@ -123,6 +184,8 @@ class RenderStatusResponse(BaseModel):
     download_url: Optional[str] = None
     created_at: str
     completed_at: Optional[str] = None
+    branding: Optional[dict] = None
+    branding_text_rendered: Optional[bool] = None
 
 
 # --- Static data ---
@@ -250,6 +313,7 @@ async def create_render(
             detail=f"Template '{req.template_id}' is not yet available. Use 'clean_zoom'.",
         )
 
+    branding_dict = req.branding.to_render_dict() if req.branding else None
     render = VideoRender(
         id=str(uuid.uuid4()),
         organization_id=org_id,
@@ -258,6 +322,8 @@ async def create_render(
         image_count=len(req.image_urls),
         aspect_ratio=req.aspect_ratio,
         duration_seconds=req.duration_seconds,
+        branding_json=json.dumps({**branding_dict, "text_rendered": None, "logo_rendered": False})
+        if branding_dict else None,
     )
     db.add(render)
     await db.commit()
@@ -270,6 +336,7 @@ async def create_render(
         image_urls=req.image_urls,
         aspect_ratio=req.aspect_ratio,
         duration_seconds=req.duration_seconds,
+        branding=branding_dict,
     )
 
     return RenderResponse(
@@ -325,6 +392,8 @@ async def list_renders(
             download_url=f"/api/v1/video-generator/renders/{r.id}/download",
             created_at=r.created_at.isoformat(),
             completed_at=r.completed_at.isoformat() if r.completed_at else None,
+            branding=r.get_branding(),
+            branding_text_rendered=(r.get_branding() or {}).get("text_rendered"),
         )
         for r in renders
     ]
@@ -440,6 +509,8 @@ async def upload_video_file(
         download_url=f"/api/v1/video-generator/renders/{render.id}/download",
         created_at=render.created_at.isoformat(),
         completed_at=render.completed_at.isoformat() if render.completed_at else None,
+        branding=render.get_branding(),
+        branding_text_rendered=(render.get_branding() or {}).get("text_rendered"),
     )
 
 
@@ -483,6 +554,8 @@ async def get_render_status(
         download_url=download_url,
         created_at=render.created_at.isoformat(),
         completed_at=render.completed_at.isoformat() if render.completed_at else None,
+        branding=render.get_branding(),
+        branding_text_rendered=(render.get_branding() or {}).get("text_rendered"),
     )
 
 
@@ -522,6 +595,7 @@ async def _run_render(
     image_urls: list[str],
     aspect_ratio: str,
     duration_seconds: float,
+    branding: Optional[dict] = None,
 ) -> None:
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(VideoRender).where(VideoRender.id == render_id))
@@ -545,6 +619,7 @@ async def _run_render(
             output_dir=output_dir,
             duration_seconds=duration_seconds,
             aspect_ratio=aspect_ratio,
+            branding=branding,
         )
 
         output_path = render_result["output_path"]
@@ -572,6 +647,12 @@ async def _run_render(
                 render.is_etsy_ready = is_etsy_ready
                 render.etsy_issues_json = json.dumps(etsy_issues)
                 render.completed_at = datetime.now(timezone.utc)
+                if branding:
+                    render.branding_json = json.dumps({
+                        **branding,
+                        "text_rendered": bool(render_result.get("branding_text_rendered")),
+                        "logo_rendered": False,  # logo overlay not rendered server-side (SSRF)
+                    })
                 await db.commit()
 
     except (RendererNotAvailableError, RenderError) as exc:

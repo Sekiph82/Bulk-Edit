@@ -6,7 +6,29 @@ Append one entry per session. Format: `## [DATE] Sprint N — Summary`
 
 ---
 
-## 2026-09-03 M13.05B video preview + branding foundation; M13.05 owner-verified (PR #130, branch `feature/m13-video-preview-branding-foundation`)
+## 2026-09-04 PR #130 remediation (player + onboarding) + M13.05C branding render (PR #131, branch `fix/pr130-video-preview-dashboard-onboarding-then-branding-render`)
+
+**PR #130 owner check (Phase A).** Owner confirmed on production: branding options card visible + correctly labeled; Download works and the downloaded MP4 plays in Windows; Recent Videos row + gated Upload preserved. **But the in-app `<video>` player — on the result card AND the Recent Videos Preview modal — did not load/play the video in the browser.** Also: dashboard `Get started` showed `2/3`, "Try bulk edit" unchecked despite completed live bulk edits. Recorded truthfully; player NOT owner-verified.
+
+**Phase B — in-app player fix.** Root cause: `VideoPreview` fetches the file as a blob (downloads fine) but `<video>` received a blob whose MIME type came back generic/empty through the proxy and couldn't decode it. Fix: re-wrap the fetched bytes as `new Blob([data], {type:"video/mp4"})` before `createObjectURL`; added `preload="metadata"` and an `onError` fallback ("Preview could not load. Download the video to review it."). Frontend-only — the download endpoint already returns the bytes correctly. Owner recheck pending.
+
+**Phase C — dashboard onboarding regression fix.** "Try bulk edit" was tied to `bulk_edits_used` from `GET /billing/usage`, which is the monthly `UsageCounter` (`period_key`) and resets each billing period → regressed to unchecked after a rollover. New durable backend signal `GET /api/v1/bulk-edit/onboarding-status` → `{has_completed_bulk_edit}` = `EXISTS(BulkEditApplyJob WHERE organization_id=org AND success_count > 0)`: counts succeeded + partially-failed applies, stays true for reverted jobs (revert is a separate RevertJob, never lowers success_count), excludes skipped-only/failed-only and cross-org, survives sign-out/sign-in. Dashboard consumes the boolean; `OnboardingChecklist` prop `bulkEditsUsed:number` → `hasBulkEdit:boolean`.
+
+**Phase D — branding text overlay rendering.** Text branding (headline/slogan/CTA/outro) is burned into the local MP4 via ffmpeg `drawtext`: text passed through a `textfile` with `expansion=none` (never the command line/filter parser → injection-safe), sanitized (control chars stripped, length-clamped), positioned by `text_placement`, colored by validated `brand_color`, over a translucent box; font auto-detected from common system paths. **Graceful degradation:** no font, or an overlay ffmpeg failure, falls back to the plain slideshow so generation never breaks, and `branding_text_rendered=false` is recorded truthfully. **Logo NOT rendered server-side** (SSRF — no safe allowlist/proxy), stays preview-only. New optional `branding` object on the render request (validated enums/color/length → 422), stored on `VideoRender.branding_json` (migration `0029`, additive nullable). Empty branding → byte-identical to existing clean_zoom. Result card + Recent Videos show truthful branding status.
+
+**Tests.** 22 new backend tests: `test_onboarding_status.py` (8 — every completion rule), `test_video_branding.py` (8 — renderer helpers, injection-to-file, sanitize/clamp, color, font contract), `test_video_generator.py` (+6 — branding request validation, stored, no-auto-upload-with-branding). Targeted `test_video_generator.py` 36 passed / 2 pre-existing sandbox failures. Frontend `tsc`/`lint`/`build` clean. `git diff --check` clean; secret scan clean; `tsconfig.tsbuildinfo` stayed untracked.
+
+**Files changed:** backend — `app/api/v1/bulk_edit.py` (onboarding endpoint), `app/api/v1/video_generator.py` (BrandingInput + wiring), `app/services/video_renderer.py` (drawtext), `app/models/video_render.py` (branding_json + getter), `alembic/versions/0029_add_video_render_branding.py`, 3 test files. Frontend — `app/(app)/video-generator/page.tsx`, `app/(app)/dashboard/page.tsx`, `components/onboarding/OnboardingChecklist.tsx`. Docs.
+
+**DB migration:** yes — `0029` (additive nullable `video_renders.branding_json`).
+
+**Scope compliance:** no subagents/forks used.
+
+**Safety:** no Etsy API call; no live video generation by Claude; no Etsy video upload; no auto-upload/publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` untouched; no Stripe/env/DNS change; no secrets; Private Beta unchanged; M08 not started.
+
+---
+
+## 2026-09-03 M13.05B video preview + branding foundation; M13.05 owner-verified (PR #130, merge `f7f10264`, branch `feature/m13-video-preview-branding-foundation`)
 
 **Owner verification (PR #129 flow).** Owner ran the first real production Video Generator test end-to-end: selected a listing's 10 synced photos, read the pre-generation safety panel, confirmed the Generate modal, generated (Queued → Rendering → Ready), saw the completed result card (clean_zoom, 9:16, 10.0s, 10 photos, ~1.1 MB, 1080×1920, MP4 H.264), downloaded a `product_video_…mp4` (~1,148 KB) that **played in Windows**, saw it in Recent Videos, and opened the Upload-to-Etsy gate confirming nothing is sent to Etsy. → **M13.05 local-generation/download/gated-upload UX promoted `[x]`.** Real Etsy upload (M13.03 `[!]`), destructive media (M13.04 `[~]`) unchanged.
 

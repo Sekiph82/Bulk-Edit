@@ -90,6 +90,28 @@ Added 2026-09-03. Still never touches Etsy.
 
 **Stop conditions:** any branding UI implying it will upload/publish to Etsy, any player attempt to reach Etsy, or the Upload button becoming enabled → stop and report. No Etsy upload at any step.
 
+### Part 2c — PR #131 remediation recheck (M13.05C, no upload)
+
+Added 2026-09-04, after PR #130's owner check found the in-app player didn't play and dashboard onboarding regressed.
+
+**Dashboard onboarding:**
+1. Open `/dashboard`. If the "Get started" card still shows, confirm **"Try bulk edit" is checked** and it reads **3/3** (the card auto-hides once all three are done, which is also correct). This now uses durable all-time evidence (any past successful bulk edit, even reverted ones), not the monthly usage counter — so it must not regress after a new billing month.
+
+**In-app player (must now play):**
+2. Open a completed render's result card → the embedded player should **load and actually play** the video in the browser (not a black box).
+3. Confirm "Review the video" checks **only after** you press play.
+4. Recent Videos → **Preview** → the modal player should load and play the same video.
+5. If a player ever shows "Preview could not load," Download still works and the MP4 still plays locally — report it, but it should not happen for a healthy render.
+
+**Branding text render:**
+6. In Branding options, note it now says text branding **will be rendered into the MP4**, logo is **preview-only**.
+7. Enter a headline/slogan/CTA/outro, Generate, then preview the new MP4 in the player → confirm the **text actually appears burned into the video**.
+8. The result card's "Branding" line should read "✓ Text branding rendered into this MP4" (or, if the server has no font, a truthful "not rendered" — report that case). Logo shows "preview-only, not rendered."
+
+**Evidence to capture:** dashboard 3/3 screenshot, player mid-play screenshot, branded-video preview screenshot, result-card branding-status screenshot.
+
+**Stop conditions:** player still not playing after this deploy, dashboard still 2/3 with a real prior bulk edit, branding text claimed rendered but not visible in the MP4, or any Upload-to-Etsy enablement → stop and report. No Etsy upload at any step.
+
 ## Part 3 — Owner-only video upload test plan (future, owner-approved live write)
 
 **Status: NOT yet enabled.** The Video Generator's "Upload to Etsy" button is a disabled placeholder. This plan is the procedure to follow *if and when* the owner decides to build/enable a live generated-video upload path. Claude/Codex must never run any step of this — it is owner-initiated only.

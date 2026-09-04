@@ -12,10 +12,10 @@ type Step = {
 type Props = {
   shopCount: number;
   listingCount: number;
-  bulkEditsUsed: number;
+  hasBulkEdit: boolean;
 };
 
-export default function OnboardingChecklist({ shopCount, listingCount, bulkEditsUsed }: Props) {
+export default function OnboardingChecklist({ shopCount, listingCount, hasBulkEdit }: Props) {
   const steps: Step[] = [
     {
       label: "Connect your Etsy shop",
@@ -33,7 +33,7 @@ export default function OnboardingChecklist({ shopCount, listingCount, bulkEdits
       label: "Try bulk edit",
       description: "Edit titles, tags, or prices across many listings at once.",
       href: "/bulk-edit",
-      done: bulkEditsUsed > 0,
+      done: hasBulkEdit,
     },
   ];
 

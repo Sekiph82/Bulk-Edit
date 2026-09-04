@@ -64,6 +64,8 @@ interface RenderStatus {
   created_at: string;
   completed_at: string | null;
   source?: string; // "generated" (Product Video Generator) | "uploaded" (own MP4 file)
+  branding?: Record<string, unknown> | null;
+  branding_text_rendered?: boolean | null;
 }
 
 const FALLBACK_ASPECT_RATIOS: AspectRatioOption[] = [
@@ -422,7 +424,14 @@ function VideoPreview({
       })
       .then((blob) => {
         if (cancelled) return;
-        obj = URL.createObjectURL(blob);
+        // Force video/mp4 so the <video> element decodes it. The download
+        // endpoint returns the file with Content-Disposition: attachment, and
+        // some proxies hand the fetched blob back with a generic/empty MIME
+        // type — which downloads fine but leaves <video> unable to play it.
+        // Re-wrapping with the known type (these are always MP4 H.264) fixes
+        // in-browser playback while download keeps working unchanged.
+        const playable = blob.type === "video/mp4" ? blob : new Blob([blob], { type: "video/mp4" });
+        obj = URL.createObjectURL(playable);
         setUrl(obj);
       })
       .catch(() => {
@@ -437,7 +446,7 @@ function VideoPreview({
   if (err) {
     return (
       <p className="text-xs text-gray-500 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-        Preview unavailable. Download the video to review it.
+        Preview could not load. Download the video to review it.
       </p>
     );
   }
@@ -449,7 +458,9 @@ function VideoPreview({
     <video
       src={url}
       controls
+      preload="metadata"
       onPlay={onReviewed}
+      onError={() => setErr(true)}
       aria-label="Generated product video preview"
       className="w-full max-h-[480px] rounded-lg bg-black"
     />
@@ -524,8 +535,8 @@ function BrandingSection({
     <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
       <div>
         <h2 className="text-sm font-semibold text-gray-900">Branding options</h2>
-        <p className="text-xs px-3 py-2 mt-1 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
-          Branding options are <strong>preview-only in this release</strong> — they are not yet rendered into the MP4, and are never uploaded to Etsy.
+        <p className="text-xs px-3 py-2 mt-1 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
+          <strong>Text branding</strong> (headline, slogan, CTA, outro) <strong>will be rendered into this MP4</strong>. <strong>Logo is preview-only</strong> — logo rendering is still pending. Branding is never uploaded to Etsy.
         </p>
       </div>
 
@@ -596,14 +607,14 @@ function BrandingSection({
 
       {hasAny && (
         <div className="rounded-lg border border-gray-200 p-3 text-xs space-y-0.5">
-          <p className="font-medium text-gray-700">Branding summary (preview-only):</p>
-          {branding.logoUrl && <p className="text-gray-600">Logo: {branding.logoPosition}</p>}
+          <p className="font-medium text-gray-700">Branding summary:</p>
+          {branding.logoUrl && <p className="text-gray-600">Logo: {branding.logoPosition} <span className="text-amber-600">(preview-only, not rendered)</span></p>}
           {branding.headline && <p className="text-gray-600">Headline: “{branding.headline}”</p>}
           {branding.slogan && <p className="text-gray-600">Slogan: “{branding.slogan}”</p>}
           {branding.cta && <p className="text-gray-600">CTA: “{branding.cta}”</p>}
           {branding.outro && <p className="text-gray-600">Outro: “{branding.outro}”</p>}
           <p className="text-gray-600">Text placement: {branding.textPlacement}</p>
-          <p className="text-gray-500">Branding overlay rendering is coming soon.</p>
+          <p className="text-gray-500">Text fields are rendered into the MP4. Logo rendering is pending.</p>
         </div>
       )}
     </div>
@@ -746,6 +757,8 @@ function VideoGeneratorContent() {
     setReviewed(false);
     setDownloaded(false);
     try {
+      const brandingHasText = !!(branding.headline || branding.slogan || branding.outro || branding.cta);
+      const brandingHasAny = brandingHasText || !!branding.logoUrl;
       const r = await authFetch("/api/v1/video-generator/render", {
         method: "POST",
         body: JSON.stringify({
@@ -753,6 +766,18 @@ function VideoGeneratorContent() {
           image_urls: urls,
           aspect_ratio: selectedAspectRatio,
           duration_seconds: durationSeconds,
+          branding: brandingHasAny
+            ? {
+                logo_url: branding.logoUrl || null,
+                headline: branding.headline || null,
+                slogan: branding.slogan || null,
+                outro_text: branding.outro || null,
+                cta_text: branding.cta || null,
+                logo_position: branding.logoPosition,
+                text_placement: branding.textPlacement,
+                brand_color: branding.brandColor || null,
+              }
+            : null,
         }),
       });
       if (r.ok) {
@@ -1037,6 +1062,20 @@ function VideoGeneratorContent() {
                 </div>
 
                 <RenderDetails render={renderJob} />
+
+                {renderJob.branding && (
+                  <div className="rounded-lg border border-gray-200 p-3 text-xs space-y-0.5">
+                    <p className="font-medium text-gray-700">Branding:</p>
+                    <p className={renderJob.branding_text_rendered ? "text-green-700" : "text-gray-500"}>
+                      {renderJob.branding_text_rendered
+                        ? "✓ Text branding rendered into this MP4"
+                        : "Text branding was not rendered (no text provided, or font unavailable)"}
+                    </p>
+                    {typeof renderJob.branding.logo_url === "string" && renderJob.branding.logo_url && (
+                      <p className="text-amber-600">Logo: preview-only, not rendered into the MP4</p>
+                    )}
+                  </div>
+                )}
 
                 {/* In-app video preview/player (M13.05B) */}
                 {renderJob.download_url ? (

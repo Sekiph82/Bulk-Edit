@@ -27,6 +27,8 @@ class VideoRender(Base, TimestampMixin):
     # file_path is server-side only — never returned in API responses
     file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # JSON: applied branding fields + {"text_rendered": bool, "logo_rendered": bool}
+    branding_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     completed_at: Mapped[object] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def get_etsy_issues(self) -> list[str]:
@@ -36,3 +38,12 @@ class VideoRender(Base, TimestampMixin):
             return json.loads(self.etsy_issues_json)
         except (ValueError, TypeError):
             return []
+
+    def get_branding(self) -> dict | None:
+        if self.branding_json is None:
+            return None
+        try:
+            data = json.loads(self.branding_json)
+            return data if isinstance(data, dict) else None
+        except (ValueError, TypeError):
+            return None

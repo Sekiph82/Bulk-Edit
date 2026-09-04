@@ -4,6 +4,20 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-09-04 (PR #130 remediation + M13.05C branding render)
+
+### [PRODUCT] Browser preview/player must be owner-verified separately from download
+Download succeeding (and the MP4 playing in a desktop player) does NOT prove the in-app `<video>` player works — PR #130 shipped with a player that couldn't decode the blob while download was fine. In-app playback is its own acceptance gate and stays `[~]` until an owner rechecks it in the browser.
+
+### [TECH] Generated-video blobs are re-typed to video/mp4 before playback
+The download endpoint returns bytes that download correctly but can come back with a generic/empty MIME type through the proxy, which `<video>` won't decode. The player re-wraps the fetched bytes as `new Blob([data], {type:"video/mp4"})` (these are always MP4 H.264) before `createObjectURL`. Download keeps using the same endpoint unchanged.
+
+### [PRODUCT] Dashboard "Try bulk edit" onboarding must be backend-truth-driven and survive sign-out/sign-in and billing-period rollover
+Tying it to the monthly `UsageCounter` (`bulk_edits_used`) was wrong — it resets each period and regressed the step to unchecked. The durable rule is `EXISTS(BulkEditApplyJob WHERE org AND success_count > 0)`, exposed at `GET /bulk-edit/onboarding-status`. **Reverted successful jobs still count** (a revert never lowers the apply job's success_count); skipped-only/failed-only jobs do not; localStorage is never the source of truth.
+
+### [PRODUCT] Branding text overlays are rendered locally with ffmpeg; logo overlay is deferred
+Text branding (headline/slogan/CTA/outro) is burned into the local MP4 via ffmpeg drawtext — text via a `textfile` with `expansion=none` (injection-safe), degrading to a plain render if no font is available so generation never breaks. **Logo overlay is NOT rendered server-side**: fetching arbitrary logo URLs is an SSRF risk with no safe allowlist/proxy yet, so logo stays preview-only and the UI says so. No external AI/provider; no Etsy upload; branding never implies publishing.
+
 ## 2026-09-03 (M13.05B video preview + branding foundation; M13.05 owner-verified)
 
 ### [PRODUCT] M13.05 local video generation / download / gated-upload UX is owner-verified `[x]`

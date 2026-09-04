@@ -432,3 +432,33 @@ async def export_audit_trail_csv(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/onboarding-status")
+async def bulk_edit_onboarding_status(
+    org_id: str = Depends(get_current_org_id),
+    _user=Depends(require_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Durable, all-time onboarding signal for the dashboard "Try bulk edit"
+    step. True when this org has ever run a Bulk Edit apply with at least one
+    successful item write (`success_count > 0`) — which covers succeeded and
+    partially-failed jobs, and stays true for jobs later reverted (revert is a
+    separate RevertJob and never changes the apply job's success_count). It is
+    org-scoped and NOT tied to the monthly `UsageCounter` (that resets each
+    billing period, which is why the old dashboard signal regressed to
+    unchecked after a period rollover). Skipped-only / failed-only jobs
+    (success_count == 0) do not count."""
+    from sqlalchemy import select as _select
+    from app.models.bulk_edit_apply_job import BulkEditApplyJob
+
+    exists_q = await db.execute(
+        _select(BulkEditApplyJob.id)
+        .where(
+            BulkEditApplyJob.organization_id == org_id,
+            BulkEditApplyJob.success_count > 0,
+        )
+        .limit(1)
+    )
+    has_completed = exists_q.scalar_one_or_none() is not None
+    return {"has_completed_bulk_edit": has_completed}

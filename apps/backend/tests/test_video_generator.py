@@ -649,3 +649,112 @@ async def test_generate_render_does_not_create_media_upload_job(client: AsyncCli
 
     after = (await db_session.execute(select(func.count()).select_from(BulkEditMediaJob))).scalar()
     assert after == before, "Generating a video must not create any media upload job."
+
+
+# --- Branding overlay (M13.05C) ---
+
+@pytest.mark.anyio
+async def test_render_rejects_invalid_logo_position(client: AsyncClient, monkeypatch):
+    monkeypatch.setattr("app.api.v1.video_generator.check_ffmpeg", lambda path=None: ("working", "ok"))
+    token = await _register_and_login(client, "brand_pos@test.com", "BrandPos")
+    resp = await client.post(
+        "/api/v1/video-generator/render",
+        json={"template_id": "clean_zoom", "image_urls": ["https://e/a.jpg"],
+              "aspect_ratio": "9:16", "duration_seconds": 10,
+              "branding": {"logo_position": "middle"}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_render_rejects_invalid_text_placement(client: AsyncClient, monkeypatch):
+    monkeypatch.setattr("app.api.v1.video_generator.check_ffmpeg", lambda path=None: ("working", "ok"))
+    token = await _register_and_login(client, "brand_place@test.com", "BrandPlace")
+    resp = await client.post(
+        "/api/v1/video-generator/render",
+        json={"template_id": "clean_zoom", "image_urls": ["https://e/a.jpg"],
+              "aspect_ratio": "9:16", "duration_seconds": 10,
+              "branding": {"text_placement": "diagonal"}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_render_rejects_bad_brand_color(client: AsyncClient, monkeypatch):
+    monkeypatch.setattr("app.api.v1.video_generator.check_ffmpeg", lambda path=None: ("working", "ok"))
+    token = await _register_and_login(client, "brand_color@test.com", "BrandColor")
+    resp = await client.post(
+        "/api/v1/video-generator/render",
+        json={"template_id": "clean_zoom", "image_urls": ["https://e/a.jpg"],
+              "aspect_ratio": "9:16", "duration_seconds": 10,
+              "branding": {"brand_color": "notacolor"}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_render_rejects_too_long_headline(client: AsyncClient, monkeypatch):
+    monkeypatch.setattr("app.api.v1.video_generator.check_ffmpeg", lambda path=None: ("working", "ok"))
+    token = await _register_and_login(client, "brand_long@test.com", "BrandLong")
+    resp = await client.post(
+        "/api/v1/video-generator/render",
+        json={"template_id": "clean_zoom", "image_urls": ["https://e/a.jpg"],
+              "aspect_ratio": "9:16", "duration_seconds": 10,
+              "branding": {"headline": "x" * 61}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_render_accepts_valid_branding_and_stores_it(client: AsyncClient, db_session, monkeypatch):
+    from app.models.video_render import VideoRender
+    from sqlalchemy import select
+
+    monkeypatch.setattr("app.api.v1.video_generator.check_ffmpeg", lambda path=None: ("working", "ok"))
+    async def _noop_render(**kwargs):
+        return None
+    monkeypatch.setattr("app.api.v1.video_generator._run_render", _noop_render)
+
+    token = await _register_and_login(client, "brand_ok@test.com", "BrandOk")
+    resp = await client.post(
+        "/api/v1/video-generator/render",
+        json={"template_id": "clean_zoom", "image_urls": ["https://e/a.jpg"],
+              "aspect_ratio": "9:16", "duration_seconds": 10,
+              "branding": {"headline": "Handmade Mug", "cta_text": "Shop now",
+                           "text_placement": "bottom", "brand_color": "#123456"}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 202
+    rid = resp.json()["id"]
+    row = (await db_session.execute(select(VideoRender).where(VideoRender.id == rid))).scalar_one()
+    assert row.branding_json is not None
+    assert "Handmade Mug" in row.branding_json
+
+
+@pytest.mark.anyio
+async def test_render_with_branding_does_not_create_media_job(client: AsyncClient, db_session, monkeypatch):
+    """No-auto-upload guarantee holds with branding present."""
+    from app.models.bulk_edit_media_job import BulkEditMediaJob
+    from sqlalchemy import select, func
+
+    monkeypatch.setattr("app.api.v1.video_generator.check_ffmpeg", lambda path=None: ("working", "ok"))
+    async def _noop_render(**kwargs):
+        return None
+    monkeypatch.setattr("app.api.v1.video_generator._run_render", _noop_render)
+
+    token = await _register_and_login(client, "brand_noauto@test.com", "BrandNoAuto")
+    before = (await db_session.execute(select(func.count()).select_from(BulkEditMediaJob))).scalar()
+    resp = await client.post(
+        "/api/v1/video-generator/render",
+        json={"template_id": "clean_zoom", "image_urls": ["https://e/a.jpg"],
+              "aspect_ratio": "9:16", "duration_seconds": 10,
+              "branding": {"headline": "Hello"}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 202
+    after = (await db_session.execute(select(func.count()).select_from(BulkEditMediaJob))).scalar()
+    assert after == before

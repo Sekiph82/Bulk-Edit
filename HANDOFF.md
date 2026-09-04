@@ -2,7 +2,32 @@
 
 Purpose: only what the next session needs to resume safely. For full engineering history, see `CHANGELOG_AI.md`. For current production/environment state, see `PROJECT_STATUS.md`. For durable decisions, see `DECISIONS.md`.
 
-## RESUME HERE — 2026-09-03 (M13.05B video preview + branding foundation; M13.05 owner-verified — branch `feature/m13-video-preview-branding-foundation`, PR #130)
+## RESUME HERE — 2026-09-04 (PR #130 remediation + M13.05C branding render — branch `fix/pr130-video-preview-dashboard-onboarding-then-branding-render`, PR #131)
+
+**Fixed two PR #130 owner-check failures, then rendered branding text into the MP4.**
+
+- **In-app player bug FIXED (Phase B):** the `<video>` player (result card + Recent Videos Preview) didn't play in-browser though Download worked and the MP4 played in Windows. Cause: the fetched blob's MIME type came back generic through the proxy → `<video>` couldn't decode it. Fix: re-type the blob as `video/mp4` before `createObjectURL`, + `onError` fallback. Frontend-only. **Owner recheck pending — not owner-verified yet.**
+- **Dashboard onboarding regression FIXED (Phase C):** "Try bulk edit" was tied to the monthly usage counter (resets each billing period). Now a durable all-time signal `GET /bulk-edit/onboarding-status` (`EXISTS apply job with success_count>0`; reverted jobs still count). Dashboard shows 3/3 once the org has any successful bulk edit.
+- **Branding text overlay RENDERED (Phase D):** headline/slogan/CTA/outro are burned into the MP4 via ffmpeg drawtext (injection-safe textfile, graceful degradation if no font). **Logo stays preview-only (SSRF).** `branding` request object + `VideoRender.branding_json` (migration `0029`). Result card shows truthful branding status.
+
+**DB migration:** `0029` (additive nullable `video_renders.branding_json`).
+**Tests:** 22 new backend tests; frontend tsc/lint/build clean.
+**Scope compliance:** no subagents/forks used.
+**Safety:** no Etsy API call; no live generation by Claude; no Etsy upload; no auto-upload/publish; no production sync; no Bulk Edit Apply/Magic Revert; no live media action; `MEDIA_DESTRUCTIVE_ACTIONS_ENABLED` untouched; no Stripe/env/DNS change; no secrets; Private Beta unchanged; M08 not started.
+
+**Next owner action (after deploy):**
+1. Open `/dashboard` → confirm `Get started` shows **3/3** and "Try bulk edit" is checked.
+2. Open `/video-generator` → open a completed render.
+3. Confirm the in-app player **loads and plays** the video (result card).
+4. Confirm "Review the video" checklist checks **only after playback**.
+5. Open Recent Videos → **Preview** → confirm the modal player loads and plays.
+6. **Download to your computer** → confirm the Download checklist item checks.
+7. Enter headline/slogan/outro/CTA, Generate a new MP4, preview it → confirm the **text branding appears in the video**; logo shows "preview-only, not rendered."
+8. Confirm **Upload to Etsy remains gated**. Do not upload to Etsy.
+
+---
+
+## Previously — 2026-09-03 (M13.05B video preview + branding foundation; M13.05 owner-verified — branch `feature/m13-video-preview-branding-foundation`, PR #130, merge `f7f10264`)
 
 **M13.05 owner-verified → local-generation/download/gated-upload UX promoted `[x]`.** Owner generated + downloaded + played a real MP4 in production and confirmed the Upload-to-Etsy gate sends nothing to Etsy. Real Etsy upload stays M13.03 `[!]`; destructive media stays M13.04 `[~]`.
 
