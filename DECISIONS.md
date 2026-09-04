@@ -4,6 +4,17 @@ Format: `[DATE] [CATEGORY] Decision — Rationale`
 
 ---
 
+## 2026-09-04 (PR #131 in-app video preview CSP hotfix)
+
+### [TECH] `<video>`/`<audio>` need `media-src` in CSP — they do NOT inherit from `img-src`
+The in-app preview player plays a `blob:` object URL (the MP4 is fetched with a bearer token, so a direct `<video src=api>` can't authenticate). The frontend CSP had `img-src ... blob:` but no `media-src`, so media fell back to `default-src 'self'` and Chrome blocked the blob source — the player failed while the download (a `connect-src`/navigation request) worked. Root cause of the PR #130/#131 "preview could not load" reports. Fix: `media-src 'self' blob:`. Any future media element that plays blob/stream URLs must be covered by `media-src`.
+
+### [PROCESS] Download success does NOT prove browser preview success — verify the player path separately
+Twice now a "fix" was shipped believing MIME typing was the issue when the actual blocker was CSP. Download and in-app playback travel different browser enforcement paths (connect-src vs media-src) and different code. The player must be verified in a real browser, and must not be removed/hidden as a workaround.
+
+### [TECH] Generated MP4 must stay browser-playback-safe
+The renderer already emits H.264 + `yuv420p` + `-movflags +faststart`; combined with the blob-in-memory delivery, no byte-range/stream endpoint is required for the current preview. Keep faststart if the delivery ever changes to progressive streaming.
+
 ## 2026-09-04 (PR #130 remediation + M13.05C branding render)
 
 ### [PRODUCT] Browser preview/player must be owner-verified separately from download

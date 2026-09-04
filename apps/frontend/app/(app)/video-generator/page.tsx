@@ -424,6 +424,7 @@ function VideoPreview({
       })
       .then((blob) => {
         if (cancelled) return;
+        if (!blob || blob.size === 0) throw new Error("empty preview");
         // Force video/mp4 so the <video> element decodes it. The download
         // endpoint returns the file with Content-Disposition: attachment, and
         // some proxies hand the fetched blob back with a generic/empty MIME
