@@ -1,0 +1,22 @@
+{
+  "schema": "hiveai-project/v1",
+  "projectKey": "bulk-edit",
+  "displayName": "Bulk-Edit",
+  "repository": "Sekiph82/Bulk-Edit",
+  "trackedBranch": "main",
+  "canonicalTaskSource": "TASKS.md",
+  "rulesSource": ".hiveai/RULES.md",
+  "stateSource": ".hiveai/STATE.json",
+  "handoffSource": ".hiveai/HANDOFF.md",
+  "eventSource": ".hiveai/EVENTS.jsonl",
+  "refresh": {
+    "mode": "watcher-first",
+    "debounceMs": 500,
+    "safetyReconcileSeconds": 60
+  },
+  "git": {
+    "remoteExpected": true,
+    "localGitPreferred": true,
+    "nonGitLocalFolderMustBeReported": true
+  }
+}
