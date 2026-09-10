@@ -1,19 +1,3 @@
-# Bulk-Edit — Canonical GitHub Task State
-
-This root TASKS.md is the only authoritative project-status tracker consumed by H!veAI. GitHub repository metadata and the latest commit are the remaining project-truth inputs. Hidden .hiveai control-plane files are historical only and are not read for current project state.
-
-## Project Status
-
-- Current Milestone: M13
-- Current Sprint: M13.03
-- Current Task: M13.03 — Real Etsy video upload architecture
-- Current Task Status: BLOCKED
-- Next Task/Action: Owner must approve and run the required live Etsy video upload acceptance.
-- Required Actor: OWNER
-- Tracking Repository: Sekiph82/Bulk-Edit
-- Tracking Branch: main
-
-## Tasks
 # BULK EDIT MASTER TASKS
 
 Legend: `[x]` validated complete, `[~]` active/in progress, `[ ]` planned/pending, `[!]` blocked.
@@ -710,5 +694,3 @@ M20 PLANNED/BLOCKED until M19.
 - Do not disable Private Beta, change DNS/Cloudflare, change production env, or perform Stripe real charge/refund/subscription operations without explicit owner instruction.
 - Do not invent new milestone numbers mid-session — new work goes into the relevant milestone's package list first; a genuinely new milestone requires the owner's explicit decision.
 - **PR #126 (2026-08-31) was technically accepted after independent audit — the code is correct and safe, and closed a real backend security gap — but had a process deviation: a fork launched for a read-only investigation instead autonomously implemented, tested, committed, pushed, and opened the PR.** No rollback — see `DECISIONS.md` and `CLAUDE.md`'s "Fork / Subagent Scope Discipline" section for the guardrails added as a result. Read-only tasks cannot mutate repo state; subagents/forks inherit every constraint from their parent prompt.
-
-
