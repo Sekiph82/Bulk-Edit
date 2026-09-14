@@ -1,92 +1,43 @@
-# LIMIT_PROTOCOL.md — Context Limit and Checkpoint Protocol
+# LIMIT_PROTOCOL.md — Checkpoint and Resume Protocol
 
-## Trigger Words
+This repository uses root `TASKS.md` as the only authoritative current-state tracker for H!veAI and agent resume behavior.
 
-When the user says any of these words or phrases, immediately execute the checkpoint protocol:
+## Trigger
 
-- `checkpoint`
-- `limit`
-- `dur`
-- `finish session`
-- `oturumu bitir`
+Use this protocol when the user says `checkpoint`, `limit`, `dur`, `finish session`, `oturumu bitir`, or when context/time is running low.
 
-Also execute when:
-- Approaching context window limit (estimated)
-- About to start a task that may not complete in one session
-- User ends the conversation unexpectedly
+## Checkpoint steps
 
----
+1. Stop starting new work and finish only the current safe atomic unit.
+2. Run relevant tests when feasible.
+3. Read root `TASKS.md` and update it only when task truth actually changed:
+   - Current Milestone
+   - Current Sprint
+   - Current Task
+   - Current Task Status
+   - Next Task/Action
+   - Required Actor
+   - Workflow State
+   - Blockers/Waits
+   - matching canonical task row status
+4. Keep Project Status labels plain text and parser-safe. Never bold the labels.
+5. Keep evidence/notes as ordinary bullets. Only genuine canonical task rows may use `[x]`, `[~]`, `[!]`, or `[ ]`.
+6. Append meaningful engineering/session history to `CHANGELOG_AI.md` when warranted.
+7. Append durable architecture/product/process decisions to `DECISIONS.md` when warranted.
+8. Commit/push only when appropriate to the task, branch, and production-deploy safety policy.
 
-## Checkpoint Protocol (Execute in Order)
+## Resume steps
 
-### Step 1 — Stop New Work
-Do not start any new file, function, or task. Finish the current atomic unit only.
+1. Read `CLAUDE.md` or `AGENTS.md` as applicable.
+2. Read root `TASKS.md`.
+3. Resume from its Current Task, Next Task/Action, Required Actor, Workflow State, and Blockers/Waits.
+4. Read `CHANGELOG_AI.md`, `DECISIONS.md`, audits, or Git history only when historical context is needed.
 
-### Step 2 — Run Tests (if possible)
-Run any tests relevant to the current sprint. Document results.
+`PROJECT_STATUS.md` and `HANDOFF.md` are compatibility pointers only. They must not be used as independent resume ledgers.
 
-```bash
-# backend tests
-cd apps/backend && pytest --tb=short -q
+## Safety
 
-# frontend tests
-cd apps/frontend && npm test -- --passWithNoTests
-```
-
-### Step 3 — Update TASKS.md
-- Mark completed tasks as `[x]`
-- Mark in-progress tasks as `[~]`
-- Add any newly discovered tasks
-
-### Step 4 — Update PROJECT_STATUS.md
-- Update current sprint
-- Update blockers
-- Update metrics
-
-### Step 5 — Update HANDOFF.md
-Write:
-- Exact file being worked on when stopped
-- Exact function or section being written
-- Exact next action
-- Exact next prompt for next session
-- Any known issues
-
-### Step 6 — Update CHANGELOG_AI.md
-Append a session summary entry.
-
-### Step 7 — Commit and Push
-
-```bash
-git add .
-git status
-git commit -m "chore: checkpoint — <brief description>"
-git push origin main
-```
-
-If push fails, document exact error in HANDOFF.md.
-
----
-
-## Resume Protocol
-
-At start of next session, read in order:
-
-1. `CLAUDE.md`
-2. `TASKS.md`
-3. `SKILLS.md`
-4. `PROJECT_STATUS.md`
-5. `HANDOFF.md` — find exact resume point
-6. `DECISIONS.md`
-7. `LIMIT_PROTOCOL.md`
-
-Then execute the exact next action from HANDOFF.md.
-
----
-
-## What Never Gets Skipped
-
-Even in emergency limit situations:
-- HANDOFF.md must be updated with exact resume point
-- CHANGELOG_AI.md must get a summary entry
-- TASKS.md must reflect current state
-- Code must be committed (even if incomplete — with a `WIP:` prefix)
+- Do not manufacture acceptance evidence at checkpoint time.
+- Do not promote `[~]`, `[!]`, or `[ ]` to `[x]` only because implementation code exists.
+- Owner-only Etsy live actions remain blocked until explicitly authorized and actually verified.
+- Never expose secrets while recording checkpoint evidence.
