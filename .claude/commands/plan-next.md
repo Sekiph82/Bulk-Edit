@@ -1,39 +1,12 @@
-# /plan-next — Plan the Next Sprint or Task
+# /plan-next
 
-## Instructions for Claude
+Plan only from the canonical root `TASKS.md` ledger.
 
-1. Read TASKS.md — find next sprint marked `[ ] TODO`
-2. Read ARCHITECTURE.md — understand dependencies
-3. Read DECISIONS.md — understand prior constraints
-4. Read PROJECT_STATUS.md — check for blockers
+1. Read `TASKS.md` Project Status, Blockers/Waits, and canonical task rows.
+2. Treat `[~]` as active/partial, `[!]` as blocked, `[ ]` as planned/backlog, and `[x]` as validated complete.
+3. Respect dependencies, owner-only gates, production-write safety, and the Required Actor/Workflow State fields.
+4. Use `ROADMAP.md`, audits, `DECISIONS.md`, and `CHANGELOG_AI.md` only as supporting context.
+5. Do not resurrect completed or historical work unless a new verified defect explicitly reopens it.
+6. When proposing the next executable task, keep its stable task ID and identify the evidence required for closure.
 
-Then produce:
-
-## Plan Format
-
-```
-NEXT SPRINT PLAN: Sprint N — [Name]
-
-Active skills:
-- [skill-id] [skill-name] (primary)
-- [skill-id] [skill-name] (supporting)
-
-Files to inspect first:
-- [file path] — reason
-
-Tasks (in order):
-1. [task description]
-   - Files changed: [list]
-   - Tests: [list]
-2. [task description]
-   ...
-
-Dependencies / blockers:
-- [any credential, API key, or prior task required]
-
-Estimated sessions: [N]
-
-Ready to start? Say 'go' or 'başla'.
-```
-
-Do not begin implementation until user confirms.
+Do not plan from `PROJECT_STATUS.md`, `HANDOFF.md`, or archived `.hiveai` ledgers.
