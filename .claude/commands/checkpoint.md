@@ -1,36 +1,18 @@
-# /checkpoint — Save State and Stop
+# /checkpoint
 
-## Instructions for Claude
+Create a safe H!veAI-compatible checkpoint without creating a second tracker.
 
-Execute immediately when triggered:
+1. Read root `TASKS.md` and `LIMIT_PROTOCOL.md`.
+2. Finish only the current safe atomic unit.
+3. Run relevant tests when feasible.
+4. Update root `TASKS.md` only if project truth changed:
+   - Project Status fields
+   - matching canonical task row
+   - Blockers/Waits
+5. Keep Project Status labels plain text, never Markdown-bolded.
+6. Use only parser-safe task rows: `- [x]`, `- [~]`, `- [!]`, `- [ ]` followed by stable task ID + `—` + title.
+7. Keep evidence as ordinary bullets so H!veAI does not count evidence as tasks.
+8. Append engineering history to `CHANGELOG_AI.md` and durable decisions to `DECISIONS.md` when warranted.
+9. Commit/push only when appropriate to branch and production-deploy policy.
 
-1. **Stop** — do not start any new work
-2. **Run tests** if currently in a coding sprint:
-   ```bash
-   cd apps/backend && pytest --tb=short -q 2>/dev/null || echo "No tests yet"
-   cd apps/frontend && npm test -- --passWithNoTests 2>/dev/null || echo "No tests yet"
-   ```
-3. **Update TASKS.md** — mark completed `[x]`, in-progress `[~]`, blocked `[!]`
-4. **Update PROJECT_STATUS.md** — current sprint, blockers, metrics
-5. **Update HANDOFF.md** — exact file, function, line being worked on; exact next prompt
-6. **Update CHANGELOG_AI.md** — append session summary
-7. **Update DECISIONS.md** — if any decision was made this session
-8. **Commit and push**:
-   ```bash
-   git add .
-   git status
-   git commit -m "chore: checkpoint — <brief description>"
-   git push origin main
-   ```
-9. If push fails — document exact error in HANDOFF.md
-
-## Output Format
-
-After checkpoint:
-```
-CHECKPOINT COMPLETE
-Sprint: [N]
-Last completed: [task]
-Next task: [exact description]
-Push: [success / failed — error]
-```
+Do not update `PROJECT_STATUS.md` or `HANDOFF.md` with duplicated live state. They are compatibility pointers only.
