@@ -1,21 +1,12 @@
-# /continue — Resume From Last Session
+# /continue
 
-## Instructions for Claude
+Resume from the canonical H!veAI tracker.
 
-Execute this on session start:
+1. Read `CLAUDE.md`.
+2. Read root `TASKS.md`.
+3. Read `SKILLS.md` and select the appropriate skill(s).
+4. Resume from `Current Task`, `Next Task/Action`, `Required Actor`, `Workflow State`, and `Blockers/Waits` in root `TASKS.md`.
+5. Inspect `CHANGELOG_AI.md`, `DECISIONS.md`, audits, or Git history only when historical context is needed.
+6. Verify Git branch/status before modifying files.
 
-1. Read CLAUDE.md
-2. Read TASKS.md — identify current sprint and next incomplete task
-3. Read SKILLS.md
-4. Read PROJECT_STATUS.md — note blockers
-5. Read HANDOFF.md — find exact resume point and next prompt
-6. Read DECISIONS.md
-7. Read LIMIT_PROTOCOL.md
-
-Then:
-- State: current sprint, last completed task, next task
-- Select active skills from SKILLS.md
-- List files to inspect before starting
-- Begin the exact task described in HANDOFF.md
-
-Do not ask the user questions. Make decisions and document them in DECISIONS.md.
+Do not derive current state from `PROJECT_STATUS.md`, `HANDOFF.md`, or archived `.hiveai` files. Those are not current trackers.
